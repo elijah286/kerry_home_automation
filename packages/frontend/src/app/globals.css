@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ */
+/* Theme tokens — all UI references these via var(--color-*)          */
+/* Add new themes by adding another [data-theme="..."] block          */
+/* ------------------------------------------------------------------ */
+
+@layer base {
+  :root {
+    /* Light theme (default) */
+    --color-bg: #ffffff;
+    --color-bg-secondary: #f8fafc;
+    --color-bg-card: #ffffff;
+    --color-bg-hover: #f1f5f9;
+    --color-text: #0f172a;
+    --color-text-secondary: #475569;
+    --color-text-muted: #94a3b8;
+    --color-border: #e2e8f0;
+    --color-border-hover: #cbd5e1;
+
+    --color-sidebar-bg: #0f172a;
+    --color-sidebar-text: #cbd5e1;
+    --color-sidebar-text-active: #ffffff;
+    --color-sidebar-active-bg: #1e293b;
+    --color-sidebar-hover: #1e293b;
+
+    --color-accent: #3b82f6;
+    --color-accent-hover: #2563eb;
+    --color-success: #22c55e;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+
+    --color-table-header: #f8fafc;
+    --color-table-row-hover: #f1f5f9;
+    --color-table-stripe: #fafbfc;
+
+    --color-slider-track: #e2e8f0;
+    --color-slider-range: #3b82f6;
+    --color-slider-thumb: #ffffff;
+
+    --radius: 8px;
+    --radius-sm: 4px;
+    --radius-lg: 12px;
+  }
+
+  [data-theme="dark"] {
+    --color-bg: #0f172a;
+    --color-bg-secondary: #1e293b;
+    --color-bg-card: #1e293b;
+    --color-bg-hover: #334155;
+    --color-text: #f1f5f9;
+    --color-text-secondary: #94a3b8;
+    --color-text-muted: #64748b;
+    --color-border: #334155;
+    --color-border-hover: #475569;
+
+    --color-sidebar-bg: #020617;
+    --color-sidebar-text: #94a3b8;
+    --color-sidebar-text-active: #f1f5f9;
+    --color-sidebar-active-bg: #1e293b;
+    --color-sidebar-hover: #0f172a;
+
+    --color-accent: #60a5fa;
+    --color-accent-hover: #3b82f6;
+    --color-success: #4ade80;
+    --color-warning: #fbbf24;
+    --color-danger: #f87171;
+
+    --color-table-header: #1e293b;
+    --color-table-row-hover: #334155;
+    --color-table-stripe: #0f172a;
+
+    --color-slider-track: #334155;
+    --color-slider-range: #60a5fa;
+    --color-slider-thumb: #f1f5f9;
+  }
+
+  /* Base styles */
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: system-ui, -apple-system, sans-serif;
+    margin: 0;
+  }
+
+  * {
+    border-color: var(--color-border);
+  }
+}

@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  /* config options here */
-};
+/** API proxy: `src/app/api/[...path]/route.ts` (streams to backend; avoids rewrite edge cases on large JSON). */
+const nextConfig: NextConfig = {};
 
 export default nextConfig;

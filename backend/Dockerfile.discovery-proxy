@@ -1,0 +1,18 @@
+# Host-network LAN discovery sidecar only — does not run `tsc` for the full API (avoids monorepo build failures in CI/Docker).
+FROM node:22-alpine
+
+WORKDIR /app
+
+COPY package.json ./
+COPY shared/package.json shared/
+COPY backend/package.json backend/
+
+RUN npm install --workspaces
+
+COPY shared/ shared/
+COPY backend/ backend/
+
+WORKDIR /app/backend
+
+EXPOSE 39100
+CMD ["npx", "tsx", "src/discovery-proxy/server.ts"]

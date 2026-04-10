@@ -1,20 +1,19 @@
 {
-  "name": "home-automation",
+  "name": "home-automation-4",
   "private": true,
   "workspaces": [
-    "shared",
-    "backend",
-    "frontend"
+    "packages/shared",
+    "packages/backend",
+    "packages/frontend"
   ],
   "scripts": {
-    "dev": "node scripts/cleanup.mjs && concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "npm run dev --workspace=backend",
-    "dev:frontend": "npm run dev --workspace=frontend",
-    "build": "npm run build --workspace=shared && npm run build --workspace=backend && npm run build --workspace=frontend",
+    "dev": "concurrently --kill-others \"npm run dev -w @ha/shared\" \"npm run dev -w @ha/backend\" \"npm run dev -w @ha/frontend\" \"npm run dev:go2rtc\"",
+    "dev:go2rtc": "bin/go2rtc -config bin/go2rtc.yaml",
+    "dev:backend": "npm run dev -w @ha/backend",
+    "dev:frontend": "npm run dev -w @ha/frontend",
+    "build": "npm run build -w @ha/shared && npm run build -w @ha/backend && npm run build -w @ha/frontend",
     "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down",
-    "db:migrate": "npm run migrate --workspace=backend",
-    "seed": "npm run seed --workspace=backend"
+    "docker:down": "docker compose down"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

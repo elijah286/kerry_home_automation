@@ -1,0 +1,8 @@
+{
+  "/settings/page": "app/settings/page.js",
+  "/cameras/page": "app/cameras/page.js",
+  "/integrations/page": "app/integrations/page.js",
+  "/devices/page": "app/devices/page.js",
+  "/recipes/page": "app/recipes/page.js",
+  "/page": "app/page.js"
+}

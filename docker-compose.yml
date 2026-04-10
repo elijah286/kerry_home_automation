@@ -18,7 +18,6 @@ services:
       POSTGRES_PASSWORD: ha_dev_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/src/db/init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
 
 volumes:

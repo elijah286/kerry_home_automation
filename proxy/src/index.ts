@@ -1,0 +1,39 @@
+import Fastify from 'fastify';
+import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
+import { config } from './config.js';
+import { logger } from './logger.js';
+import { registerHealthRoutes } from './routes/health.js';
+import { registerAuthRoutes } from './routes/auth.js';
+import { registerProxyRoutes } from './routes/proxy.js';
+import { registerSignalingRoutes } from './routes/signaling.js';
+import { tunnelManager } from './tunnel/manager.js';
+import { setupClientWebSocket } from './ws/client-handler.js';
+
+async function main(): Promise<void> {
+  const app = Fastify({ logger: false });
+
+  await app.register(cors, { origin: config.corsOrigins, credentials: true });
+  await app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
+
+  await registerHealthRoutes(app);
+  await registerAuthRoutes(app);
+  await registerSignalingRoutes(app);
+  await registerProxyRoutes(app);
+
+  const address = await app.listen({ port: config.port, host: config.host });
+  logger.info({ address }, 'Proxy server listening');
+
+  tunnelManager.init(app.server);
+  setupClientWebSocket(app.server);
+
+  logger.info('Tunnel and client WebSocket handlers initialized');
+}
+
+process.on('SIGINT', () => process.exit(0));
+process.on('SIGTERM', () => process.exit(0));
+
+main().catch((err) => {
+  logger.fatal({ err }, 'Failed to start proxy');
+  process.exit(1);
+});
