@@ -7,3 +7,7 @@ dist/
 ha_export/
 docker/mosquitto/data/
 docker/mosquitto/log/
+.next/
+packages/frontend/.next/
+packages/shared/dist/
+*.tsbuildinfo
