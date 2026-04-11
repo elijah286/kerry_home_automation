@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useCallback, useSyncExternalStore } from 'react';
-import type { DeviceState, IntegrationId, IntegrationHealth, WsServerMessage } from '@ha/shared';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import type { DeviceState, IntegrationHealth, WsServerMessage } from '@ha/shared';
 
 type Listener = () => void;
 
@@ -9,8 +9,14 @@ class DeviceStore {
   private devices = new Map<string, DeviceState>();
   private integrations: Record<string, IntegrationHealth> = {};
   private listeners = new Set<Listener>();
-  private revision = 0;
   connected = false;
+
+  // Cached array — invalidated only when devices actually change
+  private cachedDevices: DeviceState[] | null = null;
+  // Separate revision counters for different data slices
+  private deviceRevision = 0;
+  private integrationRevision = 0;
+  private connectionRevision = 0;
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -18,13 +24,12 @@ class DeviceStore {
   }
 
   private notify(): void {
-    this.revision++;
     for (const fn of this.listeners) fn();
   }
 
-  getSnapshot(): number {
-    return this.revision;
-  }
+  getDeviceRevision(): number { return this.deviceRevision; }
+  getIntegrationRevision(): number { return this.integrationRevision; }
+  getConnectionRevision(): number { return this.connectionRevision; }
 
   applyMessage(msg: WsServerMessage): void {
     switch (msg.type) {
@@ -32,27 +37,40 @@ class DeviceStore {
         this.devices.clear();
         for (const d of msg.devices) this.devices.set(d.id, d);
         this.integrations = msg.integrations;
+        this.cachedDevices = null;
+        this.deviceRevision++;
+        this.integrationRevision++;
         break;
       case 'device_updated':
         this.devices.set(msg.device.id, msg.device);
+        this.cachedDevices = null;
+        this.deviceRevision++;
         break;
       case 'device_removed':
         this.devices.delete(msg.deviceId);
+        this.cachedDevices = null;
+        this.deviceRevision++;
         break;
       case 'integration_health':
         this.integrations = { ...this.integrations, [msg.id]: msg.health };
+        this.integrationRevision++;
         break;
     }
     this.notify();
   }
 
   setConnected(val: boolean): void {
+    if (this.connected === val) return;
     this.connected = val;
+    this.connectionRevision++;
     this.notify();
   }
 
   getAllDevices(): DeviceState[] {
-    return [...this.devices.values()];
+    if (!this.cachedDevices) {
+      this.cachedDevices = [...this.devices.values()];
+    }
+    return this.cachedDevices;
   }
 
   getDevice(id: string): DeviceState | undefined {
@@ -105,21 +123,37 @@ function connectWs(): void {
   };
 }
 
+/**
+ * Subscribe to device state updates. Re-renders only when devices change.
+ */
 export function useWebSocket() {
-  useEffect(() => {
-    connectWs();
-  }, []);
+  useEffect(() => { connectWs(); }, []);
 
-  const revision = useSyncExternalStore(
+  const deviceRevision = useSyncExternalStore(
     (cb) => store.subscribe(cb),
-    () => store.getSnapshot(),
+    () => store.getDeviceRevision(),
     () => 0,
   );
 
-  return {
-    devices: store.getAllDevices(),
-    integrations: store.getIntegrations(),
-    connected: store.connected,
-    getDevice: (id: string) => store.getDevice(id),
-  };
+  // Stable references — only recompute when deviceRevision changes
+  const devices = useMemo(() => store.getAllDevices(), [deviceRevision]);
+  const getDevice = useMemo(() => (id: string) => store.getDevice(id), [deviceRevision]);
+
+  return { devices, integrations: store.getIntegrations(), connected: store.connected, getDevice };
+}
+
+/**
+ * Subscribe only to connection state. Does NOT re-render on device updates.
+ * Use this in layout components (AppShell, Sidebar) that only need the green/red dot.
+ */
+export function useConnected(): boolean {
+  useEffect(() => { connectWs(); }, []);
+
+  useSyncExternalStore(
+    (cb) => store.subscribe(cb),
+    () => store.getConnectionRevision(),
+    () => 0,
+  );
+
+  return store.connected;
 }

@@ -10,6 +10,7 @@ import { logger } from '../logger.js';
 import { registerRoutes } from './routes.js';
 import { registerWebSocket } from './websocket.js';
 import { registerPaprikaRoutes } from './paprika-routes.js';
+import { registerAlarmRoutes } from './alarm-routes.js';
 
 export async function createServer() {
   const app = Fastify({ logger: false });
@@ -17,8 +18,14 @@ export async function createServer() {
   await app.register(fastifyCors, { origin: true });
   await app.register(fastifyWebsocket);
 
+  // Parse application/sdp as raw text (for WebRTC SDP proxy)
+  app.addContentTypeParser('application/sdp', { parseAs: 'string' }, (_req, body, done) => {
+    done(null, body);
+  });
+
   registerRoutes(app);
   registerWebSocket(app);
+  registerAlarmRoutes(app);
   await registerPaprikaRoutes(app);
 
   return app;

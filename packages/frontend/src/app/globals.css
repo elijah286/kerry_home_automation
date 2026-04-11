@@ -7,6 +7,9 @@
 
 @layer base {
   :root {
+    /* Font size */
+    --font-size-base: 14px;
+
     /* Light theme (default) */
     --color-bg: #ffffff;
     --color-bg-secondary: #f8fafc;
@@ -80,10 +83,26 @@
     background-color: var(--color-bg);
     color: var(--color-text);
     font-family: system-ui, -apple-system, sans-serif;
+    font-size: var(--font-size-base);
     margin: 0;
   }
 
   * {
     border-color: var(--color-border);
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* LCARS theme structural overrides                                    */
+/* ------------------------------------------------------------------ */
+
+[data-active-theme="lcars"] {
+  font-family: 'Antonio', 'Helvetica Neue', Helvetica, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+[data-active-theme="lcars"] button {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }

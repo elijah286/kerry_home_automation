@@ -1,5 +1,6 @@
 // ---------------------------------------------------------------------------
 // Yamaha MusicCast integration: HTTP polling per receiver
+// Each integration entry = one receiver
 // ---------------------------------------------------------------------------
 
 import type { DeviceCommand, IntegrationHealth } from '@ha/shared';
@@ -10,8 +11,10 @@ import { logger } from '../../logger.js';
 import { CircuitBreaker } from '../../connection/circuit-breaker.js';
 import { getDeviceInfo, getZones, getStatus, musicCastCommand } from './musiccast.js';
 import { mapStatus } from './mapper.js';
+import * as entryStore from '../../db/integration-entry-store.js';
 
 interface ReceiverCtx {
+  entryId: string;
   host: string;
   model: string;
   zones: string[];
@@ -21,23 +24,23 @@ interface ReceiverCtx {
 
 export class YamahaIntegration implements Integration {
   readonly id = 'yamaha' as const;
-  private receivers = new Map<number, ReceiverCtx>();
+  private receivers = new Map<string, ReceiverCtx>();
   private stopping = false;
 
   async start(): Promise<void> {
-    const hosts = appConfig.yamaha.hosts;
-    if (hosts.length === 0) {
-      logger.warn('No Yamaha hosts configured');
+    const entries = await entryStore.getEntries('yamaha');
+    if (entries.length === 0) {
+      logger.warn('No Yamaha entries configured');
       return;
     }
 
     this.stopping = false;
     const results = await Promise.allSettled(
-      hosts.map((host, idx) => this.connectReceiver(idx, host)),
+      entries.filter((e) => e.enabled).map((entry) => this.connectReceiver(entry.id, entry.config.host)),
     );
 
     const anyOk = results.some((r) => r.status === 'fulfilled');
-    if (!anyOk && hosts.length > 0) {
+    if (!anyOk && entries.length > 0) {
       throw new Error('All Yamaha receivers failed to connect');
     }
   }
@@ -109,21 +112,24 @@ export class YamahaIntegration implements Integration {
     };
   }
 
-  private async connectReceiver(index: number, host: string): Promise<void> {
+  private async connectReceiver(entryId: string, host: string): Promise<void> {
+    if (!host) throw new Error('Yamaha entry missing host');
+
     const info = await getDeviceInfo(host);
     if (!info) throw new Error(`Yamaha receiver at ${host} not reachable`);
 
     const zones = await getZones(host);
     const ctx: ReceiverCtx = {
+      entryId,
       host,
       model: info.model,
       zones,
       pollTimer: null,
       breaker: new CircuitBreaker(5, 30_000),
     };
-    this.receivers.set(index, ctx);
+    this.receivers.set(entryId, ctx);
 
-    logger.info({ host, model: info.model, zones }, 'Yamaha receiver connected');
+    logger.info({ host, model: info.model, zones, entryId }, 'Yamaha receiver connected');
 
     // Initial poll
     await this.pollReceiver(ctx);
@@ -147,7 +153,7 @@ export class YamahaIntegration implements Integration {
         continue;
       }
       ctx.breaker.recordSuccess();
-      const state = mapStatus(ctx.host, ctx.model, zone, status);
+      const state = mapStatus(ctx.host, ctx.model, zone, status, ctx.entryId);
       stateStore.update(state);
     }
   }

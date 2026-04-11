@@ -10,30 +10,25 @@ import type {
   PaprikaGroceryItem,
   PaprikaMeal,
 } from '@ha/shared';
-import { appConfig } from '../config.js';
 import { logger } from '../logger.js';
 import { redis } from '../state/redis.js';
+import * as entryStore from '../db/integration-entry-store.js';
 
 const PAPRIKA_BASE = 'https://www.paprikaapp.com/api/v1/sync';
 const CACHE_PREFIX = 'paprika:';
+// Persistent keys (no TTL) – recipes are stored permanently and diff-synced
+const RECIPE_STORE_KEY = `${CACHE_PREFIX}store:recipes`;      // Hash: uid → JSON recipe
+const RECIPE_HASH_KEY  = `${CACHE_PREFIX}store:recipe_hashes`; // Hash: uid → hash string
 const CACHE_TTL = {
-  recipes_list: 300,
-  recipe_detail: 600,
-  categories: 3600,
-  groceries: 120,
-  meals: 300,
+  groceries: 300,         // 5m – changes often
+  meals: 600,             // 10m
+  categories: 3600,       // 1h
 };
 
 async function getCredentials(): Promise<{ email: string; password: string } | null> {
-  // Database config takes priority, then env vars
-  const { getConfig } = await import('../db/integration-config-store.js');
-  const config = await getConfig('paprika');
-  if (config?.email && config?.password) {
-    return { email: config.email, password: config.password };
-  }
-  if (appConfig.paprika.email && appConfig.paprika.password) {
-    return { email: appConfig.paprika.email, password: appConfig.paprika.password };
-  }
+  const entries = await entryStore.getEntries('paprika');
+  const first = entries.find((e) => e.enabled && e.config.email && e.config.password);
+  if (first) return { email: first.config.email, password: first.config.password };
   return null;
 }
 
@@ -78,34 +73,86 @@ async function guardConfigured(reply: FastifyReply): Promise<boolean> {
 
 export async function registerPaprikaRoutes(app: FastifyInstance): Promise<void> {
 
-  app.get('/api/paprika/recipes', async (_req, reply) => {
-    if (!(await guardConfigured(reply))) return;
-    try {
-      const stubs = await cachedFetch<PaprikaRecipeStub[]>(
-        'recipes', CACHE_TTL.recipes_list, () => paprikaFetch('/recipes/'),
-      );
-      return { recipes: stubs, count: stubs.length };
-    } catch (err) {
-      logger.error({ err }, 'Failed to fetch Paprika recipes');
-      return reply.status(502).send({ error: 'Failed to fetch recipes from Paprika' });
+  // ---------------------------------------------------------------------------
+  // Diff-sync: fetch stub list, compare hashes, only pull changed recipes
+  // ---------------------------------------------------------------------------
+  async function syncRecipes(): Promise<{ added: number; updated: number; removed: number }> {
+    const stubs = await paprikaFetch<PaprikaRecipeStub[]>('/recipes/');
+    const valid = stubs.filter((s) => s.uid && s.hash);
+
+    // Current stored hashes
+    const storedHashes = await redis.hgetall(RECIPE_HASH_KEY); // uid → hash
+
+    // Determine what changed
+    const remoteUids = new Set(valid.map((s) => s.uid));
+    const toFetch: PaprikaRecipeStub[] = [];
+    for (const stub of valid) {
+      if (storedHashes[stub.uid] !== stub.hash) {
+        toFetch.push(stub);
+      }
     }
-  });
+    const toRemove = Object.keys(storedHashes).filter((uid) => !remoteUids.has(uid));
+
+    // Fetch new/changed recipes in batches of 50
+    let added = 0;
+    let updated = 0;
+    for (let i = 0; i < toFetch.length; i += 50) {
+      const batch = toFetch.slice(i, i + 50);
+      const results = await Promise.all(
+        batch.map((stub) =>
+          paprikaFetch<PaprikaRecipe>(`/recipe/${stub.uid}/`).catch(() => null),
+        ),
+      );
+      const pipeline = redis.pipeline();
+      for (let j = 0; j < results.length; j++) {
+        const r = results[j];
+        const stub = batch[j];
+        if (!r) continue;
+        if (storedHashes[stub.uid]) updated++; else added++;
+        pipeline.hset(RECIPE_STORE_KEY, stub.uid, JSON.stringify(r));
+        pipeline.hset(RECIPE_HASH_KEY, stub.uid, stub.hash);
+      }
+      await pipeline.exec();
+    }
+
+    // Remove deleted recipes
+    if (toRemove.length > 0) {
+      await redis.hdel(RECIPE_STORE_KEY, ...toRemove);
+      await redis.hdel(RECIPE_HASH_KEY, ...toRemove);
+    }
+
+    await redis.set(`${CACHE_PREFIX}last_sync`, Date.now().toString());
+    logger.info({ added, updated, removed: toRemove.length, total: valid.length }, 'Paprika recipe sync complete');
+    return { added, updated, removed: toRemove.length };
+  }
+
+  // Prevent concurrent syncs
+  let syncInProgress: Promise<{ added: number; updated: number; removed: number }> | null = null;
 
   app.get('/api/paprika/recipes/full', async (_req, reply) => {
     if (!(await guardConfigured(reply))) return;
     try {
-      const stubs = await cachedFetch<PaprikaRecipeStub[]>(
-        'recipes', CACHE_TTL.recipes_list, () => paprikaFetch('/recipes/'),
-      );
-      const recipes = await Promise.all(
-        stubs.filter((s) => s.uid && s.hash).map((stub) =>
-          cachedFetch<PaprikaRecipe>(
-            `recipe:${stub.uid}`, CACHE_TTL.recipe_detail, () => paprikaFetch(`/recipe/${stub.uid}/`),
-          ),
-        ),
-      );
-      const visible = recipes.filter((r) => !r.in_trash);
-      return { recipes: visible, count: visible.length };
+      // Check if we have a local store
+      const storeSize = await redis.hlen(RECIPE_STORE_KEY);
+
+      if (storeSize === 0) {
+        // First load — must do a full sync (blocking)
+        await syncRecipes();
+      } else {
+        // Have cached data — trigger background diff-sync if not already running
+        if (!syncInProgress) {
+          syncInProgress = syncRecipes().finally(() => { syncInProgress = null; });
+        }
+      }
+
+      // Return all stored recipes (excluding trashed)
+      const allEntries = await redis.hvals(RECIPE_STORE_KEY);
+      const recipes: PaprikaRecipe[] = [];
+      for (const json of allEntries) {
+        const r = JSON.parse(json) as PaprikaRecipe;
+        if (!r.in_trash) recipes.push(r);
+      }
+      return { recipes, count: recipes.length };
     } catch (err) {
       logger.error({ err }, 'Failed to fetch full Paprika recipe list');
       return reply.status(502).send({ error: 'Failed to fetch recipes from Paprika' });
@@ -115,9 +162,11 @@ export async function registerPaprikaRoutes(app: FastifyInstance): Promise<void>
   app.get<{ Params: { uid: string } }>('/api/paprika/recipes/:uid', async (req, reply) => {
     if (!(await guardConfigured(reply))) return;
     try {
-      const recipe = await cachedFetch<PaprikaRecipe>(
-        `recipe:${req.params.uid}`, CACHE_TTL.recipe_detail, () => paprikaFetch(`/recipe/${req.params.uid}/`),
-      );
+      const cached = await redis.hget(RECIPE_STORE_KEY, req.params.uid);
+      if (cached) return { recipe: JSON.parse(cached) as PaprikaRecipe };
+      // Fallback: fetch directly
+      const recipe = await paprikaFetch<PaprikaRecipe>(`/recipe/${req.params.uid}/`);
+      await redis.hset(RECIPE_STORE_KEY, req.params.uid, JSON.stringify(recipe));
       return { recipe };
     } catch (err) {
       logger.error({ err, uid: req.params.uid }, 'Failed to fetch Paprika recipe');
@@ -164,10 +213,55 @@ export async function registerPaprikaRoutes(app: FastifyInstance): Promise<void>
     }
   });
 
-  app.post('/api/paprika/refresh', async () => {
-    const keys = await redis.keys(`${CACHE_PREFIX}*`);
-    if (keys.length > 0) await redis.del(...keys);
-    return { ok: true, cleared: keys.length };
+  app.get('/api/paprika/status', async (_req, reply) => {
+    if (!(await guardConfigured(reply))) return;
+    try {
+      const recipeCount = await redis.hlen(RECIPE_STORE_KEY);
+      const lastSync = await redis.get(`${CACHE_PREFIX}last_sync`);
+      return { recipeCount, lastSync: lastSync ? parseInt(lastSync, 10) : null };
+    } catch (err) {
+      logger.error({ err }, 'Failed to fetch Paprika status');
+      return reply.status(502).send({ error: 'Failed to fetch Paprika status' });
+    }
+  });
+
+  app.get<{ Params: { uid: string } }>('/api/paprika/recipes/:uid/photo', async (req, reply) => {
+    if (!(await guardConfigured(reply))) return;
+    try {
+      const creds = await getCredentials();
+      if (!creds) return reply.status(503).send({ error: 'Not configured' });
+      const url = `${PAPRIKA_BASE}/recipe/${req.params.uid}/photo/`;
+      const res = await fetch(url, {
+        headers: { Authorization: authHeaderFrom(creds) },
+      });
+      if (!res.ok) return reply.status(res.status).send({ error: 'Photo not found' });
+      const contentType = res.headers.get('content-type') || 'image/jpeg';
+      void reply.header('Content-Type', contentType);
+      void reply.header('Cache-Control', 'public, max-age=86400');
+      const buffer = Buffer.from(await res.arrayBuffer());
+      return reply.send(buffer);
+    } catch (err) {
+      logger.error({ err, uid: req.params.uid }, 'Failed to fetch Paprika photo');
+      return reply.status(502).send({ error: 'Failed to fetch photo' });
+    }
+  });
+
+  app.post('/api/paprika/refresh', async (_req, reply) => {
+    if (!(await guardConfigured(reply))) return;
+    try {
+      // Clear volatile caches (groceries, meals, categories)
+      const volKeys = await redis.keys(`${CACHE_PREFIX}groceries*`);
+      const mealKeys = await redis.keys(`${CACHE_PREFIX}meals*`);
+      const catKeys = await redis.keys(`${CACHE_PREFIX}categories*`);
+      const toClear = [...volKeys, ...mealKeys, ...catKeys];
+      if (toClear.length > 0) await redis.del(...toClear);
+      // Run a blocking diff-sync for recipes
+      const result = await syncRecipes();
+      return { ok: true, ...result };
+    } catch (err) {
+      logger.error({ err }, 'Failed to refresh Paprika data');
+      return reply.status(502).send({ error: 'Failed to refresh from Paprika' });
+    }
   });
 
   logger.info('Paprika recipe routes registered');

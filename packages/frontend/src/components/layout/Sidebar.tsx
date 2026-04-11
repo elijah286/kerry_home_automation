@@ -6,9 +6,10 @@ import { clsx } from 'clsx';
 import {
   LayoutDashboard,
   Cpu,
-  Puzzle,
   Camera,
   CookingPot,
+  AlarmClock,
+  CalendarDays,
   Settings,
 } from 'lucide-react';
 
@@ -17,7 +18,8 @@ const mainNavItems = [
   { href: '/devices', label: 'Devices', icon: Cpu },
   { href: '/cameras', label: 'Cameras', icon: Camera },
   { href: '/recipes', label: 'Recipes', icon: CookingPot },
-  { href: '/integrations', label: 'Integrations', icon: Puzzle },
+  { href: '/alarms', label: 'Alarms', icon: AlarmClock },
+  { href: '/calendar', label: 'Calendar', icon: CalendarDays },
 ];
 
 const settingsItem = { href: '/settings', label: 'Settings', icon: Settings };

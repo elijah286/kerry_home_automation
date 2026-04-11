@@ -19,6 +19,11 @@ class StateStore {
 
   update(device: DeviceState): void {
     const prev = this.devices.get(device.id);
+    // Preserve user-set fields that integrations don't know about
+    if (prev) {
+      if (prev.displayName && !device.displayName) device.displayName = prev.displayName;
+      if (prev.userAreaId && !device.userAreaId) device.userAreaId = prev.userAreaId;
+    }
     this.devices.set(device.id, device);
     if (!prev || !deepEqual(prev, device)) {
       eventBus.emit('device_updated', { prev, current: device });

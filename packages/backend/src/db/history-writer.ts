@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Buffered state history writer
+// Buffered state history writer with configurable retention
 // ---------------------------------------------------------------------------
 
 import type { DeviceState } from '@ha/shared';
@@ -9,6 +9,8 @@ import { logger } from '../logger.js';
 
 const FLUSH_INTERVAL_MS = 2_000;
 const MAX_BUFFER_SIZE = 100;
+const CLEANUP_INTERVAL_MS = 3_600_000; // hourly
+const DEFAULT_RETENTION_DAYS = 3;
 
 interface HistoryEntry {
   deviceId: string;
@@ -19,6 +21,7 @@ interface HistoryEntry {
 class HistoryWriter {
   private buffer: HistoryEntry[] = [];
   private flushTimer: ReturnType<typeof setInterval> | null = null;
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
   private running = false;
 
   start(): void {
@@ -26,7 +29,6 @@ class HistoryWriter {
     this.running = true;
 
     eventBus.on('device_updated', ({ prev, current }) => {
-      // Only record meaningful state changes (not just lastUpdated bumps)
       if (prev && this.isSignificantChange(prev, current)) {
         this.buffer.push({
           deviceId: current.id,
@@ -38,7 +40,6 @@ class HistoryWriter {
           void this.flush();
         }
       } else if (!prev) {
-        // First time seeing this device — record initial state
         this.buffer.push({
           deviceId: current.id,
           state: this.extractStateSnapshot(current),
@@ -48,6 +49,11 @@ class HistoryWriter {
     });
 
     this.flushTimer = setInterval(() => void this.flush(), FLUSH_INTERVAL_MS);
+    this.cleanupTimer = setInterval(() => void this.cleanup(), CLEANUP_INTERVAL_MS);
+
+    // Run initial cleanup
+    void this.cleanup();
+
     logger.info('State history writer started');
   }
 
@@ -57,7 +63,10 @@ class HistoryWriter {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
     }
-    // Final flush
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
     void this.flush();
   }
 
@@ -80,13 +89,16 @@ class HistoryWriter {
         return (prev as typeof current).power !== current.power
           || (prev as typeof current).volume !== current.volume
           || (prev as typeof current).source !== current.source;
+      case 'camera':
+        return (prev as typeof current).online !== current.online;
+      case 'recipe_library':
+        return (prev as typeof current).recipeCount !== current.recipeCount;
       default:
         return true;
     }
   }
 
   private extractStateSnapshot(device: DeviceState): Record<string, unknown> {
-    // Strip base fields, keep type-specific state
     const { id, name, integration, areaId, lastChanged, lastUpdated, ...state } = device;
     return state;
   }
@@ -99,7 +111,6 @@ class HistoryWriter {
     try {
       await this.ensurePartition();
 
-      // Batch insert
       const values: unknown[] = [];
       const placeholders: string[] = [];
       let idx = 1;
@@ -116,20 +127,62 @@ class HistoryWriter {
       );
     } catch (err) {
       logger.warn({ err, count: batch.length }, 'Failed to write state history batch');
-      // Don't re-queue — accept the data loss to avoid memory growth
+    }
+  }
+
+  /**
+   * Delete history older than retention period.
+   * Uses system_settings default, with per-device overrides from device_settings.
+   */
+  private async cleanup(): Promise<void> {
+    try {
+      // Get system default
+      const { rows: settingsRows } = await query<{ value: unknown }>(
+        `SELECT value FROM system_settings WHERE key = 'history_retention_days'`,
+      );
+      const defaultDays = settingsRows.length > 0
+        ? Number(settingsRows[0].value)
+        : DEFAULT_RETENTION_DAYS;
+
+      // Delete history older than default retention for devices without overrides
+      const { rowCount } = await query(
+        `DELETE FROM state_history
+         WHERE changed_at < NOW() - INTERVAL '1 day' * $1
+           AND device_id NOT IN (
+             SELECT device_id FROM device_settings WHERE history_retention_days IS NOT NULL
+           )`,
+        [defaultDays],
+      );
+
+      // Handle per-device overrides
+      const { rows: overrides } = await query<{ device_id: string; history_retention_days: number }>(
+        `SELECT device_id, history_retention_days FROM device_settings WHERE history_retention_days IS NOT NULL`,
+      );
+
+      for (const override of overrides) {
+        await query(
+          `DELETE FROM state_history WHERE device_id = $1 AND changed_at < NOW() - INTERVAL '1 day' * $2`,
+          [override.device_id, override.history_retention_days],
+        );
+      }
+
+      if ((rowCount ?? 0) > 0 || overrides.length > 0) {
+        logger.info({ deleted: rowCount, overrides: overrides.length }, 'History retention cleanup');
+      }
+    } catch (err) {
+      // Tables may not exist yet on first run
+      logger.debug({ err }, 'History cleanup skipped (tables may not exist yet)');
     }
   }
 
   private lastPartitionCheck = 0;
 
   private async ensurePartition(): Promise<void> {
-    // Only check once per hour
     const now = Date.now();
     if (now - this.lastPartitionCheck < 3_600_000) return;
     this.lastPartitionCheck = now;
 
     try {
-      // Create partition for next month if it doesn't exist
       await query(`
         DO $$
         DECLARE

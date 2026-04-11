@@ -1,0 +1,163 @@
+'use client';
+
+import type { PoolBodyState, PoolPumpState, PoolCircuitState, PoolChemistryState } from '@ha/shared';
+import { sendCommand } from '@/lib/api';
+import { Badge } from '@/components/ui/Badge';
+import { ThrottledSlider } from '@/components/ui/ThrottledSlider';
+
+export function PoolBodyControl({ device }: { device: PoolBodyState }) {
+  const toggle = () => {
+    sendCommand(device.id, { type: 'pool_body', action: device.on ? 'turn_off' : 'turn_on' });
+  };
+
+  const setTemp = (value: number) => {
+    sendCommand(device.id, { type: 'pool_body', action: 'set_setpoint', setPoint: value });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">{device.name}</span>
+        <div className="flex items-center gap-2">
+          {device.heaterOn && <Badge variant="warning">Heating</Badge>}
+          <button
+            onClick={toggle}
+            className="rounded-md px-3 py-1 text-xs font-medium transition-colors"
+            style={{
+              backgroundColor: device.on ? 'var(--color-success)' : 'var(--color-bg-hover)',
+              color: device.on ? '#fff' : 'var(--color-text-secondary)',
+            }}
+          >
+            {device.on ? 'ON' : 'OFF'}
+          </button>
+        </div>
+      </div>
+
+      {/* Current temp */}
+      {device.currentTemp != null && (
+        <div className="flex items-center justify-between text-xs" style={{ color: 'var(--color-text-muted)' }}>
+          <span>Water Temp</span>
+          <span className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+            {device.currentTemp}°F
+          </span>
+        </div>
+      )}
+
+      {/* Setpoint */}
+      {device.setPoint != null && (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            <span>Heat Setpoint</span>
+            <span>{device.setPoint}°F</span>
+          </div>
+          <ThrottledSlider
+            value={device.setPoint}
+            min={60}
+            max={104}
+            onValueCommit={setTemp}
+            throttleMs={500}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function PoolPumpControl({ device }: { device: PoolPumpState }) {
+  const toggle = () => {
+    sendCommand(device.id, { type: 'pool_pump', action: device.on ? 'turn_off' : 'turn_on' });
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">{device.name}</span>
+        <button
+          onClick={toggle}
+          className="rounded-md px-3 py-1 text-xs font-medium transition-colors"
+          style={{
+            backgroundColor: device.on ? 'var(--color-success)' : 'var(--color-bg-hover)',
+            color: device.on ? '#fff' : 'var(--color-text-secondary)',
+          }}
+        >
+          {device.on ? 'ON' : 'OFF'}
+        </button>
+      </div>
+      {device.on && (
+        <div className="flex gap-4 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+          {device.rpm != null && <span>{device.rpm} RPM</span>}
+          {device.watts != null && <span>{device.watts} W</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function PoolCircuitControl({ device }: { device: PoolCircuitState }) {
+  const toggle = () => {
+    sendCommand(device.id, { type: 'pool_circuit', action: device.on ? 'turn_off' : 'turn_on' });
+  };
+
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <span className="text-sm font-medium">{device.name}</span>
+        <span className="ml-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+          {device.circuitFunction}
+        </span>
+      </div>
+      <button
+        onClick={toggle}
+        className="rounded-md px-3 py-1 text-xs font-medium transition-colors"
+        style={{
+          backgroundColor: device.on ? 'var(--color-success)' : 'var(--color-bg-hover)',
+          color: device.on ? '#fff' : 'var(--color-text-secondary)',
+        }}
+      >
+        {device.on ? 'ON' : 'OFF'}
+      </button>
+    </div>
+  );
+}
+
+export function PoolChemistryControl({ device }: { device: PoolChemistryState }) {
+  return (
+    <div className="space-y-2">
+      <span className="text-sm font-medium">{device.name}</span>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        {device.ph != null && (
+          <div className="rounded-md p-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+            <div style={{ color: 'var(--color-text-muted)' }}>pH</div>
+            <div className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+              {device.ph.toFixed(1)}
+            </div>
+          </div>
+        )}
+        {device.orp != null && (
+          <div className="rounded-md p-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+            <div style={{ color: 'var(--color-text-muted)' }}>ORP</div>
+            <div className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+              {device.orp} mV
+            </div>
+          </div>
+        )}
+        {device.saltPpm != null && (
+          <div className="rounded-md p-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+            <div style={{ color: 'var(--color-text-muted)' }}>Salt</div>
+            <div className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+              {device.saltPpm} ppm
+            </div>
+          </div>
+        )}
+        {device.waterTemp != null && (
+          <div className="rounded-md p-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+            <div style={{ color: 'var(--color-text-muted)' }}>Water Temp</div>
+            <div className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+              {device.waterTemp}°F
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

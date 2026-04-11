@@ -22,6 +22,10 @@ class IntegrationRegistry {
     this.integrations.set(integration.id, integration);
   }
 
+  get(id: IntegrationId): Integration | undefined {
+    return this.integrations.get(id);
+  }
+
   async startAll(): Promise<void> {
     const results = await Promise.allSettled(
       [...this.integrations.values()].map(async (i) => {
@@ -62,6 +66,17 @@ class IntegrationRegistry {
       throw new Error(`Integration not found: ${device.integration}`);
     }
     await integration.handleCommand(cmd);
+  }
+
+  async restart(id: IntegrationId): Promise<void> {
+    const integration = this.integrations.get(id);
+    if (!integration) {
+      throw new Error(`Integration not registered: ${id}`);
+    }
+    logger.info({ integration: id }, 'Restarting integration');
+    await integration.stop();
+    await integration.start();
+    this.emitHealth(integration);
   }
 
   getHealthAll(): Record<IntegrationId, IntegrationHealth> {

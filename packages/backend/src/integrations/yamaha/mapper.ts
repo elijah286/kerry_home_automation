@@ -9,6 +9,7 @@ export function mapStatus(
   model: string,
   zone: string,
   status: Record<string, unknown>,
+  entryId?: string,
 ): MediaPlayerState {
   const power = String(status.power ?? 'off');
   const rawVol = typeof status.volume === 'number' ? status.volume : 0;
@@ -31,11 +32,11 @@ export function mapStatus(
     : [];
 
   const suffix = zone === 'main' ? '' : `_${zone}`;
-  const slug = host.replace(/\./g, '_').toLowerCase();
+  const idBase = entryId ?? host.replace(/\./g, '_').toLowerCase();
 
   return {
     type: 'media_player',
-    id: `yamaha.${slug}${suffix}`,
+    id: `yamaha.${idBase}${suffix}`,
     name: `${model}${suffix ? ` ${zone}` : ''}`,
     integration: 'yamaha',
     areaId: null,

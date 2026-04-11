@@ -23,7 +23,7 @@ export function extractZoneId(href: string): string | null {
 }
 
 interface ZoneMeta {
-  bridgeIndex: number;
+  entryId: string;
   zoneId: string;
   name: string;
   areaId: string | null;
@@ -33,7 +33,7 @@ interface ZoneMeta {
 export function makeLightState(meta: ZoneMeta, level: number): LightState {
   return {
     type: 'light',
-    id: `lutron.b${meta.bridgeIndex}.zone.${meta.zoneId}`,
+    id: `lutron.${meta.entryId}.zone.${meta.zoneId}`,
     name: meta.name,
     integration: 'lutron',
     areaId: meta.areaId,
@@ -48,7 +48,7 @@ export function makeLightState(meta: ZoneMeta, level: number): LightState {
 export function makeSwitchState(meta: ZoneMeta, level: number): SwitchState {
   return {
     type: 'switch',
-    id: `lutron.b${meta.bridgeIndex}.zone.${meta.zoneId}`,
+    id: `lutron.${meta.entryId}.zone.${meta.zoneId}`,
     name: meta.name,
     integration: 'lutron',
     areaId: meta.areaId,
@@ -62,7 +62,7 @@ export function makeSwitchState(meta: ZoneMeta, level: number): SwitchState {
 export function makeCoverState(meta: ZoneMeta, position: number): CoverState {
   return {
     type: 'cover',
-    id: `lutron.b${meta.bridgeIndex}.zone.${meta.zoneId}`,
+    id: `lutron.${meta.entryId}.zone.${meta.zoneId}`,
     name: meta.name,
     integration: 'lutron',
     areaId: meta.areaId,
@@ -86,7 +86,7 @@ export function makeFanState(meta: ZoneMeta, fanSpeedStr: string): FanState {
   const speed = FAN_SPEED_MAP[fanSpeedStr.toLowerCase()] ?? 'medium';
   return {
     type: 'fan',
-    id: `lutron.b${meta.bridgeIndex}.zone.${meta.zoneId}`,
+    id: `lutron.${meta.entryId}.zone.${meta.zoneId}`,
     name: meta.name,
     integration: 'lutron',
     areaId: meta.areaId,

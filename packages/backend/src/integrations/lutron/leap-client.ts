@@ -31,6 +31,7 @@ export class LeapClient extends ConnectionManager {
     private readonly bridgeIndex: number,
     private readonly onMessage: LeapMessageHandler,
     private readonly onConnected: () => void,
+    private readonly port?: number,
   ) {
     super({ name: `lutron-bridge-${bridgeIndex}` });
   }
@@ -159,7 +160,7 @@ export class LeapClient extends ConnectionManager {
 
     return {
       host: this.host,
-      port: appConfig.lutron.port,
+      port: this.port ?? appConfig.lutron.defaultPort,
       ca,
       cert,
       key,

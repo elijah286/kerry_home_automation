@@ -21,6 +21,16 @@ export async function sendCommand(deviceId: string, command: Record<string, unkn
   });
 }
 
+export async function updateDeviceSettings(
+  deviceId: string,
+  settings: { display_name?: string | null; area_id?: string | null; history_retention_days?: number | null },
+): Promise<{ ok: boolean }> {
+  return fetchApi(`/api/devices/${encodeURIComponent(deviceId)}/settings`, {
+    method: 'PUT',
+    body: JSON.stringify(settings),
+  });
+}
+
 // Paprika
 import type { PaprikaRecipe, PaprikaCategory, PaprikaGroceryItem, PaprikaMeal } from '@ha/shared';
 
@@ -42,4 +52,39 @@ export async function getPaprikaMeals(): Promise<{ meals: PaprikaMeal[] }> {
 
 export async function refreshPaprika(): Promise<{ ok: boolean; cleared: number }> {
   return fetchApi('/api/paprika/refresh', { method: 'POST' });
+}
+
+export async function getPaprikaStatus(): Promise<{ recipeCount: number; lastSync: number | null }> {
+  return fetchApi('/api/paprika/status');
+}
+
+// Alarms
+import type { Alarm, AlarmCreate, AlarmUpdate } from '@ha/shared';
+
+export async function getAlarms(): Promise<{ alarms: Alarm[] }> {
+  return fetchApi('/api/alarms');
+}
+
+export async function createAlarm(data: AlarmCreate): Promise<{ alarm: Alarm }> {
+  return fetchApi('/api/alarms', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateAlarm(id: string, data: AlarmUpdate): Promise<{ alarm: Alarm }> {
+  return fetchApi(`/api/alarms/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+export async function deleteAlarm(id: string): Promise<{ ok: boolean }> {
+  return fetchApi(`/api/alarms/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function duplicateAlarm(id: string): Promise<{ alarm: Alarm }> {
+  return fetchApi(`/api/alarms/${encodeURIComponent(id)}/duplicate`, { method: 'POST' });
+}
+
+export async function disableAllAlarms(): Promise<{ ok: boolean }> {
+  return fetchApi('/api/alarms/disable-all', { method: 'POST' });
+}
+
+export async function enableAllAlarms(): Promise<{ ok: boolean }> {
+  return fetchApi('/api/alarms/enable-all', { method: 'POST' });
 }

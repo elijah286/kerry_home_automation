@@ -12,12 +12,21 @@ import { connectDb, closeDb } from './db/pool.js';
 import { runMigrations } from './db/migrate.js';
 import { migrateFromRedis } from './db/integration-config-store.js';
 import { historyWriter } from './db/history-writer.js';
+import * as entryStore from './db/integration-entry-store.js';
+import { query } from './db/pool.js';
 
 // Integrations
 import { LutronIntegration } from './integrations/lutron/index.js';
 import { YamahaIntegration } from './integrations/yamaha/index.js';
+import { TeslaIntegration } from './integrations/tesla/index.js';
+import { PentairIntegration } from './integrations/pentair/index.js';
+import { UniFiIntegration } from './integrations/unifi/index.js';
+import { PaprikaIntegration } from './integrations/paprika/index.js';
+import { SonyIntegration } from './integrations/sony/index.js';
+import { WeatherIntegration } from './integrations/weather/index.js';
 
 const REDIS_STATE_KEY = 'ha4:device_state';
+
 
 async function main() {
   logger.info('Starting Home Automation 4.0');
@@ -35,6 +44,23 @@ async function main() {
   // 4. Restore device state from Redis
   const saved = await redis.get(REDIS_STATE_KEY);
   if (saved) stateStore.restore(saved);
+
+  // 4b. Overlay user display names and area assignments from device_settings
+  {
+    const { rows } = await query<{ device_id: string; display_name: string | null; area_id: string | null }>(
+      'SELECT device_id, display_name, area_id FROM device_settings WHERE display_name IS NOT NULL OR area_id IS NOT NULL',
+    );
+    for (const row of rows) {
+      const device = stateStore.get(row.device_id);
+      if (device) {
+        const patched = { ...device };
+        if (row.display_name) patched.displayName = row.display_name;
+        if (row.area_id) patched.userAreaId = row.area_id;
+        stateStore.update(patched);
+      }
+    }
+    if (rows.length > 0) logger.info({ count: rows.length }, 'Applied device display names / area overrides');
+  }
 
   // 5. Persist state to Redis on changes (debounced)
   let persistTimer: ReturnType<typeof setTimeout> | null = null;
@@ -57,13 +83,15 @@ async function main() {
   // 7. Start state history writer
   historyWriter.start();
 
-  // 8. Register and start integrations
-  if (appConfig.lutron.enabled && appConfig.lutron.hosts.length > 0) {
-    registry.register(new LutronIntegration());
-  }
-  if (appConfig.yamaha.enabled && appConfig.yamaha.hosts.length > 0) {
-    registry.register(new YamahaIntegration());
-  }
+  // 8. Register and start all integrations (they no-op if no entries configured)
+  registry.register(new LutronIntegration());
+  registry.register(new YamahaIntegration());
+  registry.register(new TeslaIntegration());
+  registry.register(new PentairIntegration());
+  registry.register(new UniFiIntegration());
+  registry.register(new PaprikaIntegration());
+  registry.register(new SonyIntegration());
+  registry.register(new WeatherIntegration());
 
   await registry.startAll();
 

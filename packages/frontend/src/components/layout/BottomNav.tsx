@@ -7,6 +7,8 @@ import {
   Cpu,
   Camera,
   CookingPot,
+  AlarmClock,
+  CalendarDays,
   Puzzle,
   Settings,
 } from 'lucide-react';
@@ -15,8 +17,8 @@ const navItems = [
   { href: '/', label: 'Home', icon: LayoutDashboard },
   { href: '/devices', label: 'Devices', icon: Cpu },
   { href: '/cameras', label: 'Cameras', icon: Camera },
-  { href: '/recipes', label: 'Recipes', icon: CookingPot },
-  { href: '/integrations', label: 'Integ.', icon: Puzzle },
+  { href: '/alarms', label: 'Alarms', icon: AlarmClock },
+  { href: '/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 

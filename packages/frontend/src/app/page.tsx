@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -30,10 +31,13 @@ function healthVariant(state: string): 'success' | 'warning' | 'danger' | 'defau
 export default function Dashboard() {
   const { devices, integrations, connected } = useWebSocket();
 
-  const counts = new Map<string, number>();
-  for (const d of devices) {
-    counts.set(d.type, (counts.get(d.type) ?? 0) + 1);
-  }
+  const counts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const d of devices) {
+      m.set(d.type, (m.get(d.type) ?? 0) + 1);
+    }
+    return m;
+  }, [devices]);
 
   return (
     <div className="max-w-5xl mx-auto p-4 lg:p-6 space-y-6">
