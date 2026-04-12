@@ -1,0 +1,27 @@
+id: ha-clear-doorbell-video-1690836265363
+name: Clear Doorbell Video
+group: HA Import
+description: 'Imported from Home Assistant (id: 1690836265363).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:01:00'
+    type: device_state
+    deviceId: input_boolean.show_doorbell_camera
+    attribute: state
+  - cron: '*/1 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.show_doorbell_camera
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.show_doorbell_camera
+    deviceId: input_boolean.show_doorbell_camera

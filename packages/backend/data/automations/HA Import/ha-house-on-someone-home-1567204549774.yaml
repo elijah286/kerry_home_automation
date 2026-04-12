@@ -1,0 +1,59 @@
+id: ha-house-on-someone-home-1567204549774
+name: 'House On: Someone Home'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1567204549774).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_boolean.guest_mode
+    attribute: state
+  - cron: '*/1 * * * *'
+    type: time
+  - to: home
+    type: device_state
+    deviceId: person.elijah_kerry
+    attribute: state
+  - to: home
+    type: device_state
+    deviceId: person.meghan_kerry
+    attribute: state
+  - to: home
+    type: device_state
+    deviceId: person.levi_kerry
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.guest_mode
+        attribute: state
+      - op: eq
+        type: device_state
+        value: home
+        deviceId: person.elijah_kerry
+        attribute: state
+      - op: eq
+        type: device_state
+        value: home
+        deviceId: person.meghan_kerry
+        attribute: state
+      - op: eq
+        type: device_state
+        value: home
+        deviceId: person.levi_kerry
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.anyone_home
+    deviceId: input_boolean.anyone_home

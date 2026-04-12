@@ -1,0 +1,78 @@
+id: ha-auto-lights-off-dining-room-1565867391014
+name: 'auto lights off: dining room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565867391014).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.person_in_dining_room
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - type: or
+    conditions:
+      - type: time_window
+        after: '00:00'
+        before: '09:00'
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.dinner_over
+        attribute: state
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.dining_room_chandelier
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_dining_room
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.dining_room_chandelier
+    deviceId: light.dining_room_chandelier
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.motion_in_dining
+    deviceId: input_boolean.motion_in_dining
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.dining_room_chandelier
+        deviceId: light.dining_room_chandelier
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_dining_room
+          attribute: state

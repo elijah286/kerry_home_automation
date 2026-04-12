@@ -1,0 +1,32 @@
+id: ha-v2-put-kids-to-sleep-at-8-45-if-vacation-mode-is-off-1662688383630
+name: 'V2: Put Kids to Sleep at 8:45 if Vacation Mode is Off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1662688383630).'
+enabled: false
+mode: single
+triggers:
+  - cron: 45 20 * * *
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.vacation_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.sleepover_party
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.puts_kids_to_sleep
+    deviceId: input_button.puts_kids_to_sleep

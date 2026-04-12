@@ -1,0 +1,54 @@
+id: ha-play-xbox-turn-on-xbox-1752961541087
+name: 'Play XBOX: Turn on Xbox'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1752961541087).'
+enabled: false
+mode: single
+triggers:
+  - for: '00:00:05'
+    type: device_state
+    deviceId: input_button.play_xbox
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: remote
+          action: turn_on
+          deviceId: remote.left_xbox_remote
+        deviceId: remote.left_xbox_remote
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: media_player.left_xbox
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: media_player
+          action: turn_on
+          deviceId: media_player.elis_xbox
+        deviceId: media_player.elis_xbox
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: media_player.elis_xbox
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: media_player
+          action: turn_on
+          deviceId: media_player.right_xbox
+        deviceId: media_player.right_xbox
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: media_player.right_xbox
+      attribute: state

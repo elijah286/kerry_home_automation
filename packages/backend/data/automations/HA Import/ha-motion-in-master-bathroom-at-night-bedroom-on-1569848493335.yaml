@@ -1,0 +1,35 @@
+id: ha-motion-in-master-bathroom-at-night-bedroom-on-1569848493335
+name: Motion in Master Bathroom at Night Bedroom ON
+group: HA Import
+description: 'Imported from Home Assistant (id: 1569848493335).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: group.master_bedroom
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.master_bathroom_tub
+      brightness: '200'
+    deviceId: light.master_bathroom_tub

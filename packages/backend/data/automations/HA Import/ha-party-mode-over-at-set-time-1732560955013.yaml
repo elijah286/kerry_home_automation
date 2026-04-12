@@ -1,0 +1,102 @@
+id: ha-party-mode-over-at-set-time-1732560955013
+name: Party mode over at set time
+group: HA Import
+description: 'Imported from Home Assistant (id: 1732560955013).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 NaN * * *
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.party_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.auto_party_off
+    attribute: state
+  - type: time_window
+    after: input
+    before: '11:00'
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.movie_systems_off
+    deviceId: input_button.movie_systems_off
+  - type: device_command
+    command:
+      type: timer
+      action: finish
+      deviceId: timer.video_game
+    deviceId: timer.video_game
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.movie_room_main_lights
+    deviceId: light.movie_room_main_lights
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.party_mode
+    deviceId: input_boolean.party_mode
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.end_video_game_time
+    deviceId: input_button.end_video_game_time
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_off
+      deviceId: media_player.sloanes_tv
+    deviceId: media_player.sloanes_tv
+  - type: device_command
+    command:
+      type: timer
+      action: start
+      deviceId: timer.video_game
+    deviceId: timer.video_game
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: Time to go to bed. Screens and internet are shutting off
+      deviceId: ''
+    deviceId: notify.alexa_media
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: alexa_media
+          message: Time to go to bed. Screens and internet are shutting off
+          deviceId: ''
+        deviceId: notify.alexa_media
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: input_boolean.upstairs_vacant
+      attribute: state
+  - type: delay
+    duration: '00:00:05'
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.megneli
+    deviceId: switch.megneli
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.switch_8_60w_restart
+    deviceId: button.switch_8_60w_restart

@@ -1,0 +1,23 @@
+id: ha-v2-dryer-vent-serviced-resets-datetime-1690670384882
+name: 'V2: Dryer Vent Serviced Resets Datetime'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1690670384882).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.reset_dryer_vent_reminder
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_datetime
+      action: set_datetime
+      deviceId: input_datetime.dryer_vent_last_serviced
+    deviceId: input_datetime.dryer_vent_last_serviced
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.dryer_vent_needs_service
+    deviceId: input_boolean.dryer_vent_needs_service

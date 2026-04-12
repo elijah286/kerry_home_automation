@@ -1,0 +1,58 @@
+id: ha-play-movie-tvs-on-1660776591291
+name: 'Play Movie: TVs On'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660776591291).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.play_movie
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: media_player
+          action: turn_on
+          deviceId: media_player.movie_room_tv
+        deviceId: media_player.movie_room_tv
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: media_player.movie_room_tv
+      attribute: state
+  - type: device_command
+    command:
+      type: remote
+      action: send_command
+      command: Home
+      deviceId: remote.movie_room_tv_remote
+    deviceId: remote.movie_room_tv_remote
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.movie_mode
+    deviceId: input_boolean.movie_mode
+  - type: device_command
+    command:
+      type: media_player
+      action: play_media
+      deviceId: media_player.movie_room_tv
+      mediaContentId: Hulu
+      mediaContentType: app
+    deviceId: media_player.movie_room_tv
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_off
+      deviceId: media_player.movie_left_tv
+    deviceId: media_player.movie_left_tv
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_movie_room
+    deviceId: input_boolean.person_in_movie_room

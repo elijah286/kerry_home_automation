@@ -1,0 +1,99 @@
+id: ha-person-clear-guest-room-1733698325650
+name: 'person clear: guest room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733698325650).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.person_in_guest_room
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.guest_room_kiosk_person_occupancy
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.guest_room_kiosk_person_occupancy
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: media_player.32_smart_monitor_m8
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.guest_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.guest_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.guest_room
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.guest_room_kiosk_person_occupancy
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.person_in_guest_room
+        deviceId: input_boolean.person_in_guest_room
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.guest_mode
+          attribute: state
+        - type: not
+          condition:
+            op: eq
+            type: device_state
+            value: Night
+            deviceId: input_select.system_mode
+            attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.person_in_guest_room
+        deviceId: input_boolean.person_in_guest_room
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.guest_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.person_in_guest_room
+          attribute: state

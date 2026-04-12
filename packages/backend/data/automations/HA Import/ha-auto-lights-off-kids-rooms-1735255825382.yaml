@@ -1,0 +1,31 @@
+id: ha-auto-lights-off-kids-rooms-1735255825382
+name: 'auto lights off: kids rooms'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1735255825382).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.upstairs_occupied
+    attribute: state
+  - to: Critical
+    type: device_state
+    deviceId: input_select.power_saving_mode
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.day_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.levis_bedside_lamp
+    deviceId: light.levis_bedside_lamp
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.levis_bedroom_closet_light
+    deviceId: switch.levis_bedroom_closet_light

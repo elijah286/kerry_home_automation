@@ -1,0 +1,49 @@
+id: ha-person-clear-hallway-1732572441019
+name: 'Person clear: hallway'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1732572441019).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.person_in_hallway
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.laundry_room_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.laundry_room_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.laundry_room_door
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.hallway_kiosk_person_occupancy
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.hallway_kiosk_motion
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.person_in_hallway
+    deviceId: input_boolean.person_in_hallway

@@ -1,0 +1,125 @@
+id: ha-person-clear-front-yard-1733720103011
+name: 'Person clear: front yard'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733720103011).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.person_in_front_yard
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.front_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.front_door
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.driveway_frigate_person_occupancy
+        attribute: state
+      - op: eq
+        type: device_state
+        value: undefined
+        deviceId: camera.driveway_frigate
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.front_yard_frigate_person_occupancy
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: camera.front_yard_frigate
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.front_door_frigate_person_occupancy
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: camera.front_door_frigate
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: closed
+        deviceId: cover.white
+        attribute: state
+      - op: eq
+        type: device_state
+        value: open
+        deviceId: cover.white
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: cover.white
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: closed
+        deviceId: cover.red
+        attribute: state
+      - op: eq
+        type: device_state
+        value: open
+        deviceId: cover.red
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: cover.red
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.street_frigate_person_occupancy
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: camera.street_frigate
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.person_in_front_yard
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.driveway_person_detected
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.person_in_front_yard
+    deviceId: input_boolean.person_in_front_yard

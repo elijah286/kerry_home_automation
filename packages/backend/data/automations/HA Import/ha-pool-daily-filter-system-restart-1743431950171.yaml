@@ -1,0 +1,53 @@
+id: ha-pool-daily-filter-system-restart-1743431950171
+name: 'Pool: daily filter system restart'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1743431950171).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 7 * * *
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.grid_offline
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.pool_heater
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.high_speed
+    deviceId: switch.high_speed
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.pool
+    deviceId: switch.pool
+  - type: device_command
+    command:
+      type: water_heater
+      action: set_operation_mode
+      deviceId: water_heater.pool
+    deviceId: water_heater.pool
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.cleaner
+        deviceId: switch.cleaner
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: input_boolean.auto_pool_cleaner
+      attribute: state

@@ -1,0 +1,26 @@
+id: ha-volume-level-warning-upstairs-1717821283666
+name: Volume level warning upstairs
+group: HA Import
+description: 'Imported from Home Assistant (id: 1717821283666).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.volume_warning
+    attribute: state
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.75
+      deviceId: media_player.movie_room_echo
+    deviceId: media_player.movie_room_echo
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: 'Listen up boys. I can hear you in the bedroom. Quiet. Down. Now. '
+      deviceId: ''
+    deviceId: notify.alexa_media

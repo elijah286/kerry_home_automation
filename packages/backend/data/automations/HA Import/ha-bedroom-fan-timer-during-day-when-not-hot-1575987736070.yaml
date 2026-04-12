@@ -1,0 +1,35 @@
+id: ha-bedroom-fan-timer-during-day-when-not-hot-1575987736070
+name: Bedroom fan timer during day when not hot
+group: HA Import
+description: 'Imported from Home Assistant (id: 1575987736070).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:30:00'
+    type: device_state
+    deviceId: fan.master_bedroom_ceiling_fan
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.night_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.late_evening_mode
+    attribute: state
+  - op: lt
+    type: device_state
+    value: 80
+    deviceId: sensor.home_realfeel_temperature
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.master_bedroom_ceiling_fan
+    deviceId: fan.master_bedroom_ceiling_fan

@@ -9,9 +9,10 @@ import {
   Loader2,
   AlarmClock,
   CookingPot,
+  CalendarRange,
 } from 'lucide-react';
-import { getAlarms, getPaprikaMeals } from '@/lib/api';
-import type { Alarm, PaprikaMeal } from '@ha/shared';
+import { getAlarms, getPaprikaMeals, getCalendarFeeds } from '@/lib/api';
+import type { Alarm, PaprikaMeal, IcalCalendarEvent, IcalFeedSnapshot } from '@ha/shared';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_NAMES = [
@@ -20,7 +21,8 @@ const MONTH_NAMES = [
 ];
 
 interface CalendarEvent {
-  type: 'alarm' | 'meal';
+  type: 'alarm' | 'meal' | 'ical';
+  icalIntegration?: 'gamechanger' | 'sportsengine';
   label: string;
   time?: string;
   detail?: string;
@@ -45,11 +47,30 @@ function dateKey(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+function dateKeyForIcalEvent(ev: IcalCalendarEvent): string | null {
+  if (ev.allDay) {
+    const d = ev.start.slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+  }
+  const dt = new Date(ev.start);
+  if (Number.isNaN(+dt)) return null;
+  return dateKey(dt.getFullYear(), dt.getMonth(), dt.getDate());
+}
+
+function formatIcalTime(ev: IcalCalendarEvent): string | undefined {
+  if (ev.allDay) return undefined;
+  const dt = new Date(ev.start);
+  if (Number.isNaN(+dt)) return undefined;
+  return `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+}
+
 const DAY_ABBREVS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const EVENT_COLORS: Record<string, string> = {
   alarm: 'var(--color-accent)',
   meal: 'var(--color-success)',
+  ical_gamechanger: '#2563eb',
+  ical_sportsengine: '#7c3aed',
 };
 
 const MEAL_TYPE_LABELS: Record<number, string> = {
@@ -62,6 +83,7 @@ const MEAL_TYPE_LABELS: Record<number, string> = {
 export default function CalendarPage() {
   const [alarms, setAlarms] = useState<Alarm[]>([]);
   const [meals, setMeals] = useState<PaprikaMeal[]>([]);
+  const [icalFeeds, setIcalFeeds] = useState<IcalFeedSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,12 +98,14 @@ export default function CalendarPage() {
     setLoading(true);
     setError(null);
     try {
-      const [alarmRes, mealRes] = await Promise.all([
+      const [alarmRes, mealRes, feedRes] = await Promise.all([
         getAlarms(),
         getPaprikaMeals(),
+        getCalendarFeeds(),
       ]);
       setAlarms(alarmRes.alarms);
       setMeals(mealRes.meals);
+      setIcalFeeds(feedRes.feeds);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -127,8 +151,25 @@ export default function CalendarPage() {
       });
     }
 
+    // GameChanger / SportsEngine (ICS)
+    for (const feed of icalFeeds) {
+      if (feed.integration !== 'gamechanger' && feed.integration !== 'sportsengine') continue;
+      const integ = feed.integration;
+      for (const ev of feed.events) {
+        const key = dateKeyForIcalEvent(ev);
+        if (!key) continue;
+        addEvent(key, {
+          type: 'ical',
+          icalIntegration: integ,
+          label: ev.summary,
+          time: formatIcalTime(ev),
+          detail: [feed.label, ev.location].filter(Boolean).join(' · '),
+        });
+      }
+    }
+
     return map;
-  }, [alarms, meals, viewYear, viewMonth]);
+  }, [alarms, meals, icalFeeds, viewYear, viewMonth]);
 
   const prevMonth = () => {
     if (viewMonth === 0) { setViewYear((y) => y - 1); setViewMonth(11); }
@@ -190,11 +231,25 @@ export default function CalendarPage() {
           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: EVENT_COLORS.meal }} />
           Meals
         </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: EVENT_COLORS.ical_gamechanger }} />
+          GameChanger
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: EVENT_COLORS.ical_sportsengine }} />
+          SportsEngine
+        </span>
       </div>
 
       {error && (
         <div className="rounded-md px-3 py-2 text-sm" style={{ backgroundColor: 'var(--color-danger)', color: '#fff' }}>
           {error}
+        </div>
+      )}
+
+      {icalFeeds.some((f) => f.error) && (
+        <div className="rounded-md px-3 py-2 text-xs" style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', color: 'var(--color-text-secondary)' }}>
+          Some calendar feeds could not be refreshed — check the URL in Integrations or use Restart Integration.
         </div>
       )}
 
@@ -237,6 +292,8 @@ export default function CalendarPage() {
               const isSelected = key === selectedDate;
               const alarmCount = events.filter((e) => e.type === 'alarm').length;
               const mealCount = events.filter((e) => e.type === 'meal').length;
+              const gcCount = events.filter((e) => e.type === 'ical' && e.icalIntegration === 'gamechanger').length;
+              const seCount = events.filter((e) => e.type === 'ical' && e.icalIntegration === 'sportsengine').length;
 
               return (
                 <button
@@ -255,12 +312,18 @@ export default function CalendarPage() {
                     {day}
                   </span>
                   {events.length > 0 && (
-                    <div className="flex gap-0.5 mt-0.5 ml-0.5">
+                    <div className="flex gap-0.5 mt-0.5 ml-0.5 flex-wrap">
                       {alarmCount > 0 && (
                         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: EVENT_COLORS.alarm }} />
                       )}
                       {mealCount > 0 && (
                         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: EVENT_COLORS.meal }} />
+                      )}
+                      {gcCount > 0 && (
+                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: EVENT_COLORS.ical_gamechanger }} />
+                      )}
+                      {seCount > 0 && (
+                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: EVENT_COLORS.ical_sportsengine }} />
                       )}
                     </div>
                   )}
@@ -288,25 +351,33 @@ export default function CalendarPage() {
             </p>
           ) : (
             selectedEvents
-              .sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''))
-              .map((event, i) => (
-                <Card key={i} className="!p-3">
-                  <div className="flex items-start gap-2.5">
-                    <span className="mt-0.5 h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: EVENT_COLORS[event.type] }} />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{event.label}</p>
-                      <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                        {event.time && <span>{formatTime12(event.time)}</span>}
-                        {event.detail && <span>{event.detail}</span>}
-                        <span className="flex items-center gap-0.5">
-                          {event.type === 'alarm' ? <AlarmClock className="h-3 w-3" /> : <CookingPot className="h-3 w-3" />}
-                          {event.type === 'alarm' ? 'Alarm' : 'Meal'}
-                        </span>
+              .sort((a, b) => (a.time ?? '24:00').localeCompare(b.time ?? '24:00'))
+              .map((event, i) => {
+                const dot =
+                  event.type === 'ical' && event.icalIntegration
+                    ? EVENT_COLORS[`ical_${event.icalIntegration}`]
+                    : EVENT_COLORS[event.type];
+                return (
+                  <Card key={i} className="!p-3">
+                    <div className="flex items-start gap-2.5">
+                      <span className="mt-0.5 h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: dot }} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{event.label}</p>
+                        <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                          {event.time && <span>{formatTime12(event.time)}</span>}
+                          {event.detail && <span className="truncate">{event.detail}</span>}
+                          <span className="flex items-center gap-0.5 shrink-0">
+                            {event.type === 'alarm' && <AlarmClock className="h-3 w-3" />}
+                            {event.type === 'meal' && <CookingPot className="h-3 w-3" />}
+                            {event.type === 'ical' && <CalendarRange className="h-3 w-3" />}
+                            {event.type === 'alarm' ? 'Alarm' : event.type === 'meal' ? 'Meal' : event.icalIntegration === 'gamechanger' ? 'GameChanger' : 'SportsEngine'}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </Card>
-              ))
+                  </Card>
+                );
+              })
           )}
         </div>
       </div>

@@ -1,0 +1,33 @@
+id: ha-v2-theme-for-evening-1681142832374
+name: 'V2: Theme for Evening'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1681142832374).'
+enabled: false
+mode: single
+triggers:
+  - to: Evening
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.critical_warning
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.critical_warning
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Evening
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: frontend
+      action: set_theme
+      deviceId: ''
+    deviceId: frontend.set_theme

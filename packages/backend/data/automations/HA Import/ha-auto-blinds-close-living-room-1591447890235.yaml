@@ -1,0 +1,57 @@
+id: ha-auto-blinds-close-living-room-1591447890235
+name: 'auto blinds close: living room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1591447890235).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: Critical
+    type: device_state
+    deviceId: input_select.power_saving_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to: Critical
+    type: device_state
+    deviceId: input_select.power_saving_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.vertical_toggle_control_living_room_v2_2
+    deviceId: switch.vertical_toggle_control_living_room_v2_2
+  - else:
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: create
+          message: Living room window left open
+          deviceId: ''
+        deviceId: persistent_notification.create
+    then:
+      - type: device_command
+        command:
+          type: cover
+          action: close_cover
+          deviceId: ''
+        deviceId: cover.close_cover
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: dismiss
+          deviceId: ''
+        deviceId: persistent_notification.dismiss
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: binary_sensor.living_room
+      attribute: state

@@ -1,0 +1,79 @@
+id: ha-video-games-timer-control-1661383489757
+name: 'Video Games: Timer Control'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1661383489757).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+  - type: device_state
+    deviceId: input_button.play_nintendo
+    attribute: state
+  - type: device_state
+    deviceId: input_button.play_xbox
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.party_mode
+    attribute: state
+  - to: idle
+    type: device_state
+    deviceId: timer.video_game
+    attribute: state
+  - to: 'on'
+    for: '00:10:00'
+    type: device_state
+    deviceId: input_boolean.video_game_time_elapsed
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.video_games_being_played
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.video_game_time_elapsed
+        deviceId: input_boolean.video_game_time_elapsed
+      - type: device_command
+        command:
+          type: notify
+          action: everyone
+          message: Video Game Time Expired
+          deviceId: ''
+        deviceId: notify.everyone
+      - then:
+          - type: device_command
+            command:
+              type: notify
+              action: alexa_media
+              message: You have used all your video game time. You have 10 minutes to save before it will shut off
+              deviceId: ''
+            deviceId: notify.alexa_media
+        type: condition
+        condition:
+          op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.announce_changes_to_video_game_time
+          attribute: state
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: idle
+          deviceId: timer.video_game
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.video_game_time_elapsed
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.party_mode
+          attribute: state

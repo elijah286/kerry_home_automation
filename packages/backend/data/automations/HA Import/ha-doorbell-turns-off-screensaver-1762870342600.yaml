@@ -1,0 +1,19 @@
+id: ha-doorbell-turns-off-screensaver-1762870342600
+name: Doorbell turns off screensaver
+group: HA Import
+description: 'Imported from Home Assistant (id: 1762870342600).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: input_boolean.show_doorbell_camera
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.kiosk_screensaver
+    deviceId: input_boolean.kiosk_screensaver

@@ -1,0 +1,36 @@
+id: ha-auto-fan-off-powder-room-1630860014881
+name: 'auto fan off: powder room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1630860014881).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - type: or
+    conditions:
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: input_boolean.person_in_powder_room
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'on'
+            deviceId: switch.downstairs_guest_bathroom_exhaust_fan
+            attribute: state
+      - op: eq
+        type: device_state
+        value: Critical
+        deviceId: input_select.power_saving_mode
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.downstairs_guest_bathroom_exhaust_fan
+    deviceId: switch.downstairs_guest_bathroom_exhaust_fan

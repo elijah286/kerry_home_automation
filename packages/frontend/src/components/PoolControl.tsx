@@ -2,13 +2,15 @@
 
 import type { PoolBodyState, PoolPumpState, PoolCircuitState, PoolChemistryState } from '@ha/shared';
 import { sendCommand } from '@/lib/api';
+import { useCommand } from '@/hooks/useCommand';
+import { ButtonSpinner } from '@/components/ui/ButtonSpinner';
 import { Badge } from '@/components/ui/Badge';
 import { ThrottledSlider } from '@/components/ui/ThrottledSlider';
 
 export function PoolBodyControl({ device }: { device: PoolBodyState }) {
-  const toggle = () => {
-    sendCommand(device.id, { type: 'pool_body', action: device.on ? 'turn_off' : 'turn_on' });
-  };
+  const { send, isPending } = useCommand(device.id);
+  const toggle = () => send('toggle', { type: 'pool_body', action: device.on ? 'turn_off' : 'turn_on' });
+  const busy = isPending('toggle');
 
   const setTemp = (value: number) => {
     sendCommand(device.id, { type: 'pool_body', action: 'set_setpoint', setPoint: value });
@@ -22,13 +24,15 @@ export function PoolBodyControl({ device }: { device: PoolBodyState }) {
           {device.heaterOn && <Badge variant="warning">Heating</Badge>}
           <button
             onClick={toggle}
+            disabled={busy}
             className="rounded-md px-3 py-1 text-xs font-medium transition-colors"
             style={{
               backgroundColor: device.on ? 'var(--color-success)' : 'var(--color-bg-hover)',
               color: device.on ? '#fff' : 'var(--color-text-secondary)',
+              opacity: busy ? 0.7 : 1,
             }}
           >
-            {device.on ? 'ON' : 'OFF'}
+            {busy ? <ButtonSpinner /> : device.on ? 'ON' : 'OFF'}
           </button>
         </div>
       </div>
@@ -64,9 +68,9 @@ export function PoolBodyControl({ device }: { device: PoolBodyState }) {
 }
 
 export function PoolPumpControl({ device }: { device: PoolPumpState }) {
-  const toggle = () => {
-    sendCommand(device.id, { type: 'pool_pump', action: device.on ? 'turn_off' : 'turn_on' });
-  };
+  const { send, isPending } = useCommand(device.id);
+  const toggle = () => send('toggle', { type: 'pool_pump', action: device.on ? 'turn_off' : 'turn_on' });
+  const busy = isPending('toggle');
 
   return (
     <div className="space-y-2">
@@ -74,13 +78,15 @@ export function PoolPumpControl({ device }: { device: PoolPumpState }) {
         <span className="text-sm font-medium">{device.name}</span>
         <button
           onClick={toggle}
+          disabled={busy}
           className="rounded-md px-3 py-1 text-xs font-medium transition-colors"
           style={{
             backgroundColor: device.on ? 'var(--color-success)' : 'var(--color-bg-hover)',
             color: device.on ? '#fff' : 'var(--color-text-secondary)',
+            opacity: busy ? 0.7 : 1,
           }}
         >
-          {device.on ? 'ON' : 'OFF'}
+          {busy ? <ButtonSpinner /> : device.on ? 'ON' : 'OFF'}
         </button>
       </div>
       {device.on && (
@@ -94,9 +100,9 @@ export function PoolPumpControl({ device }: { device: PoolPumpState }) {
 }
 
 export function PoolCircuitControl({ device }: { device: PoolCircuitState }) {
-  const toggle = () => {
-    sendCommand(device.id, { type: 'pool_circuit', action: device.on ? 'turn_off' : 'turn_on' });
-  };
+  const { send, isPending } = useCommand(device.id);
+  const toggle = () => send('toggle', { type: 'pool_circuit', action: device.on ? 'turn_off' : 'turn_on' });
+  const busy = isPending('toggle');
 
   return (
     <div className="flex items-center justify-between">
@@ -108,13 +114,15 @@ export function PoolCircuitControl({ device }: { device: PoolCircuitState }) {
       </div>
       <button
         onClick={toggle}
+        disabled={busy}
         className="rounded-md px-3 py-1 text-xs font-medium transition-colors"
         style={{
           backgroundColor: device.on ? 'var(--color-success)' : 'var(--color-bg-hover)',
           color: device.on ? '#fff' : 'var(--color-text-secondary)',
+          opacity: busy ? 0.7 : 1,
         }}
       >
-        {device.on ? 'ON' : 'OFF'}
+        {busy ? <ButtonSpinner /> : device.on ? 'ON' : 'OFF'}
       </button>
     </div>
   );

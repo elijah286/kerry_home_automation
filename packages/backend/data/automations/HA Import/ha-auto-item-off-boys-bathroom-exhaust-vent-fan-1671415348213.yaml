@@ -1,0 +1,27 @@
+id: ha-auto-item-off-boys-bathroom-exhaust-vent-fan-1671415348213
+name: 'auto item off: boys bathroom exhaust vent fan'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1671415348213).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_boys_bathroom
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.boys_bathroom_exhaust_fan
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.boys_bathroom_exhaust_fan
+    deviceId: switch.boys_bathroom_exhaust_fan

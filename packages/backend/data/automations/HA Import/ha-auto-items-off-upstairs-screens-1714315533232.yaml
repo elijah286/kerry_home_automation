@@ -1,0 +1,55 @@
+id: ha-auto-items-off-upstairs-screens-1714315533232
+name: 'auto items off: upstairs screens'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1714315533232).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '01:00:00'
+    type: device_state
+    deviceId: input_boolean.person_in_movie_room
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_movie_room
+    attribute: state
+  - type: or
+    conditions:
+      - type: not
+        condition:
+          op: eq
+          type: device_state
+          value: 'off'
+          deviceId: media_player.movie_room_tv
+          attribute: state
+      - type: not
+        condition:
+          op: eq
+          type: device_state
+          value: 'off'
+          deviceId: media_player.movie_left_tv
+          attribute: state
+      - type: not
+        condition:
+          op: eq
+          type: device_state
+          value: 'off'
+          deviceId: media_player.movie_room_right_screen
+          attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.party_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.movie_systems_off
+    deviceId: input_button.movie_systems_off

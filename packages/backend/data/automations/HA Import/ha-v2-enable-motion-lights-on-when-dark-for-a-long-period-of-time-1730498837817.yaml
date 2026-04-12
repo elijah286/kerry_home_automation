@@ -1,0 +1,57 @@
+id: ha-v2-enable-motion-lights-on-when-dark-for-a-long-period-of-time-1730498837817
+name: 'V2: Enable motion lights on when dark for a long period of time'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1730498837817).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+  - type: device_state
+    deviceId: sensor.apf_generation_entity
+    attribute: state
+  - to: 'off'
+    for: '00:05:00'
+    type: device_state
+    deviceId: binary_sensor.sun_is_bright
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.grid_offline
+    attribute: state
+  - op: lt
+    type: device_state
+    value: 1200
+    deviceId: sensor.apf_generation_entity
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.sun_is_bright
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.halloween_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.motion_lights_on
+    deviceId: input_boolean.motion_lights_on

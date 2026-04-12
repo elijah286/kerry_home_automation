@@ -1,0 +1,32 @@
+id: ha-vacation-mode-turns-off-alarms-1765764304955
+name: Vacation Mode Turns Off Alarms
+group: HA Import
+description: 'Imported from Home Assistant (id: 1765764304955).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_boolean.vacation_mode
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.levi_s_alarm
+        deviceId: input_boolean.levi_s_alarm
+    then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.levi_s_alarm
+        deviceId: input_boolean.levi_s_alarm
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: input_boolean.vacation_mode
+      attribute: state

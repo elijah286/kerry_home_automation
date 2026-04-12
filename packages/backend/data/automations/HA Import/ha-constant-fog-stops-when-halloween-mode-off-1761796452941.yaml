@@ -1,0 +1,18 @@
+id: ha-constant-fog-stops-when-halloween-mode-off-1761796452941
+name: Constant fog stops when Halloween mode off
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761796452941).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.halloween_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.constant_fog
+    deviceId: input_boolean.constant_fog

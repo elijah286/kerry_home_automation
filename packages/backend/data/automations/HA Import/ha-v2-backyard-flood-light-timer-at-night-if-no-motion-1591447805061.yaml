@@ -1,0 +1,43 @@
+id: ha-v2-backyard-flood-light-timer-at-night-if-no-motion-1591447805061
+name: 'V2: Backyard Flood Light Timer at Night if no motion'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1591447805061).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:05:00'
+    type: device_state
+    deviceId: light.flood
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.flood
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.motion_detected_on_back_porch
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.patio
+    deviceId: switch.patio

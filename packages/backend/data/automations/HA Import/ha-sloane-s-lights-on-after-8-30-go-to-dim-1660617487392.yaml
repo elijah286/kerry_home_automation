@@ -1,0 +1,23 @@
+id: ha-sloane-s-lights-on-after-8-30-go-to-dim-1660617487392
+name: Sloane's Lights On after 8:30 go to dim
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660617487392).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.sloanes_bedroom_dresser_lamp
+    attribute: state
+conditions:
+  - type: time_window
+    after: '20:30'
+    before: '00:00'
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.sloanes_bedroom_dresser_lamp
+      brightness: 82
+    deviceId: light.sloanes_bedroom_dresser_lamp

@@ -1,0 +1,40 @@
+id: ha-v2-mode-is-evening-when-sun-is-below-5-1565854546918
+name: 'V2: Mode is evening when sun is below 5'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565854546918).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.sun_position
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - type: time_window
+    after: '17:00'
+    before: '00:00'
+  - op: eq
+    type: device_state
+    value: Day
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: or
+    conditions:
+      - op: lt
+        type: device_state
+        value: 500
+        deviceId: sensor.apf_generation_entity
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: sensor.apf_generation_entity
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.evening_mode
+    deviceId: input_button.evening_mode

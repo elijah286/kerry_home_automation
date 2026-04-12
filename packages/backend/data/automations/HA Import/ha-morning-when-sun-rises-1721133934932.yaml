@@ -1,0 +1,22 @@
+id: ha-morning-when-sun-rises-1721133934932
+name: Morning when sun rises
+group: HA Import
+description: 'Imported from Home Assistant (id: 1721133934932).'
+enabled: false
+mode: single
+triggers:
+  - type: sun
+    event: sunrise
+conditions:
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.morning_mode
+    deviceId: input_button.morning_mode

@@ -1,0 +1,17 @@
+id: ha-v2-smart-charge-solar-added-to-cars-reset-to-0-daily-1692220991994
+name: 'V2: Smart Charge Solar Added to Cars Reset to 0 Daily'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1692220991994).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 0 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: input_number
+      value: 0
+      action: set_value
+      deviceId: input_number.smart_charge_kwh_added_to_enterprise
+    deviceId: input_number.smart_charge_kwh_added_to_enterprise

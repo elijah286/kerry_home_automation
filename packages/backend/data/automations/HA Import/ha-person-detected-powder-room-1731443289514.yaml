@@ -1,0 +1,25 @@
+id: ha-person-detected-powder-room-1731443289514
+name: 'Person Detected: Powder Room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1731443289514).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:00:00'
+    type: device_state
+    deviceId: binary_sensor.downstairs_guest_bathroom_motion
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_powder_room
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_powder_room
+    deviceId: input_boolean.person_in_powder_room

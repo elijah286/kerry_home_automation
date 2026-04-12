@@ -1,0 +1,33 @@
+id: ha-v2-theme-set-for-morning-1681144784024
+name: 'V2: Theme set for morning'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1681144784024).'
+enabled: false
+mode: single
+triggers:
+  - to: Morning
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.critical_warning
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Morning
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.critical_warning
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: frontend
+      action: set_theme
+      deviceId: ''
+    deviceId: frontend.set_theme

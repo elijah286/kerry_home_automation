@@ -1,0 +1,29 @@
+id: ha-smart-charge-force-data-update-when-wall-connector-says-a-car-is-conencted-or-ch-1731256187925
+name: 'Smart Charge: Force data update when wall connector says a car is conencted or chargingt'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1731256187925).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: binary_sensor.tesla_wall_connector_contactor_closed
+    attribute: state
+  - for: '00:00:10'
+    type: device_state
+    deviceId: binary_sensor.tesla_wall_connector_contactor_closed
+    attribute: state
+  - for: '00:00:30'
+    type: device_state
+    deviceId: binary_sensor.tesla_wall_connector_contactor_closed
+    attribute: state
+  - for: '00:01:00'
+    type: device_state
+    deviceId: binary_sensor.tesla_wall_connector_contactor_closed
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.enterprise_force_data_update
+    deviceId: button.enterprise_force_data_update

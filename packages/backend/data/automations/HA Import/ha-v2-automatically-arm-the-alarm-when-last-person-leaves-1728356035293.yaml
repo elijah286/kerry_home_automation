@@ -1,0 +1,24 @@
+id: ha-v2-automatically-arm-the-alarm-when-last-person-leaves-1728356035293
+name: 'V2: Automatically arm the alarm when last person leaves'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1728356035293).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.automatically_arm_the_alarm
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: alarm_control_panel
+      action: alarm_arm_away
+      deviceId: alarm_control_panel.home_alarm
+    deviceId: alarm_control_panel.home_alarm

@@ -1,0 +1,35 @@
+id: ha-levis-lamp-timer-1564775322222
+name: Levis Lamp Timer
+group: HA Import
+description: 'Imported from Home Assistant (id: 1564775322222).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:10'
+    from: 'off'
+    type: device_state
+    deviceId: light.levis_bedroom_table_lamp
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.day_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.levis_bedroom_table_lamp
+    deviceId: light.levis_bedroom_table_lamp

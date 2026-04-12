@@ -1,0 +1,39 @@
+id: ha-person-clear-main-bathroom-1733635141993
+name: 'Person clear: main bathroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733635141993).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.master_bathroom_motion
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.master_bathroom_motion
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.person_in_main_bathroom
+        deviceId: input_boolean.person_in_main_bathroom
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state

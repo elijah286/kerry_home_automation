@@ -1,0 +1,22 @@
+id: ha-v2-guest-room-lamps-off-turns-off-overhead-1596052502453
+name: 'V2: Guest Room lamps off turns off overhead'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1596052502453).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.guest_room_desk
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: light.guest_room_sconces
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.guest_room_ceiling_fan_light
+    deviceId: switch.guest_room_ceiling_fan_light

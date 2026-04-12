@@ -1,0 +1,892 @@
+id: ha-confirm-lights-are-off-1739333762951
+name: Confirm lights are off
+group: HA Import
+description: 'Imported from Home Assistant (id: 1739333762951).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/5 * * * *'
+    type: time
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.kitchen_breakfast_table
+        deviceId: switch.kitchen_breakfast_table
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.kitchen_breakfast_table
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.kitchen_table_pendants
+        deviceId: switch.kitchen_table_pendants
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.kitchen_table_pendants
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.kitchen_island_pendants
+        deviceId: switch.kitchen_island_pendants
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.kitchen_island_pendants
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.kitchen_main_lights
+        deviceId: switch.kitchen_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.kitchen_main_lights
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.kitchen_under_cabinet
+        deviceId: switch.kitchen_under_cabinet
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.kitchen_under_cabinet
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.living_room_ceiling_fan_light
+        deviceId: light.living_room_ceiling_fan_light
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.living_room_ceiling_fan_light
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.living_room_main_lights
+        deviceId: light.living_room_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.living_room_main_lights
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.living_room_table_lamp
+        deviceId: light.living_room_table_lamp
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.living_room_table_lamp
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.living_room_table_near_fireplace
+        deviceId: light.living_room_table_near_fireplace
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.living_room_table_near_fireplace
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.fireplace
+        deviceId: switch.fireplace
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.fireplace
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.front_foyer_table_lamp
+        deviceId: light.front_foyer_table_lamp
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.front_foyer_table_lamp
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.front_foyer_chandelier
+        deviceId: light.front_foyer_chandelier
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.front_foyer_chandelier
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.dining_room_chandelier
+        deviceId: light.dining_room_chandelier
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.dining_room_chandelier
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.office_main_lights
+        deviceId: light.office_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.office_main_lights
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.levis_bedside_lamp
+        deviceId: light.levis_bedside_lamp
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.levis_bedside_lamp
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.levis_bedroom_main_lights
+        deviceId: switch.levis_bedroom_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: ''
+      deviceId: switch.levis_bedroom_main_lights
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.study_desk_lamp
+        deviceId: light.study_desk_lamp
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.study_desk_lamp
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.hallway_main_lights
+        deviceId: light.hallway_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.hallway_main_lights
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.downstairs_guest_bathroom_vanity_lights
+        deviceId: light.downstairs_guest_bathroom_vanity_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.downstairs_guest_bathroom_vanity_lights
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.downstairs_guest_bathroom_shower_lights_2
+        deviceId: switch.downstairs_guest_bathroom_shower_lights_2
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.downstairs_guest_bathroom_shower_lights_2
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.garage_main_lights
+        deviceId: switch.garage_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.garage_main_lights
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.garage_workbench
+        deviceId: switch.garage_workbench
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.garage_workbench
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.guest_room_desk
+        deviceId: light.guest_room_desk
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.guest_room_desk
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.guest_room_sconces
+        deviceId: light.guest_room_sconces
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.guest_room_sconces
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.guest_room_ceiling_fan_light
+        deviceId: switch.guest_room_ceiling_fan_light
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.guest_room_ceiling_fan_light
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.master_bathroom_elis_closet
+        deviceId: switch.master_bathroom_elis_closet
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.master_bathroom_elis_closet
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.master_bathroom_exhaust_fan
+        deviceId: switch.master_bathroom_exhaust_fan
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.master_bathroom_exhaust_fan
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.master_bathroom_meghans_closet
+        deviceId: switch.master_bathroom_meghans_closet
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.master_bathroom_meghans_closet
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.exterior_sconces
+        deviceId: switch.exterior_sconces
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.exterior_sconces
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.patio_light
+        deviceId: switch.patio_light
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.patio_light
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.flood
+        deviceId: light.flood
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.flood
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.toilet_closet_basic
+        deviceId: light.toilet_closet_basic
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.toilet_closet_basic
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.stairs_main_lights
+        deviceId: light.stairs_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.stairs_main_lights
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.top_of_stairs_main_lights
+        deviceId: light.top_of_stairs_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.top_of_stairs_main_lights
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.master_bedroom_ceiling_fan_light
+        deviceId: switch.master_bedroom_ceiling_fan_light
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.master_bedroom_ceiling_fan_light
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.master_bathroom_main_lights
+        deviceId: light.master_bathroom_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.master_bathroom_main_lights
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.ashers_bedroom_desk_lamp
+        deviceId: light.ashers_bedroom_desk_lamp
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.ashers_bedroom_desk_lamp
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.ashers_bedroom_table_lamp
+        deviceId: light.ashers_bedroom_table_lamp
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.ashers_bedroom_table_lamp
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.master_bathroom_shower
+        deviceId: light.master_bathroom_shower
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.master_bathroom_shower
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.master_bedroom_meghans_lamp
+        deviceId: light.master_bedroom_meghans_lamp
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.master_bedroom_meghans_lamp
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.master_bedroom_elis_lamp
+        deviceId: light.master_bedroom_elis_lamp
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.master_bedroom_elis_lamp
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.master_bathroom_tub
+        deviceId: light.master_bathroom_tub
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: ''
+      deviceId: light.master_bathroom_tub
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.upstairs_hallway_alcove
+        deviceId: light.upstairs_hallway_alcove
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.upstairs_hallway_alcove
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.upstairs_hallway_piano
+        deviceId: light.upstairs_hallway_piano
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.upstairs_hallway_piano
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.master_bedroom_hallway
+        deviceId: switch.master_bedroom_hallway
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.master_bedroom_hallway
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.sloanes_bathroom_shower
+        deviceId: light.sloanes_bathroom_shower
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.sloanes_bathroom_shower
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.sloanes_bathroom_vanity_lights
+        deviceId: light.sloanes_bathroom_vanity_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.sloanes_bathroom_vanity_lights
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.sloanes_bathroom_exhaust_fan
+        deviceId: switch.sloanes_bathroom_exhaust_fan
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.sloanes_bathroom_exhaust_fan
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.sloanes_bedroom_ceiling_fan_light
+        deviceId: switch.sloanes_bedroom_ceiling_fan_light
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.sloanes_bedroom_ceiling_fan_light
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.sloanes_bathroom_shower
+        deviceId: switch.sloanes_bathroom_shower
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.sloanes_bathroom_shower
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.sloanes_bedroom_closet_light
+        deviceId: switch.sloanes_bedroom_closet_light
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.sloanes_bedroom_closet_light
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.movie_room_main_lights
+        deviceId: light.movie_room_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.movie_room_main_lights
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.theater_floor_lamp
+        deviceId: light.theater_floor_lamp
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.theater_floor_lamp
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.game_room_main_lights
+        deviceId: light.game_room_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.game_room_main_lights
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.game_room_ceiling_fan_light
+        deviceId: switch.game_room_ceiling_fan_light
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.game_room_ceiling_fan_light
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.movie_room_ceiling_fan_light
+        deviceId: switch.movie_room_ceiling_fan_light
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.movie_room_ceiling_fan_light
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.game_room_main_lights
+        deviceId: light.game_room_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.game_room_main_lights
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.game_room_ceiling_fan_light
+        deviceId: switch.game_room_ceiling_fan_light
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.game_room_ceiling_fan_light
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.master_bathroom_vent
+        deviceId: switch.master_bathroom_vent
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.master_bathroom_vent
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.boys_bathroom_vanity_lights_new
+        deviceId: light.boys_bathroom_vanity_lights_new
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.boys_bathroom_vanity_lights_new
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.boys_bathroom_shower_lights
+        deviceId: switch.boys_bathroom_shower_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.boys_bathroom_shower_lights
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.boys_bathroom_toilet
+        deviceId: switch.boys_bathroom_toilet
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.boys_bathroom_toilet
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.levis_led_lights
+        deviceId: switch.levis_led_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.levis_led_lights
+      attribute: state

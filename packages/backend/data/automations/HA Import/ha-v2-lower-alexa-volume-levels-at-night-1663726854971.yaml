@@ -1,0 +1,17 @@
+id: ha-v2-lower-alexa-volume-levels-at-night-1663726854971
+name: 'V2: Lower Alexa volume levels at night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1663726854971).'
+enabled: false
+mode: single
+triggers:
+  - cron: 30 21 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.5
+      deviceId: media_player.garage_echo
+    deviceId: media_player.garage_echo

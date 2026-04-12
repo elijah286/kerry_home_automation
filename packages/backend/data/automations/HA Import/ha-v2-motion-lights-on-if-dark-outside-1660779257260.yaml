@@ -1,0 +1,102 @@
+id: ha-v2-motion-lights-on-if-dark-outside-1660779257260
+name: 'V2: Motion lights on if dark outside'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660779257260).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/20 * * * *'
+    type: time
+  - type: device_state
+    deviceId: sensor.home_energy_gateway_charge_power
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Critical
+      deviceId: input_select.power_saving_mode
+      attribute: state
+  - type: not
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Aggressive
+          deviceId: input_select.power_saving_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: gt
+          type: device_state
+          value: 100
+          deviceId: sensor.office_motion_sensor_illuminance
+          attribute: state
+  - type: or
+    conditions:
+      - type: and
+        conditions:
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: unavailable
+              deviceId: binary_sensor.grid_status
+              attribute: state
+          - op: lt
+            type: device_state
+            value: 1200
+            deviceId: sensor.apf_generation_entity
+            attribute: state
+      - type: or
+        conditions:
+          - op: eq
+            type: device_state
+            value: pouring
+            deviceId: weather.home
+            attribute: state
+          - op: eq
+            type: device_state
+            value: fog
+            deviceId: weather.home
+            attribute: state
+          - op: eq
+            type: device_state
+            value: lightning-rainy
+            deviceId: weather.home
+            attribute: state
+          - op: eq
+            type: device_state
+            value: lightning
+            deviceId: weather.home
+            attribute: state
+          - op: eq
+            type: device_state
+            value: snowy-rainy
+            deviceId: weather.home
+            attribute: state
+          - op: eq
+            type: device_state
+            value: snowy
+            deviceId: weather.home
+            attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: time_window
+    after: '06:00'
+    before: '23:59'
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.motion_lights_on
+    deviceId: input_boolean.motion_lights_on

@@ -1,0 +1,48 @@
+id: ha-v2-sexy-time-off-1726963274406
+name: 'V2: Sexy Time off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1726963274406).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '02:00:00'
+    type: device_state
+    deviceId: input_boolean.sexy_time
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.sexy_time
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.sexy_time
+    deviceId: input_boolean.sexy_time
+  - type: device_command
+    command:
+      type: media_player
+      action: media_stop
+      deviceId: media_player.master_suite
+    deviceId: media_player.master_suite
+  - type: device_command
+    command:
+      type: ecobee
+      action: set_fan_min_on_time
+      deviceId: climate.main_floor
+    deviceId: climate.main_floor
+  - type: device_command
+    command:
+      type: climate
+      action: set_fan_mode
+      deviceId: climate.main_floor
+      fan_mode: auto
+    deviceId: climate.main_floor
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.silence_alerts
+    deviceId: input_boolean.silence_alerts

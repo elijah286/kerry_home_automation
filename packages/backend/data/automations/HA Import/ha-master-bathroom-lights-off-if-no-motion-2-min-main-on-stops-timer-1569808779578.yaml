@@ -1,0 +1,52 @@
+id: ha-master-bathroom-lights-off-if-no-motion-2-min-main-on-stops-timer-1569808779578
+name: Master Bathroom Lights Off if No Motion 2 Min (Main on stops timer)
+group: HA Import
+description: 'Imported from Home Assistant (id: 1569808779578).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:02:00'
+    type: device_state
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+  - to: 'off'
+    for: '00:02:00'
+    type: device_state
+    deviceId: light.master_bathroom_main_lights
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.master_bathroom_main_lights
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.power_saver
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.master_bathroom_main_lights
+    deviceId: light.master_bathroom_main_lights
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.master_bathroom_shower
+    deviceId: light.master_bathroom_shower
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.master_bathroom_tub
+    deviceId: light.master_bathroom_tub

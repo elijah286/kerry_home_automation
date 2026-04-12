@@ -1,0 +1,34 @@
+id: ha-v2-game-room-lighting-forced-to-dim-if-on-at-night-1662780046083
+name: 'V2: Game Room Lighting Forced to Dim if On at Night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1662780046083).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: light.game_room_main_lights
+    attribute: state
+conditions:
+  - op: gt
+    type: device_state
+    value: 90
+    deviceId: group.game_room
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.game_room_main_lights
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.game_room_main_lights
+      brightness: 60
+    deviceId: light.game_room_main_lights

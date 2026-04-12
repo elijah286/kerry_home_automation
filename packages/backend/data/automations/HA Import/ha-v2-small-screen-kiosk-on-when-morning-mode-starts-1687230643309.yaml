@@ -1,0 +1,18 @@
+id: ha-v2-small-screen-kiosk-on-when-morning-mode-starts-1687230643309
+name: 'V2: Small Screen Kiosk on when Morning Mode Starts'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1687230643309).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: number
+      value: '255'
+      action: set_value
+      deviceId: number.small_screen_kiosk_tablet_screen_brightness
+    deviceId: number.small_screen_kiosk_tablet_screen_brightness

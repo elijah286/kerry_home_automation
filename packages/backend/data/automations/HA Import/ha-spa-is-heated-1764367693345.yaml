@@ -1,0 +1,70 @@
+id: ha-spa-is-heated-1764367693345
+name: Spa is Heated
+group: HA Import
+description: 'Imported from Home Assistant (id: 1764367693345).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.spa_current_temperature
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.spa_heater
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.spa_is_ready
+        deviceId: input_boolean.spa_is_ready
+    then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.spa_is_ready
+        deviceId: input_boolean.spa_is_ready
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: switch.spa
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: alexa_media_living_room_echo
+          message: >-
+            Attention! The hot tub is heated and ready. It is now {{states.sensor.spa_current_temperature.state}}
+            degrees farenheit
+          deviceId: ''
+        deviceId: notify.alexa_media_living_room_echo
+      - type: delay
+        duration: '00:00:17'
+      - type: device_command
+        command:
+          type: notify
+          action: alexa_media_movie_room_echo
+          message: >-
+            Attention! The hot tub is heated and ready. It is now     {{states.sensor.spa_current_temperature.state}}
+            degrees farenheit
+          deviceId: ''
+        deviceId: notify.alexa_media_movie_room_echo
+    type: condition
+    condition:
+      type: not
+      condition:
+        op: eq
+        type: device_state
+        value: Night
+        deviceId: input_select.system_mode
+        attribute: state

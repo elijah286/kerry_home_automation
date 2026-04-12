@@ -1,0 +1,131 @@
+id: ha-v2-critical-warning-cleared-1681145838305
+name: 'V2: Critical Warning Cleared'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1681145838305).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_boolean.fridge_warning
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.water_leak_warning
+    attribute: state
+  - type: device_state
+    deviceId: input_select.power_saving_mode
+    attribute: state
+  - type: device_state
+    deviceId: binary_sensor.grid_status
+    attribute: state
+  - type: device_state
+    deviceId: weather.home
+    attribute: state
+  - type: device_state
+    deviceId: alarm_control_panel.home_alarm
+    attribute: state
+  - type: device_state
+    deviceId: sensor.enterprise_battery_sensor
+    attribute: state
+  - type: device_state
+    deviceId: sensor.voyager_battery_sensor
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+  - type: device_state
+    deviceId: binary_sensor.enterprise_charging
+    attribute: state
+  - type: device_state
+    deviceId: binary_sensor.voyager_charging
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: gt
+        type: device_state
+        value: 27
+        deviceId: sensor.enterprise_battery_sensor
+        attribute: state
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: home
+            deviceId: device_tracker.enterprise_location_tracker
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'on'
+            deviceId: binary_sensor.enterprise_charging
+            attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.fridge_warning
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.water_leak_warning
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Critical
+      deviceId: input_select.power_saving_mode
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: binary_sensor.grid_status
+    attribute: state
+  - type: not
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: hail
+          deviceId: weather.home
+          attribute: state
+        - op: eq
+          type: device_state
+          value: exceptional
+          deviceId: weather.home
+          attribute: state
+        - op: eq
+          type: device_state
+          value: triggered
+          deviceId: alarm_control_panel.home_alarm
+          attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.critical_warning
+    attribute: state
+  - type: or
+    conditions:
+      - op: gt
+        type: device_state
+        value: 27
+        deviceId: sensor.voyager_battery_sensor
+        attribute: state
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: home
+            deviceId: device_tracker.voyager_location_tracker
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'on'
+            deviceId: binary_sensor.voyager_charging
+            attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.critical_warning
+    deviceId: input_boolean.critical_warning

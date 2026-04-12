@@ -1,0 +1,53 @@
+id: ha-v2-av-control-living-room-receiver-to-default-volume-settings-when-tv-off-1588766165575
+name: 'V2: AV Control: Living Room Receiver to default volume settings when TV off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1588766165575).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: switch.living_room_tv
+    attribute: state
+  - to: Morning
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - to: idle
+    for: '00:05:00'
+    type: device_state
+    deviceId: media_player.living_room_receiver
+    attribute: state
+  - to: 'off'
+    for: '00:00:02'
+    type: device_state
+    deviceId: switch.living_room_tv
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.living_room_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.65
+      deviceId: media_player.living_room_receiver
+    deviceId: media_player.living_room_receiver
+  - type: device_command
+    command:
+      type: media_player
+      action: select_sound_mode
+      deviceId: media_player.living_room_receiver
+      soundMode: 7ch_stereo
+    deviceId: media_player.living_room_receiver
+  - type: device_command
+    command:
+      type: media_player
+      action: select_source
+      source: alexa
+      deviceId: media_player.living_room_receiver
+    deviceId: media_player.living_room_receiver

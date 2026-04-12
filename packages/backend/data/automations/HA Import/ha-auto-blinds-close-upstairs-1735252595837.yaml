@@ -1,0 +1,214 @@
+id: ha-auto-blinds-close-upstairs-1735252595837
+name: 'auto blinds close: upstairs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1735252595837).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.upstairs_occupied
+    attribute: state
+  - to: Critical
+    type: device_state
+    deviceId: input_select.power_saving_mode
+    attribute: state
+  - type: sun
+    event: sunset
+    offset: '00:30:00'
+  - cron: '*/5 * * * *'
+    type: time
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.levis_room
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: Critical
+        deviceId: input_select.power_saving_mode
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: input_boolean.upstairs_occupied
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: open
+        deviceId: cover.ashers_bedroom_blind
+        attribute: state
+      - op: eq
+        type: device_state
+        value: open
+        deviceId: cover.levis_bedroom_blind
+        attribute: state
+      - op: eq
+        type: device_state
+        value: open
+        deviceId: cover.sloanes_bedroom_blind
+        attribute: state
+      - op: eq
+        type: device_state
+        value: open
+        deviceId: cover.game_room_blinds
+        attribute: state
+      - op: eq
+        type: device_state
+        value: open
+        deviceId: cover.movie_room_blind
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.vertical_toggle_control_ashers_blinds
+    deviceId: switch.vertical_toggle_control_ashers_blinds
+  - else:
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: create
+          message: Levi's window left open
+          deviceId: ''
+        deviceId: persistent_notification.create
+    then:
+      - type: device_command
+        command:
+          type: cover
+          action: close_cover
+          deviceId: cover.levis_bedroom_blind
+        deviceId: cover.levis_bedroom_blind
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: dismiss
+          deviceId: ''
+        deviceId: persistent_notification.dismiss
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: binary_sensor.levis_room
+      attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: create
+          message: Asher's window left open
+          deviceId: ''
+        deviceId: persistent_notification.create
+    then:
+      - type: device_command
+        command:
+          type: cover
+          action: close_cover
+          deviceId: cover.ashers_bedroom_blind
+        deviceId: cover.ashers_bedroom_blind
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: dismiss
+          deviceId: ''
+        deviceId: persistent_notification.dismiss
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: binary_sensor.ashers_room
+      attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: create
+          message: Sloane's window left open
+          deviceId: ''
+        deviceId: persistent_notification.create
+    then:
+      - type: device_command
+        command:
+          type: cover
+          action: close_cover
+          deviceId: cover.sloanes_bedroom_blind
+        deviceId: cover.sloanes_bedroom_blind
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: dismiss
+          deviceId: ''
+        deviceId: persistent_notification.dismiss
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: binary_sensor.sloanes_room
+      attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: create
+          message: Game Room window left open
+          deviceId: ''
+        deviceId: persistent_notification.create
+    then:
+      - type: device_command
+        command:
+          type: cover
+          action: close_cover
+          deviceId: cover.game_room_blinds
+        deviceId: cover.game_room_blinds
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: dismiss
+          deviceId: ''
+        deviceId: persistent_notification.dismiss
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: binary_sensor.game_room
+      attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: create
+          message: Movie Room window left open
+          deviceId: ''
+        deviceId: persistent_notification.create
+    then:
+      - type: device_command
+        command:
+          type: cover
+          action: close_cover
+          deviceId: cover.movie_room_blind
+        deviceId: cover.movie_room_blind
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: dismiss
+          deviceId: ''
+        deviceId: persistent_notification.dismiss
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: binary_sensor.movie_room
+      attribute: state

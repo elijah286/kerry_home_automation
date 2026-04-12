@@ -1,0 +1,30 @@
+id: ha-kitchen-middle-button-reset-counter-1602279142440
+name: Kitchen Middle Button Reset Counter
+group: HA Import
+description: 'Imported from Home Assistant (id: 1602279142440).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.kitchen_music_middle
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: '3'
+    deviceId: counter.living_room_music_playlist
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: counter
+      action: reset
+      deviceId: ''
+    deviceId: counter.reset
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on

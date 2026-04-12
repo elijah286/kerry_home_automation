@@ -1,0 +1,58 @@
+id: ha-house-off-last-person-left-1567203351500
+name: 'House Off: Last Person Left'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1567203351500).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.keep_house_on
+    attribute: state
+  - type: device_state
+    deviceId: zone.home
+    attribute: state
+  - type: device_state
+    deviceId: person.elijah_kerry
+    attribute: state
+  - to: locked
+    type: device_state
+    deviceId: lock.front_door
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.keep_house_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: '0'
+    deviceId: zone.home
+    attribute: state
+  - type: not
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: home
+          deviceId: person.elijah_kerry
+          attribute: state
+        - op: eq
+          type: device_state
+          value: home
+          deviceId: person.meghan_kerry
+          attribute: state
+        - op: eq
+          type: device_state
+          value: home
+          deviceId: person.levi_kerry
+          attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.anyone_home
+    deviceId: input_boolean.anyone_home

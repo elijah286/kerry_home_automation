@@ -1,0 +1,30 @@
+id: ha-unlock-eli-s-tesla-if-home-1566058825659
+name: Unlock Eli's Tesla if home
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566058825659).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.unlock_cars
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: zone.home
+    deviceId: device_tracker.enterprise_location_tracker
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Model S is unlocked
+      deviceId: ''
+    deviceId: notify.everyone
+  - type: device_command
+    command:
+      type: lock
+      action: unlock
+      deviceId: lock.enterprise_doors
+    deviceId: lock.enterprise_doors

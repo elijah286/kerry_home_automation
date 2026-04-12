@@ -1,0 +1,49 @@
+id: ha-auto-blinds-close-main-bedroom-1735251202239
+name: 'auto blinds close: main bedroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1735251202239).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:00:30'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to: 'off'
+    for: '00:30:00'
+    type: device_state
+    deviceId: input_boolean.person_in_main_bedroom
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: Critical
+    type: device_state
+    deviceId: input_select.power_saving_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.master_bedroom
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: open
+        deviceId: cover.master_bedroom_blinds
+        attribute: state
+      - op: eq
+        type: device_state
+        value: open
+        deviceId: cover.master_bedroom_bedside_blinds
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: cover
+      action: close_cover
+      deviceId: cover.master_bedroom_blinds
+    deviceId: cover.master_bedroom_blinds

@@ -1,0 +1,26 @@
+id: ha-front-porch-light-normal-when-door-opened-1764384804075
+name: Front Porch Light Normal when Door Opened
+group: HA Import
+description: 'Imported from Home Assistant (id: 1764384804075).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: binary_sensor.front_door
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.exterior_sconces
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.front_porch_bulbs
+      brightness: 255
+    deviceId: light.front_porch_bulbs

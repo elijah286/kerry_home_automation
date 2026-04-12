@@ -1,0 +1,52 @@
+id: ha-set-morning-alarms-1765764619706
+name: Set morning alarms
+group: HA Import
+description: 'Imported from Home Assistant (id: 1765764619706).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 14 * * *
+    type: time
+  - to:
+      - 'off'
+    type: device_state
+    deviceId: input_boolean.vacation_mode
+    attribute: state
+  - to:
+      - 'off'
+    for: '01:00:00'
+    type: device_state
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.levi_s_alarm
+        deviceId: input_boolean.levi_s_alarm
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.vacation_mode
+          attribute: state
+        - type: time_window
+          after: '00:00'
+          before: '23:59'
+  - then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.levi_s_alarm
+        deviceId: input_boolean.levi_s_alarm
+    type: condition
+    condition:
+      type: time_window
+      after: '00:00'
+      before: '23:59'

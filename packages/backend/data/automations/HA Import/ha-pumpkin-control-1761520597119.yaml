@@ -1,0 +1,35 @@
+id: ha-pumpkin-control-1761520597119
+name: Pumpkin Control
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761520597119).'
+enabled: false
+mode: parallel
+triggers:
+  - type: device_state
+    deviceId: switch.exterior_sconces
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.pumpkin_1
+        deviceId: switch.pumpkin_1
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: switch.exterior_sconces
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.run_jack_and_sally_show
+          attribute: state

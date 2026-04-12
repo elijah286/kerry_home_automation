@@ -1,0 +1,18 @@
+id: ha-sloane-s-twinkle-lights-on-with-lamp-1660519342277
+name: Sloane's Twinkle Lights on with Lamp
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660519342277).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.sloanes_bedroom_dresser_lamp
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.sloanes_twinkler_lights
+    deviceId: switch.sloanes_twinkler_lights

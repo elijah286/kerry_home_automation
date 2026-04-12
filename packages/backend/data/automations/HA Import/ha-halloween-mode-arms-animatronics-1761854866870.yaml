@@ -1,0 +1,32 @@
+id: ha-halloween-mode-arms-animatronics-1761854866870
+name: Halloween Mode Arms Animatronics
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761854866870).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_boolean.halloween_mode
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.animatronics_armed
+        deviceId: input_boolean.animatronics_armed
+    then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.animatronics_armed
+        deviceId: input_boolean.animatronics_armed
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: input_boolean.halloween_mode
+      attribute: state

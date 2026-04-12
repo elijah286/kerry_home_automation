@@ -1,0 +1,40 @@
+id: ha-auto-lights-on-boys-bathroom-1735157035025
+name: 'auto lights on: boys bathroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1735157035025).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_boys_bathroom
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.boys_bathroom_vanity_lights_new
+          brightness: 64
+        deviceId: light.boys_bathroom_vanity_lights_new
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.boys_bathroom_toilet
+        deviceId: switch.boys_bathroom_toilet
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.upstairs_occupied
+          attribute: state

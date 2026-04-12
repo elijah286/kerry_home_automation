@@ -16,6 +16,7 @@ export function mapVehicleData(
   const cs = data.charge_state;
   const cl = data.climate_state;
   const vs = data.vehicle_state;
+  const ds = data.drive_state;
 
   return {
     type: 'vehicle',
@@ -29,6 +30,8 @@ export function mapVehicleData(
     vin: vehicle.vin,
     sleepState: 'online',
     locked: vs.locked,
+    latitude: ds.latitude ?? null,
+    longitude: ds.longitude ?? null,
     insideTemp: cl.inside_temp,
     outsideTemp: cl.outside_temp,
     climateOn: cl.is_climate_on,
@@ -59,12 +62,14 @@ export function mapVehicleStub(
     name: vehicle.display_name || `Tesla ${vehicle.vin.slice(-4)}`,
     integration: 'tesla',
     areaId: null,
-    available: false,
+    available: true,
     lastChanged: now(),
     lastUpdated: now(),
     vin: vehicle.vin,
     sleepState: vehicle.state as VehicleSleepState,
     locked: true,
+    latitude: null,
+    longitude: null,
     insideTemp: null,
     outsideTemp: null,
     climateOn: false,
@@ -85,7 +90,7 @@ export function mapVehicleStub(
   return {
     ...base,
     sleepState: vehicle.state as VehicleSleepState,
-    available: vehicle.state === 'online',
+    available: true,
     lastUpdated: now(),
   };
 }

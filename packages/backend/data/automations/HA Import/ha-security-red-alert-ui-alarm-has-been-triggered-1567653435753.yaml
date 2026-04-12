@@ -1,0 +1,22 @@
+id: ha-security-red-alert-ui-alarm-has-been-triggered-1567653435753
+name: 'SECURITY: Red alert UI - alarm has been triggered'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1567653435753).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.portal_while_armed
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_while_armed
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: frontend
+      action: set_theme
+      deviceId: ''
+    deviceId: frontend.set_theme

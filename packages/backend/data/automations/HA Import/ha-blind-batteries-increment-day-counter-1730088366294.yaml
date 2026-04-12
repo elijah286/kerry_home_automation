@@ -1,0 +1,16 @@
+id: ha-blind-batteries-increment-day-counter-1730088366294
+name: 'Blind Batteries: Increment Day Counter'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1730088366294).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 4 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: input_number
+      action: increment
+      deviceId: input_number.blind_battery_ashers_bedroom
+    deviceId: input_number.blind_battery_ashers_bedroom

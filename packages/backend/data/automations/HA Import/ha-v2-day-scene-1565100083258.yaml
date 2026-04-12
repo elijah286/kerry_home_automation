@@ -1,0 +1,41 @@
+id: ha-v2-day-scene-1565100083258
+name: 'V2: Day scene'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565100083258).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.day_mode
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Day
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: scene
+      action: turn_on
+      deviceId: scene.ha_day
+    deviceId: scene.ha_day

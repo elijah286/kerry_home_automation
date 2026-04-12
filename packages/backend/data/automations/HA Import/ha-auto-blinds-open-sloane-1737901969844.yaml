@@ -1,0 +1,57 @@
+id: ha-auto-blinds-open-sloane-1737901969844
+name: 'auto blinds open: Sloane '
+group: HA Import
+description: 'Imported from Home Assistant (id: 1737901969844).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.upstairs_occupied
+    attribute: state
+  - type: device_state
+    deviceId: input_button.day_mode
+    attribute: state
+  - type: sun
+    event: sunrise
+  - to: 'off'
+    type: device_state
+    deviceId: switch.vertical_toggle_control_sloane_s_blind
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.sloane_sleeping
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.upstairs_occupied
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+  - type: time_window
+    after: '06:00'
+    before: '23:59'
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.vertical_toggle_control_sloane_s_blind
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.sloane_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: cover
+      action: open_cover
+      deviceId: cover.sloanes_bedroom_blind
+    deviceId: cover.sloanes_bedroom_blind

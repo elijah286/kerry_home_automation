@@ -1,0 +1,17 @@
+id: ha-v2-mute-everything-upstairs-1714610740564
+name: 'V2: Mute everything upstairs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1714610740564).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.mute_everything_upstairs
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_mute
+      deviceId: media_player.media_room_tv
+    deviceId: media_player.media_room_tv

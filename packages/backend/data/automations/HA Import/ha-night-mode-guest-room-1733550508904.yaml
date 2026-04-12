@@ -1,0 +1,27 @@
+id: ha-night-mode-guest-room-1733550508904
+name: 'night mode: guest room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733550508904).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.guest_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.guest_room_desk
+    deviceId: light.guest_room_desk

@@ -1,0 +1,117 @@
+id: ha-toggle-motion-based-lighting-1628458765476
+name: Toggle Motion-Based Lighting
+group: HA Import
+description: 'Imported from Home Assistant (id: 1628458765476).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.apf_generation_entity
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+  - type: device_state
+    deviceId: input_boolean.eli_home
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.motion_lights_on
+        deviceId: input_boolean.motion_lights_on
+    type: condition
+    condition:
+      type: or
+      conditions:
+        - type: and
+          conditions:
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: input_boolean.motion_lights_on
+              attribute: state
+            - type: or
+              conditions:
+                - op: gt
+                  type: device_state
+                  value: 2000
+                  deviceId: sensor.apf_generation_entity
+                  attribute: state
+                - op: gt
+                  type: device_state
+                  value: 200
+                  deviceId: sensor.illuminance
+                  attribute: state
+        - type: and
+          conditions:
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: input_boolean.motion_lights_on
+              attribute: state
+            - type: or
+              conditions:
+                - op: gt
+                  type: device_state
+                  value: 3500
+                  deviceId: sensor.apf_generation_entity
+                  attribute: state
+                - op: gt
+                  type: device_state
+                  value: 400
+                  deviceId: sensor.illuminance
+                  attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.motion_lights_on
+        deviceId: input_boolean.motion_lights_on
+    type: condition
+    condition:
+      type: or
+      conditions:
+        - type: and
+          conditions:
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: input_boolean.motion_lights_on
+              attribute: state
+            - type: or
+              conditions:
+                - op: lt
+                  type: device_state
+                  value: 1500
+                  deviceId: sensor.apf_generation_entity
+                  attribute: state
+                - op: lt
+                  type: device_state
+                  value: 150
+                  deviceId: sensor.illuminance
+                  attribute: state
+        - type: and
+          conditions:
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: input_boolean.motion_lights_on
+              attribute: state
+            - type: or
+              conditions:
+                - op: lt
+                  type: device_state
+                  value: 500
+                  deviceId: sensor.apf_generation_entity
+                  attribute: state
+                - op: lt
+                  type: device_state
+                  value: 100
+                  deviceId: sensor.illuminance
+                  attribute: state

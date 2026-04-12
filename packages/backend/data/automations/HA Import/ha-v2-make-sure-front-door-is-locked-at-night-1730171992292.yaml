@@ -1,0 +1,30 @@
+id: ha-v2-make-sure-front-door-is-locked-at-night-1730171992292
+name: 'V2: Make sure front door is locked at night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1730171992292).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: unlocked
+    deviceId: lock.front_door
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: time_window
+    after: '00:00'
+    before: '04:00'
+actions:
+  - type: device_command
+    command:
+      type: lock
+      action: lock
+      deviceId: ''
+    deviceId: lock.lock

@@ -1,0 +1,25 @@
+id: ha-set-mode-late-night-off-1734585455254
+name: 'Set mode: late night off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1734585455254).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.late_night
+    attribute: state
+  - type: time_window
+    after: '05:30'
+    before: '23:59'
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.late_night
+    deviceId: input_boolean.late_night

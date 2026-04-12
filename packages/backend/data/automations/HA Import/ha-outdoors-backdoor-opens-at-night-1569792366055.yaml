@@ -1,0 +1,37 @@
+id: ha-outdoors-backdoor-opens-at-night-1569792366055
+name: Outdoors Backdoor Opens at Night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1569792366055).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.back_door
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.patio
+    deviceId: switch.patio
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.flood
+      brightness: '255'
+    deviceId: light.flood
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.exterior_sconces
+    deviceId: switch.exterior_sconces

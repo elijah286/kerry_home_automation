@@ -1,0 +1,17 @@
+id: ha-v2-enterprise-tires-swapped-1688786465870
+name: 'V2: Enterprise Tires Swapped'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1688786465870).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_select.tires_on_red_tesla
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_number
+      action: set_value
+      deviceId: ''
+    deviceId: input_number.set_value

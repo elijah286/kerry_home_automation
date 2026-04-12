@@ -1,0 +1,44 @@
+id: ha-hvac-fan-on-1715314147430
+name: HVAC fan on
+group: HA Import
+description: 'Imported from Home Assistant (id: 1715314147430).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.main_floor_hvac_fan
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.main_floor_hvac_fan
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: climate
+      action: set_fan_mode
+      deviceId: climate.main_floor
+      fan_mode: 'on'
+    deviceId: climate.main_floor

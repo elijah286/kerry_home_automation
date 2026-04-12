@@ -1,0 +1,18 @@
+id: ha-v2-upstairs-vacant-off-when-kids-not-at-school-1663901919246
+name: 'V2: Upstairs vacant OFF when kids not at school'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1663901919246).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.kids_at_school
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.upstairs_vacant
+    deviceId: input_boolean.upstairs_vacant

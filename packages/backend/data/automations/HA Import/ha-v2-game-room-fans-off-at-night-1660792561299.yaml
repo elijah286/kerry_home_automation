@@ -1,0 +1,40 @@
+id: ha-v2-game-room-fans-off-at-night-1660792561299
+name: 'V2: Game Room Fans Off at Night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660792561299).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+  - to: 'off'
+    for: '00:00:00'
+    type: device_state
+    deviceId: media_player.movie_room_tv
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: remote.sony_bravia_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.game_room_ceiling_fan
+    deviceId: fan.game_room_ceiling_fan
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.movie_room_ceiling_fan
+    deviceId: fan.movie_room_ceiling_fan

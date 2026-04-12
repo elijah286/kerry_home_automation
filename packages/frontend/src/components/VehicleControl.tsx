@@ -2,20 +2,23 @@
 
 import type { VehicleState } from '@ha/shared';
 import { sendCommand } from '@/lib/api';
+import { useCommand } from '@/hooks/useCommand';
+import { ButtonSpinner } from '@/components/ui/ButtonSpinner';
 import { ThrottledSlider } from '@/components/ui/ThrottledSlider';
 import { Badge } from '@/components/ui/Badge';
 
 export function VehicleControl({ device }: { device: VehicleState }) {
-  const lock = () => sendCommand(device.id, { type: 'vehicle', action: device.locked ? 'door_unlock' : 'door_lock' });
-  const climate = () => sendCommand(device.id, { type: 'vehicle', action: device.climateOn ? 'climate_stop' : 'climate_start' });
-  const charge = () => sendCommand(device.id, {
+  const { send, isPending } = useCommand(device.id);
+  const lock = () => send('lock', { type: 'vehicle', action: device.locked ? 'door_unlock' : 'door_lock' });
+  const climate = () => send('climate', { type: 'vehicle', action: device.climateOn ? 'climate_stop' : 'climate_start' });
+  const charge = () => send('charge', {
     type: 'vehicle',
     action: device.chargeState === 'charging' ? 'charge_stop' : 'charge_start',
   });
   const setChargeLimit = (value: number) => sendCommand(device.id, { type: 'vehicle', action: 'set_charge_limit', chargeLimit: value });
-  const trunk = (which: 'rear' | 'front') => sendCommand(device.id, { type: 'vehicle', action: 'actuate_trunk', trunk: which });
-  const flash = () => sendCommand(device.id, { type: 'vehicle', action: 'flash_lights' });
-  const honk = () => sendCommand(device.id, { type: 'vehicle', action: 'honk_horn' });
+  const trunk = (which: 'rear' | 'front') => send(`trunk_${which}`, { type: 'vehicle', action: 'actuate_trunk', trunk: which });
+  const flash = () => send('flash', { type: 'vehicle', action: 'flash_lights' });
+  const honk = () => send('honk', { type: 'vehicle', action: 'honk_horn' });
 
   const asleep = device.sleepState !== 'online';
 
@@ -50,27 +53,27 @@ export function VehicleControl({ device }: { device: VehicleState }) {
       <div className="flex gap-2">
         <button
           onClick={lock}
-          disabled={asleep}
+          disabled={asleep || isPending('lock')}
           className="flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
           style={{
             backgroundColor: device.locked ? 'var(--color-success)' : 'var(--color-danger)',
             color: '#fff',
-            opacity: asleep ? 0.5 : 1,
+            opacity: asleep || isPending('lock') ? 0.5 : 1,
           }}
         >
-          {device.locked ? 'Locked' : 'Unlocked'}
+          {isPending('lock') ? <ButtonSpinner /> : device.locked ? 'Locked' : 'Unlocked'}
         </button>
         <button
           onClick={climate}
-          disabled={asleep}
+          disabled={asleep || isPending('climate')}
           className="flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
           style={{
             backgroundColor: device.climateOn ? 'var(--color-accent)' : 'var(--color-bg-hover)',
             color: device.climateOn ? '#fff' : 'var(--color-text-secondary)',
-            opacity: asleep ? 0.5 : 1,
+            opacity: asleep || isPending('climate') ? 0.5 : 1,
           }}
         >
-          Climate {device.climateOn ? 'ON' : 'OFF'}
+          {isPending('climate') ? <ButtonSpinner /> : `Climate ${device.climateOn ? 'ON' : 'OFF'}`}
         </button>
       </div>
 
@@ -92,15 +95,15 @@ export function VehicleControl({ device }: { device: VehicleState }) {
           {device.chargeState !== 'disconnected' && (
             <button
               onClick={charge}
-              disabled={asleep}
+              disabled={asleep || isPending('charge')}
               className="rounded-md px-2 py-1 text-xs font-medium transition-colors"
               style={{
                 backgroundColor: device.chargeState === 'charging' ? 'var(--color-danger)' : 'var(--color-success)',
                 color: '#fff',
-                opacity: asleep ? 0.5 : 1,
+                opacity: asleep || isPending('charge') ? 0.5 : 1,
               }}
             >
-              {device.chargeState === 'charging' ? 'Stop' : 'Start'}
+              {isPending('charge') ? <ButtonSpinner /> : device.chargeState === 'charging' ? 'Stop' : 'Start'}
             </button>
           )}
         </div>
@@ -122,27 +125,27 @@ export function VehicleControl({ device }: { device: VehicleState }) {
       <div className="flex gap-2">
         <button
           onClick={() => trunk('front')}
-          disabled={asleep}
+          disabled={asleep || isPending('trunk_front')}
           className="flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
           style={{
             backgroundColor: device.frunkOpen ? 'var(--color-warning)' : 'var(--color-bg-hover)',
             color: device.frunkOpen ? '#fff' : 'var(--color-text-secondary)',
-            opacity: asleep ? 0.5 : 1,
+            opacity: asleep || isPending('trunk_front') ? 0.5 : 1,
           }}
         >
-          Frunk {device.frunkOpen ? '(Open)' : ''}
+          {isPending('trunk_front') ? <ButtonSpinner /> : `Frunk ${device.frunkOpen ? '(Open)' : ''}`}
         </button>
         <button
           onClick={() => trunk('rear')}
-          disabled={asleep}
+          disabled={asleep || isPending('trunk_rear')}
           className="flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
           style={{
             backgroundColor: device.trunkOpen ? 'var(--color-warning)' : 'var(--color-bg-hover)',
             color: device.trunkOpen ? '#fff' : 'var(--color-text-secondary)',
-            opacity: asleep ? 0.5 : 1,
+            opacity: asleep || isPending('trunk_rear') ? 0.5 : 1,
           }}
         >
-          Trunk {device.trunkOpen ? '(Open)' : ''}
+          {isPending('trunk_rear') ? <ButtonSpinner /> : `Trunk ${device.trunkOpen ? '(Open)' : ''}`}
         </button>
       </div>
 
@@ -150,27 +153,27 @@ export function VehicleControl({ device }: { device: VehicleState }) {
       <div className="flex gap-2">
         <button
           onClick={flash}
-          disabled={asleep}
+          disabled={asleep || isPending('flash')}
           className="flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
           style={{
             backgroundColor: 'var(--color-bg-hover)',
             color: 'var(--color-text-secondary)',
-            opacity: asleep ? 0.5 : 1,
+            opacity: asleep || isPending('flash') ? 0.5 : 1,
           }}
         >
-          Flash Lights
+          {isPending('flash') ? <ButtonSpinner /> : 'Flash Lights'}
         </button>
         <button
           onClick={honk}
-          disabled={asleep}
+          disabled={asleep || isPending('honk')}
           className="flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
           style={{
             backgroundColor: 'var(--color-bg-hover)',
             color: 'var(--color-text-secondary)',
-            opacity: asleep ? 0.5 : 1,
+            opacity: asleep || isPending('honk') ? 0.5 : 1,
           }}
         >
-          Honk Horn
+          {isPending('honk') ? <ButtonSpinner /> : 'Honk Horn'}
         </button>
       </div>
 

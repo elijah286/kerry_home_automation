@@ -1,0 +1,42 @@
+id: ha-pool-heater-button-turned-on-if-system-is-externally-controlled-1743708690257
+name: Pool heater button turned on if system is externally controlled
+group: HA Import
+description: 'Imported from Home Assistant (id: 1743708690257).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: switch.pool
+    attribute: state
+  - type: device_state
+    deviceId: water_heater.pool
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: water_heater.pool
+      attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.pool
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.pool_heater
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.pool_heater
+    deviceId: input_boolean.pool_heater

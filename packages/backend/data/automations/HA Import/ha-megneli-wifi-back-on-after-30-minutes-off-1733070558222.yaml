@@ -1,0 +1,19 @@
+id: ha-megneli-wifi-back-on-after-30-minutes-off-1733070558222
+name: Megneli WiFi back on after 30 minutes off
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733070558222).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:30:00'
+    type: device_state
+    deviceId: switch.megneli
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.megneli
+    deviceId: switch.megneli

@@ -1,0 +1,19 @@
+id: ha-v2-halloween-reset-sally-sings-1698803128292
+name: 'V2: Halloween: reset sally sings'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1698803128292).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:00:02'
+    type: device_state
+    deviceId: switch.sally_sings
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.sally_sings
+    deviceId: switch.sally_sings

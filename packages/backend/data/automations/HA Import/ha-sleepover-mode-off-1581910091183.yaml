@@ -1,0 +1,18 @@
+id: ha-sleepover-mode-off-1581910091183
+name: Sleepover mode off
+group: HA Import
+description: 'Imported from Home Assistant (id: 1581910091183).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.sleepover_party
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: ecobee
+      action: resume_program
+      deviceId: ''
+    deviceId: ecobee.resume_program

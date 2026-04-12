@@ -1,0 +1,19 @@
+id: ha-reset-outdoor-backyard-speakers-in-morning-1632673259490
+name: Reset outdoor backyard speakers in morning
+group: HA Import
+description: 'Imported from Home Assistant (id: 1632673259490).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.morning_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: select_source
+      source: AUDIO1
+      deviceId: media_player.outdoor_speakers_receiver
+    deviceId: media_player.outdoor_speakers_receiver

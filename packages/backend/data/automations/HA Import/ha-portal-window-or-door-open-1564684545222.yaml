@@ -1,0 +1,169 @@
+id: ha-portal-window-or-door-open-1564684545222
+name: 'Portal: Window or Door Open'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1564684545222).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.garage_door
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.front_door
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.sloanes_room
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.ashers_room
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.guest_room
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.back_door
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.balcony_door
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.office
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.bedroom_hallway
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.master_bedroom
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.dining_room
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.game_room
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.living_room
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.movie_room
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.breakfast_table
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.levis_room
+    attribute: state
+  - type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+  - to: 'on'
+    for: '00:00:10'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.garage_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.front_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.sloanes_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.ashers_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.guest_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.back_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.balcony_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.office
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.bedroom_hallway
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.master_bedroom
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.dining_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.game_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.living_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.movie_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.breakfast_table
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.levis_room
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.portal_open
+    deviceId: input_boolean.portal_open

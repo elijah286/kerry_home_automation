@@ -1,0 +1,19 @@
+id: ha-guest-bathroom-shower-light-10-min-timer-1580264031952
+name: Guest Bathroom Shower Light 10 Min Timer
+group: HA Import
+description: 'Imported from Home Assistant (id: 1580264031952).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:10:00'
+    type: device_state
+    deviceId: switch.guest_bathroom_shower
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: ''
+    deviceId: switch.turn_off

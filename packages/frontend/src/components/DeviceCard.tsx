@@ -1,33 +1,50 @@
 'use client';
 
-import type { DeviceState, CameraState, RecipeLibraryState, WeatherState } from '@ha/shared';
+import type {
+  DeviceState, CameraState, RecipeLibraryState, WeatherState, GarageDoorState,
+  SensorState, SprinklerState, VacuumState, ThermostatState,
+  HelperToggleState, HelperCounterState, HelperTimerState, HelperButtonState,
+  HelperNumberState, HelperTextState, HelperDateTimeState, HelperSensorState,
+} from '@ha/shared';
 import { LightControl } from './LightControl';
 import { MediaPlayerControl } from './MediaPlayerControl';
 import { VehicleControl } from './VehicleControl';
 import { EnergySiteControl } from './EnergySiteControl';
 import { PoolBodyControl, PoolPumpControl, PoolCircuitControl, PoolChemistryControl } from './PoolControl';
 import { WeatherDisplay } from './WeatherDisplay';
+import { GarageDoorControl } from './GarageDoorControl';
+import { SensorDisplay } from './SensorDisplay';
+import { SprinklerControl } from './SprinklerControl';
+import { VacuumControl } from './VacuumControl';
+import { ThermostatControl } from './ThermostatControl';
+import { EnergyMonitorControl } from './EnergyMonitorControl';
+import { WaterSoftenerControl } from './WaterSoftenerControl';
 import { ThrottledSlider } from '@/components/ui/ThrottledSlider';
+import { ButtonSpinner } from '@/components/ui/ButtonSpinner';
 import { sendCommand } from '@/lib/api';
+import { useCommand } from '@/hooks/useCommand';
+import { Select } from '@/components/ui/Select';
 import Link from 'next/link';
 import { Camera, CookingPot, ExternalLink } from 'lucide-react';
 
 function SwitchControl({ device }: { device: Extract<DeviceState, { type: 'switch' }> }) {
-  const toggle = () => {
-    sendCommand(device.id, { type: 'switch', action: device.on ? 'turn_off' : 'turn_on' });
-  };
+  const { send, isPending } = useCommand(device.id);
+  const toggle = () => send('toggle', { type: 'switch', action: device.on ? 'turn_off' : 'turn_on' });
+  const busy = isPending('toggle');
   return (
     <div className="flex items-center justify-between">
       <span className="text-sm font-medium">{device.name}</span>
       <button
         onClick={toggle}
+        disabled={busy}
         className="rounded-md px-3 py-1 text-xs font-medium transition-colors"
         style={{
           backgroundColor: device.on ? 'var(--color-success)' : 'var(--color-bg-hover)',
           color: device.on ? '#fff' : 'var(--color-text-secondary)',
+          opacity: busy ? 0.7 : 1,
         }}
       >
-        {device.on ? 'ON' : 'OFF'}
+        {busy ? <ButtonSpinner /> : device.on ? 'ON' : 'OFF'}
       </button>
     </div>
   );
@@ -36,17 +53,16 @@ function SwitchControl({ device }: { device: Extract<DeviceState, { type: 'switc
 const FAN_SPEEDS = ['low', 'medium', 'medium-high', 'high'] as const;
 
 function FanControl({ device }: { device: Extract<DeviceState, { type: 'fan' }> }) {
-  const toggle = () => {
-    sendCommand(device.id, {
-      type: 'fan',
-      action: device.on ? 'turn_off' : 'turn_on',
-      ...(device.on ? {} : { speed: 'medium' }),
-    });
+  const { send, isPending } = useCommand(device.id);
+  const toggle = () => send('toggle', {
+    type: 'fan',
+    action: device.on ? 'turn_off' : 'turn_on',
+    ...(device.on ? {} : { speed: 'medium' }),
+  });
+  const setSpeed = (value: string) => {
+    send('speed', { type: 'fan', action: 'set_speed', speed: value });
   };
-
-  const setSpeed = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    sendCommand(device.id, { type: 'fan', action: 'set_speed', speed: e.target.value });
-  };
+  const busy = isPending('toggle');
 
   return (
     <div className="space-y-3">
@@ -54,32 +70,27 @@ function FanControl({ device }: { device: Extract<DeviceState, { type: 'fan' }> 
         <span className="text-sm font-medium">{device.name}</span>
         <button
           onClick={toggle}
+          disabled={busy}
           className="rounded-md px-3 py-1 text-xs font-medium transition-colors"
           style={{
             backgroundColor: device.on ? 'var(--color-success)' : 'var(--color-bg-hover)',
             color: device.on ? '#fff' : 'var(--color-text-secondary)',
+            opacity: busy ? 0.7 : 1,
           }}
         >
-          {device.on ? 'ON' : 'OFF'}
+          {busy ? <ButtonSpinner /> : device.on ? 'ON' : 'OFF'}
         </button>
       </div>
       {device.on && (
         <div className="space-y-1">
           <label className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Speed</label>
-          <select
+          <Select
             value={device.speed}
-            onChange={setSpeed}
-            className="w-full rounded-md border px-2 py-1 text-sm"
-            style={{
-              backgroundColor: 'var(--color-bg-secondary)',
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-text)',
-            }}
-          >
-            {FAN_SPEEDS.map((s) => (
-              <option key={s} value={s}>{s.replace('-', ' ')}</option>
-            ))}
-          </select>
+            onValueChange={setSpeed}
+            disabled={isPending('speed')}
+            options={FAN_SPEEDS.map((s) => ({ value: s, label: s.replace('-', ' ') }))}
+            className="w-full"
+          />
         </div>
       )}
     </div>
@@ -87,8 +98,9 @@ function FanControl({ device }: { device: Extract<DeviceState, { type: 'fan' }> 
 }
 
 function CoverControl({ device }: { device: Extract<DeviceState, { type: 'cover' }> }) {
-  const open = () => sendCommand(device.id, { type: 'cover', action: 'open' });
-  const close = () => sendCommand(device.id, { type: 'cover', action: 'close' });
+  const { send, isPending } = useCommand(device.id);
+  const open = () => send('open', { type: 'cover', action: 'open' });
+  const close = () => send('close', { type: 'cover', action: 'close' });
   const setPosition = (value: number) => {
     sendCommand(device.id, { type: 'cover', action: 'set_position', position: value });
   };
@@ -100,17 +112,19 @@ function CoverControl({ device }: { device: Extract<DeviceState, { type: 'cover'
         <div className="flex gap-1">
           <button
             onClick={open}
+            disabled={isPending('open')}
             className="rounded-md px-2 py-1 text-xs font-medium transition-colors"
-            style={{ backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)' }}
+            style={{ backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)', opacity: isPending('open') ? 0.7 : 1 }}
           >
-            Open
+            {isPending('open') ? <ButtonSpinner /> : 'Open'}
           </button>
           <button
             onClick={close}
+            disabled={isPending('close')}
             className="rounded-md px-2 py-1 text-xs font-medium transition-colors"
-            style={{ backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)' }}
+            style={{ backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)', opacity: isPending('close') ? 0.7 : 1 }}
           >
-            Close
+            {isPending('close') ? <ButtonSpinner /> : 'Close'}
           </button>
         </div>
       </div>
@@ -176,6 +190,170 @@ function RecipeLibraryControl({ device }: { device: RecipeLibraryState }) {
   );
 }
 
+// -- Helper Controls ----------------------------------------------------------
+
+function HelperToggleControl({ device }: { device: HelperToggleState }) {
+  const { send, isPending } = useCommand(device.id);
+  const toggle = () => send('toggle', { type: 'helper_toggle', action: 'toggle' });
+  const busy = isPending('toggle');
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-sm font-medium">{device.displayName || device.name}</span>
+      <button onClick={toggle} disabled={busy} className="rounded-md px-3 py-1 text-xs font-medium transition-colors" style={{ backgroundColor: device.on ? 'var(--color-success)' : 'var(--color-bg-hover)', color: device.on ? '#fff' : 'var(--color-text-secondary)', opacity: busy ? 0.7 : 1 }}>
+        {busy ? <ButtonSpinner /> : device.on ? 'ON' : 'OFF'}
+      </button>
+    </div>
+  );
+}
+
+function HelperCounterControl({ device }: { device: HelperCounterState }) {
+  const { send, isPending } = useCommand(device.id);
+  const inc = () => send('inc', { type: 'helper_counter', action: 'increment' });
+  const dec = () => send('dec', { type: 'helper_counter', action: 'decrement' });
+  const reset = () => send('reset', { type: 'helper_counter', action: 'reset' });
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">{device.displayName || device.name}</span>
+        <span className="text-lg font-bold" style={{ color: 'var(--color-accent)' }}>{device.value}</span>
+      </div>
+      <div className="flex gap-1.5">
+        <button onClick={dec} disabled={isPending('dec')} className="flex-1 rounded-md px-2 py-1 text-xs border" style={{ borderColor: 'var(--color-border)' }}>
+          {isPending('dec') ? <ButtonSpinner /> : '−'}
+        </button>
+        <button onClick={reset} disabled={isPending('reset')} className="flex-1 rounded-md px-2 py-1 text-xs border" style={{ borderColor: 'var(--color-border)' }}>
+          {isPending('reset') ? <ButtonSpinner /> : 'Reset'}
+        </button>
+        <button onClick={inc} disabled={isPending('inc')} className="flex-1 rounded-md px-2 py-1 text-xs border" style={{ borderColor: 'var(--color-border)' }}>
+          {isPending('inc') ? <ButtonSpinner /> : '+'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function formatTime(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+function HelperTimerControl({ device }: { device: HelperTimerState }) {
+  const { send, isPending } = useCommand(device.id);
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">{device.displayName || device.name}</span>
+        <div className="text-right">
+          <span className="text-lg font-mono font-bold" style={{ color: device.status === 'active' ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>
+            {formatTime(device.remaining)}
+          </span>
+          <div className="text-xs capitalize" style={{ color: 'var(--color-text-muted)' }}>{device.status}</div>
+        </div>
+      </div>
+      <div className="flex gap-1.5">
+        {device.status === 'idle' && (
+          <button onClick={() => send('start', { type: 'helper_timer', action: 'start' })} disabled={isPending('start')} className="flex-1 rounded-md px-2 py-1 text-xs text-white" style={{ backgroundColor: 'var(--color-success)' }}>
+            {isPending('start') ? <ButtonSpinner /> : 'Start'}
+          </button>
+        )}
+        {device.status === 'active' && (
+          <>
+            <button onClick={() => send('pause', { type: 'helper_timer', action: 'pause' })} disabled={isPending('pause')} className="flex-1 rounded-md px-2 py-1 text-xs border" style={{ borderColor: 'var(--color-border)' }}>
+              {isPending('pause') ? <ButtonSpinner /> : 'Pause'}
+            </button>
+            <button onClick={() => send('cancel', { type: 'helper_timer', action: 'cancel' })} disabled={isPending('cancel')} className="flex-1 rounded-md px-2 py-1 text-xs border" style={{ borderColor: 'var(--color-border)' }}>
+              {isPending('cancel') ? <ButtonSpinner /> : 'Cancel'}
+            </button>
+          </>
+        )}
+        {device.status === 'paused' && (
+          <>
+            <button onClick={() => send('start', { type: 'helper_timer', action: 'start' })} disabled={isPending('start')} className="flex-1 rounded-md px-2 py-1 text-xs text-white" style={{ backgroundColor: 'var(--color-success)' }}>
+              {isPending('start') ? <ButtonSpinner /> : 'Resume'}
+            </button>
+            <button onClick={() => send('cancel', { type: 'helper_timer', action: 'cancel' })} disabled={isPending('cancel')} className="flex-1 rounded-md px-2 py-1 text-xs border" style={{ borderColor: 'var(--color-border)' }}>
+              {isPending('cancel') ? <ButtonSpinner /> : 'Cancel'}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HelperButtonControl({ device }: { device: HelperButtonState }) {
+  const { send, isPending } = useCommand(device.id);
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <span className="text-sm font-medium">{device.displayName || device.name}</span>
+        {device.lastPressed && (
+          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            Last pressed: {new Date(device.lastPressed).toLocaleTimeString()}
+          </p>
+        )}
+      </div>
+      <button onClick={() => send('press', { type: 'helper_button', action: 'press' })} disabled={isPending('press')} className="rounded-md px-3 py-1.5 text-xs font-medium text-white" style={{ backgroundColor: 'var(--color-accent)' }}>
+        {isPending('press') ? <ButtonSpinner /> : 'Press'}
+      </button>
+    </div>
+  );
+}
+
+function HelperNumberControl({ device }: { device: HelperNumberState }) {
+  const { send } = useCommand(device.id);
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">{device.displayName || device.name}</span>
+        <span className="text-sm font-bold">{device.value}{device.unit ? ` ${device.unit}` : ''}</span>
+      </div>
+      {device.mode === 'slider' ? (
+        <ThrottledSlider min={device.min} max={device.max} step={device.step} value={device.value} onValueCommit={(v: number) => send('set', { type: 'helper_number', action: 'set', value: v })} />
+      ) : (
+        <input type="number" value={device.value} min={device.min} max={device.max} step={device.step} onChange={(e) => send('set', { type: 'helper_number', action: 'set', value: Number(e.target.value) })} className="w-full px-2 py-1 text-sm rounded border" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }} />
+      )}
+    </div>
+  );
+}
+
+function HelperTextControl({ device }: { device: HelperTextState }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-sm font-medium">{device.displayName || device.name}</span>
+      <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{device.value || '(empty)'}</span>
+    </div>
+  );
+}
+
+function HelperDateTimeControl({ device }: { device: HelperDateTimeState }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-sm font-medium">{device.displayName || device.name}</span>
+      <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{device.value || '(not set)'}</span>
+    </div>
+  );
+}
+
+function HelperSensorControl({ device }: { device: HelperSensorState }) {
+  const displayValue = typeof device.value === 'boolean'
+    ? (device.value ? 'On' : 'Off')
+    : device.value !== null ? String(device.value) : 'N/A';
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <span className="text-sm font-medium">{device.displayName || device.name}</span>
+        <p className="text-xs capitalize" style={{ color: 'var(--color-text-muted)' }}>{device.helperKind.replace('_', ' ')}</p>
+      </div>
+      <span className="text-lg font-bold" style={{ color: 'var(--color-accent)' }}>
+        {displayValue}{device.unit ? ` ${device.unit}` : ''}
+      </span>
+    </div>
+  );
+}
+
 export function DeviceCard({ device }: { device: DeviceState }) {
   switch (device.type) {
     case 'light':
@@ -206,6 +384,36 @@ export function DeviceCard({ device }: { device: DeviceState }) {
       return <RecipeLibraryControl device={device} />;
     case 'weather':
       return <WeatherDisplay device={device} />;
+    case 'garage_door':
+      return <GarageDoorControl device={device} />;
+    case 'sensor':
+      return <SensorDisplay device={device} />;
+    case 'sprinkler':
+      return <SprinklerControl device={device} />;
+    case 'vacuum':
+      return <VacuumControl device={device} />;
+    case 'thermostat':
+      return <ThermostatControl device={device as ThermostatState} />;
+    case 'energy_monitor':
+      return <EnergyMonitorControl device={device} />;
+    case 'water_softener':
+      return <WaterSoftenerControl device={device} />;
+    case 'helper_toggle':
+      return <HelperToggleControl device={device} />;
+    case 'helper_counter':
+      return <HelperCounterControl device={device} />;
+    case 'helper_timer':
+      return <HelperTimerControl device={device} />;
+    case 'helper_button':
+      return <HelperButtonControl device={device} />;
+    case 'helper_number':
+      return <HelperNumberControl device={device} />;
+    case 'helper_text':
+      return <HelperTextControl device={device} />;
+    case 'helper_datetime':
+      return <HelperDateTimeControl device={device} />;
+    case 'helper_sensor':
+      return <HelperSensorControl device={device} />;
     default:
       return null;
   }

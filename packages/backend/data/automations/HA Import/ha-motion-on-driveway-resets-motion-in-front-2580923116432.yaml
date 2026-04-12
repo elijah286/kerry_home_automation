@@ -1,0 +1,28 @@
+id: ha-motion-on-driveway-resets-motion-in-front-2580923116432
+name: Motion on driveway resets motion in front
+group: HA Import
+description: 'Imported from Home Assistant (id: 2580923116432).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.aarlo_motion_driveway
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.aarlo_sound_driveway
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: ''
+    deviceId: input_boolean.turn_off
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on

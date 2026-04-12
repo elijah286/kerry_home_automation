@@ -1,0 +1,19 @@
+id: ha-front-door-alarm-15-seconds-1587746770713
+name: Front Door Alarm (15 seconds)
+group: HA Import
+description: 'Imported from Home Assistant (id: 1587746770713).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:00:15'
+    type: device_state
+    deviceId: binary_sensor.front_door
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on

@@ -1,0 +1,25 @@
+id: ha-person-clear-powder-room-1731443328296
+name: 'Person clear: powder room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1731443328296).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:02:00'
+    type: device_state
+    deviceId: binary_sensor.downstairs_guest_bathroom_motion
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.person_in_powder_room
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.person_in_powder_room
+    deviceId: input_boolean.person_in_powder_room

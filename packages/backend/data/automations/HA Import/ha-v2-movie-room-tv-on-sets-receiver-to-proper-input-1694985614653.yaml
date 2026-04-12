@@ -1,0 +1,33 @@
+id: ha-v2-movie-room-tv-on-sets-receiver-to-proper-input-1694985614653
+name: 'V2: Movie Room TV on sets receiver to proper input'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1694985614653).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: media_player.movie_room_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.65
+      deviceId: media_player.movie_room_receiver
+    deviceId: media_player.movie_room_receiver
+  - type: device_command
+    command:
+      type: media_player
+      action: select_source
+      source: AUDIO1
+      deviceId: media_player.movie_room_receiver
+    deviceId: media_player.movie_room_receiver
+  - type: device_command
+    command:
+      type: media_player
+      action: select_sound_mode
+      deviceId: media_player.movie_room_receiver
+      soundMode: surr_decoder
+    deviceId: media_player.movie_room_receiver

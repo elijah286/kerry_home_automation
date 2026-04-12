@@ -1,0 +1,24 @@
+id: ha-person-detected-dining-room-1611495889959
+name: 'Person detected: dining room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1611495889959).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.dining_room_motion
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_dining_room
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_dining_room
+    deviceId: input_boolean.person_in_dining_room

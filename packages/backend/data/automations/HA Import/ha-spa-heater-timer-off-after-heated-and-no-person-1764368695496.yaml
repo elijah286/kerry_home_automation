@@ -1,0 +1,52 @@
+id: ha-spa-heater-timer-off-after-heated-and-no-person-1764368695496
+name: 'Spa Heater Timer: Off After Heated and No Person'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1764368695496).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_pool
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.spa_is_ready
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.spa_heater
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: input_boolean.anyone_home
+        attribute: state
+      - type: time_window
+        after: '23:00'
+        before: '04:00'
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: switch.spa
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.spa_heater
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.pool_heater_off
+    deviceId: input_button.pool_heater_off

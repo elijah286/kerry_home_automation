@@ -1,0 +1,18 @@
+id: ha-bedroom-tv-off-stops-appletv-1628978740287
+name: Bedroom TV Off Stops AppleTV
+group: HA Import
+description: 'Imported from Home Assistant (id: 1628978740287).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: switch.bedroom_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: media_stop
+      deviceId: media_player.master_bedroom
+    deviceId: media_player.master_bedroom

@@ -1,0 +1,31 @@
+id: ha-v2-alarm-triggered-by-open-door-1728356521727
+name: 'V2: Alarm triggered by open door'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1728356521727).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.front_door
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: armed_away
+        deviceId: alarm_control_panel.home_alarm
+        attribute: state
+      - op: eq
+        type: device_state
+        value: armed_home
+        deviceId: alarm_control_panel.home_alarm
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: alarm_control_panel
+      action: alarm_trigger
+      deviceId: alarm_control_panel.home_alarm
+    deviceId: alarm_control_panel.home_alarm

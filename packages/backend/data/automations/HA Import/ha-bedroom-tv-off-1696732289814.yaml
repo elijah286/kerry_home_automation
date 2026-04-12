@@ -1,0 +1,21 @@
+id: ha-bedroom-tv-off-1696732289814
+name: Bedroom TV Off
+group: HA Import
+description: 'Imported from Home Assistant (id: 1696732289814).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_off
+      deviceId: media_player.backyard_tv
+    deviceId: media_player.backyard_tv

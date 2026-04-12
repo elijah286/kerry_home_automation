@@ -1,0 +1,16 @@
+id: ha-reset-roomba-run-at-5m-1568865310705
+name: Reset roomba run at 5m
+group: HA Import
+description: 'Imported from Home Assistant (id: 1568865310705).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 5 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.roomba_run
+    deviceId: input_boolean.roomba_run

@@ -1,0 +1,29 @@
+id: ha-v2-patio-and-flood-lights-off-at-night-1638504736406
+name: 'v2: Patio and Flood Lights off at night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1638504736406).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.patio_light
+    deviceId: switch.patio_light
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.flood
+    deviceId: light.flood
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.patio_fans
+    deviceId: fan.patio_fans

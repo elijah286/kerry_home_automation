@@ -1,0 +1,42 @@
+id: ha-v2-critical-warning-1681145235683
+name: 'V2: Critical Warning'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1681145235683).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.fridge_warning
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.water_leak_warning
+    attribute: state
+  - to: Critical
+    type: device_state
+    deviceId: input_select.power_saving_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.grid_status
+    attribute: state
+  - to: hail
+    type: device_state
+    deviceId: weather.home
+    attribute: state
+  - to: exceptional
+    type: device_state
+    deviceId: weather.home
+    attribute: state
+  - to: triggered
+    type: device_state
+    deviceId: alarm_control_panel.home_alarm
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.critical_warning
+    deviceId: input_boolean.critical_warning

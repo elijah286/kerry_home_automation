@@ -1,0 +1,30 @@
+id: ha-ashers-overhead-light-timer-1564775333333
+name: Ashers Overhead Light Timer
+group: HA Import
+description: 'Imported from Home Assistant (id: 1564775333333).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:15'
+    from: 'off'
+    type: device_state
+    deviceId: switch.ashers_bedroom_main_lights
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.day_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.ashers_bedroom_main_lights
+    deviceId: switch.ashers_bedroom_main_lights

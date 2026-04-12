@@ -1,0 +1,34 @@
+id: ha-dim-alcove-light-if-kids-are-supposed-to-be-sleeping-1662781260852
+name: Dim Alcove light if kids are supposed to be sleeping
+group: HA Import
+description: 'Imported from Home Assistant (id: 1662781260852).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: light.upstairs_hallway_alcove
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+  - op: gt
+    type: device_state
+    value: 60
+    deviceId: light.upstairs_hallway_alcove
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.upstairs_hallway_alcove
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.upstairs_hallway_alcove
+      brightness: 10
+    deviceId: light.upstairs_hallway_alcove

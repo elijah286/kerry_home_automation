@@ -1,0 +1,19 @@
+id: ha-notify-mobile-devices-when-eli-has-returned-4567876545633
+name: Notify mobile devices when Eli has returned
+group: HA Import
+description: 'Imported from Home Assistant (id: 4567876545633).'
+enabled: false
+mode: single
+triggers:
+  - to: home
+    type: device_state
+    deviceId: person.elijah_kerry
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Eli has returned
+      deviceId: ''
+    deviceId: notify.everyone

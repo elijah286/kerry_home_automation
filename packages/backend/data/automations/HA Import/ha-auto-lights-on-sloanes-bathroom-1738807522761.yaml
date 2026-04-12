@@ -1,0 +1,61 @@
+id: ha-auto-lights-on-sloanes-bathroom-1738807522761
+name: 'auto lights on: sloanes bathroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1738807522761).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_sloanes_bathroom
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Critical
+      deviceId: input_select.power_saving_mode
+      attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.sloanes_bathroom_vanity_lights
+          brightness: 64
+        deviceId: light.sloanes_bathroom_vanity_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.sloanes_bathroom_shower
+        deviceId: switch.sloanes_bathroom_shower
+    type: condition
+    condition:
+      type: or
+      conditions:
+        - op: eq
+          type: device_state
+          value: Late Evening
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Evening
+          deviceId: input_select.system_mode
+          attribute: state

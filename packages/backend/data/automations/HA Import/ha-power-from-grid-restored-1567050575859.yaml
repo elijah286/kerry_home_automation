@@ -1,0 +1,38 @@
+id: ha-power-from-grid-restored-1567050575859
+name: Power from grid restored
+group: HA Import
+description: 'Imported from Home Assistant (id: 1567050575859).'
+enabled: false
+mode: single
+triggers:
+  - from: 'on'
+    type: device_state
+    deviceId: binary_sensor.home_energy_gateway_status
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.grid_offline
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Power restored. HVAC on
+      deviceId: ''
+    deviceId: notify.everyone
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.grid_offline
+    deviceId: input_boolean.grid_offline
+  - type: device_command
+    command:
+      type: input_select
+      action: select_option
+      option: Normal
+      deviceId: input_select.power_saving_mode
+    deviceId: input_select.power_saving_mode

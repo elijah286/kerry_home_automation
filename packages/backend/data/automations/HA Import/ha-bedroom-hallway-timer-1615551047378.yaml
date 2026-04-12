@@ -1,0 +1,19 @@
+id: ha-bedroom-hallway-timer-1615551047378
+name: Bedroom Hallway Timer
+group: HA Import
+description: 'Imported from Home Assistant (id: 1615551047378).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:15:00'
+    type: device_state
+    deviceId: switch.master_bedroom_hallway
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: ''
+    deviceId: switch.turn_off

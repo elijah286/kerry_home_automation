@@ -1,0 +1,37 @@
+id: ha-mode-dark-daytime-off-when-power-generation-is-above-1-5kw-when-not-day-1565836488215
+name: 'Mode: dark daytime off when power generation is above 1.5kW when not day'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565836488215).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.apf_generation_entity
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.day_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: gt
+    type: device_state
+    value: 1500
+    deviceId: sensor.apf_generation_entity
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.day_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: ''
+    deviceId: input_boolean.turn_off

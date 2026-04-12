@@ -1,0 +1,102 @@
+id: ha-v2-update-mileage-on-voyager-if-tires-replaced-1689459936964
+name: 'V2: Update mileage on Voyager if Tires Replaced'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1689459936964).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_number.tire_set_1_fr_mileage_at_last_cahnge
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_1_fl_mileage_at_last_cahnge
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_1_rr_mileage_at_last_cahnge
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_1_rl_mileage_at_last_cahnge
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_2_fr_mileage_at_last_cahnge
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_2_fl_mileage_at_last_cahnge
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_2_rr_mileage_at_last_cahnge
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_2_rl_mileage_at_last_cahnge
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: input_number
+          action: set_value
+          deviceId: ''
+        deviceId: input_number.set_value
+      - type: device_command
+        command:
+          type: input_number
+          action: set_value
+          deviceId: ''
+        deviceId: input_number.set_value
+      - type: device_command
+        command:
+          type: input_number
+          action: set_value
+          deviceId: ''
+        deviceId: input_number.set_value
+      - type: device_command
+        command:
+          type: input_number
+          action: set_value
+          deviceId: ''
+        deviceId: input_number.set_value
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 22" All Season Tires
+      deviceId: input_select.tires_on_white_tesla
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: input_number
+          action: set_value
+          deviceId: ''
+        deviceId: input_number.set_value
+      - type: device_command
+        command:
+          type: input_number
+          action: set_value
+          deviceId: ''
+        deviceId: input_number.set_value
+      - type: device_command
+        command:
+          type: input_number
+          action: set_value
+          deviceId: ''
+        deviceId: input_number.set_value
+      - type: device_command
+        command:
+          type: input_number
+          action: set_value
+          deviceId: ''
+        deviceId: input_number.set_value
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 20" Winter Tires
+      deviceId: input_select.tires_on_white_tesla
+      attribute: state
+  - type: device_command
+    command:
+      type: input_number
+      action: set_value
+      deviceId: ''
+    deviceId: input_number.set_value

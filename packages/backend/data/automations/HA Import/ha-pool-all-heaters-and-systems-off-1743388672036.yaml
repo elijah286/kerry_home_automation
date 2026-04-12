@@ -1,0 +1,43 @@
+id: ha-pool-all-heaters-and-systems-off-1743388672036
+name: 'Pool: All Heaters and Systems Off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1743388672036).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.pool_heater_off
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.spa
+    deviceId: switch.spa
+  - type: device_command
+    command:
+      type: water_heater
+      action: set_operation_mode
+      deviceId: water_heater.spa
+    deviceId: water_heater.spa
+  - type: delay
+    duration: '00:00:01'
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.pool
+    deviceId: switch.pool
+  - type: device_command
+    command:
+      type: water_heater
+      action: set_operation_mode
+      deviceId: water_heater.pool
+    deviceId: water_heater.pool
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.jets
+    deviceId: switch.jets

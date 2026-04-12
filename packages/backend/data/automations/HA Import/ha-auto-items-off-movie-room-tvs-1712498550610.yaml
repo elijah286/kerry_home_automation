@@ -1,0 +1,23 @@
+id: ha-auto-items-off-movie-room-tvs-1712498550610
+name: 'Auto items off: movie room tvs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1712498550610).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.movie_systems_off
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_off
+      deviceId: media_player.movie_left_tv
+    deviceId: media_player.movie_left_tv
+  - type: device_command
+    command:
+      type: remote
+      action: turn_off
+      deviceId: remote.elis_xbox_remote
+    deviceId: remote.elis_xbox_remote

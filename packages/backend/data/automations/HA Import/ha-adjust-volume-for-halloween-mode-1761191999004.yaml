@@ -1,0 +1,81 @@
+id: ha-adjust-volume-for-halloween-mode-1761191999004
+name: Adjust volume for halloween mode
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761191999004).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:00:02'
+    type: device_state
+    deviceId: input_boolean.halloween_mode
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+  - type: device_state
+    deviceId: input_number.holiday_decor_volume
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.halloween_mode
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.run_jack_and_sally_show
+        attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: media_player
+          action: volume_set
+          volume: 0.5
+          deviceId: media_player.brane_0101234101030114_2
+        deviceId: media_player.brane_0101234101030114_2
+      - type: device_command
+        command:
+          type: media_player
+          action: volume_set
+          volume: 0.5
+          deviceId: media_player.brane_0101234101030114_airplay
+        deviceId: media_player.brane_0101234101030114_airplay
+    then:
+      - type: device_command
+        command:
+          type: media_player
+          action: volume_set
+          volume: 0.65
+          deviceId: media_player.brane_0101234101030114_2
+        deviceId: media_player.brane_0101234101030114_2
+      - type: device_command
+        command:
+          type: media_player
+          action: volume_set
+          volume: 0.65
+          deviceId: media_player.brane_0101234101030114_2
+        deviceId: media_player.brane_0101234101030114_2
+    type: condition
+    condition:
+      type: not
+      condition:
+        op: eq
+        type: device_state
+        value: Night
+        deviceId: input_select.system_mode
+        attribute: state
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: '{{ states(''input_number.holiday_decor_volume'') }}'
+      deviceId: media_player.brane_0101234101030114_2
+    deviceId: media_player.brane_0101234101030114_2

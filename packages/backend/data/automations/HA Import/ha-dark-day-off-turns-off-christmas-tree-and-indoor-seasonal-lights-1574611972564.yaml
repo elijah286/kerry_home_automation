@@ -1,0 +1,24 @@
+id: ha-dark-day-off-turns-off-christmas-tree-and-indoor-seasonal-lights-1574611972564
+name: Dark day OFF turns OFF christmas tree and indoor seasonal lights
+group: HA Import
+description: 'Imported from Home Assistant (id: 1574611972564).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.indoor_seasonal_lights
+    deviceId: switch.indoor_seasonal_lights
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.twinkly_tree
+    deviceId: light.twinkly_tree

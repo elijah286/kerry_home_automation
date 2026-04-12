@@ -1,0 +1,40 @@
+id: ha-person-detected-garage-triggered-by-driveway-1767492360289
+name: 'Person Detected: Garage (Triggered by Driveway)'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1767492360289).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.driveway_frigate_person_active_count
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: opening
+        deviceId: cover.red
+        attribute: state
+      - op: eq
+        type: device_state
+        value: open
+        deviceId: cover.red
+        attribute: state
+      - op: eq
+        type: device_state
+        value: opening
+        deviceId: cover.white
+        attribute: state
+      - op: eq
+        type: device_state
+        value: open
+        deviceId: cover.white
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.motion_detected_in_garage
+    deviceId: input_boolean.motion_detected_in_garage

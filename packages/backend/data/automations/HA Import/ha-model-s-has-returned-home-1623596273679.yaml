@@ -1,0 +1,31 @@
+id: ha-model-s-has-returned-home-1623596273679
+name: Model S has returned home
+group: HA Import
+description: 'Imported from Home Assistant (id: 1623596273679).'
+enabled: false
+mode: single
+triggers:
+  - to: Home
+    type: device_state
+    deviceId: device_tracker.enterprise_location_tracker
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.model_s_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: home
+    deviceId: device_tracker.enterprise_location_tracker
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.model_s_home
+    deviceId: input_boolean.model_s_home

@@ -1,0 +1,18 @@
+id: ha-hvac-setpoint-for-main-floor-manually-adjusted-1735000413007
+name: 'HVAC: setpoint for main floor manually adjusted'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1735000413007).'
+enabled: false
+mode: restart
+triggers:
+  - type: device_state
+    deviceId: climate.main_floor
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_number
+      value: '{{ state_attr(''climate.main_floor'',''temperature'')|float(0) }}'
+      action: set_value
+      deviceId: input_number.main_floor_target_temp
+    deviceId: input_number.main_floor_target_temp

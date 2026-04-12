@@ -1,0 +1,17 @@
+id: ha-bedroom-is-awake-off-when-night-1683350933829
+name: Bedroom is awake off when night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1683350933829).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.bedroom_is_awake
+    deviceId: input_boolean.bedroom_is_awake

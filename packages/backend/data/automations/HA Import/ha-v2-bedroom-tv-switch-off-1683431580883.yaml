@@ -1,0 +1,24 @@
+id: ha-v2-bedroom-tv-switch-off-1683431580883
+name: 'V2: Bedroom TV Switch Off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1683431580883).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.bedroom_tv
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: remote.bedroom_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: remote
+      action: turn_off
+      deviceId: remote.bedroom_tv
+    deviceId: remote.bedroom_tv

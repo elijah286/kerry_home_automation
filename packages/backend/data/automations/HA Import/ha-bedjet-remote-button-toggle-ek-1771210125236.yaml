@@ -1,0 +1,46 @@
+id: ha-bedjet-remote-button-toggle-ek-1771210125236
+name: Bedjet Remote Button Toggle EK
+group: HA Import
+description: 'Imported from Home Assistant (id: 1771210125236).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: climate
+          action: set_hvac_mode
+          deviceId: climate.rpi_eli_c30a
+          hvac_mode: heat
+        deviceId: climate.rpi_eli_c30a
+      - type: device_command
+        command:
+          type: climate
+          action: set_temperature
+          deviceId: climate.rpi_eli_c30a
+          temperature: 102
+        deviceId: climate.rpi_eli_c30a
+    then:
+      - type: device_command
+        command:
+          type: climate
+          action: set_hvac_mode
+          deviceId: climate.rpi_eli_c30a
+          hvac_mode: cool
+        deviceId: climate.rpi_eli_c30a
+      - type: device_command
+        command:
+          type: climate
+          action: set_temperature
+          deviceId: climate.rpi_eli_c30a
+          temperature: 68
+        deviceId: climate.rpi_eli_c30a
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: heat
+      deviceId: climate.rpi_eli_c30a
+      attribute: state

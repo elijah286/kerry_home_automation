@@ -1,0 +1,36 @@
+id: ha-v2-patio-fans-on-when-someone-outside-and-it-feels-above-80-degrees-1723121887735
+name: 'V2: Patio fans on when someone outside and it feels above 80 degrees'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1723121887735).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:05:00'
+    type: device_state
+    deviceId: input_boolean.motion_detected_on_back_porch
+    attribute: state
+conditions:
+  - op: gt
+    type: device_state
+    value: 70
+    deviceId: sensor.home_realfeel_temperature
+    attribute: state
+  - op: gt
+    type: device_state
+    value: 90
+    deviceId: sensor.home_realfeel_temperature
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.wind_speed_warning
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      speed: high
+      action: turn_on
+      deviceId: fan.patio_fans
+    deviceId: fan.patio_fans

@@ -1,0 +1,35 @@
+id: ha-morning-mode-open-living-room-blinds-and-light-pool-1743422241296
+name: 'Morning mode: open living room blinds and light pool '
+group: HA Import
+description: 'Imported from Home Assistant (id: 1743422241296).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: cover
+      action: open_cover
+      deviceId: cover.living_room_blinds
+    deviceId: cover.living_room_blinds
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.pool_light
+    deviceId: light.pool_light
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.exterior_backyard_landscaping
+    deviceId: switch.exterior_backyard_landscaping

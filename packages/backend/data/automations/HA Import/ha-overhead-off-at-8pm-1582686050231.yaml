@@ -1,0 +1,40 @@
+id: ha-overhead-off-at-8pm-1582686050231
+name: Overhead off at 8pm
+group: HA Import
+description: 'Imported from Home Assistant (id: 1582686050231).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 20 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off

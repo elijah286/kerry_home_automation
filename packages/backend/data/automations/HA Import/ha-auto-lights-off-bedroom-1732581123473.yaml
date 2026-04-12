@@ -1,0 +1,45 @@
+id: ha-auto-lights-off-bedroom-1732581123473
+name: 'Auto lights off: bedroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1732581123473).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:05:00'
+    type: device_state
+    deviceId: input_boolean.person_in_main_bedroom
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.master_bedroom_meghans_lamp
+        deviceId: light.master_bedroom_meghans_lamp
+    type: condition
+    condition:
+      type: not
+      condition:
+        type: or
+        conditions:
+          - op: eq
+            type: device_state
+            value: Evening
+            deviceId: input_select.system_mode
+            attribute: state
+          - op: eq
+            type: device_state
+            value: Late Evening
+            deviceId: input_select.system_mode
+            attribute: state

@@ -1,0 +1,37 @@
+id: ha-v2-late-night-turned-on-if-late-or-if-night-for-one-hour-1727172227520
+name: 'V2: Late night turned on if late or if night for one hour'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1727172227520).'
+enabled: false
+mode: single
+triggers:
+  - to: Night
+    for: '00:00:00'
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - cron: 0 1 * * *
+    type: time
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: time_window
+    after: '01:00'
+    before: '08:00'
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.late_night
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.late_night
+    deviceId: input_boolean.late_night

@@ -5,8 +5,13 @@ const API_BASE = typeof window !== 'undefined'
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     ...options,
   });
+  if (res.status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+    window.location.href = '/login';
+    throw new Error('Session expired');
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string }).error ?? `Request failed: ${res.status}`);
@@ -58,6 +63,13 @@ export async function getPaprikaStatus(): Promise<{ recipeCount: number; lastSyn
   return fetchApi('/api/paprika/status');
 }
 
+// Calendar (ICS feeds)
+import type { IcalFeedSnapshot } from '@ha/shared';
+
+export async function getCalendarFeeds(): Promise<{ feeds: IcalFeedSnapshot[] }> {
+  return fetchApi('/api/calendar/feeds');
+}
+
 // Alarms
 import type { Alarm, AlarmCreate, AlarmUpdate } from '@ha/shared';
 
@@ -87,4 +99,114 @@ export async function disableAllAlarms(): Promise<{ ok: boolean }> {
 
 export async function enableAllAlarms(): Promise<{ ok: boolean }> {
   return fetchApi('/api/alarms/enable-all', { method: 'POST' });
+}
+
+// Automations
+import type { Automation, AutomationCreate, AutomationUpdate, AutomationExecutionLog } from '@ha/shared';
+
+export async function getAutomations(): Promise<{ automations: Automation[] }> {
+  return fetchApi('/api/automations');
+}
+
+export async function getAutomation(id: string): Promise<{ automation: Automation }> {
+  return fetchApi(`/api/automations/${encodeURIComponent(id)}`);
+}
+
+export async function createAutomation(data: AutomationCreate): Promise<{ automation: Automation }> {
+  return fetchApi('/api/automations', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateAutomation(id: string, data: AutomationUpdate): Promise<{ automation: Automation }> {
+  return fetchApi(`/api/automations/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+export async function deleteAutomation(id: string): Promise<{ ok: boolean }> {
+  return fetchApi(`/api/automations/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function triggerAutomation(id: string): Promise<{ ok: boolean }> {
+  return fetchApi(`/api/automations/${encodeURIComponent(id)}/trigger`, { method: 'POST' });
+}
+
+export async function toggleAutomation(id: string, enabled: boolean): Promise<{ automation: Automation }> {
+  return fetchApi(`/api/automations/${encodeURIComponent(id)}/enable`, { method: 'PUT', body: JSON.stringify({ enabled }) });
+}
+
+export async function getAutomationHistory(id: string, limit = 50, offset = 0): Promise<{ executions: AutomationExecutionLog[] }> {
+  return fetchApi(`/api/automations/${encodeURIComponent(id)}/history?limit=${limit}&offset=${offset}`);
+}
+
+export async function getGlobalAutomationHistory(limit = 50, offset = 0): Promise<{ executions: AutomationExecutionLog[] }> {
+  return fetchApi(`/api/automations/history?limit=${limit}&offset=${offset}`);
+}
+
+export async function getAutomationGroups(): Promise<{ groups: string[] }> {
+  return fetchApi('/api/automations/groups');
+}
+
+export async function duplicateAutomation(id: string): Promise<{ automation: Automation }> {
+  return fetchApi(`/api/automations/${encodeURIComponent(id)}/duplicate`, { method: 'POST' });
+}
+
+// Devices
+import type { DeviceState } from '@ha/shared';
+
+export async function getDevices(): Promise<{ devices: DeviceState[] }> {
+  return fetchApi('/api/devices');
+}
+
+// Device history
+export async function fetchDeviceHistory(
+  deviceId: string,
+  limit = 500,
+): Promise<{ history: { state: Record<string, unknown>; changedAt: string }[] }> {
+  return fetchApi(`/api/devices/${encodeURIComponent(deviceId)}/history?limit=${limit}`);
+}
+
+/** Fetch device history within a time range (returns ascending order for graphing) */
+export async function fetchDeviceHistoryRange(
+  deviceId: string,
+  from: Date,
+  to: Date = new Date(),
+): Promise<{ history: { state: Record<string, unknown>; changedAt: string }[] }> {
+  const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
+  return fetchApi(`/api/devices/${encodeURIComponent(deviceId)}/history?${params}`);
+}
+
+// Helpers
+import type { HelperDefinition } from '@ha/shared';
+
+export async function getHelpers(): Promise<HelperDefinition[]> {
+  return fetchApi('/api/helpers');
+}
+
+export async function createHelper(def: HelperDefinition): Promise<HelperDefinition> {
+  return fetchApi('/api/helpers', { method: 'POST', body: JSON.stringify(def) });
+}
+
+export async function updateHelper(id: string, partial: Partial<HelperDefinition>): Promise<HelperDefinition> {
+  return fetchApi(`/api/helpers/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(partial) });
+}
+
+export async function deleteHelper(id: string): Promise<{ ok: boolean }> {
+  return fetchApi(`/api/helpers/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function reloadHelpers(): Promise<{ ok: boolean; count: number }> {
+  return fetchApi('/api/helpers/reload', { method: 'POST' });
+}
+
+export async function getHelpersYaml(): Promise<string> {
+  const res = await fetch(`${typeof window !== 'undefined' ? `http://${window.location.hostname}:3000` : 'http://localhost:3000'}/api/helpers/yaml`, { credentials: 'include' });
+  return res.text();
+}
+
+export async function saveHelpersYaml(content: string): Promise<{ ok: boolean; count: number }> {
+  const res = await fetch(`${typeof window !== 'undefined' ? `http://${window.location.hostname}:3000` : 'http://localhost:3000'}/api/helpers/yaml`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'text/yaml' },
+    credentials: 'include',
+    body: content,
+  });
+  return res.json();
 }

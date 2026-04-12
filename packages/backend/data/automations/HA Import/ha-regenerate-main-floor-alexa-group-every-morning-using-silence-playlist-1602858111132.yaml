@@ -1,0 +1,16 @@
+id: ha-regenerate-main-floor-alexa-group-every-morning-using-silence-playlist-1602858111132
+name: Regenerate Main Floor Alexa Group every morning using silence playlist
+group: HA Import
+description: 'Imported from Home Assistant (id: 1602858111132).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 4 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on

@@ -1,0 +1,30 @@
+id: ha-levi-s-lamp-timer-when-light-outside-1617887566262
+name: Levi's Lamp Timer when Light Outside
+group: HA Import
+description: 'Imported from Home Assistant (id: 1617887566262).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:20:00'
+    type: device_state
+    deviceId: light.levis_bedroom_table_lamp
+    attribute: state
+  - to: 'on'
+    for: '00:30:00'
+    type: device_state
+    deviceId: light.levis_bedside_lamp
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.levis_bedroom_table_lamp
+    deviceId: light.levis_bedroom_table_lamp

@@ -1,0 +1,27 @@
+id: ha-v2-rearm-screen-time-limits-1728080152547
+name: 'V2: Rearm screen time limits'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1728080152547).'
+enabled: false
+mode: single
+triggers:
+  - to: disarmed
+    for: '00:01:00'
+    type: device_state
+    deviceId: alarm_control_panel.screen_time_lock
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: disarmed
+    deviceId: alarm_control_panel.screen_time_lock
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: alarm_control_panel
+      action: alarm_arm_away
+      deviceId: alarm_control_panel.screen_time_lock
+    deviceId: alarm_control_panel.screen_time_lock

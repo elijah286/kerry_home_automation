@@ -14,7 +14,7 @@ const API_BASE = typeof window !== 'undefined'
 const LocationMap = dynamic(() => import('./LocationMap'), { ssr: false });
 
 async function saveSetting(key: string, value: unknown) {
-  await fetch(`${API_BASE}/api/settings/${key}`, {
+  await fetch(`${API_BASE}/api/settings/${key}`, { credentials: 'include',
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value }),
@@ -42,7 +42,7 @@ export default function LocationPage() {
 
   // Load saved location
   useEffect(() => {
-    fetch(`${API_BASE}/api/settings`)
+    fetch(`${API_BASE}/api/settings`, { credentials: 'include' })
       .then((r) => r.json())
       .then((data: { settings: Record<string, unknown> }) => {
         const s = data.settings;

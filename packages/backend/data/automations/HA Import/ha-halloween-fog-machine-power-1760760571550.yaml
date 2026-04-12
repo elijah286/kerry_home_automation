@@ -1,0 +1,33 @@
+id: ha-halloween-fog-machine-power-1760760571550
+name: 'Halloween: Fog Machine Power'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1760760571550).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: sun
+    event: sunset
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.halloween_mode
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.fog_machine_power
+        deviceId: switch.fog_machine_power
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: input_boolean.halloween_mode
+      attribute: state

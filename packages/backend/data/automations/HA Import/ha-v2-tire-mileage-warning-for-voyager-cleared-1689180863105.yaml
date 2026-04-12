@@ -1,0 +1,100 @@
+id: ha-v2-tire-mileage-warning-for-voyager-cleared-1689180863105
+name: 'V2: Tire Mileage Warning for Voyager Cleared'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1689180863105).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.tire_set_1_fl_replaced
+    attribute: state
+  - type: device_state
+    deviceId: input_button.tire_set_1_fr_replaced
+    attribute: state
+  - type: device_state
+    deviceId: input_button.tire_set_1_rl_replaced
+    attribute: state
+  - type: device_state
+    deviceId: input_button.tire_set_1_rr_replaced
+    attribute: state
+  - type: device_state
+    deviceId: input_button.tire_set_2_fl_replaced
+    attribute: state
+  - type: device_state
+    deviceId: input_button.tire_set_2_fr_replaced
+    attribute: state
+  - type: device_state
+    deviceId: input_button.tire_set_2_rl_replaced
+    attribute: state
+  - type: device_state
+    deviceId: input_button.tire_set_2_rr_replaced
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 22" All Season Tires
+            deviceId: input_select.tires_on_white_tesla
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 15000
+            deviceId: input_number.tire_set_1_fl_miles_since_change
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 15000
+            deviceId: input_number.tire_set_1_fr_miles_since_change
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 15000
+            deviceId: input_number.tire_set_1_rl_miles_since_change
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 15000
+            deviceId: input_number.tire_set_1_rr_miles_since_change
+            attribute: state
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 20" Winter Tires
+            deviceId: input_select.tires_on_white_tesla
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 15000
+            deviceId: input_number.tire_set_2_fl_miles_since_change
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 15000
+            deviceId: input_number.tire_set_2_fr_miles_since_change
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 15000
+            deviceId: input_number.tire_set_2_rl_miles_since_change
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 15000
+            deviceId: input_number.tire_set_2_rr_miles_since_change
+            attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.tire_mileage_warning_for_voyager
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.tire_mileage_warning_for_voyager
+    deviceId: input_boolean.tire_mileage_warning_for_voyager

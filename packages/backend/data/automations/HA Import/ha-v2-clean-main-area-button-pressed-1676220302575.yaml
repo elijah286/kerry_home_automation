@@ -1,0 +1,48 @@
+id: ha-v2-clean-main-area-button-pressed-1676220302575
+name: 'V2: Clean Main Area Button Pressed'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1676220302575).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.clean_main_area
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Starting cleaning
+      deviceId: ''
+    deviceId: notify.everyone
+  - then:
+      - type: device_command
+        command:
+          type: homeassistant
+          action: reload_config_entry
+          deviceId: vacuum.roborock_s7
+        deviceId: vacuum.roborock_s7
+      - type: delay
+        duration: '00:00:07'
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: unavailable
+      deviceId: vacuum.roborock_s7
+      attribute: state
+  - type: device_command
+    command:
+      type: vacuum
+      action: send_command
+      command: app_segment_clean
+      deviceId: vacuum.roborock_s7
+    deviceId: vacuum.roborock_s7
+  - type: device_command
+    command:
+      type: vacuum
+      action: send_command
+      command: app_segment_clean
+      deviceId: vacuum.roborock_s7
+    deviceId: vacuum.roborock_s7

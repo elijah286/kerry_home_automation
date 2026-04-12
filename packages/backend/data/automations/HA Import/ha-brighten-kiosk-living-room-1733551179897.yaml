@@ -1,0 +1,26 @@
+id: ha-brighten-kiosk-living-room-1733551179897
+name: 'Brighten Kiosk: Living Room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733551179897).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.living_room_lamps
+    attribute: state
+  - type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: switch.living_room_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: number
+      value: '255'
+      action: set_value
+      deviceId: number.galaxy_tab_a9_screen_brightness
+    deviceId: number.galaxy_tab_a9_screen_brightness

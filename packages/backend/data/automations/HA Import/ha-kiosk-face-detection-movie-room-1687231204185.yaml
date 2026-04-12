@@ -1,0 +1,68 @@
+id: ha-kiosk-face-detection-movie-room-1687231204185
+name: 'Kiosk face detection: movie room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1687231204185).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+  - type: manual
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.movie_room_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: light.movie_room_main_lights
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.game_room_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: light.game_room_main_lights
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.movie_room_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: light.movie_room_main_lights
+        attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: everyone
+          message: face detected in movie room
+          deviceId: ''
+        deviceId: notify.everyone
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: input_boolean.person_in_movie_room
+      attribute: state
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_movie_room
+    deviceId: input_boolean.person_in_movie_room

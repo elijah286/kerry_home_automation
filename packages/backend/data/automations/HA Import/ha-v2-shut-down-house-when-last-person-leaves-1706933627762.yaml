@@ -1,0 +1,30 @@
+id: ha-v2-shut-down-house-when-last-person-leaves-1706933627762
+name: 'V2: Shut down house when last person leaves'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1706933627762).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.living_room_tv
+    deviceId: switch.living_room_tv
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_off
+      deviceId: media_player.bedroom_tv
+    deviceId: media_player.bedroom_tv
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.motion_lights_on
+    deviceId: input_boolean.motion_lights_on

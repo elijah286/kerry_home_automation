@@ -1,0 +1,23 @@
+id: ha-v2-kitchen-music-top-button-pressed-1588556382141
+name: 'V2: Kitchen Music: Top Button Pressed'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1588556382141).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: f017366d5f31f75a38b8fedf19073596
+    attribute: press
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.living_room_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: media_play_pause
+      deviceId: media_player.living_room_receiver
+    deviceId: media_player.living_room_receiver

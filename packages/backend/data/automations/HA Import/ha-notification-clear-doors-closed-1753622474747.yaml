@@ -1,0 +1,72 @@
+id: ha-notification-clear-doors-closed-1753622474747
+name: 'Notification clear: Doors Closed'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1753622474747).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.back_door
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: notify
+          message: clear_notification
+          deviceId: ''
+        deviceId: notify.notify
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: binary_sensor.back_door
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: notify
+          message: clear_notification
+          deviceId: ''
+        deviceId: notify.notify
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: binary_sensor.front_door
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: notify
+          message: clear_notification
+          deviceId: ''
+        deviceId: notify.notify
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: binary_sensor.balcony_door
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: notify
+          message: clear_notification
+          deviceId: ''
+        deviceId: notify.notify
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: binary_sensor.garage_door
+      attribute: state

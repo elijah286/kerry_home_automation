@@ -1,0 +1,27 @@
+id: ha-vacuum-stop-cleaning-and-return-to-base-1681265176651
+name: 'Vacuum: Stop cleaning and return to base'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1681265176651).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.stop_roomba
+    attribute: state
+  - type: device_state
+    deviceId: input_button.stop_cleaning
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: vacuum
+      action: return_to_base
+      deviceId: vacuum.saros_z70
+    deviceId: vacuum.saros_z70
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.pause_vacuum_for_5_min
+    deviceId: input_boolean.pause_vacuum_for_5_min

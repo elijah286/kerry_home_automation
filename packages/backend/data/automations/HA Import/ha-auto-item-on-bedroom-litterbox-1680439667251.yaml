@@ -1,0 +1,22 @@
+id: ha-auto-item-on-bedroom-litterbox-1680439667251
+name: 'Auto item on: bedroom litterbox '
+group: HA Import
+description: 'Imported from Home Assistant (id: 1680439667251).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 9 * * *
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.master_bathroom_litterbox
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.master_bathroom_litterbox
+    deviceId: switch.master_bathroom_litterbox

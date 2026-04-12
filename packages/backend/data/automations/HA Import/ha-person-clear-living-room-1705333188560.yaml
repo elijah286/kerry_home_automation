@@ -1,0 +1,102 @@
+id: ha-person-clear-living-room-1705333188560
+name: 'Person Clear: Living Room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1705333188560).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.living_room_motion
+    attribute: state
+  - for: '00:02:00'
+    type: device_state
+    deviceId: input_button.kiosk_motion_on_living_room_kiosk
+    attribute: state
+  - to: '0'
+    type: device_state
+    deviceId: sensor.living_room_frigate_person_count
+    attribute: state
+  - to: 'off'
+    for: '00:01:00'
+    type: device_state
+    deviceId: binary_sensor.apollo_msr_1_f775b8_radar_target
+    attribute: state
+  - type: device_state
+    deviceId: sensor.apollo_msr_1_f775b8_radar_still_energy
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.living_room_motion_detected
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.living_room_zone_person_occupancy
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.living_room_zone_person_occupancy
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.apollo_msr_1_f775b8_radar_still_target
+        attribute: state
+      - type: and
+        conditions:
+          - op: lt
+            type: device_state
+            value: 12
+            deviceId: sensor.apollo_msr_1_f775b8_radar_still_energy
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: binary_sensor.apollo_msr_1_f775b8_radar_still_target
+            attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.bottom_stairs_motion_sensor
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.bottom_stairs_motion_sensor
+        attribute: state
+      - op: lt
+        type: device_state
+        value: 50
+        deviceId: sensor.bottom_stairs_motion_sensor_battery_level
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.couch_person_occupancy
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.couch_person_occupancy
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.living_room_motion_detected
+    deviceId: input_boolean.living_room_motion_detected

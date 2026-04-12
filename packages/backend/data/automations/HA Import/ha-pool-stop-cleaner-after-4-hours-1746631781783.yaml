@@ -1,0 +1,19 @@
+id: ha-pool-stop-cleaner-after-4-hours-1746631781783
+name: 'Pool: Stop cleaner after 4 hours'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1746631781783).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '04:00:00'
+    type: device_state
+    deviceId: switch.cleaner
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.cleaner
+    deviceId: switch.cleaner

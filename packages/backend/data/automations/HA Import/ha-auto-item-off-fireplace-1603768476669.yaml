@@ -1,0 +1,37 @@
+id: ha-auto-item-off-fireplace-1603768476669
+name: 'Auto item off: fireplace'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1603768476669).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to: '0'
+    for: '00:10:00'
+    type: device_state
+    deviceId: sensor.living_room_frigate_person_count
+    attribute: state
+  - to: 'off'
+    for: '00:10:00'
+    type: device_state
+    deviceId: input_boolean.living_room_motion_detected
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.fireplace
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: ''
+    deviceId: switch.turn_off

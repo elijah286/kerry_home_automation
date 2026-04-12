@@ -1,0 +1,81 @@
+id: ha-ensure-front-doors-are-locked-at-night-1736049554776
+name: Ensure front doors are locked at night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1736049554776).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: unlocked
+        deviceId: lock.front_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unlocked
+        deviceId: lock.back_door
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: input_boolean.anyone_home
+        attribute: state
+      - op: eq
+        type: device_state
+        value: Night
+        deviceId: input_select.system_mode
+        attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: lock
+          action: lock
+          deviceId: lock.front_door
+        deviceId: lock.front_door
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: unlocked
+      deviceId: lock.front_door
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: lock
+          action: lock
+          deviceId: lock.back_door
+        deviceId: lock.back_door
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: unlocked
+          deviceId: lock.back_door
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.motion_detected_on_back_porch
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_pool
+          attribute: state
+        - type: time_window
+          after: '23:00'
+          before: '05:30'

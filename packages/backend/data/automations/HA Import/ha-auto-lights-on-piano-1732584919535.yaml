@@ -1,0 +1,45 @@
+id: ha-auto-lights-on-piano-1732584919535
+name: 'Auto lights on: Piano '
+group: HA Import
+description: 'Imported from Home Assistant (id: 1732584919535).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_piano_room
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.person_in_piano_room
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.upstairs_hallway_alcove
+          brightness: 204
+        deviceId: light.upstairs_hallway_alcove
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Morning
+      deviceId: input_select.system_mode
+      attribute: state

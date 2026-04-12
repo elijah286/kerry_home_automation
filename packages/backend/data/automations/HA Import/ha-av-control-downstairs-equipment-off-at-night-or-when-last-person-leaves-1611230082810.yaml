@@ -1,0 +1,21 @@
+id: ha-av-control-downstairs-equipment-off-at-night-or-when-last-person-leaves-1611230082810
+name: 'AV Control: downstairs equipment off at night or when last person leaves'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1611230082810).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_off
+      deviceId: media_player.living_room_receiver
+    deviceId: media_player.living_room_receiver

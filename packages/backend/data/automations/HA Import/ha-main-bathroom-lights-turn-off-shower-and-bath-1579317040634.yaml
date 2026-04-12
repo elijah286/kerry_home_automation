@@ -1,0 +1,24 @@
+id: ha-main-bathroom-lights-turn-off-shower-and-bath-1579317040634
+name: Main bathroom lights turn off shower and bath
+group: HA Import
+description: 'Imported from Home Assistant (id: 1579317040634).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.master_bathroom_main_lights
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off

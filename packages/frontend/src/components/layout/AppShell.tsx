@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { BottomNav } from './BottomNav';
+import { ChatBot } from '../ChatBot';
 import { useConnected } from '@/hooks/useWebSocket';
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -15,6 +16,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="md:ml-56 pb-16 md:pb-0">
         {children}
       </main>
+      <ChatBot />
     </div>
   );
 }

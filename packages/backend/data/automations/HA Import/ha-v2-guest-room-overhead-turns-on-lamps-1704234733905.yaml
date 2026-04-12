@@ -1,0 +1,19 @@
+id: ha-v2-guest-room-overhead-turns-on-lamps-1704234733905
+name: 'V2: Guest room overhead turns on lamps'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1704234733905).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: switch.guest_room_ceiling_fan_light
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.guest_room_desk
+      brightness: 255
+    deviceId: light.guest_room_desk

@@ -1,0 +1,38 @@
+id: ha-christmas-decorations-balcony-tree-1764616189562
+name: 'Christmas Decorations: Balcony Tree'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1764616189562).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: switch.exterior_sconces
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.christmas_mode
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.jack_spotlight
+        deviceId: switch.jack_spotlight
+    then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.jack_spotlight
+        deviceId: switch.jack_spotlight
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: switch.exterior_sconces
+      attribute: state

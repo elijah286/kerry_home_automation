@@ -1,0 +1,15 @@
+id: ha-v2-kiosk-motion-on-living-room-kiosk-1691342560468
+name: 'V2: Kiosk motion on Living Room Kiosk'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1691342560468).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.kiosk_motion_on_living_room_kiosk
+    deviceId: input_button.kiosk_motion_on_living_room_kiosk

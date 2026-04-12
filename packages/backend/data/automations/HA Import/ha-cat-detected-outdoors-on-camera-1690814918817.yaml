@@ -1,0 +1,35 @@
+id: ha-cat-detected-outdoors-on-camera-1690814918817
+name: Cat Detected Outdoors on Camera
+group: HA Import
+description: 'Imported from Home Assistant (id: 1690814918817).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.back_door_frigate_cat_count
+    attribute: state
+  - type: device_state
+    deviceId: sensor.front_door_frigate_cat_count
+    attribute: state
+  - type: device_state
+    deviceId: sensor.garage_frigate_cat_count
+    attribute: state
+  - type: device_state
+    deviceId: sensor.driveway_frigate_cat_count
+    attribute: state
+  - type: device_state
+    deviceId: sensor.pool_frigate_cat_count
+    attribute: state
+  - type: device_state
+    deviceId: sensor.backyard_frigate_cat_count
+    attribute: state
+  - type: device_state
+    deviceId: sensor.street_frigate_cat_count
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.cats_detected_outdoors
+    deviceId: input_boolean.cats_detected_outdoors

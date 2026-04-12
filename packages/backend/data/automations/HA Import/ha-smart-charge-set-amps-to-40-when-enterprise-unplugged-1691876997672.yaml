@@ -1,0 +1,29 @@
+id: ha-smart-charge-set-amps-to-40-when-enterprise-unplugged-1691876997672
+name: Smart Charge set amps to 40 when enterprise unplugged
+group: HA Import
+description: 'Imported from Home Assistant (id: 1691876997672).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.enterprise_charger
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.smart_charge
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: number
+      value: '40'
+      action: set_value
+      deviceId: number.enterprise_charging_amps
+    deviceId: number.enterprise_charging_amps
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.enterprise_charger
+    deviceId: switch.enterprise_charger

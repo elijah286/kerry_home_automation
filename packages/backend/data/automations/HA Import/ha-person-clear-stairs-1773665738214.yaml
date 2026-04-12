@@ -1,0 +1,43 @@
+id: ha-person-clear-stairs-1773665738214
+name: 'Person clear: stairs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1773665738214).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'off'
+    for: '00:00:30'
+    type: device_state
+    deviceId: binary_sensor.bottom_stairs_motion_sensor
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_piano_room
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.living_room_motion_detected
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.person_at_top_of_stairs
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.bottom_stairs_motion_sensor
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.person_at_top_of_stairs
+    deviceId: input_boolean.person_at_top_of_stairs

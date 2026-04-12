@@ -1,0 +1,220 @@
+id: ha-chatgpt-hvac-routine-upstairs-1735074136069
+name: 'ChatGPT: HVAC routine (upstairs)'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1735074136069).'
+enabled: false
+mode: restart
+triggers:
+  - type: device_state
+    deviceId: input_boolean.upstairs_occupied
+    attribute: state
+  - type: device_state
+    deviceId: sensor.upstairs_temperature
+    attribute: state
+  - type: device_state
+    deviceId: sensor.home_realfeel_temperature
+    attribute: state
+  - for: '00:00:30'
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - for: '00:00:10'
+    type: device_state
+    deviceId: input_number.upstairs_target_temp
+    attribute: state
+  - type: device_state
+    deviceId: input_select.power_saving_mode
+    attribute: state
+  - cron: 0 11 * * *
+    type: time
+  - cron: 0 1 * * *
+    type: time
+  - cron: 0 15 * * *
+    type: time
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: climate.upstairs
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.grid_offline
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: input_number
+          value: '{{ states(''sensor.upstairs_temperature'')|float }}'
+          action: set_value
+          deviceId: input_number.measured_temperature_for_upstairs
+        deviceId: input_number.measured_temperature_for_upstairs
+    then:
+      - type: device_command
+        command:
+          type: input_number
+          value: '{{ states(''sensor.game_room_temperature'')|float }}'
+          action: set_value
+          deviceId: input_number.measured_temperature_for_upstairs
+        deviceId: input_number.measured_temperature_for_upstairs
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.party_mode
+          attribute: state
+        - type: not
+          condition:
+            op: eq
+            type: device_state
+            value: unavailable
+            deviceId: sensor.game_room_temperature
+            attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: climate
+          action: set_fan_mode
+          deviceId: climate.upstairs
+          fan_mode: auto
+        deviceId: climate.upstairs
+      - then:
+          - type: device_command
+            command:
+              type: input_boolean
+              action: turn_off
+              deviceId: input_boolean.hvac_upstairs_fan_on
+            deviceId: input_boolean.hvac_upstairs_fan_on
+        type: condition
+        condition:
+          type: and
+          conditions:
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: input_boolean.upstairs_vacant
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: input_boolean.kids_sleeping
+              attribute: state
+    then:
+      - type: device_command
+        command:
+          type: climate
+          action: set_fan_mode
+          deviceId: climate.upstairs
+          fan_mode: 'on'
+        deviceId: climate.upstairs
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.hvac_upstairs_fan_on
+        deviceId: input_boolean.hvac_upstairs_fan_on
+      - type: device_command
+        command:
+          type: fan
+          speed: high
+          action: turn_on
+          deviceId: fan.game_room_ceiling_fan
+        deviceId: fan.game_room_ceiling_fan
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.upstairs_occupied
+          attribute: state
+        - op: gt
+          type: device_state
+          value: 50
+          deviceId: sensor.home_realfeel_temperature
+          attribute: state
+        - type: or
+          conditions:
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: input_boolean.game_room_motion_detected
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: fan.game_room_ceiling_fan
+              attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: climate
+          action: set_preset_mode
+          deviceId: climate.upstairs
+          preset_mode: away
+        deviceId: climate.upstairs
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.hvac_upstairs_fan_on
+        deviceId: input_boolean.hvac_upstairs_fan_on
+      - type: log
+        message: '[HA unknown action] ["stop"]'
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Critical
+      deviceId: input_select.power_saving_mode
+      attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: ecobee
+          action: set_sensors_used_in_climate
+          deviceId: climate.upstairs
+        deviceId: climate.upstairs
+    then:
+      - type: device_command
+        command:
+          type: ecobee
+          action: set_sensors_used_in_climate
+          deviceId: climate.upstairs
+        deviceId: climate.upstairs
+    type: condition
+    condition:
+      type: or
+      conditions:
+        - op: eq
+          type: device_state
+          value: Late Evening
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.recommend_opening_window
+        deviceId: input_boolean.recommend_opening_window
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: input_boolean.anyone_home
+      attribute: state

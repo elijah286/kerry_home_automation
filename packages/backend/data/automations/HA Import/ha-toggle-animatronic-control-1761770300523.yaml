@@ -1,0 +1,19 @@
+id: ha-toggle-animatronic-control-1761770300523
+name: Toggle Animatronic Control
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761770300523).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:00:05'
+    type: device_state
+    deviceId: switch.animatronic_control
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.animatronic_control
+    deviceId: switch.animatronic_control

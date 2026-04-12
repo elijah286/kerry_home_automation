@@ -1,0 +1,24 @@
+id: ha-av-control-game-room-zone-2-off-turns-off-boolean-1661214621268
+name: 'AV Control: Game Room Zone 2 Off Turns Off Boolean'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1661214621268).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: media_player.movie_room_receiver_zone_2
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.game_room_speakers
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.game_room_speakers
+    deviceId: input_boolean.game_room_speakers

@@ -1,0 +1,18 @@
+id: ha-v2-main-floor-roborock-is-done-cleaning-1681577439823
+name: 'V2: Main floor roborock is done cleaning'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1681577439823).'
+enabled: false
+mode: single
+triggers:
+  - from: cleaning
+    type: device_state
+    deviceId: vacuum.roborock_vacuum_a15
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.main_floor_roborock_cleaning
+    deviceId: input_boolean.main_floor_roborock_cleaning

@@ -1,0 +1,64 @@
+id: ha-living-room-ceiling-fan-on-when-hot-outside-and-someone-present-1714325395846
+name: Living room ceiling fan on when hot outside and someone present
+group: HA Import
+description: 'Imported from Home Assistant (id: 1714325395846).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.living_room_motion_detected
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - op: gt
+    type: device_state
+    value: 75
+    deviceId: sensor.home_realfeel_temperature
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.living_room_motion_detected
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: fan.living_room_ceiling_fan
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: Morning
+        deviceId: input_select.system_mode
+        attribute: state
+      - op: eq
+        type: device_state
+        value: Day
+        deviceId: input_select.system_mode
+        attribute: state
+      - op: eq
+        type: device_state
+        value: Evening
+        deviceId: input_select.system_mode
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      speed: high
+      action: turn_on
+      deviceId: fan.living_room_ceiling_fan
+    deviceId: fan.living_room_ceiling_fan

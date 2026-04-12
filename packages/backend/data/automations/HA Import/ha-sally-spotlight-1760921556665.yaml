@@ -1,0 +1,19 @@
+id: ha-sally-spotlight-1760921556665
+name: Sally Spotlight
+group: HA Import
+description: 'Imported from Home Assistant (id: 1760921556665).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:00:10'
+    type: device_state
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.sally_light
+    deviceId: switch.sally_light

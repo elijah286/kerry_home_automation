@@ -1,0 +1,30 @@
+id: ha-v2-sensor-battery-drops-below-70-1584323342427
+name: 'V2: Sensor battery drops below 70%'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1584323342427).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.lowest_sensor_battery
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - op: lt
+    type: device_state
+    value: 70
+    deviceId: sensor.lowest_sensor_battery
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.sensor_battery_warning
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.sensor_battery_warning
+    deviceId: input_boolean.sensor_battery_warning

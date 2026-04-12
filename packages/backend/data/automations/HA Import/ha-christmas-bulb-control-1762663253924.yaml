@@ -1,0 +1,74 @@
+id: ha-christmas-bulb-control-1762663253924
+name: 'Christmas: Bulb Control'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1762663253924).'
+enabled: false
+mode: restart
+triggers:
+  - to: 'on'
+    for: '00:00:05'
+    type: device_state
+    deviceId: switch.exterior_sconces
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.exterior_sconces
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.christmas_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.front_door
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_number
+      action: increment
+      deviceId: input_number.christmas_pattern_1
+    deviceId: input_number.christmas_pattern_1
+  - type: log
+    message: '[HA if/then] Could not translate if block'
+  - then:
+      - type: log
+        message: '[HA choose] Could not translate choose block'
+      - type: log
+        message: '[HA choose] Could not translate choose block'
+      - type: log
+        message: '[HA choose] Could not translate choose block'
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Bulbs rotate
+      deviceId: input_select.christmas_light_mode
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: input_select
+          action: select_next
+          deviceId: input_select.christmas_light_mode
+        deviceId: input_select.christmas_light_mode
+    type: condition
+    condition:
+      type: or
+      conditions:
+        - op: eq
+          type: device_state
+          value: Bulbs rotate
+          deviceId: input_select.christmas_light_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Solid Sconces
+          deviceId: input_select.christmas_light_mode
+          attribute: state

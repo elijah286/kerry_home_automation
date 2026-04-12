@@ -1,0 +1,18 @@
+id: ha-asher-s-lamp-turns-off-overhead-1566613247261
+name: Asher's lamp turns off overhead
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566613247261).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.ashers_bedroom_table_lamp
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.ashers_bedroom_main_lights
+    deviceId: switch.ashers_bedroom_main_lights

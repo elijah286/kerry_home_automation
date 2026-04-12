@@ -2,8 +2,11 @@
 
 import type { EnergySiteState } from '@ha/shared';
 import { sendCommand } from '@/lib/api';
+import { useCommand } from '@/hooks/useCommand';
+import { ButtonSpinner } from '@/components/ui/ButtonSpinner';
 import { ThrottledSlider } from '@/components/ui/ThrottledSlider';
 import { Badge } from '@/components/ui/Badge';
+import { Select } from '@/components/ui/Select';
 
 const MODE_LABELS: Record<string, string> = {
   self_consumption: 'Self-Powered',
@@ -17,20 +20,22 @@ function formatPower(watts: number): string {
 }
 
 export function EnergySiteControl({ device }: { device: EnergySiteState }) {
+  const { send, isPending } = useCommand(device.id);
+
   const setBackupReserve = (value: number) => {
     sendCommand(device.id, { type: 'energy_site', action: 'set_backup_reserve', backupReservePercent: value });
   };
 
-  const setMode = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    sendCommand(device.id, {
+  const setMode = (value: string) => {
+    send('mode', {
       type: 'energy_site',
       action: 'set_operation_mode',
-      operationMode: e.target.value as EnergySiteState['operationMode'],
+      operationMode: value as EnergySiteState['operationMode'],
     });
   };
 
   const toggleStormMode = () => {
-    sendCommand(device.id, { type: 'energy_site', action: 'set_storm_mode', stormModeEnabled: !device.stormModeEnabled });
+    send('storm', { type: 'energy_site', action: 'set_storm_mode', stormModeEnabled: !device.stormModeEnabled });
   };
 
   return (
@@ -112,20 +117,13 @@ export function EnergySiteControl({ device }: { device: EnergySiteState }) {
       {/* Operation mode */}
       <div className="space-y-1">
         <label className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Operation Mode</label>
-        <select
+        <Select
           value={device.operationMode}
-          onChange={setMode}
-          className="w-full rounded-md border px-2 py-1 text-sm"
-          style={{
-            backgroundColor: 'var(--color-bg-secondary)',
-            borderColor: 'var(--color-border)',
-            color: 'var(--color-text)',
-          }}
-        >
-          {Object.entries(MODE_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
-          ))}
-        </select>
+          onValueChange={setMode}
+          disabled={isPending('mode')}
+          options={Object.entries(MODE_LABELS).map(([value, label]) => ({ value, label }))}
+          className="w-full"
+        />
       </div>
 
       {/* Storm mode */}
@@ -133,13 +131,15 @@ export function EnergySiteControl({ device }: { device: EnergySiteState }) {
         <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Storm Watch</span>
         <button
           onClick={toggleStormMode}
+          disabled={isPending('storm')}
           className="rounded-md px-3 py-1 text-xs font-medium transition-colors"
           style={{
             backgroundColor: device.stormModeEnabled ? 'var(--color-accent)' : 'var(--color-bg-hover)',
             color: device.stormModeEnabled ? '#fff' : 'var(--color-text-secondary)',
+            opacity: isPending('storm') ? 0.7 : 1,
           }}
         >
-          {device.stormModeEnabled ? 'ON' : 'OFF'}
+          {isPending('storm') ? <ButtonSpinner /> : device.stormModeEnabled ? 'ON' : 'OFF'}
         </button>
       </div>
     </div>

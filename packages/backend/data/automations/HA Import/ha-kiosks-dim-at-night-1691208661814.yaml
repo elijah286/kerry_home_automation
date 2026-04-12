@@ -1,0 +1,18 @@
+id: ha-kiosks-dim-at-night-1691208661814
+name: Kiosks dim at night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1691208661814).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: number
+      value: '10'
+      action: set_value
+      deviceId: number.movie_room_kiosk_screen_brightness
+    deviceId: number.movie_room_kiosk_screen_brightness

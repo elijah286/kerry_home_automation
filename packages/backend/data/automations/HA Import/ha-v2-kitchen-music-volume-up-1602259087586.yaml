@@ -1,0 +1,24 @@
+id: ha-v2-kitchen-music-volume-up-1602259087586
+name: 'v2: Kitchen Music: Volume Up'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1602259087586).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.kitchen_music_up
+    attribute: state
+  - type: device_state
+    deviceId: input_button.lr_volume_up
+    attribute: state
+  - type: device_state
+    deviceId: f017366d5f31f75a38b8fedf19073596
+    attribute: press
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      deviceId: media_player.living_room_receiver
+    deviceId: media_player.living_room_receiver

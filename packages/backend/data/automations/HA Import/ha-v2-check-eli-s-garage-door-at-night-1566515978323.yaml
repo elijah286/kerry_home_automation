@@ -1,0 +1,30 @@
+id: ha-v2-check-eli-s-garage-door-at-night-1566515978323
+name: 'V2: Check Eli''s Garage Door at Night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566515978323).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: open
+    deviceId: cover.red
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: 'WARNING: Eli''s garage door is still open'
+      deviceId: ''
+    deviceId: notify.everyone
+  - type: device_command
+    command:
+      type: scene
+      action: turn_on
+      deviceId: scene.HA_warning
+    deviceId: scene.HA_warning

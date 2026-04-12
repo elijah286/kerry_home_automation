@@ -1,0 +1,37 @@
+id: ha-warning-water-leak-sensors-activates-warning-1584311124572
+name: 'WARNING: Water Leak Sensors Activates Warning'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1584311124572).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.leak_in_kitchen_water_alarm_water_leak_detected
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.water_heater_leak_detector_2
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.water_heater_leak_detector_1
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.flood_sensor_water_alarm_water_leak_detected
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: 'WARNING: a water leak sensor has been tripped'
+      deviceId: ''
+    deviceId: notify.everyone

@@ -1,0 +1,17 @@
+id: ha-v2-kitchen-music-next-track-1602259047149
+name: 'V2: Kitchen Music: Next Track'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1602259047149).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: f017366d5f31f75a38b8fedf19073596
+    attribute: press
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: media_next_track
+      deviceId: media_player.living_room_receiver
+    deviceId: media_player.living_room_receiver

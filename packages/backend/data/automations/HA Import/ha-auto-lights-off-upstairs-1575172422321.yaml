@@ -1,0 +1,151 @@
+id: ha-auto-lights-off-upstairs-1575172422321
+name: 'auto lights off: upstairs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1575172422321).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.upstairs_vacant
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.game_room_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.movie_room_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: fan.game_room_ceiling_fan
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.theater_floor_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: ''
+        deviceId: switch.movie_room_ceiling_fan_light
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.top_of_stairs_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.upstairs_hallway_alcove
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.upstairs_hallway_piano
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.ashers_bedroom_desk_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.ashers_bedroom_table_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.ashers_bedroom_closet_light
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.ashers_bedroom_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.levis_bedside_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.study_desk_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.levis_bedroom_closet_light
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.levis_bedroom_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.sloanes_bedroom_bedside_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.sloanes_bedroom_dresser_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.sloanes_bedroom_ceiling_fan_light
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.sloanes_bedroom_closet_light
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.upstairs_vacant
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: input_boolean.anyone_home
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.game_room_main_lights
+    deviceId: light.game_room_main_lights
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.movie_room_ceiling_fan
+    deviceId: fan.movie_room_ceiling_fan
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.ashers_bedroom_closet_light
+    deviceId: switch.ashers_bedroom_closet_light

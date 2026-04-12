@@ -1,0 +1,53 @@
+id: ha-auto-lights-on-backyard-1640143970417
+name: 'auto lights on: backyard'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1640143970417).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.back_door
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: Night
+        deviceId: input_select.system_mode
+        attribute: state
+      - op: eq
+        type: device_state
+        value: Morning
+        deviceId: input_select.system_mode
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.flood
+      brightness: 255
+    deviceId: light.flood
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.patio_light
+    deviceId: switch.patio_light
+  - then: []
+    type: condition
+    condition:
+      type: or
+      conditions:
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Morning
+          deviceId: input_select.system_mode
+          attribute: state

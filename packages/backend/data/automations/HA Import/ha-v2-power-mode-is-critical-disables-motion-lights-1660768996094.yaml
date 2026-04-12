@@ -1,0 +1,18 @@
+id: ha-v2-power-mode-is-critical-disables-motion-lights-1660768996094
+name: 'V2: Power Mode is Critical Disables Motion Lights'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660768996094).'
+enabled: false
+mode: single
+triggers:
+  - to: Critical
+    type: device_state
+    deviceId: input_select.power_saving_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.motion_lights_on
+    deviceId: input_boolean.motion_lights_on

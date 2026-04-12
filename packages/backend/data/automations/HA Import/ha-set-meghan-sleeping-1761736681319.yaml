@@ -1,0 +1,28 @@
+id: ha-set-meghan-sleeping-1761736681319
+name: Set Meghan Sleeping
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761736681319).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: light.master_bedroom_meghans_lamp
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.meghan_is_sleeping
+        deviceId: input_boolean.meghan_is_sleeping
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state

@@ -1,0 +1,18 @@
+id: ha-toilet-off-at-night-1604983298736
+name: Toilet off at night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1604983298736).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.night_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off

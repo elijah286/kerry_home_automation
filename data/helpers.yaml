@@ -1,0 +1,1897 @@
+helpers:
+  # ===========================================================================
+  # TOGGLES (from HA input_boolean)
+  # ===========================================================================
+  - id: eli_s_alarm
+    type: toggle
+    name: "Eli's Alarm"
+    icon: mdi:alarm-check
+
+  - id: meghan_s_alarm
+    type: toggle
+    name: "Meghan's Alarm"
+    icon: mdi:alarm-check
+
+  - id: levi_s_alarm
+    type: toggle
+    name: "Levi's Alarm"
+    icon: mdi:alarm-check
+
+  - id: asher_s_alarm
+    type: toggle
+    name: "Asher's Alarm"
+    icon: mdi:alarm-check
+
+  - id: sloane_s_alarm
+    type: toggle
+    name: "Sloane's Alarm"
+    icon: mdi:alarm-check
+
+  - id: konnected_error
+    type: toggle
+    name: Konnected Error
+
+  - id: outdoor_speakers_sync_to_main
+    type: toggle
+    name: Outdoor Speakers Sync to Main
+    icon: mdi:speaker-multiple
+
+  - id: levi_sleeping
+    type: toggle
+    name: Levi Sleeping
+    icon: mdi:bed-outline
+
+  - id: asher_sleeping
+    type: toggle
+    name: Asher Sleeping
+    icon: mdi:bed-outline
+
+  - id: sloane_sleeping
+    type: toggle
+    name: Sloane Sleeping
+    icon: mdi:bed-outline
+
+  - id: home_alert
+    type: toggle
+    name: Home Alert
+    icon: mdi:alert-outline
+
+  - id: kids_sleeping
+    type: toggle
+    name: Kids Sleeping
+    icon: mdi:sleep
+
+  - id: sleepover_party
+    type: toggle
+    name: Sleepover Party
+    icon: mdi:party-popper
+
+  - id: motion_lights_on
+    type: toggle
+    name: Motion Lights On
+    icon: mdi:motion-sensor
+
+  - id: upstairs_vacant
+    type: toggle
+    name: Upstairs Vacant
+    icon: mdi:home-off-outline
+
+  - id: wake_up_with_music
+    type: toggle
+    name: Wake Up with Music
+    icon: mdi:music-box
+
+  - id: kitchen_motion_detected
+    type: toggle
+    name: Person in Kitchen
+    icon: mdi:motion-sensor
+
+  - id: office_motion_sensor
+    type: toggle
+    name: Office Motion Sensor
+    icon: mdi:desk
+
+  - id: movie_kiosk_motion
+    type: toggle
+    name: Movie Kiosk Motion
+    icon: mdi:motion-sensor
+
+  - id: game_room_speakers
+    type: toggle
+    name: Game Room Speakers
+    icon: mdi:speaker-multiple
+
+  - id: guest_mode
+    type: toggle
+    name: Guest Mode
+    icon: mdi:account-group
+
+  - id: movie_tv_warning
+    type: toggle
+    name: Movie TV Warning
+    icon: mdi:alert-box-outline
+
+  - id: upstairs_climate_status
+    type: toggle
+    name: Upstairs Climate Status
+    icon: mdi:hvac
+
+  - id: kids_at_school
+    type: toggle
+    name: kids at school
+
+  - id: water_heater_needs_service
+    type: toggle
+    name: Water Heater Needs Service
+    icon: mdi:water-boiler-alert
+
+  - id: warning
+    type: toggle
+    name: Warning
+    icon: mdi:alert
+
+  - id: wake_meghan_with_music
+    type: toggle
+    name: Wake Meghan with music
+    icon: mdi:bookmark-music
+
+  - id: critical_warning
+    type: toggle
+    name: Critical Warning
+    icon: mdi:alarm-light
+
+  - id: stop_roomba
+    type: toggle
+    name: Stop Roomba
+    icon: mdi:robot-vacuum-off
+
+  - id: main_floor_roborock_cleaning
+    type: toggle
+    name: Main Floor Roborock Cleaning
+    icon: mdi:robot-vacuum
+
+  - id: motion_lights_auto_off
+    type: toggle
+    name: Motion Lights Auto Off
+    icon: mdi:motion-sensor-off
+
+  - id: wallpanel_screensaver
+    type: toggle
+    name: wallpanel screensaver
+
+  - id: vacuum_auto_run
+    type: toggle
+    name: Vacuum Auto Run
+    icon: mdi:robot-vacuum
+
+  - id: pause_vacuum_for_5_min
+    type: toggle
+    name: Pause Vacuum for 5 Min
+    icon: mdi:robot-vacuum-alert
+
+  - id: lights_on_in_bedroom
+    type: toggle
+    name: Bedroom is awake
+    icon: mdi:weather-sunny-alert
+
+  - id: bedroom_tv
+    type: toggle
+    name: Bedroom TV
+    icon: mdi:television
+
+  - id: motion_detected_on_front_patio
+    type: toggle
+    name: Person on Front Porch
+    icon: mdi:motion-sensor
+
+  - id: motion_detected_on_back_porch
+    type: toggle
+    name: Person on Back Porch
+    icon: mdi:motion-sensor
+
+  - id: tire_pressure_warning_for_voyager
+    type: toggle
+    name: Tire Pressure Warning for Voyager
+    icon: mdi:gauge
+
+  - id: tire_pressure_warning_for_enterprise
+    type: toggle
+    name: Tire Pressure Warning for Enterprise
+    icon: mdi:gauge-empty
+
+  - id: tire_mileage_warning_for_voyager
+    type: toggle
+    name: Tire Mileage Warning for Voyager
+    icon: mdi:road-variant
+
+  - id: tire_mileage_warning_for_enterprise
+    type: toggle
+    name: Tire Mileage Warning for Enterprise
+    icon: mdi:road-variant
+
+  - id: camera_motion_on_front_porch
+    type: toggle
+    name: Camera Motion on Front Porch
+
+  - id: smoke_detector_needs_service
+    type: toggle
+    name: smoke detector needs service
+    icon: mdi:smoke-detector
+
+  - id: dryer_vent_needs_service
+    type: toggle
+    name: dryer vent needs service
+    icon: mdi:tumble-dryer
+
+  - id: air_filter_needs_service
+    type: toggle
+    name: air filter needs service
+    icon: mdi:air-filter
+
+  - id: cats_detected_outdoors
+    type: toggle
+    name: Cats Detected Outdoors
+    icon: mdi:cat
+
+  - id: motion_detected_in_garage
+    type: toggle
+    name: Person in Garage
+    icon: mdi:motion-sensor
+
+  - id: system_memory_warning
+    type: toggle
+    name: System Memory Warning
+    icon: mdi:memory
+
+  - id: show_doorbell_camera
+    type: toggle
+    name: Show Doorbell Camera
+    icon: mdi:doorbell-video
+
+  - id: party_mode
+    type: toggle
+    name: Party Mode
+    icon: mdi:party-popper
+
+  - id: sensor_battery_warning
+    type: toggle
+    name: Sensor Battery Warning
+    icon: mdi:battery-alert-variant-outline
+
+  - id: auto_adjust_power_reserve
+    type: toggle
+    name: Auto Adjust Power Reserve
+    icon: mdi:battery-charging-60
+
+  - id: late_night
+    type: toggle
+    name: Late Night
+    icon: mdi:sleep
+
+  - id: halloween_mode
+    type: toggle
+    name: Halloween Mode
+    icon: mdi:halloween
+
+  - id: movie_mode
+    type: toggle
+    name: Movie Mode
+    icon: mdi:movie
+
+  - id: game_room_motion_detected
+    type: toggle
+    name: Person in Game Room
+    icon: mdi:motion-sensor
+
+  - id: living_room_motion_detected
+    type: toggle
+    name: Person in Living Room
+    icon: mdi:motion-sensor
+
+  - id: motion_detected_in_office
+    type: toggle
+    name: Person in Office
+    icon: mdi:motion-sensor
+
+  - id: person_in_main_bathroom
+    type: toggle
+    name: Person in Main Bathroom
+    icon: mdi:motion-sensor
+
+  - id: person_in_hallway
+    type: toggle
+    name: Person in Hallway
+    icon: mdi:motion-sensor
+
+  - id: person_in_powder_room
+    type: toggle
+    name: Person in Powder Room
+    icon: mdi:motion-sensor
+
+  - id: person_at_top_of_stairs
+    type: toggle
+    name: Person on Stairs
+    icon: mdi:motion-sensor
+
+  - id: person_detected_in_main_bedroom
+    type: toggle
+    name: Person in Main Bedroom
+    icon: mdi:motion-sensor
+
+  - id: person_in_movie_room
+    type: toggle
+    name: Person in Movie Room
+    icon: mdi:motion-sensor
+
+  - id: person_in_piano_room
+    type: toggle
+    name: Person in Piano Room
+    icon: mdi:account
+
+  - id: sexy_time
+    type: toggle
+    name: Sexy time
+    icon: mdi:bed-king-outline
+
+  - id: announce_changes_to_video_game_time
+    type: toggle
+    name: Announce Changes to Video Game Time
+    icon: mdi:bullhorn-outline
+
+  - id: automatically_arm_the_alarm
+    type: toggle
+    name: Automatically Arm the Alarm
+    icon: mdi:shield-home-outline
+
+  - id: automatically_disarm_the_alarm
+    type: toggle
+    name: Automatically Disarm the Alarm
+    icon: mdi:shield-home
+
+  - id: alarm_when_person_detected_by_cameras
+    type: toggle
+    name: Alarm When Person Detected by Cameras
+
+  - id: keep_house_on
+    type: toggle
+    name: Keep House On
+    icon: mdi:power
+
+  - id: main_floor_hvac_fan
+    type: toggle
+    name: Main Floor HVAC Fan
+    icon: mdi:hvac
+
+  - id: upstairs_hvac_fan
+    type: toggle
+    name: Upstairs HVAC Fan
+    icon: mdi:hvac
+
+  - id: simulated_hvac_fan_main_floor
+    type: toggle
+    name: Simulated HVAC Fan Main Floor
+    icon: mdi:hvac
+
+  - id: auto_party_off
+    type: toggle
+    name: Auto Party Off
+    icon: mdi:party-popper
+
+  - id: mute_living_room
+    type: toggle
+    name: Mute Living Room
+    icon: mdi:volume-variant-off
+
+  - id: clean_living_room
+    type: toggle
+    name: "Clean: Living Room (16)"
+    icon: mdi:sofa-outline
+
+  - id: clean_office
+    type: toggle
+    name: "Clean: Office (17)"
+    icon: mdi:desk
+
+  - id: clean_kitchen
+    type: toggle
+    name: "Clean: Kitchen (18)"
+    icon: mdi:fridge
+
+  - id: clean_bedroom
+    type: toggle
+    name: "Clean: Bedroom (19)"
+    icon: mdi:bed-king-outline
+
+  - id: clean_main_bathroom
+    type: toggle
+    name: "Clean: Main Bathroom (20)"
+    icon: mdi:shower
+
+  - id: clean_entry
+    type: toggle
+    name: "Clean: Entry (21)"
+    icon: mdi:chandelier
+
+  - id: clean_powder_room
+    type: toggle
+    name: "Clean: Powder Room (22)"
+    icon: mdi:toilet
+
+  - id: clean_laundry_room
+    type: toggle
+    name: "Clean: Laundry Room (23)"
+    icon: mdi:washing-machine
+
+  - id: clean_hallway
+    type: toggle
+    name: "Clean: Hallway (24)"
+    icon: mdi:wall-sconce-flat-outline
+
+  - id: clean_dining_room
+    type: toggle
+    name: "Clean: Dining Room (25)"
+    icon: mdi:table-furniture
+
+  - id: clean_bottom_of_stairs
+    type: toggle
+    name: "Clean: Bottom of Stairs (26)"
+    icon: mdi:stairs
+
+  - id: clean_guest_room
+    type: toggle
+    name: "Clean: Guest Room (27)"
+    icon: mdi:bed
+
+  - id: clean_breakfast_table
+    type: toggle
+    name: "Clean: Breakfast Table (28)"
+    icon: mdi:table-chair
+
+  - id: person_in_toilet_room
+    type: toggle
+    name: Person in Toilet Room
+
+  - id: person_in_dining_room
+    type: toggle
+    name: person in dining room
+    icon: mdi:motion-sensor
+
+  - id: person_in_guest_room
+    type: toggle
+    name: Person in guest room
+
+  - id: person_in_foyer
+    type: toggle
+    name: Person in foyer
+
+  - id: person_in_pool
+    type: toggle
+    name: person in pool
+    icon: mdi:pool
+
+  - id: person_in_front_yard
+    type: toggle
+    name: Person in front yard
+
+  - id: upstairs_occupied
+    type: toggle
+    name: Upstairs Occupied
+
+  - id: wind_speed_warning
+    type: toggle
+    name: Wind Speed Warning
+    icon: mdi:wind-power
+
+  - id: garage_freezer_left_open
+    type: toggle
+    name: Garage Freezer Left Open
+    icon: mdi:fridge-alert
+
+  - id: fridge_warning
+    type: toggle
+    name: Fridge Warning
+    icon: mdi:fridge-alert
+
+  - id: hvac_main_floor_fan_on
+    type: toggle
+    name: "HVAC: Main Floor Fan On"
+    icon: mdi:hvac
+
+  - id: hvac_upstairs_fan_on
+    type: toggle
+    name: "HVAC: Upstairs fan on"
+    icon: mdi:hvac
+
+  - id: recommend_opening_window
+    type: toggle
+    name: Recommend opening window
+    icon: mdi:window-closed
+
+  - id: person_in_boys_bathroom
+    type: toggle
+    name: Person in boys bathroom
+    icon: mdi:toilet
+
+  - id: person_in_sloanes_bathroom
+    type: toggle
+    name: person in sloanes bathroom
+    icon: mdi:account
+
+  - id: silence_alerts
+    type: toggle
+    name: Silence Alerts
+    icon: mdi:volume-mute
+
+  - id: spa_heater
+    type: toggle
+    name: Spa Heater
+
+  - id: pool_heater
+    type: toggle
+    name: Pool Heater
+
+  - id: power_level_verbal_warnings
+    type: toggle
+    name: Power level verbal warnings
+    icon: mdi:alert
+
+  - id: sprinkler_running
+    type: toggle
+    name: Sprinkler Running
+    icon: mdi:sprinkler-variant
+
+  - id: water_left_running
+    type: toggle
+    name: Water Left Running
+    icon: mdi:water-alert
+
+  - id: outdoor_halloween_mode
+    type: toggle
+    name: Outdoor Halloween Mode
+    icon: mdi:pumpkin
+
+  - id: run_jack_and_sally_show
+    type: toggle
+    name: Run Jack and Sally Show
+    icon: mdi:halloween
+
+  - id: meghan_is_sleeping
+    type: toggle
+    name: Meghan is sleeping
+    icon: mdi:sleep
+
+  - id: constant_fog
+    type: toggle
+    name: Constant Fog
+
+  - id: flicker_office_lights
+    type: toggle
+    name: Flicker Office Lights
+    icon: mdi:candelabra-fire
+
+  - id: flicker_dining_room_lights
+    type: toggle
+    name: Flicker Dining Room Lights
+    icon: mdi:candelabra-fire
+
+  - id: animatronics_armed
+    type: toggle
+    name: Animatronics Armed
+    icon: mdi:ghost
+
+  - id: flicker_foyer_lights
+    type: toggle
+    name: Flicker Foyer Lights
+    icon: mdi:candelabra-fire
+
+  - id: kiosk_screensaver
+    type: toggle
+    name: kiosk screensaver
+    icon: mdi:monitor-screenshot
+
+  - id: kiosk_movie_room_screensaver
+    type: toggle
+    name: kiosk movie room screensaver
+    icon: mdi:laptop
+
+  - id: kiosk_hallway_screensaver
+    type: toggle
+    name: kiosk hallway screensaver
+    icon: mdi:laptop
+
+  - id: kiosk_kitchen_screensaver
+    type: toggle
+    name: kiosk kitchen screensaver
+    icon: mdi:laptop
+
+  - id: kiosk_guest_room_screensaver
+    type: toggle
+    name: kiosk guest room screensaver
+    icon: mdi:laptop
+
+  - id: kiosk_bedroom_screensaver
+    type: toggle
+    name: kiosk bedroom screensaver
+    icon: mdi:laptop
+
+  - id: kiosk_office_screensaver
+    type: toggle
+    name: kiosk office screensaver
+    icon: mdi:laptop
+
+  - id: christmas_mode
+    type: toggle
+    name: Christmas Mode
+
+  - id: auto_pool_cleaner
+    type: toggle
+    name: Auto pool cleaner
+    icon: mdi:robot-vacuum
+
+  - id: spa_is_ready
+    type: toggle
+    name: Spa is Ready
+    icon: mdi:pool-thermometer
+
+  - id: pool_is_heated
+    type: toggle
+    name: Pool is Ready
+    icon: mdi:pool-thermometer
+
+  - id: video_games_being_played
+    type: toggle
+    name: "video games being played?"
+    icon: mdi:nintendo-game-boy
+
+  - id: wake_sloane_with_music
+    type: toggle
+    name: Wake Sloane with music
+    icon: mdi:timer-music-outline
+
+  - id: wake_levi_with_music
+    type: toggle
+    name: Wake Levi with music
+    icon: mdi:account-music
+
+  - id: wake_asher_with_music
+    type: toggle
+    name: Wake Asher with music
+    icon: mdi:account-music-outline
+
+  - id: house_is_dark
+    type: toggle
+    name: House is dark
+
+  - id: freeze_protection
+    type: toggle
+    name: Freeze Protection
+    icon: mdi:sun-snowflake
+
+  - id: auto_bedjet_for_eli
+    type: toggle
+    name: Auto Bedjet for Eli
+    icon: mdi:bed
+
+  - id: auto_bedjet_for_meghan
+    type: toggle
+    name: Auto Bedjet for Meghan
+    icon: mdi:bed
+
+  - id: bedjet_ek_started_by_ha
+    type: toggle
+    name: Bedjet EK started by HA
+
+  - id: bedjet_mk_started_by_ha
+    type: toggle
+    name: Bedjet MK started by HA
+
+  # ===========================================================================
+  # NUMBERS (from HA input_number)
+  # ===========================================================================
+  - id: extracurrent
+    type: number
+    name: ExtraCurrent
+    min: -100
+    max: 100
+    step: 1
+    mode: slider
+    unit: A
+
+  - id: home_power_usage
+    type: number
+    name: "Home Usage (w/o car)"
+    min: -100
+    max: 100
+    step: 1
+    mode: slider
+    unit: kW
+
+  - id: extra_power
+    type: number
+    name: Extra Power
+    min: -100
+    max: 100
+    step: 1
+    mode: slider
+    unit: kW
+
+  - id: water_heater_service_interval
+    type: number
+    name: Water Heater Service Interval
+    min: 100
+    max: 500
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: tire_pressure_warning_threshold_for_voyager
+    type: number
+    name: Tire Pressure Warning Threshold for Voyager
+    icon: mdi:car-tire-alert
+    min: 0
+    max: 100
+    step: 1
+    mode: box
+
+  - id: tire_pressure_warning_threshold_for_enterprise
+    type: number
+    name: Tire Pressure Warning Threshold for Enterprise
+    icon: mdi:car-tire-alert
+    min: 0
+    max: 100
+    step: 1
+    mode: box
+
+  - id: tire_warning_mileage_snooze_for_enterprise
+    type: number
+    name: Tire Warning Mileage Snooze for Enterprise
+    min: -100000
+    max: 100000
+    step: 1
+    mode: slider
+
+  - id: smoke_detector_service_interval
+    type: number
+    name: smoke detector service interval
+    icon: mdi:smoke-detector
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+
+  - id: dryer_vent_service_interval
+    type: number
+    name: dryer vent service interval
+    icon: mdi:tumble-dryer
+    min: 0
+    max: 930
+    step: 1
+    mode: box
+
+  - id: air_filter_service_interval
+    type: number
+    name: air filter service interval
+    min: 0
+    max: 929
+    step: 1
+    mode: box
+
+  - id: minimum_charge_level_for_smartcharge
+    type: number
+    name: Minimum Car
+    min: 0
+    max: 100
+    step: 1
+    mode: box
+    unit: "%"
+
+  - id: minimum_powerwall_charge_level
+    type: number
+    name: Min Powerwall SoC
+    min: 0
+    max: 100
+    step: 1
+    mode: box
+    unit: "%"
+
+  - id: ev_charging_amp_set_point
+    type: number
+    name: EV Charging Amp Set Point
+    min: 0
+    max: 50
+    step: 1
+    mode: slider
+
+  - id: smart_charge_kwh_added_to_enterprise
+    type: number
+    name: Smart Charge kWh Added to Enterprise
+    min: 0
+    max: 500
+    step: 0.1
+    mode: box
+    unit: kWh
+
+  - id: smart_charge_kwh_added_to_voyager
+    type: number
+    name: Smart Charge kWh Added to Voyager
+    min: 0
+    max: 200
+    step: 1
+    mode: box
+    unit: kWh
+
+  - id: powerwall_daily_battery_max
+    type: number
+    name: Powerwall Daily Battery Max
+    icon: mdi:battery-alert
+    min: 0
+    max: 100
+    step: 1
+    mode: slider
+    unit: "%"
+
+  - id: blind_battery_living_room_left
+    type: number
+    name: "Blind Battery: Living Room Left"
+    icon: mdi:battery-clock-outline
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: blind_battery_living_room_middle
+    type: number
+    name: "Blind Battery: Living Room Middle"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: slider
+    unit: Days
+
+  - id: blind_battery_living_room_right
+    type: number
+    name: "Blind Battery: Living Room Right"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: slider
+    unit: Days
+
+  - id: blind_battery_bedroom_backyard_left
+    type: number
+    name: "Blind Battery: Bedroom Backyard Left"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: blind_battery_bedroom_backyard_middle
+    type: number
+    name: "Blind Battery: Bedroom Backyard Middle"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: blind_battery_bedroom_backyard_right
+    type: number
+    name: "Blind Battery: Bedroom Backyard Right"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: blind_battery_office_left
+    type: number
+    name: "Blind Battery: Office Left"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: blind_battery_office_middle
+    type: number
+    name: "Blind Battery: Office Middle"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: blind_battery_office_right
+    type: number
+    name: "Blind Battery: Office Right"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: blind_battery_ashers_bedroom
+    type: number
+    name: "Blind Battery: Ashers Bedroom"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: blind_battery_levis_bedroom
+    type: number
+    name: "Blind Battery: Levis Bedroom"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: blind_battery_sloanes_bedroom
+    type: number
+    name: "Blind Battery: Sloanes Bedroom"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: blind_battery_game_room_left
+    type: number
+    name: "Blind Battery: Game Room Left"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: blind_battery_game_room_middle
+    type: number
+    name: "Blind Battery: Game Room Middle"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: blind_battery_game_room_right
+    type: number
+    name: "Blind Battery: Game Room Right"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: blind_battery_movie_room
+    type: number
+    name: "Blind Battery: Movie Room"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: blind_battery_bedroom_eli
+    type: number
+    name: "Blind Battery: Bedroom Eli"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: blind_battery_bedroom_meghan
+    type: number
+    name: "Blind Battery: Bedroom Meghan"
+    icon: mdi:battery-clock
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    unit: Days
+
+  - id: night_setpoint
+    type: number
+    name: night_setpoint
+    icon: mdi:temperature-fahrenheit
+    min: 65
+    max: 75
+    step: 0.5
+    mode: slider
+    unit: "°F"
+
+  - id: morning_setpoint
+    type: number
+    name: morning_setpoint
+    icon: mdi:temperature-fahrenheit
+    min: 65
+    max: 75
+    step: 0.5
+    mode: slider
+    unit: "°F"
+
+  - id: day_setpoint
+    type: number
+    name: day_setpoint
+    icon: mdi:temperature-fahrenheit
+    min: 65
+    max: 75
+    step: 0.5
+    mode: slider
+    unit: "°F"
+
+  - id: evening_setpoint
+    type: number
+    name: evening_setpoint
+    icon: mdi:temperature-fahrenheit
+    min: 65
+    max: 75
+    step: 0.5
+    mode: slider
+    unit: "°F"
+
+  - id: late_evening_setpoint
+    type: number
+    name: late_evening_setpoint
+    icon: mdi:temperature-fahrenheit
+    min: 65
+    max: 75
+    step: 0.5
+    mode: slider
+    unit: "°F"
+
+  - id: night_setpoint_upstairs
+    type: number
+    name: night_setpoint_upstairs
+    icon: mdi:temperature-fahrenheit
+    min: 65
+    max: 75
+    step: 0.5
+    mode: slider
+    unit: F
+
+  - id: morning_setpoint_upstairs
+    type: number
+    name: morning_setpoint_upstairs
+    icon: mdi:temperature-fahrenheit
+    min: 65
+    max: 75
+    step: 0.5
+    mode: slider
+    unit: F
+
+  - id: late_evening_setpoint_upstairs
+    type: number
+    name: late_evening_setpoint_upstairs
+    icon: mdi:temperature-fahrenheit
+    min: 65
+    max: 75
+    step: 0.5
+    mode: slider
+    unit: F
+
+  - id: evening_setpoint_upstairs
+    type: number
+    name: evening_setpoint_upstairs
+    icon: mdi:temperature-fahrenheit
+    min: 65
+    max: 75
+    step: 0.5
+    mode: slider
+    unit: F
+
+  - id: day_setpoint_upstairs
+    type: number
+    name: day_setpoint_upstairs
+    icon: mdi:temperature-fahrenheit
+    min: 65
+    max: 75
+    step: 0.5
+    mode: slider
+    unit: F
+
+  - id: temperature_of_main_floor
+    type: number
+    name: Temperature of Main Floor
+    icon: mdi:temperature-fahrenheit
+    min: 50
+    max: 100
+    step: 0.1
+    mode: slider
+    unit: F
+
+  - id: temperature_of_upstairs
+    type: number
+    name: Temperature of Upstairs
+    icon: mdi:temperature-fahrenheit
+    min: 50
+    max: 100
+    step: 0.1
+    mode: slider
+    unit: F
+
+  - id: percent_self_powered
+    type: number
+    name: Percent Self Powered
+    icon: mdi:solar-power-variant
+    min: 0
+    max: 100
+    step: 1
+    mode: slider
+    unit: "%"
+
+  - id: main_floor_target_temp
+    type: number
+    name: main floor target temp
+    icon: mdi:temperature-fahrenheit
+    min: 60
+    max: 80
+    step: 0.5
+    mode: slider
+    unit: "°F"
+
+  - id: upstairs_target_temp
+    type: number
+    name: upstairs target temp
+    icon: mdi:temperature-fahrenheit
+    min: 60
+    max: 80
+    step: 0.5
+    mode: slider
+    unit: "°F"
+
+  - id: measured_temperature_for_main_floor
+    type: number
+    name: measured temperature for main floor
+    icon: mdi:temperature-fahrenheit
+    min: 0
+    max: 100
+    step: 0.1
+    mode: slider
+    unit: "°F"
+
+  - id: measured_temperature_for_upstairs
+    type: number
+    name: measured temperature for upstairs
+    icon: mdi:temperature-fahrenheit
+    min: 0
+    max: 100
+    step: 0.1
+    mode: slider
+    unit: "°F"
+
+  - id: timer_asher_s_closet
+    type: number
+    name: "Timer: Asher's Closet"
+    icon: mdi:av-timer
+    min: -1
+    max: 60
+    step: 1
+    mode: slider
+
+  - id: timer_asher_s_overhead_light
+    type: number
+    name: "Timer: Asher's Overhead Light"
+    icon: mdi:av-timer
+    min: -1
+    max: 100
+    step: 1
+    mode: slider
+
+  - id: timer_asher_s_lamps
+    type: number
+    name: "Timer: Asher's Lamps"
+    icon: mdi:av-timer
+    min: -1
+    max: 100
+    step: 1
+    mode: slider
+
+  - id: sprinkler_zone_to_run
+    type: number
+    name: Sprinkler Zone to Run
+    icon: mdi:sprinkler
+    min: 0
+    max: 11
+    step: 1
+    mode: slider
+
+  - id: low_temp_today
+    type: number
+    name: Low Temp Today
+    icon: mdi:thermometer-low
+    min: -50
+    max: 150
+    step: 1
+    mode: slider
+
+  - id: high_temp_today
+    type: number
+    name: High Temp Today
+    min: -50
+    max: 150
+    step: 0.1
+    mode: slider
+
+  - id: holiday_decor_volume
+    type: number
+    name: Holiday Decor Volume
+    icon: mdi:volume-high
+    min: 0
+    max: 1
+    step: 0.1
+    mode: slider
+
+  - id: christmas_pattern_1
+    type: number
+    name: Christmas Pattern 1
+    min: 1
+    max: 4
+    step: 1
+    mode: box
+
+  - id: power_sharing_max_amps_per_car
+    type: number
+    name: Power Sharing Max Amps Per Car
+    icon: mdi:power-socket-de
+    min: 0
+    max: 40
+    step: 1
+    mode: box
+    unit: amps
+
+  - id: bedjet_timer_duration_mk
+    type: number
+    name: "Bedjet Timer Duration: MK"
+    icon: mdi:bed-clock
+    min: 15
+    max: 240
+    step: 5
+    mode: box
+    unit: Minutes
+
+  - id: bedjet_timer_duration_ek
+    type: number
+    name: "Bedjet Timer Duration: EK"
+    icon: mdi:bed-clock
+    min: 15
+    max: 240
+    step: 5
+    mode: slider
+    unit: Minutes
+
+  # ===========================================================================
+  # TEXT (from HA input_text)
+  # ===========================================================================
+  - id: wake_up_song_for_kids
+    type: text
+    name: Wake Up Song for Kids
+    maxLength: 100
+
+  - id: wake_meghan_up_with_music
+    type: text
+    name: wake Meghan up with music
+    maxLength: 100
+
+  - id: text_to_verbalize_in_movie_room
+    type: text
+    name: Text to verbalize in movie room
+    icon: mdi:account-voice
+    maxLength: 200
+
+  - id: music_selection_for_sloane
+    type: text
+    name: Music Selection for Sloane
+    icon: mdi:music
+    maxLength: 100
+
+  - id: music_selection_for_levi
+    type: text
+    name: Music selection for Levi
+    icon: mdi:book-music-outline
+    maxLength: 100
+
+  - id: music_selection_for_asher
+    type: text
+    name: music selection for Asher
+    icon: mdi:account-music
+    maxLength: 100
+
+  - id: music_selection_for_eli
+    type: text
+    name: music selection for Eli
+    icon: mdi:folder-music-outline
+    maxLength: 100
+
+  - id: music_selection_for_meghan
+    type: text
+    name: music selection for Meghan
+    icon: mdi:music
+    maxLength: 100
+
+  # ===========================================================================
+  # SELECT (from HA input_select)
+  # ===========================================================================
+  - id: system_mode
+    type: select
+    name: System Mode
+    icon: mdi:sun-clock
+    options:
+      - Morning
+      - Day
+      - Evening
+      - Late Evening
+      - Night
+
+  - id: power_saving_mode
+    type: select
+    name: Power Saving Mode
+    icon: mdi:power-plug
+    options:
+      - Normal
+      - Aggressive
+      - Critical
+      - None
+
+  - id: room_selector
+    type: select
+    name: Room Selector
+    icon: mdi:robot-vacuum
+    options:
+      - Living Room
+      - Kitchen
+      - Dining room
+      - Foyer
+      - Office
+      - Master Bedroom
+      - Master Bathroom
+
+  - id: display_mode
+    type: select
+    name: Display Mode
+    options:
+      - Normal
+      - Warning
+      - Emergency
+
+  - id: smart_charge_status
+    type: select
+    name: Smart Charge Status
+    icon: mdi:solar-panel-large
+    options:
+      - Surplus Sun
+      - Using Battery
+      - Grid Only
+      - Car is Critically Low
+
+  - id: tires_on_red_tesla
+    type: select
+    name: Tires on Red Tesla
+    icon: mdi:tire
+    options:
+      - '19" Winter Tires'
+      - '21" All Season Tires'
+
+  - id: tires_on_white_tesla
+    type: select
+    name: Tires on White Tesla
+    icon: mdi:tire
+    options:
+      - '20" Winter Tires'
+      - '22" All Season Tires'
+
+  - id: christmas_light_mode
+    type: select
+    name: Christmas Light Mode
+    options:
+      - Bulbs rotate
+      - Solid Sconces
+
+  # ===========================================================================
+  # DATE/TIME (from HA input_datetime)
+  # ===========================================================================
+  - id: levis_alarm
+    type: date_time
+    name: Levis Alarm
+    icon: mdi:timer
+    mode: time
+
+  - id: ashers_alarm
+    type: date_time
+    name: Ashers Alarm
+    icon: mdi:timer
+    mode: time
+
+  - id: sloanes_alarm
+    type: date_time
+    name: Sloanes Alarm
+    icon: mdi:timer
+    mode: time
+
+  - id: elis_alarm
+    type: date_time
+    name: Elis Alarm
+    icon: mdi:timer
+    mode: time
+
+  - id: meghans_alarm
+    type: date_time
+    name: Meghans Alarm
+    icon: mdi:timer
+    mode: time
+
+  - id: time_to_add
+    type: date_time
+    name: Time to Add
+    mode: time
+
+  - id: water_heater_last_serviced
+    type: date_time
+    name: water heater last serviced
+    mode: datetime
+
+  - id: smoke_detector_last_serviced
+    type: date_time
+    name: smoke detector last serviced
+    icon: mdi:smoke-detector
+    mode: datetime
+
+  - id: dryer_vent_last_serviced
+    type: date_time
+    name: dryer vent last serviced
+    mode: datetime
+
+  - id: air_filter_last_serviced
+    type: date_time
+    name: air filter last serviced
+    icon: mdi:tumble-dryer
+    mode: datetime
+
+  - id: window_shade_batteries_changed
+    type: date_time
+    name: Window Shade Batteries Changed
+    icon: mdi:blinds
+    mode: date
+
+  - id: blind_battery_office_left_date
+    type: date_time
+    name: "Blind Battery: Office Left"
+    icon: mdi:battery
+    mode: date
+
+  - id: blind_battery_office_middle_date
+    type: date_time
+    name: "Blind Battery: Office Middle"
+    mode: date
+
+  - id: blind_battery_office_left_2_date
+    type: date_time
+    name: "Blind Battery: Office Left"
+    mode: date
+
+  - id: blind_battery_game_room_left_date
+    type: date_time
+    name: "Blind Battery: Game Room Left"
+    mode: date
+
+  - id: blind_battery_game_room_middle_date
+    type: date_time
+    name: "Blind Battery: Game Room Middle"
+    mode: date
+
+  - id: blind_battery_game_room_right_date
+    type: date_time
+    name: "Blind Battery: Game Room Right"
+    mode: date
+
+  - id: blind_battery_movie_room_date
+    type: date_time
+    name: "Blind Battery: Movie Room"
+    mode: date
+
+  - id: blind_battery_living_room_left_date
+    type: date_time
+    name: "Blind Battery: Living Room Left"
+    mode: date
+
+  - id: blind_battery_living_room_middle_date
+    type: date_time
+    name: "Blind Battery: Living Room Middle"
+    mode: date
+
+  - id: blind_battery_asher_date
+    type: date_time
+    name: "Blind Battery: Asher"
+    mode: date
+
+  - id: blind_battery_levi_date
+    type: date_time
+    name: "Blind Battery: Levi"
+    mode: date
+
+  - id: blind_battery_sloane_date
+    type: date_time
+    name: "Blind Battery: Sloane"
+    mode: date
+
+  - id: blind_battery_bedroom_left_date
+    type: date_time
+    name: "Blind Battery: Bedroom Left"
+    mode: date
+
+  - id: blind_battery_bedroom_middle_date
+    type: date_time
+    name: "Blind Battery: Bedroom Middle"
+    mode: date
+
+  - id: blind_battery_bedroom_right_date
+    type: date_time
+    name: "Blind Battery: Bedroom Right"
+    mode: date
+
+  - id: blind_battery_bedroom_eli_date
+    type: date_time
+    name: "Blind Battery: Bedroom Eli"
+    mode: date
+
+  - id: blind_battery_bedroom_meghan_date
+    type: date_time
+    name: "Blind Battery: Bedroom Meghan"
+    mode: date
+
+  - id: party_over_time
+    type: date_time
+    name: Party Over Time
+    icon: mdi:balloon
+    mode: time
+
+  # ===========================================================================
+  # BUTTONS (from HA input_button)
+  # ===========================================================================
+  - id: btn_meghan_s_alarm
+    type: button
+    name: "Meghan's Alarm"
+    icon: mdi:alarm-check
+
+  - id: btn_play_xbox
+    type: button
+    name: Play XBOX
+    icon: mdi:gamepad-round-outline
+
+  - id: btn_play_nintendo
+    type: button
+    name: Play Nintendo
+    icon: mdi:gamepad-variant
+
+  - id: btn_wake_kids_up
+    type: button
+    name: Wake Kids Up
+    icon: mdi:bed-clock
+
+  - id: btn_wake_asher
+    type: button
+    name: Wake Asher
+    icon: mdi:alarm
+
+  - id: btn_wake_levi
+    type: button
+    name: Wake Levi
+    icon: mdi:alarm
+
+  - id: btn_wake_sloane
+    type: button
+    name: Wake Sloane
+    icon: mdi:alarm
+
+  - id: btn_wake_meghan
+    type: button
+    name: Wake Meghan
+    icon: mdi:alarm
+
+  - id: btn_wake_eli
+    type: button
+    name: Wake Eli
+    icon: mdi:alarm
+
+  - id: btn_morning_mode
+    type: button
+    name: Morning Mode
+    icon: mdi:chart-timeline
+
+  - id: btn_day_mode
+    type: button
+    name: Day Mode
+    icon: mdi:chart-timeline
+
+  - id: btn_evening_mode
+    type: button
+    name: Evening Mode
+    icon: mdi:chart-timeline
+
+  - id: btn_late_evening
+    type: button
+    name: Late Evening Mode
+    icon: mdi:chart-timeline
+
+  - id: btn_night_mode
+    type: button
+    name: Night Mode
+    icon: mdi:weather-night
+
+  - id: btn_puts_kids_to_sleep
+    type: button
+    name: Puts Kids to Sleep
+    icon: mdi:weather-night
+
+  - id: btn_garage_motion
+    type: button
+    name: Garage Motion
+    icon: mdi:motion
+
+  - id: btn_play_movie
+    type: button
+    name: Play Movie
+    icon: mdi:movie
+
+  - id: btn_unlock_cars
+    type: button
+    name: Unlock Cars
+    icon: mdi:car-door-lock
+
+  - id: btn_motion_in_garage
+    type: button
+    name: Motion in garage
+    icon: mdi:motion-sensor
+
+  - id: btn_motion_in_kitchen
+    type: button
+    name: Motion in Kitchen
+    icon: mdi:run-fast
+
+  - id: btn_extend_video_game_30_minutes
+    type: button
+    name: Extend Video Game 30 Minutes
+
+  - id: btn_extend_video_game_60_minutes
+    type: button
+    name: Extend Video Game 60 Minutes
+
+  - id: btn_extend_video_game_15_minutes
+    type: button
+    name: Extend Video Game 15 Minutes
+
+  - id: btn_movie_room_kiosk_motion
+    type: button
+    name: Movie Room Kiosk Motion
+    icon: mdi:motion-sensor
+
+  - id: btn_drain_water_heater
+    type: button
+    name: Water Heater Drained
+    icon: mdi:water-boiler
+
+  - id: btn_snooze_water_heater_alert
+    type: button
+    name: Snooze Water Heater Alert
+    icon: mdi:water-boiler-off
+
+  - id: btn_clean_main_area
+    type: button
+    name: Clean Main Area
+    icon: mdi:robot-vacuum
+
+  - id: btn_clean_kitchen
+    type: button
+    name: Clean Kitchen
+    icon: mdi:fridge-outline
+
+  - id: btn_lr_volume_up
+    type: button
+    name: LR Volume Up
+    icon: mdi:volume-plus
+
+  - id: btn_lr_volume_down
+    type: button
+    name: LR Volume Down
+    icon: mdi:volume-minus
+
+  - id: btn_kiosk_motion_on_small_screen
+    type: button
+    name: Kiosk Motion on Small Screen
+    icon: mdi:motion-sensor
+
+  - id: btn_kiosk_motion_on_main_floor_screen
+    type: button
+    name: Kiosk Motion on Main Floor Screen
+    icon: mdi:motion-sensor
+
+  - id: btn_kiosk_motion_on_movie_room_screen
+    type: button
+    name: Kiosk Motion on Movie Room Screen
+    icon: mdi:motion-sensor
+
+  - id: btn_kiosk_motion_on_upstairs_screen
+    type: button
+    name: Kiosk Motion on Upstairs Screen
+    icon: mdi:motion-sensor
+
+  - id: btn_clean_hallway
+    type: button
+    name: Clean Hallway
+    icon: mdi:robot-vacuum
+
+  - id: btn_clean_entry
+    type: button
+    name: Clean Entry
+    icon: mdi:robot-vacuum
+
+  - id: btn_tire_set_1_fr_replaced
+    type: button
+    name: tire_set_1_FR_replaced
+    icon: mdi:tire
+
+  - id: btn_snooze_smoke_detector_alert
+    type: button
+    name: snooze smoke detector alert
+    icon: mdi:smoke-detector
+
+  - id: btn_reset_smoke_detector_reminder
+    type: button
+    name: reset smoke detector reminder
+    icon: mdi:smoke-detector
+
+  - id: btn_snooze_dryer_vent_alert
+    type: button
+    name: snooze dryer vent alert
+    icon: mdi:tumble-dryer
+
+  - id: btn_reset_dryer_vent_reminder
+    type: button
+    name: reset dryer vent reminder
+    icon: mdi:tumble-dryer
+
+  - id: btn_snooze_air_filter_alert
+    type: button
+    name: snooze air filter alert
+    icon: mdi:air-filter
+
+  - id: btn_reset_air_filter_reminder
+    type: button
+    name: reset air filter reminder
+    icon: mdi:air-filter
+
+  - id: btn_kiosk_motion_on_meghans_office_kiosk
+    type: button
+    name: kiosk motion on living room kiosk
+    icon: mdi:motion-sensor
+
+  - id: btn_clean_main_suite
+    type: button
+    name: Clean Main Suite
+    icon: mdi:robot-vacuum
+
+  - id: btn_stop_cleaning
+    type: button
+    name: Stop Cleaning
+    icon: mdi:robot-vacuum-off
+
+  - id: btn_movie_systems_off
+    type: button
+    name: Movie Systems Off
+    icon: mdi:theater
+
+  - id: btn_all_downstairs_screens_off
+    type: button
+    name: All Downstairs Screens Off
+    icon: mdi:television-off
+
+  - id: btn_mute_everything_upstairs
+    type: button
+    name: Mute Everything Upstairs
+    icon: mdi:volume-mute
+
+  - id: btn_volume_warning
+    type: button
+    name: Volume Warning
+
+  - id: btn_announcement_in_movie_room
+    type: button
+    name: Announcement in Movie Room
+
+  - id: btn_shutdown_house
+    type: button
+    name: Shutdown House
+    icon: mdi:shield-lock
+
+  - id: btn_returned
+    type: button
+    name: Returned
+    icon: mdi:home-account
+
+  - id: btn_halloween_show
+    type: button
+    name: Halloween show
+    icon: mdi:halloween
+
+  - id: btn_end_video_game_time
+    type: button
+    name: End Video Game Time
+
+  - id: btn_start_cleaning_selected_areas
+    type: button
+    name: Start Cleaning Selected Areas
+    icon: mdi:robot-vacuum
+
+  - id: btn_pool_heater_off
+    type: button
+    name: Pool Heater Off
+
+  - id: btn_scream
+    type: button
+    name: scream
+
+  # ===========================================================================
+  # COUNTERS (from HA counter)
+  # ===========================================================================
+  - id: video_game_time
+    type: counter
+    name: Video Game Time
+    icon: mdi:gamepad
+    initial: 0
+    step: 1
+
+  # ===========================================================================
+  # TIMERS (from HA timer)
+  # ===========================================================================
+  - id: nintendo_timer
+    type: timer
+    name: Nintendo Timer
+    icon: mdi:gamepad-outline
+    duration: "1:00:00"
+    restore: false
+
+  - id: video_game_timer
+    type: timer
+    name: Video Game Timer
+    duration: "0:10:00"
+    restore: true
+
+  - id: time_to_add_timer
+    type: timer
+    name: Time to Add
+    duration: "0:00:00"
+    restore: false
+
+  - id: meghan_s_bedjet_timer
+    type: timer
+    name: "Meghan's Bedjet"
+    icon: mdi:bed
+    duration: "0:00:05"
+    restore: true
+
+  - id: eli_s_bedjet_timer
+    type: timer
+    name: "Eli's Bedjet"
+    icon: mdi:bed
+    duration: "0:00:00"
+    restore: false

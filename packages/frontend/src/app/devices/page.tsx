@@ -7,10 +7,11 @@ import { Badge } from '@/components/ui/Badge';
 import { DeviceCard } from '@/components/DeviceCard';
 import { SlidePanel } from '@/components/ui/SlidePanel';
 import { updateDeviceSettings } from '@/lib/api';
+import { deviceBelongsToEntry } from '@/lib/device-instance';
 import {
   Search, Cpu, Lightbulb, ToggleLeft, Fan, Blinds, Speaker, Camera, CookingPot,
   Battery, Car, Waves, CircuitBoard, Beaker, ChevronDown, ChevronRight, X, Zap,
-  Pencil, Check, CloudSun, Settings,
+  Pencil, Check, CloudSun, Settings, DoorOpen, Activity, Droplets, Bot, Gauge,
 } from 'lucide-react';
 import type { DeviceState, DeviceType } from '@ha/shared';
 import Link from 'next/link';
@@ -34,6 +35,21 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
   pool_circuit: CircuitBoard,
   pool_chemistry: Beaker,
   weather: CloudSun,
+  garage_door: DoorOpen,
+  sensor: Activity,
+  sprinkler: Droplets,
+  vacuum: Bot,
+  water_softener: Droplets,
+  energy_monitor: Gauge,
+  helper_toggle: ToggleLeft,
+  helper_counter: Activity,
+  helper_timer: Activity,
+  helper_button: Zap,
+  helper_number: Gauge,
+  helper_text: Activity,
+  helper_datetime: Activity,
+  helper_sensor: Activity,
+  hub: Cpu,
 };
 
 const INTEGRATION_LABELS: Record<string, string> = {
@@ -44,6 +60,16 @@ const INTEGRATION_LABELS: Record<string, string> = {
   tesla: 'Tesla',
   unifi: 'UniFi Protect',
   weather: 'Weather (NWS)',
+  xbox: 'Xbox',
+  meross: 'Meross',
+  roborock: 'Roborock',
+  rachio: 'Rachio',
+  gamechanger: 'GameChanger',
+  sportsengine: 'SportsEngine',
+  esphome: 'ESPHome',
+  rainsoft: 'RainSoft Remind',
+  sense: 'Sense',
+  helpers: 'Helpers',
 };
 
 type GroupMode = 'integration' | 'type' | 'status' | 'area' | 'last_updated';
@@ -55,6 +81,204 @@ const GROUP_OPTIONS: { value: GroupMode; label: string }[] = [
   { value: 'status', label: 'Status' },
   { value: 'last_updated', label: 'Last Updated' },
 ];
+
+// ---------------------------------------------------------------------------
+// Device state summary
+// ---------------------------------------------------------------------------
+
+function getDeviceStateSummary(device: DeviceState): string {
+  switch (device.type) {
+    case 'light':
+      return device.on ? `On ${device.brightness}%` : 'Off';
+    case 'switch':
+      return device.on ? 'On' : 'Off';
+    case 'fan':
+      return device.on ? device.speed.charAt(0).toUpperCase() + device.speed.slice(1) : 'Off';
+    case 'cover':
+      if (device.moving !== 'stopped') return device.moving === 'opening' ? 'Opening' : 'Closing';
+      return device.position === 0 ? 'Closed' : device.position === 100 ? 'Open' : `Open ${device.position}%`;
+    case 'media_player':
+      if (device.power === 'standby') return 'Standby';
+      return `On · Vol ${device.volume}%`;
+    case 'vehicle':
+      return `${device.locked ? 'Locked' : 'Unlocked'} · ${device.batteryLevel}%`;
+    case 'energy_site':
+      return `Solar ${Math.round(device.solarPower)}W · Grid ${Math.round(device.gridPower)}W`;
+    case 'pool_body':
+      if (!device.on) return 'Off';
+      return device.currentTemp != null ? `${device.currentTemp}°F` : 'On';
+    case 'pool_pump':
+      return device.on ? `${device.rpm ?? '?'} RPM` : 'Off';
+    case 'pool_circuit':
+      return device.on ? 'On' : 'Off';
+    case 'pool_chemistry':
+      return device.ph != null ? `pH ${device.ph}` : '—';
+    case 'camera':
+      return device.online ? 'Recording' : 'Offline';
+    case 'recipe_library':
+      return `${device.recipeCount} recipes`;
+    case 'weather':
+      return device.temperature != null ? `${device.temperature}°${device.temperatureUnit}` : device.condition;
+    case 'garage_door':
+      if (device.opening) return 'Opening';
+      if (device.closing) return 'Closing';
+      return device.open ? 'Open' : 'Closed';
+    case 'sensor':
+      if (device.value == null) return '—';
+      if (typeof device.value === 'boolean') return device.value ? 'Detected' : 'Clear';
+      return `${device.value}${device.unit ? ` ${device.unit}` : ''}`;
+    case 'sprinkler':
+      if (device.running) return `Running · ${device.currentZone ?? 'Zone'}`;
+      if (device.rainDelay) return 'Rain Delay';
+      return device.standby ? 'Standby' : 'Idle';
+    case 'vacuum':
+      return device.status.charAt(0).toUpperCase() + device.status.slice(1) + ` · ${device.battery}%`;
+    case 'doorbell':
+      return device.online ? 'Online' : 'Offline';
+    case 'network_device':
+      return device.connected ? `Up${device.clients != null ? ` · ${device.clients} clients` : ''}` : 'Down';
+    case 'speedtest':
+      return device.downloadMbps != null ? `${Math.round(device.downloadMbps)} / ${Math.round(device.uploadMbps ?? 0)} Mbps` : '—';
+    case 'thermostat': {
+      const temp = device.temperature != null ? `${device.temperature}°` : '';
+      const action =
+        device.hvacAction ??
+        (device.running !== 'idle' ? device.running : 'idle');
+      const act = action !== 'idle' ? ` ${action}` : '';
+      const pr = device.ecobee?.presetMode ? ` · ${device.ecobee.presetMode}` : '';
+      return `${temp}${act}${pr}` || '—';
+    }
+    case 'music_player':
+      if (!device.playing) return 'Paused';
+      return device.trackName ? `${device.trackName}` : 'Playing';
+    case 'water_softener':
+      return `${device.systemStatus} · Salt ${Math.round(device.saltPercent)}%`;
+    case 'energy_monitor':
+      return `${Math.round(device.powerW)} W`;
+    case 'hub':
+      return device.available ? 'Online' : 'Offline';
+    default:
+      return '—';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Column definitions
+// ---------------------------------------------------------------------------
+
+interface ColumnDef {
+  key: string;
+  label: string;
+  width?: string;
+  render: (device: DeviceState) => React.ReactNode;
+}
+
+const ALL_COLUMNS: ColumnDef[] = [
+  {
+    key: 'name',
+    label: 'Name',
+    render: (d) => <InlineRename deviceId={d.id} currentName={d.displayName ?? d.name} size="sm" />,
+  },
+  {
+    key: 'type',
+    label: 'Type',
+    width: '130px',
+    render: (d) => {
+      const Icon = TYPE_ICONS[d.type];
+      return (
+        <span className="inline-flex items-center gap-1.5 text-xs">
+          {Icon && <Icon className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />}
+          {d.type.replace(/_/g, ' ')}
+        </span>
+      );
+    },
+  },
+  {
+    key: 'state',
+    label: 'State',
+    width: '160px',
+    render: (d) => (
+      <span className="text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+        {getDeviceStateSummary(d)}
+      </span>
+    ),
+  },
+  {
+    key: 'connected',
+    label: 'Connected',
+    width: '90px',
+    render: (d) => (
+      <Badge variant={d.available ? 'success' : 'danger'}>
+        {d.available ? 'Online' : 'Offline'}
+      </Badge>
+    ),
+  },
+  {
+    key: 'integration',
+    label: 'Integration',
+    width: '140px',
+    render: (d) => (
+      <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+        {INTEGRATION_LABELS[d.integration] ?? d.integration}
+      </span>
+    ),
+  },
+  {
+    key: 'area',
+    label: 'Area',
+    width: '120px',
+    render: (d) => (
+      <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+        {d.userAreaId ?? d.areaId ?? '—'}
+      </span>
+    ),
+  },
+  {
+    key: 'lastChanged',
+    label: 'Last Changed',
+    width: '110px',
+    render: (d) => (
+      <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+        {d.lastChanged ? new Date(d.lastChanged).toLocaleTimeString() : '—'}
+      </span>
+    ),
+  },
+  {
+    key: 'lastUpdated',
+    label: 'Last Updated',
+    width: '110px',
+    render: (d) => (
+      <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+        {d.lastUpdated ? new Date(d.lastUpdated).toLocaleTimeString() : '—'}
+      </span>
+    ),
+  },
+  {
+    key: 'id',
+    label: 'ID',
+    width: '200px',
+    render: (d) => (
+      <span className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>
+        {d.id}
+      </span>
+    ),
+  },
+];
+
+const DEFAULT_VISIBLE = ['name', 'type', 'state', 'connected', 'area', 'lastChanged'];
+const LS_KEY = 'devices-visible-columns';
+
+function loadVisibleColumns(): string[] {
+  if (typeof window === 'undefined') return DEFAULT_VISIBLE;
+  try {
+    const stored = localStorage.getItem(LS_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return DEFAULT_VISIBLE;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -92,7 +316,6 @@ function groupDevices(devices: DeviceState[], mode: GroupMode): Map<string, Devi
     groups.set(key, list);
   }
 
-  // Sort within groups by name
   for (const list of groups.values()) {
     list.sort((a, b) => a.name.localeCompare(b.name));
   }
@@ -231,114 +454,84 @@ function SegmentedControl({
 }
 
 // ---------------------------------------------------------------------------
-// DeviceRow
+// ColumnContextMenu
 // ---------------------------------------------------------------------------
 
-function DeviceRow({ device, onClick }: { device: DeviceState; onClick: () => void }) {
-  const Icon = TYPE_ICONS[device.type];
-  return (
-    <tr
-      className="cursor-pointer transition-colors hover:bg-[var(--color-table-row-hover)]"
-      onClick={onClick}
-    >
-      <td className="pl-8 pr-3 py-2">
-        <InlineRename deviceId={device.id} currentName={device.displayName ?? device.name} size="sm" />
-      </td>
-      <td className="px-3 py-2">
-        <span className="inline-flex items-center gap-1.5 text-xs">
-          {Icon && <Icon className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />}
-          {device.type.replace(/_/g, ' ')}
-        </span>
-      </td>
-      <td className="px-3 py-2">
-        <Badge variant={device.available ? 'success' : 'danger'}>
-          {device.available ? 'Online' : 'Offline'}
-        </Badge>
-      </td>
-      <td className="px-3 py-2">
-        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-          {device.userAreaId ?? device.areaId ?? '—'}
-        </span>
-      </td>
-      <td className="px-3 py-2">
-        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-          {device.lastChanged ? new Date(device.lastChanged).toLocaleTimeString() : '—'}
-        </span>
-      </td>
-    </tr>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// GroupedSection
-// ---------------------------------------------------------------------------
-
-const GroupedSection = memo(function GroupedSection({
-  groupKey,
-  mode,
-  devices,
-  onDeviceClick,
-  defaultExpanded = true,
+function ColumnContextMenu({
+  x,
+  y,
+  visibleColumns,
+  onToggle,
+  onClose,
 }: {
-  groupKey: string;
-  mode: GroupMode;
-  devices: DeviceState[];
-  onDeviceClick: (d: DeviceState) => void;
-  defaultExpanded?: boolean;
+  x: number;
+  y: number;
+  visibleColumns: string[];
+  onToggle: (key: string) => void;
+  onClose: () => void;
 }) {
-  const router = useRouter();
-  const [expanded, setExpanded] = useState(defaultExpanded);
-  const label = groupLabel(groupKey, mode);
-  const GIcon = groupIcon(groupKey, mode);
-  const onlineCount = devices.filter((d) => d.available).length;
-  const offlineCount = devices.length - onlineCount;
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [onClose]);
 
   return (
-    <div>
-      <div
-        className="sticky top-0 z-10 flex items-center gap-2 px-3 py-2 cursor-pointer select-none"
-        style={{
-          backgroundColor: 'var(--color-bg-secondary)',
-          borderBottom: '1px solid var(--color-border)',
-          borderTop: '1px solid var(--color-border)',
-        }}
-        onClick={() => setExpanded(!expanded)}
-      >
-        {expanded
-          ? <ChevronDown className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
-          : <ChevronRight className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />}
-        {GIcon && <GIcon className="h-3.5 w-3.5" style={{ color: 'var(--color-accent)' }} />}
-        <span className="text-sm font-medium">{label}</span>
-        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-          {devices.length} device{devices.length !== 1 ? 's' : ''}
-        </span>
-        <span className="ml-auto text-xs" style={{ color: 'var(--color-text-muted)' }}>
-          {onlineCount} online{offlineCount > 0 ? `, ${offlineCount} offline` : ''}
-        </span>
-        {mode === 'integration' && (
-          <button
-            className="ml-2 p-0.5 rounded hover:bg-white/10"
-            onClick={(e) => {
-              e.stopPropagation();
-              router.push(`/integrations?open=${groupKey}`);
-            }}
-          >
-            <Settings className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
-          </button>
-        )}
+    <div
+      ref={menuRef}
+      className="fixed z-50 rounded-lg border py-1 shadow-lg"
+      style={{
+        left: x,
+        top: y,
+        backgroundColor: 'var(--color-bg-card)',
+        borderColor: 'var(--color-border)',
+        minWidth: '180px',
+      }}
+    >
+      <div className="px-3 py-1.5 text-xs font-semibold" style={{ color: 'var(--color-text-muted)' }}>
+        Show Columns
       </div>
-      {expanded && (
-        <table className="w-full">
-          <tbody>
-            {devices.map((d) => (
-              <DeviceRow key={d.id} device={d} onClick={() => onDeviceClick(d)} />
-            ))}
-          </tbody>
-        </table>
-      )}
+      {ALL_COLUMNS.map((col) => {
+        const checked = visibleColumns.includes(col.key);
+        const isName = col.key === 'name';
+        return (
+          <button
+            key={col.key}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--color-table-row-hover)] transition-colors"
+            style={{ color: 'var(--color-text-secondary)' }}
+            onClick={() => { if (!isName) onToggle(col.key); }}
+            disabled={isName}
+          >
+            <span
+              className="flex h-3.5 w-3.5 items-center justify-center rounded border"
+              style={{
+                borderColor: checked ? 'var(--color-accent)' : 'var(--color-border)',
+                backgroundColor: checked ? 'var(--color-accent)' : 'transparent',
+              }}
+            >
+              {checked && <Check className="h-2.5 w-2.5 text-white" />}
+            </span>
+            <span>{col.label}</span>
+            {isName && <span className="ml-auto text-[10px]" style={{ color: 'var(--color-text-muted)' }}>Required</span>}
+          </button>
+        );
+      })}
     </div>
   );
-});
+}
 
 // ---------------------------------------------------------------------------
 // Main Page
@@ -351,10 +544,40 @@ export default function DevicesPage() {
 
   const integrationFilter = searchParams.get('integration') ?? '';
   const entryFilter = searchParams.get('entry') ?? '';
+  const entryLabelParam = searchParams.get('entryLabel') ?? '';
   const areaFilter = searchParams.get('area') ?? '';
+  const entryLabelDecoded = useMemo(() => {
+    if (!entryLabelParam) return '';
+    try {
+      return decodeURIComponent(entryLabelParam);
+    } catch {
+      return entryLabelParam;
+    }
+  }, [entryLabelParam]);
   const [search, setSearch] = useState('');
   const [groupMode, setGroupMode] = useState<GroupMode>('integration');
   const [selectedDevice, setSelectedDevice] = useState<DeviceState | null>(null);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_VISIBLE);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string> | null>(null);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    setVisibleColumns(loadVisibleColumns());
+  }, []);
+
+  const toggleColumn = useCallback((key: string) => {
+    setVisibleColumns((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      try { localStorage.setItem(LS_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  const columns = useMemo(
+    () => ALL_COLUMNS.filter((c) => visibleColumns.includes(c.key)),
+    [visibleColumns],
+  );
 
   const clearFilter = useCallback(() => {
     router.replace('/devices');
@@ -362,14 +585,11 @@ export default function DevicesPage() {
 
   const activeFilter = integrationFilter || entryFilter || areaFilter;
 
-  // Pool sub-equipment types are hidden from the device list — they're shown
-  // inline when you open a pool body device (like how Sony shows one TV, not
-  // separate volume/input/power devices).
   const HIDDEN_POOL_TYPES = new Set(['pool_pump', 'pool_circuit', 'pool_chemistry']);
 
   const filtered = useMemo(() => {
     return devices.filter((d) => {
-      // Hide pool sub-equipment from the top-level list
+      if (d.parentDeviceId) return false;
       if (HIDDEN_POOL_TYPES.has(d.type)) return false;
       if (search) {
         const q = search.toLowerCase();
@@ -377,7 +597,10 @@ export default function DevicesPage() {
         if (!dn.includes(q) && !d.name.toLowerCase().includes(q) && !d.id.toLowerCase().includes(q)) return false;
       }
       if (integrationFilter && d.integration !== integrationFilter) return false;
-      if (entryFilter && !d.id.includes(entryFilter)) return false;
+      if (entryFilter && integrationFilter && !deviceBelongsToEntry(d, integrationFilter, entryFilter)) {
+        return false;
+      }
+      if (entryFilter && !integrationFilter && !d.id.includes(entryFilter)) return false;
       if (areaFilter) {
         if (d.userAreaId !== areaFilter && d.areaId !== areaFilter) return false;
       }
@@ -389,7 +612,6 @@ export default function DevicesPage() {
 
   const liveSelected = selectedDevice ? devices.find((d) => d.id === selectedDevice.id) ?? selectedDevice : null;
 
-  // Sort group keys
   const sortedGroupKeys = useMemo(() => {
     const keys = [...groups.keys()];
     if (groupMode === 'last_updated') {
@@ -398,6 +620,46 @@ export default function DevicesPage() {
     }
     return keys.sort();
   }, [groups, groupMode]);
+
+  // Expand all groups by default when group keys change
+  useEffect(() => {
+    setExpandedGroups(null);
+  }, [groupMode]);
+
+  const isGroupExpanded = useCallback((key: string) => {
+    if (expandedGroups === null) return true; // all expanded by default
+    return expandedGroups.has(key);
+  }, [expandedGroups]);
+
+  const toggleGroup = useCallback((key: string) => {
+    setExpandedGroups((prev) => {
+      if (prev === null) {
+        // First toggle: create set with all expanded except the toggled one
+        const allKeys = new Set(sortedGroupKeys);
+        allKeys.delete(key);
+        return allKeys;
+      }
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, [sortedGroupKeys]);
+
+  const expandAllGroups = useCallback(() => {
+    setExpandedGroups(null);
+  }, []);
+
+  const collapseAllGroups = useCallback(() => {
+    setExpandedGroups(new Set());
+  }, []);
+
+  const handleHeaderContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const colCount = columns.length;
 
   return (
     <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4">
@@ -445,7 +707,13 @@ export default function DevicesPage() {
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
             style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
           >
-            {integrationFilter ? (INTEGRATION_LABELS[integrationFilter] ?? integrationFilter) : entryFilter ? `Instance ${entryFilter.slice(0, 8)}...` : `Area filter`}
+            {integrationFilter
+              ? entryFilter && entryLabelDecoded
+                ? `${INTEGRATION_LABELS[integrationFilter] ?? integrationFilter} · ${entryLabelDecoded}`
+                : (INTEGRATION_LABELS[integrationFilter] ?? integrationFilter)
+              : entryFilter
+                ? `Instance ${entryFilter.slice(0, 8)}…`
+                : `Area filter`}
             <button onClick={clearFilter} className="ml-0.5 hover:opacity-80">
               <X className="h-3 w-3" />
             </button>
@@ -453,40 +721,121 @@ export default function DevicesPage() {
         </div>
       )}
 
-      {/* Grouped table */}
+      {/* Single unified table */}
       <div
-        className="rounded-lg border overflow-hidden"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-card)' }}
+        className="rounded-lg border overflow-auto"
+        style={{
+          borderColor: 'var(--color-border)',
+          backgroundColor: 'var(--color-bg-card)',
+          maxHeight: 'calc(100vh - 220px)',
+        }}
       >
-        {/* Table header */}
-        <table className="w-full">
-          <thead>
+        <table className="w-full border-collapse">
+          <thead
+            className="sticky top-0 z-20"
+            onContextMenu={handleHeaderContextMenu}
+          >
             <tr style={{ backgroundColor: 'var(--color-table-header)' }}>
-              <th className="px-3 py-2 text-left text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>Name</th>
-              <th className="px-3 py-2 text-left text-xs font-medium" style={{ color: 'var(--color-text-secondary)', width: '120px' }}>Type</th>
-              <th className="px-3 py-2 text-left text-xs font-medium" style={{ color: 'var(--color-text-secondary)', width: '90px' }}>Status</th>
-              <th className="px-3 py-2 text-left text-xs font-medium" style={{ color: 'var(--color-text-secondary)', width: '120px' }}>Area</th>
-              <th className="px-3 py-2 text-left text-xs font-medium" style={{ color: 'var(--color-text-secondary)', width: '110px' }}>Last Changed</th>
+              {columns.map((col) => (
+                <th
+                  key={col.key}
+                  className="px-3 py-2 text-left text-xs font-medium select-none"
+                  style={{
+                    color: 'var(--color-text-secondary)',
+                    width: col.width,
+                    ...(col.key === 'name' ? { paddingLeft: '2rem' } : {}),
+                  }}
+                >
+                  {col.key === 'name' ? (
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span>{col.label}</span>
+                      {filtered.length > 0 && sortedGroupKeys.length > 0 && (
+                        <span className="inline-flex items-center gap-1 font-normal">
+                          <button
+                            type="button"
+                            className="rounded px-0 py-0 hover:underline"
+                            style={{ color: 'var(--color-text-muted)' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              expandAllGroups();
+                            }}
+                          >
+                            Expand all
+                          </button>
+                          <span style={{ color: 'var(--color-text-muted)' }} aria-hidden>
+                            /
+                          </span>
+                          <button
+                            type="button"
+                            className="rounded px-0 py-0 hover:underline"
+                            style={{ color: 'var(--color-text-muted)' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              collapseAllGroups();
+                            }}
+                          >
+                            Collapse all
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    col.label
+                  )}
+                </th>
+              ))}
             </tr>
           </thead>
-        </table>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={colCount} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                  No devices match your filters
+                </td>
+              </tr>
+            ) : (
+              sortedGroupKeys.map((key) => {
+                const groupDeviceList = groups.get(key)!;
+                const onlineCount = groupDeviceList.filter((d) => d.available).length;
+                const offlineCount = groupDeviceList.length - onlineCount;
+                const expanded = isGroupExpanded(key);
+                const GIcon = groupIcon(key, groupMode);
 
-        {filtered.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
-            No devices match your filters
-          </div>
-        ) : (
-          sortedGroupKeys.map((key) => (
-            <GroupedSection
-              key={key}
-              groupKey={key}
-              mode={groupMode}
-              devices={groups.get(key)!}
-              onDeviceClick={setSelectedDevice}
-            />
-          ))
-        )}
+                return (
+                  <GroupRows
+                    key={key}
+                    groupKey={key}
+                    mode={groupMode}
+                    label={groupLabel(key, groupMode)}
+                    GIcon={GIcon}
+                    deviceCount={groupDeviceList.length}
+                    onlineCount={onlineCount}
+                    offlineCount={offlineCount}
+                    expanded={expanded}
+                    onToggle={() => toggleGroup(key)}
+                    devices={groupDeviceList}
+                    columns={columns}
+                    colCount={colCount}
+                    onDeviceClick={setSelectedDevice}
+                    router={router}
+                  />
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
+
+      {/* Column context menu */}
+      {contextMenu && (
+        <ColumnContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          visibleColumns={visibleColumns}
+          onToggle={toggleColumn}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
 
       {/* Slide-out detail panel */}
       <SlidePanel
@@ -516,6 +865,10 @@ export default function DevicesPage() {
                 </Badge>
               </div>
               <div className="flex justify-between">
+                <span style={{ color: 'var(--color-text-muted)' }}>State</span>
+                <span className="text-sm font-medium">{getDeviceStateSummary(liveSelected)}</span>
+              </div>
+              <div className="flex justify-between">
                 <span style={{ color: 'var(--color-text-muted)' }}>ID</span>
                 <span className="text-xs font-mono" style={{ color: 'var(--color-text-secondary)' }}>{liveSelected.id}</span>
               </div>
@@ -524,6 +877,24 @@ export default function DevicesPage() {
             <div className="border-t pt-4" style={{ borderColor: 'var(--color-border)' }}>
               <DeviceCard device={liveSelected} />
             </div>
+
+            {/* Show child entities for hub devices */}
+            {liveSelected.type === 'hub' && (() => {
+              const children = devices.filter((d) => d.parentDeviceId === liveSelected.id);
+              if (children.length === 0) return null;
+              return (
+                <div className="space-y-3">
+                  <h3 className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+                    Entities ({children.length})
+                  </h3>
+                  {children.map((child) => (
+                    <div key={child.id} className="border-t pt-3" style={{ borderColor: 'var(--color-border)' }}>
+                      <DeviceCard device={child} />
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* Show related pool sub-equipment inline */}
             {liveSelected.type === 'pool_body' && (() => {
@@ -556,3 +927,105 @@ export default function DevicesPage() {
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// GroupRows — renders the group header row + device rows inside <tbody>
+// ---------------------------------------------------------------------------
+
+const GroupRows = memo(function GroupRows({
+  groupKey,
+  mode,
+  label,
+  GIcon,
+  deviceCount,
+  onlineCount,
+  offlineCount,
+  expanded,
+  onToggle,
+  devices,
+  columns,
+  colCount,
+  onDeviceClick,
+  router,
+}: {
+  groupKey: string;
+  mode: GroupMode;
+  label: string;
+  GIcon: React.ElementType | null;
+  deviceCount: number;
+  onlineCount: number;
+  offlineCount: number;
+  expanded: boolean;
+  onToggle: () => void;
+  devices: DeviceState[];
+  columns: ColumnDef[];
+  colCount: number;
+  onDeviceClick: (d: DeviceState) => void;
+  router: ReturnType<typeof useRouter>;
+}) {
+  return (
+    <>
+      {/* Group header row */}
+      <tr
+        className="cursor-pointer select-none sticky z-10"
+        style={{
+          backgroundColor: 'var(--color-bg-secondary)',
+          top: '33px', // below the thead
+        }}
+        onClick={onToggle}
+      >
+        <td
+          colSpan={colCount}
+          className="px-3 py-2"
+          style={{
+            borderBottom: '1px solid var(--color-border)',
+            borderTop: '1px solid var(--color-border)',
+          }}
+        >
+          <div className="flex items-center gap-2">
+            {expanded
+              ? <ChevronDown className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
+              : <ChevronRight className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />}
+            {GIcon && <GIcon className="h-3.5 w-3.5" style={{ color: 'var(--color-accent)' }} />}
+            <span className="text-sm font-medium">{label}</span>
+            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              {deviceCount} device{deviceCount !== 1 ? 's' : ''}
+            </span>
+            <span className="ml-auto text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              {onlineCount} online{offlineCount > 0 ? `, ${offlineCount} offline` : ''}
+            </span>
+            {mode === 'integration' && (
+              <button
+                className="ml-2 p-0.5 rounded hover:bg-white/10"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(`/integrations?open=${groupKey}`);
+                }}
+              >
+                <Settings className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
+              </button>
+            )}
+          </div>
+        </td>
+      </tr>
+      {/* Device rows */}
+      {expanded && devices.map((d) => (
+        <tr
+          key={d.id}
+          className="cursor-pointer transition-colors hover:bg-[var(--color-table-row-hover)]"
+          onClick={() => onDeviceClick(d)}
+        >
+          {columns.map((col) => (
+            <td
+              key={col.key}
+              className="px-3 py-2"
+              style={col.key === 'name' ? { paddingLeft: '2rem' } : undefined}
+            >
+              {col.render(d)}
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  );
+});

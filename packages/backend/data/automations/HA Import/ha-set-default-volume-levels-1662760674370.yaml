@@ -1,0 +1,44 @@
+id: ha-set-default-volume-levels-1662760674370
+name: Set default volume levels
+group: HA Import
+description: 'Imported from Home Assistant (id: 1662760674370).'
+enabled: false
+mode: single
+triggers:
+  - to: Day
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.7
+      deviceId: media_player.master_suite
+    deviceId: media_player.master_suite
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.5
+      deviceId: media_player.meghan_s_office
+    deviceId: media_player.meghan_s_office
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.8
+      deviceId: media_player.movie_room_echo
+    deviceId: media_player.movie_room_echo
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.6
+      deviceId: media_player.dining_room
+    deviceId: media_player.dining_room

@@ -1,0 +1,105 @@
+id: ha-auto-lights-off-boys-bathroom-1735157350709
+name: 'auto lights off: boys bathroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1735157350709).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_boys_bathroom
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.boys_bathroom_vanity_lights_new
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.boys_bathroom_shower_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.boys_bathroom_toilet
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.boys_bathroom_vanity_lights_new
+        deviceId: light.boys_bathroom_vanity_lights_new
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.boys_bathroom_toilet
+        deviceId: switch.boys_bathroom_toilet
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.motion_lights_auto_off
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_boys_bathroom
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.boys_bathroom_shower_lights
+        deviceId: switch.boys_bathroom_shower_lights
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: switch.boys_bathroom_shower_lights
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_boys_bathroom
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.boys_bathroom_toilet
+        deviceId: switch.boys_bathroom_toilet
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: switch.boys_bathroom_toilet
+      attribute: state

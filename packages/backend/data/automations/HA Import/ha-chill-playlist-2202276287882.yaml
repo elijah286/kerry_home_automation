@@ -1,0 +1,33 @@
+id: ha-chill-playlist-2202276287882
+name: Chill Playlist
+group: HA Import
+description: 'Imported from Home Assistant (id: 2202276287882).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.start_living_room_playlist
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: '3'
+    deviceId: counter.living_room_music_playlist
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: play_media
+      deviceId: media_player.spotify_house
+      mediaContentId: spotify:playlist:2dtLF1nff4Odb5R2GgkrQi
+      mediaContentType: playlist
+    deviceId: media_player.spotify_house
+  - type: device_command
+    command:
+      type: media_player
+      action: select_source
+      source: Main Floor
+      deviceId: ''
+    deviceId: media_player.select_source

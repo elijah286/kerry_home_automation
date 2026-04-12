@@ -1,0 +1,38 @@
+id: ha-warning-at-night-and-morning-water-leak-1600915483224
+name: 'Warning at Night and Morning: Water Leak'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1600915483224).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+  - to: 'off'
+    for: '00:10:00'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.water_leak_warning
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: 'Warning: Water Leak Detected'
+      deviceId: ''
+    deviceId: notify.everyone
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: ''
+    deviceId: switch.turn_on

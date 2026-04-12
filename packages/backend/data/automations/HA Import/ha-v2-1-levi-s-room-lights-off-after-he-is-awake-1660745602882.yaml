@@ -1,0 +1,41 @@
+id: ha-v2-1-levi-s-room-lights-off-after-he-is-awake-1660745602882
+name: 'V2.1: Levi''s Room Lights Off after he is awake'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660745602882).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '01:00:00'
+    type: device_state
+    deviceId: input_boolean.levi_sleeping
+    attribute: state
+  - to: 'off'
+    for: '00:20:00'
+    type: device_state
+    deviceId: input_boolean.levi_sleeping
+    attribute: state
+  - to: 'off'
+    for: '01:20:00'
+    type: device_state
+    deviceId: input_boolean.levi_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.levis_bedroom_table_lamp
+    deviceId: light.levis_bedroom_table_lamp
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.levis_bedroom_main_lights
+    deviceId: switch.levis_bedroom_main_lights
+  - type: device_command
+    command:
+      type: cover
+      action: close_cover
+      deviceId: cover.levis_bedroom_blind
+    deviceId: cover.levis_bedroom_blind

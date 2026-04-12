@@ -1,0 +1,24 @@
+id: ha-piano-lamps-on-turns-on-alcove-1616380393284
+name: Piano lamps on turns on alcove
+group: HA Import
+description: 'Imported from Home Assistant (id: 1616380393284).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.upstairs_hallway_piano
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.movie_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.upstairs_hallway_alcove
+    deviceId: light.upstairs_hallway_alcove

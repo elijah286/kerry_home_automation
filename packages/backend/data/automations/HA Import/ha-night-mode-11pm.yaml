@@ -1,0 +1,29 @@
+id: ha-night-mode-11pm
+name: V2 Automatically Set Night Mode at 11PM
+group: HA Import
+description: 'Imported from HA (id: 1564287283702). Sets night mode at 11PM unless NYE, already night, or party mode on.'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 23 * * *
+    type: time
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.party_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: input_button.night_mode
+    deviceId: input_button.night_mode

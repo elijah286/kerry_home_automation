@@ -1,0 +1,25 @@
+id: ha-v2-levis-overhead-light-timer-at-night-1664596587206
+name: 'V2: Levis overhead light timer at night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1664596587206).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:00:30'
+    type: device_state
+    deviceId: switch.levis_bedroom_main_lights
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.levis_bedroom_main_lights
+    deviceId: switch.levis_bedroom_main_lights

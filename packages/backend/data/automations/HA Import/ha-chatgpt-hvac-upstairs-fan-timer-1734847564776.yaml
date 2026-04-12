@@ -1,0 +1,36 @@
+id: ha-chatgpt-hvac-upstairs-fan-timer-1734847564776
+name: ChatGPT HVAC upstairs fan timer
+group: HA Import
+description: 'Imported from Home Assistant (id: 1734847564776).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.upstairs_hvac_fan
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: input_boolean.upstairs_hvac_fan
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: climate
+      action: set_fan_mode
+      deviceId: climate.upstairs
+      fan_mode: auto
+    deviceId: climate.upstairs
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.hvac_upstairs_fan_on
+    deviceId: input_boolean.hvac_upstairs_fan_on

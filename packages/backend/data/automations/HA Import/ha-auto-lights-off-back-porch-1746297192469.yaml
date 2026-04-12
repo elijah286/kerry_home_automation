@@ -1,0 +1,58 @@
+id: ha-auto-lights-off-back-porch-1746297192469
+name: 'auto lights off: back porch'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1746297192469).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.flood
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.patio_light
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.patio_light
+        deviceId: switch.patio_light
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.flood
+        deviceId: light.flood
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.anyone_home
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.motion_detected_on_back_porch
+          attribute: state

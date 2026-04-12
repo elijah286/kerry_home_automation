@@ -1,0 +1,30 @@
+id: ha-kitchen-middle-button-increment-counter-1602278978016
+name: Kitchen Middle Button Increment Counter
+group: HA Import
+description: 'Imported from Home Assistant (id: 1602278978016).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.kitchen_music_middle
+    attribute: state
+conditions:
+  - op: lt
+    type: device_state
+    value: 3
+    deviceId: counter.living_room_music_playlist
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: counter
+      action: increment
+      deviceId: ''
+    deviceId: counter.increment
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on

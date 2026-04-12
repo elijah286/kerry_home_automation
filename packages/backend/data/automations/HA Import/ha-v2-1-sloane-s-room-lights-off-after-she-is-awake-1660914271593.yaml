@@ -1,0 +1,25 @@
+id: ha-v2-1-sloane-s-room-lights-off-after-she-is-awake-1660914271593
+name: 'V2.1: Sloane''s Room Lights Off after she is awake'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660914271593).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:20:00'
+    type: device_state
+    deviceId: input_boolean.sloane_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.sloanes_bedroom_bedside_lamp
+    deviceId: light.sloanes_bedroom_bedside_lamp
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.sloanes_bedroom_ceiling_fan_light
+    deviceId: switch.sloanes_bedroom_ceiling_fan_light

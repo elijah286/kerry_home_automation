@@ -1,0 +1,24 @@
+id: ha-v2-close-outside-garage-at-night-1682955114865
+name: 'V2: close outside garage at night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1682955114865).'
+enabled: false
+mode: single
+triggers:
+  - to: Night
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: open
+    deviceId: cover.red
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: cover
+      action: close_cover
+      deviceId: cover.red
+    deviceId: cover.red

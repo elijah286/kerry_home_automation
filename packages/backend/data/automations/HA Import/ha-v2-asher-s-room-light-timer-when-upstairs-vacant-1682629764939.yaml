@@ -1,0 +1,36 @@
+id: ha-v2-asher-s-room-light-timer-when-upstairs-vacant-1682629764939
+name: 'V2: Asher''s Room Light Timer When Upstairs Vacant'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1682629764939).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:01:00'
+    type: device_state
+    deviceId: light.ashers_bedroom_table_lamp
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.upstairs_vacant
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.ashers_bedroom_table_lamp
+    deviceId: light.ashers_bedroom_table_lamp
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.ashers_bedroom_closet_light
+    deviceId: switch.ashers_bedroom_closet_light

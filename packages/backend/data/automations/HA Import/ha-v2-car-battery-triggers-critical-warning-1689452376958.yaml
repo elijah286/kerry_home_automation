@@ -1,0 +1,53 @@
+id: ha-v2-car-battery-triggers-critical-warning-1689452376958
+name: 'V2: Car Battery Triggers Critical Warning '
+group: HA Import
+description: 'Imported from Home Assistant (id: 1689452376958).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.voyager_battery_sensor
+    attribute: state
+  - type: device_state
+    deviceId: sensor.enterprise_battery_sensor
+    attribute: state
+  - type: device_state
+    deviceId: binary_sensor.voyager_charging
+    attribute: state
+  - type: device_state
+    deviceId: binary_sensor.enterprise_charging
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - type: and
+        conditions:
+          - op: lt
+            type: device_state
+            value: 28
+            deviceId: sensor.voyager_battery_sensor
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: binary_sensor.voyager_charging
+            attribute: state
+      - type: and
+        conditions:
+          - op: lt
+            type: device_state
+            value: 28
+            deviceId: sensor.enterprise_battery_sensor
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: binary_sensor.enterprise_charging
+            attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.critical_warning
+    deviceId: input_boolean.critical_warning

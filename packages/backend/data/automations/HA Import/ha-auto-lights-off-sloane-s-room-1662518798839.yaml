@@ -1,0 +1,32 @@
+id: ha-auto-lights-off-sloane-s-room-1662518798839
+name: 'Auto lights off: Sloane’s room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1662518798839).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:10:00'
+    type: device_state
+    deviceId: light.sloanes_bedroom_dresser_lamp
+    attribute: state
+  - cron: '*/1 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.sloanes_bedroom_dresser_lamp
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.sloanes_bedroom_dresser_lamp
+    deviceId: light.sloanes_bedroom_dresser_lamp

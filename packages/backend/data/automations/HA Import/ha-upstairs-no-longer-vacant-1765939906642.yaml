@@ -1,0 +1,40 @@
+id: ha-upstairs-no-longer-vacant-1765939906642
+name: Upstairs no longer vacant
+group: HA Import
+description: 'Imported from Home Assistant (id: 1765939906642).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: light.game_room_main_lights
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: light.ashers_bedroom_main_lights
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: media_player.movie_room
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: binary_sensor.balcony_door
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.upstairs_vacant
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.upstairs_vacant
+    deviceId: input_boolean.upstairs_vacant

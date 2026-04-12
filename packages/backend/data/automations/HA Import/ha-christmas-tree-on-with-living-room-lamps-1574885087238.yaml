@@ -1,0 +1,48 @@
+id: ha-christmas-tree-on-with-living-room-lamps-1574885087238
+name: Christmas tree on with living room lamps
+group: HA Import
+description: 'Imported from Home Assistant (id: 1574885087238).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.living_room_table_lamp
+    attribute: state
+  - type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.living_room_table_lamp
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.indoor_holiday_decor
+    deviceId: switch.indoor_holiday_decor
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.christmas_tree
+    deviceId: light.christmas_tree

@@ -1,0 +1,182 @@
+id: ha-auto-lights-off-main-bathroom-1718809981962
+name: 'Auto lights off: main bathroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1718809981962).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.master_bathroom_elis_closet
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.master_bathroom_meghans_closet
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.master_bathroom_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.master_bathroom_tub
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.master_bathroom_shower
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.master_bathroom_meghans_closet
+        deviceId: switch.master_bathroom_meghans_closet
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.master_bathroom_tub
+        deviceId: light.master_bathroom_tub
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_main_bathroom
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.master_bathroom_meghans_closet
+        deviceId: switch.master_bathroom_meghans_closet
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.master_bathroom_main_lights
+        deviceId: light.master_bathroom_main_lights
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.master_bathroom_tub
+          brightness: 204
+        deviceId: light.master_bathroom_tub
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Late Evening
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_main_bathroom
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: light.master_bathroom_main_lights
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.master_bathroom_meghans_closet
+        deviceId: switch.master_bathroom_meghans_closet
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.master_bathroom_main_lights
+        deviceId: light.master_bathroom_main_lights
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Late Evening
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_main_bathroom
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: light.master_bathroom_tub
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.master_bathroom_meghans_closet
+        deviceId: switch.master_bathroom_meghans_closet
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.master_bathroom_tub
+        deviceId: light.master_bathroom_tub
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Day
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_main_bathroom
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: light.master_bathroom_main_lights
+          attribute: state

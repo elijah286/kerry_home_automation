@@ -1,0 +1,31 @@
+id: ha-kiosks-url-reload-default-movie-room-1687231526736
+name: 'Kiosks URL reload default: Movie Room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1687231526736).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.show_doorbell_camera
+    attribute: state
+  - to: 'off'
+    for: '00:02:00'
+    type: device_state
+    deviceId: input_boolean.person_in_movie_room
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: http://192.168.68.203:8123/lovelace/movie-room-kiosk?kiosk
+      deviceId: sensor.movie_room_kiosk_current_page
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.movie_room_kiosk_load_start_url
+    deviceId: button.movie_room_kiosk_load_start_url

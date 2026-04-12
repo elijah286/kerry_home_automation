@@ -1,0 +1,73 @@
+id: ha-person-clear-piano-room-1726888034610
+name: 'Person clear: piano room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1726888034610).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:02:00'
+    type: device_state
+    deviceId: binary_sensor.piano_room_radar_target
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.piano_motion
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.piano_motion
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.apollo_msr_1_f775e0_radar_zone_1_occupancy
+        attribute: state
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: binary_sensor.apollo_msr_1_f775e0_radar_zone_1_occupancy
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: binary_sensor.apollo_msr_1_f775e0_radar_zone_2_occupancy
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: binary_sensor.apollo_msr_1_f775e0_radar_zone_3_occupancy
+            attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.person_in_piano_room
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.top_of_stairs_person_occupancy
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.meross_piano_presence_sensor
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.person_in_piano_room
+    deviceId: input_boolean.person_in_piano_room

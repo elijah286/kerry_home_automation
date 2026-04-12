@@ -1,0 +1,15 @@
+id: ha-companion-clean-main-1679852726944
+name: 'Companion: Clean Main'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1679852726944).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.clean_main_area
+    deviceId: input_button.clean_main_area

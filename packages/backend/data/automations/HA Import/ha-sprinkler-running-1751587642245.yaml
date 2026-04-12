@@ -1,0 +1,18 @@
+id: ha-sprinkler-running-1751587642245
+name: Sprinkler Running
+group: HA Import
+description: 'Imported from Home Assistant (id: 1751587642245).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: switch.right_front_grass
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.spinkler_running
+    deviceId: input_boolean.spinkler_running

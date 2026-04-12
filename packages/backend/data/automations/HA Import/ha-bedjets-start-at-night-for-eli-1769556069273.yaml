@@ -1,0 +1,54 @@
+id: ha-bedjets-start-at-night-for-eli-1769556069273
+name: BedJets Start at Night for Eli
+group: HA Import
+description: 'Imported from Home Assistant (id: 1769556069273).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.auto_bedjet_for_eli
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.bedjet_ek_started_by_ha
+    deviceId: input_boolean.bedjet_ek_started_by_ha
+  - type: device_command
+    command:
+      type: climate
+      action: turn_on
+      deviceId: climate.rpi_eli_c30a
+    deviceId: climate.rpi_eli_c30a
+  - type: delay
+    duration: '00:00:01'
+  - type: device_command
+    command:
+      type: climate
+      action: set_hvac_mode
+      deviceId: climate.rpi_eli_c30a
+    deviceId: climate.rpi_eli_c30a
+  - type: delay
+    duration: '00:00:01'
+  - type: device_command
+    command:
+      type: climate
+      action: set_temperature
+      deviceId: climate.rpi_eli_c30a
+      hvac_mode: heat
+      temperature: 102
+    deviceId: climate.rpi_eli_c30a
+  - type: device_command
+    command:
+      type: fan
+      speed: high
+      action: turn_on
+      deviceId: fan.rpi_eli_c30a
+    deviceId: fan.rpi_eli_c30a

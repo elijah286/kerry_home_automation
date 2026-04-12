@@ -1,0 +1,57 @@
+id: ha-v2-smart-charge-forces-voyager-data-refresh-1692633524105
+name: 'V2: Smart Charge forces voyager data refresh'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1692633524105).'
+enabled: false
+mode: single
+triggers:
+  - from: '0'
+    type: device_state
+    deviceId: sensor.voyager_charger_power
+    attribute: state
+  - for: '00:00:05'
+    type: device_state
+    deviceId: number.voyager_charging_amps
+    attribute: state
+  - for: '00:00:05'
+    type: device_state
+    deviceId: number.voyager_charging_amps
+    attribute: state
+  - to: '0'
+    for: '00:00:10'
+    type: device_state
+    deviceId: input_number.ev_charging_amp_set_point
+    attribute: state
+  - for: '00:02:00'
+    type: device_state
+    deviceId: input_boolean.smart_charge
+    attribute: state
+  - for: '00:05:00'
+    type: device_state
+    deviceId: device_tracker.enterprise_location_tracker
+    attribute: state
+  - for: '00:05:00'
+    type: device_state
+    deviceId: device_tracker.voyager_location_tracker
+    attribute: state
+  - type: device_state
+    deviceId: sensor.change_in_energy_demand
+    attribute: state
+  - type: device_state
+    deviceId: sensor.change_in_energy_demand
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: binary_sensor.voyager_charging
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.voyager_force_data_update
+    deviceId: button.voyager_force_data_update

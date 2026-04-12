@@ -1,0 +1,18 @@
+id: ha-power-saver-mode-on-1581045955460
+name: Power Saver Mode On
+group: HA Import
+description: 'Imported from Home Assistant (id: 1581045955460).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.power_saver
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on

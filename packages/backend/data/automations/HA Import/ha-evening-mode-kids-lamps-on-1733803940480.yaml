@@ -1,0 +1,23 @@
+id: ha-evening-mode-kids-lamps-on-1733803940480
+name: 'evening mode: kids lamps on'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733803940480).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.evening_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.ashers_bedroom_desk_lamp
+    deviceId: light.ashers_bedroom_desk_lamp

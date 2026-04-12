@@ -1,0 +1,81 @@
+id: ha-run-fog-machine-upstairs-1761823859061
+name: 'Run fog machine: upstairs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761823859061).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.constant_fog
+    attribute: state
+  - to: 'off'
+    for: '00:00:10'
+    type: device_state
+    deviceId: switch.fog
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.fog_trigger_person_occupancy
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_detected_on_front_patio
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: automation.halloween_fog_machine_power
+    attribute: state
+  - type: or
+    conditions:
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 'on'
+            deviceId: input_boolean.constant_fog
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: switch.fog
+            attribute: state
+          - type: or
+            conditions:
+              - op: eq
+                type: device_state
+                value: 'on'
+                deviceId: binary_sensor.fog_trigger_person_occupancy
+                attribute: state
+              - op: eq
+                type: device_state
+                value: 'on'
+                deviceId: input_boolean.motion_detected_on_front_patio
+                attribute: state
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 'on'
+            deviceId: input_boolean.run_jack_and_sally_show
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: switch.fog
+            attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.fog
+    deviceId: switch.fog

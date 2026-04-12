@@ -1,0 +1,27 @@
+id: ha-outdoor-fans-turns-off-at-night-or-when-last-person-leaves-1616987119652
+name: Outdoor Fans turns off at night or when last person leaves
+group: HA Import
+description: 'Imported from Home Assistant (id: 1616987119652).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: fan.patio_fans
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.patio_fans
+    deviceId: fan.patio_fans

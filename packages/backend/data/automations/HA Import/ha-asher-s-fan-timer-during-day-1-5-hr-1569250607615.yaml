@@ -1,0 +1,25 @@
+id: ha-asher-s-fan-timer-during-day-1-5-hr-1569250607615
+name: Asher's fan timer during day (1.5 hr)
+group: HA Import
+description: 'Imported from Home Assistant (id: 1569250607615).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '01:30:00'
+    type: device_state
+    deviceId: fan.ashers_bedroom_ceiling_fan
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.day_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.ashers_bedroom_ceiling_fan
+    deviceId: fan.ashers_bedroom_ceiling_fan

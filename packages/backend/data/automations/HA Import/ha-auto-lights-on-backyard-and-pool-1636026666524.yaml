@@ -1,0 +1,83 @@
+id: ha-auto-lights-on-backyard-and-pool-1636026666524
+name: 'auto lights on: backyard and pool'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1636026666524).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: input_boolean.motion_detected_on_back_porch
+    attribute: state
+  - type: sun
+    event: sunset
+  - to: 'on'
+    type: device_state
+    deviceId: switch.exterior_sconces
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: switch.exterior_backyard_landscaping
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: light.pool_light
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: light.spa_light
+        attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.pool_light
+        deviceId: light.pool_light
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.exterior_backyard_landscaping
+        deviceId: switch.exterior_backyard_landscaping
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: switch.exterior_sconces
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.anyone_home
+          attribute: state
+        - type: not
+          condition:
+            type: and
+            conditions:
+              - op: eq
+                type: device_state
+                value: Night
+                deviceId: input_select.system_mode
+                attribute: state
+              - op: eq
+                type: device_state
+                value: Morning
+                deviceId: input_select.system_mode
+                attribute: state

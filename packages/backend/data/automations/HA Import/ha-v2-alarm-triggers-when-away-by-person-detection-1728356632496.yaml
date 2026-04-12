@@ -1,0 +1,29 @@
+id: ha-v2-alarm-triggers-when-away-by-person-detection-1728356632496
+name: 'V2: Alarm triggers when away by person detection'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1728356632496).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.living_room_motion_detected
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: armed_away
+    deviceId: alarm_control_panel.home_alarm
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.alarm_when_person_detected_by_cameras
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: alarm_control_panel
+      action: alarm_trigger
+      deviceId: alarm_control_panel.home_alarm
+    deviceId: alarm_control_panel.home_alarm

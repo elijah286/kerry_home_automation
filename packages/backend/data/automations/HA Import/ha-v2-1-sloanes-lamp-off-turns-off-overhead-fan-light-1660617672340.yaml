@@ -1,0 +1,22 @@
+id: ha-v2-1-sloanes-lamp-off-turns-off-overhead-fan-light-1660617672340
+name: 'V2.1: Sloanes Lamp Off Turns off overhead fan light'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660617672340).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.sloanes_bedroom_dresser_lamp
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: light.sloanes_bedroom_dresser_lamp
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.sloanes_bedroom_ceiling_fan_light
+    deviceId: switch.sloanes_bedroom_ceiling_fan_light

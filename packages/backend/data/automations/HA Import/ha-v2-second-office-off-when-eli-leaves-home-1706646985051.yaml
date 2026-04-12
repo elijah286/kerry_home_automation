@@ -1,0 +1,65 @@
+id: ha-v2-second-office-off-when-eli-leaves-home-1706646985051
+name: 'V2: Second office off when Eli leaves home'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1706646985051).'
+enabled: false
+mode: single
+triggers:
+  - to: zone.home
+    type: device_state
+    deviceId: person.elijah_kerry
+    attribute: state
+  - to: '0'
+    type: device_state
+    deviceId: zone.home
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.guest_mode
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: '0'
+        deviceId: zone.home
+        attribute: state
+      - type: not
+        condition:
+          op: eq
+          type: device_state
+          value: zone.home
+          deviceId: person.elijah_kerry
+          attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: input_boolean.anyone_home
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.guest_room_desk
+    deviceId: light.guest_room_desk
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.guest_room_ceiling_fan
+    deviceId: fan.guest_room_ceiling_fan
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.guest_room_ceiling_fan_light
+    deviceId: switch.guest_room_ceiling_fan_light

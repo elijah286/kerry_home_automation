@@ -1,0 +1,74 @@
+id: ha-inflatable-toggle-based-on-wind-speed-1760041903393
+name: 'Inflatable: toggle based on wind speed'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1760041903393).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/3 * * * *'
+    type: time
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - else:
+      - else:
+          - then:
+              - type: device_command
+                command:
+                  type: switch
+                  action: turn_on
+                  deviceId: switch.inflatable
+                deviceId: switch.inflatable
+            type: condition
+            condition:
+              type: and
+              conditions:
+                - op: eq
+                  type: device_state
+                  value: 'off'
+                  deviceId: switch.inflatable
+                  attribute: state
+                - type: not
+                  condition:
+                    op: eq
+                    type: device_state
+                    value: Night
+                    deviceId: input_select.system_mode
+                    attribute: state
+        then:
+          - then:
+              - type: device_command
+                command:
+                  type: switch
+                  action: turn_off
+                  deviceId: switch.inflatable
+                deviceId: switch.inflatable
+            type: condition
+            condition:
+              op: eq
+              type: device_state
+              value: 'on'
+              deviceId: switch.inflatable
+              attribute: state
+        type: condition
+        condition:
+          op: gt
+          type: device_state
+          value: 12
+          deviceId: sensor.wind_speed
+          attribute: state
+    then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.inflatable
+        deviceId: switch.inflatable
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state

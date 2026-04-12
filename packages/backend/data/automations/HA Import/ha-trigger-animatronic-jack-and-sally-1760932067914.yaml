@@ -1,0 +1,33 @@
+id: ha-trigger-animatronic-jack-and-sally-1760932067914
+name: 'Trigger Animatronic: Jack and Sally'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1760932067914).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.ghost_trigger_person_occupancy
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.fog_trigger_person_occupancy
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.animatronics_armed
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.run_jack_and_sally_show
+    deviceId: input_boolean.run_jack_and_sally_show

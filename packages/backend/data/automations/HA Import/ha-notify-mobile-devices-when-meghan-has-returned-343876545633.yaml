@@ -1,0 +1,19 @@
+id: ha-notify-mobile-devices-when-meghan-has-returned-343876545633
+name: Notify mobile devices when Meghan has returned
+group: HA Import
+description: 'Imported from Home Assistant (id: 343876545633).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.meghan_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Meghan has returned
+      deviceId: ''
+    deviceId: notify.everyone

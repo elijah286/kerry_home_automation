@@ -1,0 +1,23 @@
+id: ha-bedjet-mk-remote-temp-down-1771111861887
+name: 'BedJet MK Remote: Temp Down'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1771111861887).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: log
+    message: >-
+      [HA variables] {"current_temp":"{{ state_attr('climate.rpi_eli_c30a', 'temperature') | float(0) }}","new_temp":"{{
+      current_temp - 1 }}"}
+  - type: device_command
+    command:
+      type: climate
+      action: set_temperature
+      deviceId: climate.rpi_eli_c30a
+      hvac_mode: heat
+      temperature: '{{ new_temp }}'
+    deviceId: climate.rpi_eli_c30a
+  - type: log
+    message: '[HA choose] Could not translate choose block'

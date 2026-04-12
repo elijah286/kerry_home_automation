@@ -1,0 +1,18 @@
+id: ha-v2-game-room-off-when-last-person-leaves-1630899950909
+name: 'V2: Game Room Off When Last Person Leaves'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1630899950909).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.game_room_main_lights
+    deviceId: light.game_room_main_lights

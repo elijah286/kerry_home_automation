@@ -1,0 +1,30 @@
+id: ha-v2-patio-lights-off-if-no-person-detected-on-patio-1698721388532
+name: 'V2: Patio lights off if no person detected on patio'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1698721388532).'
+enabled: false
+mode: single
+triggers:
+  - to: '0'
+    for: '00:02:00'
+    type: device_state
+    deviceId: sensor.back_door_frigate_person_count
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: '0'
+    deviceId: sensor.back_door_frigate_person_count
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.party_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.patio
+    deviceId: switch.patio

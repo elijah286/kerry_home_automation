@@ -1,0 +1,18 @@
+id: ha-v2-game-room-speakers-off-1661133839287
+name: 'V2: Game Room Speakers Off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1661133839287).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.game_room_speakers
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_off
+      deviceId: media_player.movie_room_receiver_zone_2
+    deviceId: media_player.movie_room_receiver_zone_2

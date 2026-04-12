@@ -1,0 +1,18 @@
+id: ha-v2-sloane-s-bathroom-vent-exhaust-fan-on-with-vanity-light-1701559360631
+name: 'V2: Sloane''s bathroom vent exhaust fan on with vanity light'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1701559360631).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.upstairs_guest_bathroom_vanity_lights
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.upstairs_guest_bathroom_exhaust_fan
+    deviceId: switch.upstairs_guest_bathroom_exhaust_fan

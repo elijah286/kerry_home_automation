@@ -1,0 +1,22 @@
+id: ha-halloween-ghost-trigger-reset-1760847337982
+name: 'Halloween Ghost: Trigger Reset'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1760847337982).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.ghost
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.ghost
+    deviceId: switch.ghost

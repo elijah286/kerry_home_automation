@@ -1,0 +1,18 @@
+id: ha-wake-eli-button-pressed-1660707902243
+name: Wake Eli Button Pressed
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660707902243).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.wake_eli
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.master_bedroom_elis_lamp
+      brightness: 127
+    deviceId: light.master_bedroom_elis_lamp

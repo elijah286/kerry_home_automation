@@ -1,0 +1,48 @@
+id: ha-v2-movie-room-kiosk-off-at-night-1660966660310
+name: 'V2: Movie Room Kiosk Off at Night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660966660310).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: 'off'
+    for: '00:02:00'
+    type: device_state
+    deviceId: media_player.movie_room_tv
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: remote.sony_bravia_tv
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.sleepover_party
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.movie_room_kiosk_screen
+      brightness: 3
+    deviceId: light.movie_room_kiosk_screen
+  - type: device_command
+    command:
+      type: number
+      value: '10'
+      action: set_value
+      deviceId: number.movie_room_kiosk_screen_brightness
+    deviceId: number.movie_room_kiosk_screen_brightness

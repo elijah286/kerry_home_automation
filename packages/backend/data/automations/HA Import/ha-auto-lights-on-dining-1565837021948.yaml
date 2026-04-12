@@ -1,0 +1,73 @@
+id: ha-auto-lights-on-dining-1565837021948
+name: 'auto lights on: dining'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565837021948).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_dining_room
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.person_in_dining_room
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.dining_room_chandelier
+          brightness: 166
+        deviceId: light.dining_room_chandelier
+    type: condition
+    condition:
+      type: not
+      condition:
+        op: eq
+        type: device_state
+        value: Night
+        deviceId: input_select.system_mode
+        attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.front_foyer_chandelier
+          brightness: 166
+        deviceId: light.front_foyer_chandelier
+    type: condition
+    condition:
+      type: or
+      conditions:
+        - op: eq
+          type: device_state
+          value: Late Evening
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Evening
+          deviceId: input_select.system_mode
+          attribute: state

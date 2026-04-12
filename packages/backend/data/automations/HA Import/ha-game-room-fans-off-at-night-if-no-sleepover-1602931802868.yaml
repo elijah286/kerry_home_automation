@@ -1,0 +1,35 @@
+id: ha-game-room-fans-off-at-night-if-no-sleepover-1602931802868
+name: Game Room Fans Off at Night if No Sleepover
+group: HA Import
+description: 'Imported from Home Assistant (id: 1602931802868).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.sleepover_party
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: ''
+    deviceId: fan.turn_off
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: ''
+    deviceId: fan.turn_off
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off

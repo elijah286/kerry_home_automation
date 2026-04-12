@@ -1,0 +1,24 @@
+id: ha-v2-outdoors-flood-light-turns-on-exterior-1603173879825
+name: 'V2: Outdoors Flood light turns on exterior'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1603173879825).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.flood
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: ''
+    deviceId: switch.turn_on

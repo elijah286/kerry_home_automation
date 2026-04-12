@@ -1,0 +1,26 @@
+id: ha-light-under-stairs-off-when-last-perosn-leaves-or-night-1621284955926
+name: Light under stairs off when last perosn leaves or night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1621284955926).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: Night
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.under_stairs
+    deviceId: switch.under_stairs

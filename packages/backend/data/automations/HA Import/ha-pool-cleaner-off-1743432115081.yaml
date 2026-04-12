@@ -1,0 +1,34 @@
+id: ha-pool-cleaner-off-1743432115081
+name: 'Pool: Cleaner Off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1743432115081).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 11 * * *
+    type: time
+  - cron: 0 14 * * *
+    type: time
+conditions:
+  - type: or
+    conditions:
+      - type: time_window
+        after: '14:00'
+        before: '23:59'
+      - type: or
+        conditions:
+          - type: time_window
+            after: '11:00'
+            before: '23:59'
+          - op: eq
+            type: device_state
+            value: 'on'
+            deviceId: input_boolean.vacation_mode
+            attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.cleaner
+    deviceId: switch.cleaner

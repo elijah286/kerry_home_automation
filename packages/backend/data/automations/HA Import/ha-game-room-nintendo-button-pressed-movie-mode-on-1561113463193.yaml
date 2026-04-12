@@ -1,0 +1,37 @@
+id: ha-game-room-nintendo-button-pressed-movie-mode-on-1561113463193
+name: 'Game Room: Nintendo button pressed. Movie mode on'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1561113463193).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.play_nintendo
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_on
+      deviceId: media_player.movie_room_tv
+    deviceId: media_player.movie_room_tv
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_on
+      deviceId: media_player.movie_room_receiver
+    deviceId: media_player.movie_room_receiver
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.movie_mode
+    deviceId: input_boolean.movie_mode
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.6
+      deviceId: media_player.movie_room_receiver
+    deviceId: media_player.movie_room_receiver

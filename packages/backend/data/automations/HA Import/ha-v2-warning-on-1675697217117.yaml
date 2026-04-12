@@ -1,0 +1,38 @@
+id: ha-v2-warning-on-1675697217117
+name: 'V2: Warning On'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1675697217117).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.portal_open
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.dishwasher_warning
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.water_leak_warning
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.fridge_warning
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.car_warning
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.water_heater_needs_service
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.warning
+    deviceId: input_boolean.warning

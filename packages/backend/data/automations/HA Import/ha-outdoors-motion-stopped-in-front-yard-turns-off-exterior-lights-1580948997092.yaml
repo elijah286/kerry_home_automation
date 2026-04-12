@@ -1,0 +1,53 @@
+id: ha-outdoors-motion-stopped-in-front-yard-turns-off-exterior-lights-1580948997092
+name: Outdoors Motion stopped in front yard turns off exterior lights
+group: HA Import
+description: 'Imported from Home Assistant (id: 1580948997092).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:00:10'
+    type: device_state
+    deviceId: input_boolean.motion_in_front
+    attribute: state
+  - to: 'off'
+    for: '00:00:10'
+    type: device_state
+    deviceId: input_boolean.motion_in_back
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.exterior_sconces
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.motion_in_back
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.motion_in_front
+    attribute: state
+  - type: or
+    conditions:
+      - type: time_window
+        after: '21:30'
+        before: '23:59'
+      - type: time_window
+        after: '00:00'
+        before: '05:00'
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.power_saver
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: ''
+    deviceId: switch.turn_off

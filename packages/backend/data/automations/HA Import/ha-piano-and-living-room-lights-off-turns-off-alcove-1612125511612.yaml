@@ -1,0 +1,42 @@
+id: ha-piano-and-living-room-lights-off-turns-off-alcove-1612125511612
+name: Piano and Living Room Lights off turns off alcove
+group: HA Import
+description: 'Imported from Home Assistant (id: 1612125511612).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.living_room_table_lamp
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: light.upstairs_hallway_piano
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: light.stairs_main_lights
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.stairs_main_lights
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.upstairs_hallway_piano
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.living_room_main_lights
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off

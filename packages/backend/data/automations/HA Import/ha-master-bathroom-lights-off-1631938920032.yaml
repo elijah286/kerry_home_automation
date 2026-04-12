@@ -1,0 +1,44 @@
+id: ha-master-bathroom-lights-off-1631938920032
+name: master bathroom lights off
+group: HA Import
+description: 'Imported from Home Assistant (id: 1631938920032).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.master_bathroom_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.master_bathroom_shower
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.master_bathroom_tub
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.master_bathroom_main_lights
+    deviceId: light.master_bathroom_main_lights

@@ -1,0 +1,57 @@
+id: ha-auto-lights-off-pool-1636861773597
+name: 'Auto lights off: pool'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1636861773597).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+  - type: device_state
+    deviceId: switch.exterior_sconces
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.pool_light
+        deviceId: light.pool_light
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.spa_light
+        deviceId: light.spa_light
+      - then:
+          - type: device_command
+            command:
+              type: switch
+              action: turn_off
+              deviceId: switch.exterior_backyard_landscaping
+            deviceId: switch.exterior_backyard_landscaping
+        type: condition
+        condition:
+          op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.freeze_protection
+          attribute: state
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.anyone_home
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_pool
+          attribute: state

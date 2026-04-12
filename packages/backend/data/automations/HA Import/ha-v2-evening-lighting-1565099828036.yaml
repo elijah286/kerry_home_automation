@@ -1,0 +1,24 @@
+id: ha-v2-evening-lighting-1565099828036
+name: 'V2: Evening Lighting'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565099828036).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_button.evening_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: scene
+      action: turn_on
+      deviceId: scene.ha_evening
+    deviceId: scene.ha_evening

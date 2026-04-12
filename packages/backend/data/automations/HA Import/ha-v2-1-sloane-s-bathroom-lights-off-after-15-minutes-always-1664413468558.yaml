@@ -1,0 +1,53 @@
+id: ha-v2-1-sloane-s-bathroom-lights-off-after-15-minutes-always-1664413468558
+name: 'V2.1: Sloane''s bathroom lights off after 15 minutes always'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1664413468558).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:15:00'
+    type: device_state
+    deviceId: binary_sensor.upstairs_guest_bathroom_motion_sensor
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to: 'on'
+    for: '00:15:00'
+    type: device_state
+    deviceId: light.sloanes_bathroom_vanity_lights
+    attribute: state
+  - to: 'on'
+    for: '00:15:00'
+    type: device_state
+    deviceId: switch.sloanes_bathroom_shower
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.upstairs_guest_bathroom_motion_sensor
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.sloanes_bathroom_vanity_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.sloanes_bathroom_shower
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.sloanes_bathroom_vanity_lights
+    deviceId: light.sloanes_bathroom_vanity_lights

@@ -1,0 +1,18 @@
+id: ha-front-landscape-off-turns-off-backyard-landscaping-1635700715485
+name: Front Landscape Off Turns off Backyard Landscaping
+group: HA Import
+description: 'Imported from Home Assistant (id: 1635700715485).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: switch.exterior_landscape
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.exterior_backyard_landscaping
+    deviceId: switch.exterior_backyard_landscaping

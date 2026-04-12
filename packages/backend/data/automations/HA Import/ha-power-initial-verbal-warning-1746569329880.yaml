@@ -1,0 +1,26 @@
+id: ha-power-initial-verbal-warning-1746569329880
+name: 'Power: Initial verbal warning'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1746569329880).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.power_level_verbal_warnings
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: Power is out. Switching to emergency backup and reducing power consumption.
+      deviceId: ''
+    deviceId: notify.alexa_media
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: Power is out. Switching to emergency backup and reducing power consumption.
+      deviceId: ''
+    deviceId: notify.alexa_media

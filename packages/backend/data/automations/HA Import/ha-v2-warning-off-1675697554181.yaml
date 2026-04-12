@@ -1,0 +1,69 @@
+id: ha-v2-warning-off-1675697554181
+name: 'V2: Warning Off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1675697554181).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.portal_open
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.dishwasher_warning
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.water_leak_warning
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.fridge_warning
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.car_warning
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.water_heater_needs_service
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.dishwasher_warning
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.portal_open
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.water_leak_warning
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.fridge_warning
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.car_warning
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.water_heater_needs_service
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.warning
+    deviceId: input_boolean.warning

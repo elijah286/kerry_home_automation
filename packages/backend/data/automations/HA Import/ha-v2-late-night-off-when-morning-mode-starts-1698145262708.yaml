@@ -1,0 +1,17 @@
+id: ha-v2-late-night-off-when-morning-mode-starts-1698145262708
+name: 'V2: Late Night off when morning mode starts'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1698145262708).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.late_night
+    deviceId: input_boolean.late_night

@@ -1,0 +1,46 @@
+id: ha-person-detected-movie-room-1713719568329
+name: 'Person Detected: Movie Room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1713719568329).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: media_player.media_room_tv
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.apollo_msr_1_cb9624_radar_still_target
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.movie_room_area_person_occupancy
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.movie_room_kiosk_person_occupancy
+    attribute: state
+  - from:
+      - http://192.168.68.203:8123/lovelace/movie-room-kiosk?kiosk
+    type: device_state
+    deviceId: sensor.movie_room_kiosk_current_page
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_movie_room
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_movie_room
+    deviceId: input_boolean.person_in_movie_room

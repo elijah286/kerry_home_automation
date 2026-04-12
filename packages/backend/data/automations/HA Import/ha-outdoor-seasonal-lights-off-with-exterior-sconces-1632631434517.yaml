@@ -1,0 +1,18 @@
+id: ha-outdoor-seasonal-lights-off-with-exterior-sconces-1632631434517
+name: Outdoor Seasonal Lights off with exterior sconces
+group: HA Import
+description: 'Imported from Home Assistant (id: 1632631434517).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: switch.exterior_sconces
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.outdoor_holiday_lights
+    deviceId: switch.outdoor_holiday_lights

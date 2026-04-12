@@ -1,0 +1,18 @@
+id: ha-v2-motion-lights-off-turns-off-chandelier-1662389499261
+name: 'V2: Motion Lights Off Turns off Chandelier'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1662389499261).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.front_foyer_chandelier
+    deviceId: light.front_foyer_chandelier

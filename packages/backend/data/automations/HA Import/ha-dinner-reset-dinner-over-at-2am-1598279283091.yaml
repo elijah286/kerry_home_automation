@@ -1,0 +1,16 @@
+id: ha-dinner-reset-dinner-over-at-2am-1598279283091
+name: 'Dinner: Reset dinner over at 2am'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1598279283091).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 2 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: ''
+    deviceId: input_boolean.turn_off

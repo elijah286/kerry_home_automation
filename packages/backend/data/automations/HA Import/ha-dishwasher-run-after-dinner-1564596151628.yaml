@@ -1,0 +1,34 @@
+id: ha-dishwasher-run-after-dinner-1564596151628
+name: Dishwasher Run After Dinner
+group: HA Import
+description: 'Imported from Home Assistant (id: 1564596151628).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.dishwasher_power
+    attribute: state
+conditions:
+  - type: time_window
+    after: '18:00'
+    before: '23:59'
+  - op: gt
+    type: device_state
+    value: 100
+    deviceId: sensor.dishwasher_power
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.dishwasher_run
+    deviceId: input_boolean.dishwasher_run
+  - type: delay
+    duration: '00:00:01'
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.dishwasher_run
+    deviceId: input_boolean.dishwasher_run

@@ -1,0 +1,26 @@
+id: ha-v2-clear-tire-pressure-warning-for-voyager-1689555198307
+name: 'V2: Clear Tire Pressure Warning for Voyager'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1689555198307).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+  - type: manual
+  - type: manual
+  - type: manual
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.tire_pressure_warning_for_voyager
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.tire_pressure_warning_for_voyager
+    deviceId: input_boolean.tire_pressure_warning_for_voyager

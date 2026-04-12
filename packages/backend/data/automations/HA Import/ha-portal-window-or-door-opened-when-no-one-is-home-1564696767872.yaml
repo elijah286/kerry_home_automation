@@ -1,0 +1,25 @@
+id: ha-portal-window-or-door-opened-when-no-one-is-home-1564696767872
+name: 'Portal: window or door opened when no one is home'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1564696767872).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.portal_open
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: 'WARNING: A door or window was opened when no one should be home. 2 minutes until alarm'
+      deviceId: ''
+    deviceId: notify.everyone

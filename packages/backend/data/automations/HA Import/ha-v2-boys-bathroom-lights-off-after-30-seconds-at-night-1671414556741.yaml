@@ -1,0 +1,40 @@
+id: ha-v2-boys-bathroom-lights-off-after-30-seconds-at-night-1671414556741
+name: 'V2: Boys bathroom lights off after 30 seconds at night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1671414556741).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:00:30'
+    type: device_state
+    deviceId: binary_sensor.boys_bathroom_motion
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - cron: '*/2 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.boys_bathroom_motion
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.boys_bathroom_vanity_lights_new
+    deviceId: light.boys_bathroom_vanity_lights_new

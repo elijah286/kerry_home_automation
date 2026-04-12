@@ -1,0 +1,92 @@
+id: ha-run-fog-emitter-downstairs-1761823981206
+name: 'Run fog emitter: downstairs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761823981206).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.constant_fog
+    attribute: state
+  - to: 'off'
+    for: '00:00:10'
+    type: device_state
+    deviceId: switch.relay_switch_1
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.fog_trigger_person_occupancy
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.fog_power_flower_beds
+    attribute: state
+  - type: or
+    conditions:
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 'on'
+            deviceId: input_boolean.constant_fog
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: switch.relay_switch_1
+            attribute: state
+          - type: or
+            conditions:
+              - op: eq
+                type: device_state
+                value: 'on'
+                deviceId: binary_sensor.fog_trigger_person_occupancy
+                attribute: state
+              - op: eq
+                type: device_state
+                value: 'on'
+                deviceId: input_boolean.motion_detected_on_front_patio
+                attribute: state
+              - op: eq
+                type: device_state
+                value: 'on'
+                deviceId: binary_sensor.g6_bullet_vehicle_detected
+                attribute: state
+              - op: eq
+                type: device_state
+                value: 'on'
+                deviceId: input_boolean.person_in_front_yard
+                attribute: state
+              - op: eq
+                type: device_state
+                value: 'on'
+                deviceId: binary_sensor.driveway_frigate_motion
+                attribute: state
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 'on'
+            deviceId: input_boolean.run_jack_and_sally_show
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: automation.fog_emitter_timer_downstairs
+            attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.relay_switch_1
+    deviceId: switch.relay_switch_1

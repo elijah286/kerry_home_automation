@@ -1,0 +1,30 @@
+id: ha-v2-sexy-time-resets-video-game-timer-1726975097153
+name: 'V2: Sexy time resets video game timer'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1726975097153).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.sexy_time
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: timer
+      action: cancel
+      deviceId: timer.video_game
+    deviceId: timer.video_game
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.video_game_time_elapsed
+    deviceId: input_boolean.video_game_time_elapsed
+  - type: device_command
+    command:
+      type: timer
+      action: start
+      deviceId: timer.video_game
+    deviceId: timer.video_game

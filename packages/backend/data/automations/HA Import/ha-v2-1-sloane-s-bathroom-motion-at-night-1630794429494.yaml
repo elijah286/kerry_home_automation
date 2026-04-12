@@ -1,0 +1,31 @@
+id: ha-v2-1-sloane-s-bathroom-motion-at-night-1630794429494
+name: 'v2.1: Sloane''s Bathroom motion at night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1630794429494).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.upstairs_guest_bathroom_motion_sensor
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.sloane_sleeping
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Critical
+      deviceId: input_select.power_saving_mode
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.sloanes_bathroom_shower
+    deviceId: light.sloanes_bathroom_shower

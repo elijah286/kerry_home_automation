@@ -1,0 +1,158 @@
+id: ha-kiosk-screen-brightness-bedroom-1762662243293
+name: 'Kiosk Screen Brightness: Bedroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1762662243293).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.show_doorbell_camera
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: switch.elijah_s_tab_a9_screensaver
+    attribute: state
+  - type: device_state
+    deviceId: switch.bedroom_kiosk_screen
+    attribute: state
+  - cron: '*/1 * * * *'
+    type: time
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.bedroom_kiosk_screen
+        deviceId: switch.bedroom_kiosk_screen
+      - type: device_command
+        command:
+          type: number
+          value: '255'
+          action: set_value
+          deviceId: number.bedroom_kiosk_brightness
+        deviceId: number.bedroom_kiosk_brightness
+    then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.bedroom_kiosk_screen
+        deviceId: switch.bedroom_kiosk_screen
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - type: and
+          conditions:
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: input_boolean.show_doorbell_camera
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: light.master_bedroom_elis_lamp
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: media_player.bedroom_tv
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: switch.master_bedroom_ceiling_fan_light
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: light.master_bedroom_meghans_lamp
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: light.master_bedroom_main_lights
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: switch.master_bedroom_hallway
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: light.master_bathroom_main_lights
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: input_boolean.show_doorbell_camera
+              attribute: state
+        - type: or
+          conditions:
+            - type: and
+              conditions:
+                - type: time_window
+                  after: '21:30'
+                  before: '23:59'
+                - op: eq
+                  type: device_state
+                  value: Night
+                  deviceId: input_select.system_mode
+                  attribute: state
+            - type: and
+              conditions:
+                - op: eq
+                  type: device_state
+                  value: Morning
+                  deviceId: input_select.system_mode
+                  attribute: state
+                - op: eq
+                  type: device_state
+                  value: 'on'
+                  deviceId: input_boolean.meghan_is_sleeping
+                  attribute: state
+            - op: eq
+              type: device_state
+              value: Night
+              deviceId: input_select.system_mode
+              attribute: state
+        - type: or
+          conditions:
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: input_boolean.kiosk_bedroom_screensaver
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: input_boolean.kiosk_screensaver
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: switch.bedroom_kiosk_screen
+              attribute: state
+  - then: []
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - type: time_window
+          after: '22:30'
+          before: '05:00'

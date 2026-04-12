@@ -1,0 +1,26 @@
+id: ha-v2-sloane-s-bathroom-vent-on-when-motion-detected-1708436983082
+name: 'V2: Sloane''s Bathroom Vent On when Motion Detected'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1708436983082).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.upstairs_guest_bathroom_motion_sensor
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Critical
+      deviceId: input_select.power_saving_mode
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.sloanes_bathroom_exhaust_fan
+    deviceId: switch.sloanes_bathroom_exhaust_fan

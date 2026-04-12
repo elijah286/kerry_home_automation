@@ -1,0 +1,34 @@
+id: ha-warning-at-night-and-morning-car-battery-1600915163185
+name: 'Warning at Night and Morning: Car Battery'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1600915163185).'
+enabled: false
+mode: single
+triggers:
+  - to: Night
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.car_warning
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: 'Warning: one vehicle has low battery. Charge immediately'
+      deviceId: ''
+    deviceId: notify.everyone
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: ''
+    deviceId: switch.turn_on

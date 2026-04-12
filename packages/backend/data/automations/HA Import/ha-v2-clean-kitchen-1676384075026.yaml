@@ -1,0 +1,41 @@
+id: ha-v2-clean-kitchen-1676384075026
+name: 'V2: Clean Kitchen'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1676384075026).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.clean_kitchen
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Cleaning Kitchen
+      deviceId: ''
+    deviceId: notify.everyone
+  - then:
+      - type: device_command
+        command:
+          type: homeassistant
+          action: reload_config_entry
+          deviceId: vacuum.roborock_s7
+        deviceId: vacuum.roborock_s7
+      - type: delay
+        duration: '00:00:07'
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: unavailable
+      deviceId: vacuum.roborock_s7
+      attribute: state
+  - type: device_command
+    command:
+      type: vacuum
+      action: send_command
+      command: app_segment_clean
+      deviceId: vacuum.roborock_s7
+    deviceId: vacuum.roborock_s7

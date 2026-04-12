@@ -1,0 +1,24 @@
+id: ha-v2-reset-stop-roomba-cleaning-when-docked-1681265218733
+name: 'v2: reset stop Roomba cleaning when docked'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1681265218733).'
+enabled: false
+mode: single
+triggers:
+  - to: docked
+    type: device_state
+    deviceId: vacuum.roborock_vacuum_a15
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.stop_roomba
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.stop_roomba
+    deviceId: input_boolean.stop_roomba

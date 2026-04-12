@@ -1,0 +1,79 @@
+id: ha-auto-lights-off-toilet-room-1602473334100
+name: 'auto lights off: toilet room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1602473334100).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.person_in_toilet_room
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_toilet_room
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.toilet_closet2
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.toilet_closet_basic
+        attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.toilet_closet2
+        deviceId: light.toilet_closet2
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_toilet_room
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.toilet_closet2
+        deviceId: light.toilet_closet2
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: input_boolean.person_in_toilet_room
+      attribute: state

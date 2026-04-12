@@ -1,0 +1,18 @@
+id: ha-v2-motion-lights-turns-off-office-motion-sensor-1660938071719
+name: 'V2: Motion Lights turns off Office Motion Sensor'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660938071719).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.office_motion_sensor
+    deviceId: input_boolean.office_motion_sensor

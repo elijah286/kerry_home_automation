@@ -1,0 +1,23 @@
+id: ha-set-mode-late-evening-1564974990539
+name: 'Set Mode: Late Evening'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1564974990539).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.sun_position
+    attribute: state
+  - cron: 45 19 * * *
+    type: time
+conditions:
+  - type: time_window
+    after: '19:45'
+    before: '00:00'
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.late_evening_mode
+    deviceId: input_button.late_evening_mode

@@ -1,0 +1,43 @@
+id: ha-jack-and-sally-spotlights-on-when-exterior-lights-are-on-1697027209462
+name: Jack and sally spotlights on when exterior lights are on
+group: HA Import
+description: 'Imported from Home Assistant (id: 1697027209462).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: switch.exterior_sconces
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: switch.jack_spotlight
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: switch.sally_light
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.exterior_sconces
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.jack_spotlight
+    deviceId: switch.jack_spotlight

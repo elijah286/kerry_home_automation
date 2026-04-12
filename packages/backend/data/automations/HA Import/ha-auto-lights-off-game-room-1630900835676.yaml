@@ -1,0 +1,91 @@
+id: ha-auto-lights-off-game-room-1630900835676
+name: 'auto lights off: game room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1630900835676).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+  - cron: '*/1 * * * *'
+    type: time
+  - to: '0'
+    type: device_state
+    deviceId: sensor.game_room_frigate_person_count
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.game_room_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.game_room_ceiling_fan_light
+        attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.game_room_main_lights
+        deviceId: light.game_room_main_lights
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.game_room_ceiling_fan_light
+        deviceId: switch.game_room_ceiling_fan_light
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: input_boolean.game_room_motion_detected
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.game_room_main_lights
+        deviceId: light.game_room_main_lights
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.game_room_ceiling_fan_light
+        deviceId: switch.game_room_ceiling_fan_light
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.game_room_motion_detected
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state

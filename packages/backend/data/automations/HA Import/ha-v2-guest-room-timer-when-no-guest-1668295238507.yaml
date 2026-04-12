@@ -1,0 +1,27 @@
+id: ha-v2-guest-room-timer-when-no-guest-1668295238507
+name: 'V2: Guest Room Timer When No Guest'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1668295238507).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.upstairs_guest_room_bathroom_side_bediside
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.guest_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.upstairs_guest_room_bathroom_side_bediside
+    deviceId: light.upstairs_guest_room_bathroom_side_bediside

@@ -1,0 +1,18 @@
+id: ha-asher-s-closet-off-with-lamp-1600393749783
+name: Asher's Closet Off with Lamp
+group: HA Import
+description: 'Imported from Home Assistant (id: 1600393749783).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.ashers_bedroom_table_lamp
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: ''
+    deviceId: switch.turn_off

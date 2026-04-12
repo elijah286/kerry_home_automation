@@ -1,0 +1,18 @@
+id: ha-vacuum-pause-cleaning-1682441489401
+name: 'Vacuum: Pause Cleaning'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1682441489401).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.pause_vacuum_for_5_min
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: vacuum
+      action: pause
+      deviceId: vacuum.saros_z70
+    deviceId: vacuum.saros_z70

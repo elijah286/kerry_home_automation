@@ -1,0 +1,19 @@
+id: ha-spa-mode-timer-1754909148074
+name: Spa mode timer
+group: HA Import
+description: 'Imported from Home Assistant (id: 1754909148074).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '01:00:00'
+    type: device_state
+    deviceId: input_boolean.sexy_time
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.sexy_time
+    deviceId: input_boolean.sexy_time

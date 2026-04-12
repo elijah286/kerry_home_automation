@@ -1,0 +1,24 @@
+id: ha-front-door-open-resets-motion-in-front-timeout-1580922905821
+name: Front door open resets motion in front timeout
+group: HA Import
+description: 'Imported from Home Assistant (id: 1580922905821).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.front_door
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: ''
+    deviceId: input_boolean.turn_off
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on

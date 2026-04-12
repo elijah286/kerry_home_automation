@@ -1,0 +1,17 @@
+id: ha-v2-turn-off-front-foyer-chandelier-when-kids-sleeping-1663900389770
+name: 'V2: Turn off front foyer chandelier when kids sleeping'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1663900389770).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.puts_kids_to_sleep
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.front_foyer_chandelier
+    deviceId: light.front_foyer_chandelier

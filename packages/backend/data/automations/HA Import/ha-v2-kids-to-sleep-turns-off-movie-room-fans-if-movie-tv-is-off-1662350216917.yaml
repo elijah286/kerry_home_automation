@@ -1,0 +1,46 @@
+id: ha-v2-kids-to-sleep-turns-off-movie-room-fans-if-movie-tv-is-off-1662350216917
+name: 'V2: Kids to sleep turns off movie room fans if movie tv is off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1662350216917).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/5 * * * *'
+    type: time
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: remote.sony_bravia_tv
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: fan.upstairs_fans
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.party_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.game_room_ceiling_fan
+    deviceId: fan.game_room_ceiling_fan

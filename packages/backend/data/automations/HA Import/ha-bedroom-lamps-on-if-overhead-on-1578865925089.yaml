@@ -1,0 +1,28 @@
+id: ha-bedroom-lamps-on-if-overhead-on-1578865925089
+name: Bedroom lamps on if overhead on
+group: HA Import
+description: 'Imported from Home Assistant (id: 1578865925089).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.master_bedroom_main_lights
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: switch.master_bedroom_ceiling_fan_light
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: ''
+    deviceId: light.turn_on
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: ''
+    deviceId: light.turn_on

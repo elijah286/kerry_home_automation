@@ -1,0 +1,23 @@
+id: ha-v2-alexa-water-leak-warning-1688575992077
+name: 'V2: Alexa water leak warning'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1688575992077).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.water_leak_warning
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media_living_room_echo
+      message: 'Warning. A water leak has been detected. '
+      deviceId: ''
+    deviceId: notify.alexa_media_living_room_echo

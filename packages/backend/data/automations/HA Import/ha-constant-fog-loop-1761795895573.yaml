@@ -1,0 +1,99 @@
+id: ha-constant-fog-loop-1761795895573
+name: Constant Fog Loop
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761795895573).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.constant_fog
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.constant_fog
+        attribute: state
+      - type: not
+        condition:
+          op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.constant_fog
+          attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.fog
+        deviceId: switch.fog
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.constant_fog
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: switch.fog
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.relay_switch_1
+        deviceId: switch.relay_switch_1
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: switch.relay_switch_1
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.constant_fog
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.fog
+        deviceId: switch.fog
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: switch.fog
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.relay_switch_1
+        deviceId: switch.relay_switch_1
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: switch.relay_switch_1
+      attribute: state

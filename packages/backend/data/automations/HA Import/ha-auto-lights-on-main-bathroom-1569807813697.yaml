@@ -1,0 +1,109 @@
+id: ha-auto-lights-on-main-bathroom-1569807813697
+name: 'auto lights on: main bathroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1569807813697).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.master_bathroom_main_lights
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.master_bathroom_shower
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.master_bathroom_tub
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - then:
+      - else:
+          - type: device_command
+            command:
+              type: light
+              action: turn_on
+              deviceId: light.master_bathroom_tub
+              brightness: 89
+            deviceId: light.master_bathroom_tub
+        then:
+          - type: device_command
+            command:
+              type: light
+              action: turn_on
+              deviceId: light.master_bathroom_tub
+              brightness: 51
+            deviceId: light.master_bathroom_tub
+        type: condition
+        condition:
+          type: and
+          conditions:
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: light.master_bedroom_elis_lamp
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: media_player.bedroom_tv
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: switch.master_bedroom_ceiling_fan_light
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: light.master_bedroom_meghans_lamp
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: light.master_bedroom_main_lights
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: switch.master_bedroom_hallway
+              attribute: state
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state

@@ -1,0 +1,51 @@
+id: ha-person-clear-front-patio-1687812632185
+name: 'Person Clear: Front Patio'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1687812632185).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_detected_on_front_patio
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.front_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unknown
+        deviceId: binary_sensor.front_door
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.front_door_ding_2
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: '0'
+        deviceId: sensor.front_door_frigate_person_count
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: sensor.front_door_frigate_person_count
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.motion_detected_on_front_patio
+    deviceId: input_boolean.motion_detected_on_front_patio

@@ -1,0 +1,81 @@
+id: ha-v2-tire-milage-warning-for-enterprise-1688827935475
+name: 'V2: Tire milage warning for Enterprise'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1688827935475).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_number.tire_set_3_fl_miles_since_change
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_3_fr_miles_since_change
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_3_rl_miles_since_change
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_3_rr_miles_since_change
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_4_fl_miles_since_change
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_4_fr_miles_since_change
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_4_rl_miles_since_change
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_4_rr_miles_since_change
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: gt
+        type: device_state
+        value: 15000
+        deviceId: input_number.tire_set_3_fl_miles_since_change
+        attribute: state
+      - op: gt
+        type: device_state
+        value: 15000
+        deviceId: input_number.tire_set_3_fr_miles_since_change
+        attribute: state
+      - op: gt
+        type: device_state
+        value: 15000
+        deviceId: input_number.tire_set_3_rl_miles_since_change
+        attribute: state
+      - op: gt
+        type: device_state
+        value: 15000
+        deviceId: input_number.tire_set_3_rr_miles_since_change
+        attribute: state
+      - op: gt
+        type: device_state
+        value: 15000
+        deviceId: input_number.tire_set_4_fl_miles_since_change
+        attribute: state
+      - op: gt
+        type: device_state
+        value: 15000
+        deviceId: input_number.tire_set_4_fr_miles_since_change
+        attribute: state
+      - op: gt
+        type: device_state
+        value: 15000
+        deviceId: input_number.tire_set_4_rl_miles_since_change
+        attribute: state
+      - op: gt
+        type: device_state
+        value: 15000
+        deviceId: input_number.tire_set_4_rr_miles_since_change
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.tire_mileage_warning_for_enterprise
+    deviceId: input_boolean.tire_mileage_warning_for_enterprise

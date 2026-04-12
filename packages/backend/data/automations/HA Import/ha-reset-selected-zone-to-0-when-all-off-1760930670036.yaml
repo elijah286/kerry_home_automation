@@ -1,0 +1,68 @@
+id: ha-reset-selected-zone-to-0-when-all-off-1760930670036
+name: Reset selected zone to 0 when all off
+group: HA Import
+description: 'Imported from Home Assistant (id: 1760930670036).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.back_grass_by_patio_stops_at_edge_of_house
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.back_grass_under_playscape_and_by_rockbed
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.front_flower_beds
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.left_front_grass
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.left_side_front_grass
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.back_flower_bed_behind_playscape
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.back_grass_in_the_middle_of_the_yard
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.right_front_grass
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.right_of_drive
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.front_walk_grass
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_number
+      value: 0
+      action: set_value
+      deviceId: input_number.sprinkler_zone_to_run
+    deviceId: input_number.sprinkler_zone_to_run

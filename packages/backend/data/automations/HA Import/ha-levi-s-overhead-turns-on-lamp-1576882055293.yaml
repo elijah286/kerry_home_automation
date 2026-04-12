@@ -1,0 +1,18 @@
+id: ha-levi-s-overhead-turns-on-lamp-1576882055293
+name: Levi's Overhead turns on lamp
+group: HA Import
+description: 'Imported from Home Assistant (id: 1576882055293).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: switch.levis_bedroom_main_lights
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.levis_bedside_lamp
+    deviceId: light.levis_bedside_lamp

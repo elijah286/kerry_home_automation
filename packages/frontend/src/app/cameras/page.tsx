@@ -156,7 +156,7 @@ function WebRTCStream({
     pc.createOffer()
       .then((offer) => pc.setLocalDescription(offer))
       .then(() =>
-        fetch(`${API_BASE}/api/cameras/${encodeURIComponent(name)}/webrtc`, {
+        fetch(`${API_BASE}/api/cameras/${encodeURIComponent(name)}/webrtc`, { credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/sdp' },
           body: pc.localDescription!.sdp,
@@ -312,7 +312,7 @@ export default function CamerasPage() {
 
   // Fetch camera list from backend (no longer hardcoded)
   useEffect(() => {
-    fetch(`${API_BASE}/api/cameras`)
+    fetch(`${API_BASE}/api/cameras`, { credentials: 'include' })
       .then((r) => r.json())
       .then((data: { cameras: CameraInfo[] }) => setCameras(data.cameras))
       .catch(() => {

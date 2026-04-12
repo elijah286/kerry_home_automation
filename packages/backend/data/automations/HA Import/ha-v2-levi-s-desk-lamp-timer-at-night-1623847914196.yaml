@@ -1,0 +1,37 @@
+id: ha-v2-levi-s-desk-lamp-timer-at-night-1623847914196
+name: 'V2: Levi’s Desk Lamp Timer at night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1623847914196).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:10:00'
+    type: device_state
+    deviceId: light.study_desk_lamp
+    attribute: state
+  - cron: '*/10 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.levi_sleeping
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.study_desk_lamp
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.party_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.study_desk_lamp
+    deviceId: light.study_desk_lamp

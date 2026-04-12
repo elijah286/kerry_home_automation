@@ -1,0 +1,18 @@
+id: ha-movie-can-off-turns-off-movie-overhead-1566745378983
+name: Movie Can off turns off movie overhead
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566745378983).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.movie_room_main_lights
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.game_room_ceiling_fan_light
+    deviceId: switch.game_room_ceiling_fan_light

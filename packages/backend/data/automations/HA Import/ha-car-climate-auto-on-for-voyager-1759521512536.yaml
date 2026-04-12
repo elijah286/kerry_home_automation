@@ -1,0 +1,67 @@
+id: ha-car-climate-auto-on-for-voyager-1759521512536
+name: 'Car Climate: Auto On for Voyager'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1759521512536).'
+enabled: false
+mode: single
+triggers:
+  - to: Barre
+    for: '00:45:00'
+    type: device_state
+    deviceId: device_tracker.voyager_location_tracker
+    attribute: state
+  - to: 'on'
+    for: '00:45:00'
+    type: device_state
+    deviceId: binary_sensor.voyager_parking_brake
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: true
+    deviceId: a0a470621674035265438607faf3c949
+    attribute: is_on
+  - op: eq
+    type: device_state
+    value: true
+    deviceId: 3a26dade0699eda6f2ed3a1418015e26
+    attribute: is_temperature
+  - op: gt
+    type: device_state
+    value: 25
+    deviceId: sensor.voyager_battery_sensor
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: climate.voyager_hvac_climate_system
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: home
+      deviceId: device_tracker.voyager_location_tracker
+      attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Work
+      deviceId: device_tracker.voyager_location_tracker
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: notify
+      message: Auto-Cooling Meghan's Car
+      deviceId: ''
+    deviceId: notify.notify
+  - type: device_command
+    command:
+      type: climate
+      action: set_hvac_mode
+      deviceId: climate.voyager_hvac_climate_system
+      hvac_mode: heat_cool
+    deviceId: climate.voyager_hvac_climate_system

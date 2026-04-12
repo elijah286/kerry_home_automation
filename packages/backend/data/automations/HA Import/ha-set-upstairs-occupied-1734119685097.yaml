@@ -1,0 +1,32 @@
+id: ha-set-upstairs-occupied-1734119685097
+name: set upstairs occupied
+group: HA Import
+description: 'Imported from Home Assistant (id: 1734119685097).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_boolean.upstairs_vacant
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.upstairs_occupied
+        deviceId: input_boolean.upstairs_occupied
+    then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.upstairs_occupied
+        deviceId: input_boolean.upstairs_occupied
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: input_boolean.upstairs_vacant
+      attribute: state

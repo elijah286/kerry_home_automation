@@ -1,0 +1,28 @@
+id: ha-v2-movie-mode-off-1704294225394
+name: 'V2: Movie Mode Off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1704294225394).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: media_player.movie_room_tv
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: media_player.movie_room_tv
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.movie_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.movie_mode
+    deviceId: input_boolean.movie_mode

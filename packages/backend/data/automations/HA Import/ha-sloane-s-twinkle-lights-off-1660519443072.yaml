@@ -1,0 +1,23 @@
+id: ha-sloane-s-twinkle-lights-off-1660519443072
+name: Sloane's Twinkle Lights Off
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660519443072).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.day_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.sloanes_twinkler_lights
+    deviceId: switch.sloanes_twinkler_lights

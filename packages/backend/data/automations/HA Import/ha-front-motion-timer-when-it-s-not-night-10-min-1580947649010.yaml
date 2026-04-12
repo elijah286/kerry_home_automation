@@ -1,0 +1,25 @@
+id: ha-front-motion-timer-when-it-s-not-night-10-min-1580947649010
+name: Front motion timer when it's not night (10 min)
+group: HA Import
+description: 'Imported from Home Assistant (id: 1580947649010).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:10:00'
+    type: device_state
+    deviceId: input_boolean.motion_in_front
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_in_front
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: ''
+    deviceId: input_boolean.turn_off

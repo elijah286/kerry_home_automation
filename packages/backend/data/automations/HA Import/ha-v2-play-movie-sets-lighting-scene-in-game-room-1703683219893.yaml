@@ -1,0 +1,35 @@
+id: ha-v2-play-movie-sets-lighting-scene-in-game-room-1703683219893
+name: 'V2: Play Movie Sets Lighting Scene in Game Room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1703683219893).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.play_movie
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.game_room_main_lights
+    deviceId: light.game_room_main_lights
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.movie_mode
+    deviceId: input_boolean.movie_mode
+  - type: device_command
+    command:
+      type: cover
+      action: close_cover
+      deviceId: cover.game_room_blinds
+    deviceId: cover.game_room_blinds
+  - type: device_command
+    command:
+      type: fan
+      action: set_percentage
+      deviceId: fan.movie_room_ceiling_fan
+    deviceId: fan.movie_room_ceiling_fan

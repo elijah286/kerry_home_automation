@@ -1,0 +1,28 @@
+id: ha-levis-lamp-off-turns-off-overhead-1566613005472
+name: Levis lamp off turns off overhead
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566613005472).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.levis_bedside_lamp
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: light.study_desk_lamp
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.levis_bedroom_main_lights
+    deviceId: switch.levis_bedroom_main_lights
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.levis_bedroom_main_lights
+    deviceId: switch.levis_bedroom_main_lights

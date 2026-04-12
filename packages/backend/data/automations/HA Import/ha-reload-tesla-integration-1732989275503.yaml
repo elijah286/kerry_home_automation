@@ -1,0 +1,32 @@
+id: ha-reload-tesla-integration-1732989275503
+name: Reload Tesla Integration
+group: HA Import
+description: 'Imported from Home Assistant (id: 1732989275503).'
+enabled: false
+mode: single
+triggers:
+  - to: unavailable
+    for: '00:01:00'
+    type: device_state
+    deviceId: sensor.enterprise_battery_sensor
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: unavailable
+    deviceId: sensor.enterprise_battery_sensor
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: admin
+      message: Data from cars unavailable. Attempting to reconnect
+      deviceId: ''
+    deviceId: notify.admin
+  - type: device_command
+    command:
+      type: homeassistant
+      action: reload_config_entry
+      deviceId: sensor.enterprise_battery_sensor
+    deviceId: sensor.enterprise_battery_sensor

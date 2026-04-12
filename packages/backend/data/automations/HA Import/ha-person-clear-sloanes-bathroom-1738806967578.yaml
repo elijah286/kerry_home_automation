@@ -1,0 +1,45 @@
+id: ha-person-clear-sloanes-bathroom-1738806967578
+name: 'Person clear: sloanes bathroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1738806967578).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.sloanes_bathroom_presence_sensor
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - type: or
+    conditions:
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 'on'
+            deviceId: input_boolean.person_in_sloanes_bathroom
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: binary_sensor.sloanes_bathroom_presence_sensor
+            attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.sloanes_bathroom_presence_sensor
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.sloanes_bathroom_presence_sensor
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.person_in_sloanes_bathroom
+    deviceId: input_boolean.person_in_sloanes_bathroom

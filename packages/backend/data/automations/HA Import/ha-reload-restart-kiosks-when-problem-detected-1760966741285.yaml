@@ -1,0 +1,206 @@
+id: ha-reload-restart-kiosks-when-problem-detected-1760966741285
+name: Reload/Restart Kiosks when Problem Detected
+group: HA Import
+description: 'Imported from Home Assistant (id: 1760966741285).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/2 * * * *'
+    type: time
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: dismiss
+          deviceId: ''
+        deviceId: persistent_notification.dismiss
+    then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.guest_room_kiosk_screen
+        deviceId: switch.guest_room_kiosk_screen
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: create
+          message: Guest Room Kiosk Problem
+          deviceId: ''
+        deviceId: persistent_notification.create
+      - type: device_command
+        command:
+          type: button
+          action: press
+          deviceId: button.guest_room_kiosk_restart_browser
+        deviceId: button.guest_room_kiosk_restart_browser
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: unavailable
+      deviceId: camera.guest_room_kiosk
+      attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: dismiss
+          deviceId: ''
+        deviceId: persistent_notification.dismiss
+    then:
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: create
+          message: Bedroom Kiosk Problem
+          deviceId: ''
+        deviceId: persistent_notification.create
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.bedroom_kiosk_screen
+        deviceId: switch.bedroom_kiosk_screen
+      - type: device_command
+        command:
+          type: button
+          action: press
+          deviceId: button.restart_browser_bedroom_kiosk
+        deviceId: button.restart_browser_bedroom_kiosk
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: unavailable
+          deviceId: camera.bedroom_kiosk
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.sexy_time
+          attribute: state
+        - type: not
+          condition:
+            op: eq
+            type: device_state
+            value: Night
+            deviceId: input_select.system_mode
+            attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: dismiss
+          deviceId: ''
+        deviceId: persistent_notification.dismiss
+    then:
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: create
+          message: Main Hallway Problem
+          deviceId: ''
+        deviceId: persistent_notification.create
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.hallway_kiosk_screen
+        deviceId: switch.hallway_kiosk_screen
+      - type: device_command
+        command:
+          type: button
+          action: press
+          deviceId: button.hallway_kiosk_restart_browser
+        deviceId: button.hallway_kiosk_restart_browser
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: unavailable
+      deviceId: camera.hallway_kiosk
+      attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: dismiss
+          deviceId: ''
+        deviceId: persistent_notification.dismiss
+    then:
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: create
+          message: Kitchen Kiosk Problem
+          deviceId: ''
+        deviceId: persistent_notification.create
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.galaxy_tab_a9_screen
+        deviceId: switch.galaxy_tab_a9_screen
+      - type: device_command
+        command:
+          type: button
+          action: press
+          deviceId: button.kitchen_kiosk_restart_browser
+        deviceId: button.kitchen_kiosk_restart_browser
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: unavailable
+          deviceId: camera.kitchen_kiosk
+          attribute: state
+        - op: eq
+          type: device_state
+          value: de.ozerov.fully
+          deviceId: sensor.kitchen_kiosk_foreground_app
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.kitchen_motion_detected
+          attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: dismiss
+          deviceId: ''
+        deviceId: persistent_notification.dismiss
+    then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.movie_room_kiosk_screen
+        deviceId: switch.movie_room_kiosk_screen
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: create
+          message: Movie Room Kiosk Problem
+          deviceId: ''
+        deviceId: persistent_notification.create
+      - type: device_command
+        command:
+          type: button
+          action: press
+          deviceId: button.movie_room_kiosk_restart_browser
+        deviceId: button.movie_room_kiosk_restart_browser
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: unavailable
+      deviceId: camera.movie_room_kiosk
+      attribute: state

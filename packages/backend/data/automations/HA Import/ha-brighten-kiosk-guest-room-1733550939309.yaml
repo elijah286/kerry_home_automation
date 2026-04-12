@@ -1,0 +1,64 @@
+id: ha-brighten-kiosk-guest-room-1733550939309
+name: 'Brighten Kiosk: Guest Room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733550939309).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.guest_room_desk
+    attribute: state
+  - type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 'on'
+            deviceId: input_boolean.guest_mode
+            attribute: state
+          - op: eq
+            type: device_state
+            value: Day
+            deviceId: input_select.system_mode
+            attribute: state
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: input_boolean.guest_mode
+            attribute: state
+          - op: eq
+            type: device_state
+            value: Morning
+            deviceId: input_select.system_mode
+            attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.guest_room_desk
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.guest_room_sconces
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.guest_room_ceiling_fan_light
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: number
+      value: '255'
+      action: set_value
+      deviceId: number.guest_room_kiosk_screen_brightness
+    deviceId: number.guest_room_kiosk_screen_brightness

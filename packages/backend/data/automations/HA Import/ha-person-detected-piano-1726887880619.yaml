@@ -1,0 +1,34 @@
+id: ha-person-detected-piano-1726887880619
+name: 'Person Detected: Piano'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1726887880619).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.piano_room_radar_target
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.piano_motion
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.top_of_stairs_person_occupancy
+    attribute: state
+  - type: device_state
+    deviceId: input_button.wake_asher
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: binary_sensor.meross_piano_presence_sensor
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_piano_room
+    deviceId: input_boolean.person_in_piano_room

@@ -1,0 +1,30 @@
+id: ha-stop-simulated-hvac-fan-sound-1732545490953
+name: Stop Simulated HVAC Fan Sound
+group: HA Import
+description: 'Imported from Home Assistant (id: 1732545490953).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.simulated_hvac_fan_main_floor
+    attribute: state
+  - from: Night
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: play_media
+      deviceId: media_player.master_bedroom_echo
+      mediaContentId: stop all music
+      mediaContentType: custom
+    deviceId: media_player.master_bedroom_echo
+  - type: device_command
+    command:
+      type: media_player
+      action: media_stop
+      deviceId: media_player.master_suite_receiver_4
+    deviceId: media_player.master_suite_receiver_4

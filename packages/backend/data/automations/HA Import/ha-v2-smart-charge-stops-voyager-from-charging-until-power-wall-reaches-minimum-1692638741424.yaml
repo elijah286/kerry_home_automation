@@ -1,0 +1,55 @@
+id: ha-v2-smart-charge-stops-voyager-from-charging-until-power-wall-reaches-minimum-1692638741424
+name: 'V2: Smart Charge stops voyager from charging until power wall reaches minimum'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1692638741424).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.smart_charge
+    attribute: state
+  - for: '00:00:10'
+    type: device_state
+    deviceId: input_number.minimum_powerwall_charge_level
+    attribute: state
+  - type: device_state
+    deviceId: sensor.home_energy_gateway_charge_power
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.smart_charge
+    attribute: state
+  - op: eq
+    type: device_state
+    value: home
+    deviceId: device_tracker.voyager_location_tracker
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: binary_sensor.voyager_charger
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.voyager_charger
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.voyager_charger
+    deviceId: switch.voyager_charger
+  - type: device_command
+    command:
+      type: input_number
+      value: 0
+      action: set_value
+      deviceId: input_number.ev_charging_amp_set_point
+    deviceId: input_number.ev_charging_amp_set_point

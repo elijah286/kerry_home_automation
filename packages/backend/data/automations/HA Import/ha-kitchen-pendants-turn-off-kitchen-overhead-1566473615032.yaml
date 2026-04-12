@@ -1,0 +1,18 @@
+id: ha-kitchen-pendants-turn-off-kitchen-overhead-1566473615032
+name: Kitchen pendants turn off kitchen overhead
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566473615032).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.kitchen_island_pendants
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.kitchen_overhead
+    deviceId: switch.kitchen_overhead

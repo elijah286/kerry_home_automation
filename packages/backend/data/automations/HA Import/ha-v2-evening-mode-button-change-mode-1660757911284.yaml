@@ -1,0 +1,18 @@
+id: ha-v2-evening-mode-button-change-mode-1660757911284
+name: 'V2: Evening Mode button: change mode'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660757911284).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.evening_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_select
+      action: select_option
+      option: Evening
+      deviceId: input_select.system_mode
+    deviceId: input_select.system_mode

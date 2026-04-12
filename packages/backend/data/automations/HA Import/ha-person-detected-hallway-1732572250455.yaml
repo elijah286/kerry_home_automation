@@ -1,0 +1,48 @@
+id: ha-person-detected-hallway-1732572250455
+name: 'Person detected: hallway'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1732572250455).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: binary_sensor.laundry_room_door
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: light.hallway_main_lights
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_powder_room
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.hallway_kiosk_person_occupancy
+    attribute: state
+  - type: device_state
+    deviceId: binary_sensor.garage_door
+    attribute: state
+  - to:
+      - 'off'
+    type: device_state
+    deviceId: input_boolean.kiosk_hallway_screensaver
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: binary_sensor.hallway_kiosk_motion
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_hallway
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_hallway
+    deviceId: input_boolean.person_in_hallway

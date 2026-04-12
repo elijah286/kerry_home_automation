@@ -1,0 +1,17 @@
+id: ha-v2-upstairs-bedroom-fans-off-when-day-1704562371226
+name: 'V2: Upstairs bedroom fans off when day'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1704562371226).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.day_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.levis_bedroom_ceiling_fan
+    deviceId: fan.levis_bedroom_ceiling_fan

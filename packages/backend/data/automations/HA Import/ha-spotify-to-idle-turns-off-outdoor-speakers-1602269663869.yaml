@@ -1,0 +1,18 @@
+id: ha-spotify-to-idle-turns-off-outdoor-speakers-1602269663869
+name: Spotify to idle turns off outdoor speakers
+group: HA Import
+description: 'Imported from Home Assistant (id: 1602269663869).'
+enabled: false
+mode: single
+triggers:
+  - to: idle
+    type: device_state
+    deviceId: media_player.spotify_house
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: ''
+    deviceId: input_boolean.turn_off

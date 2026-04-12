@@ -1,0 +1,17 @@
+id: ha-halloween-mode-off-at-night-1761222939925
+name: 'Halloween Mode: Off at Night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761222939925).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.halloween_mode
+    deviceId: input_boolean.halloween_mode

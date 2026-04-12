@@ -1,0 +1,34 @@
+id: ha-v2-warning-at-night-dishwasher-1600915207931
+name: 'V2: Warning at Night: Dishwasher'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1600915207931).'
+enabled: false
+mode: single
+triggers:
+  - to: Night
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.dishwasher_warning
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: 'Warning: Dishwasher has not been run'
+      deviceId: ''
+    deviceId: notify.everyone
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.master_bedroom_hallway
+    deviceId: switch.master_bedroom_hallway

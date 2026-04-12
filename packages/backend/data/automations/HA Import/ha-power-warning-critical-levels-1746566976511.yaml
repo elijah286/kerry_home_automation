@@ -1,0 +1,40 @@
+id: ha-power-warning-critical-levels-1746566976511
+name: 'Power warning: critical levels'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1746566976511).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/5 * * * *'
+    type: time
+  - to: 'off'
+    for: '00:01:00'
+    type: device_state
+    deviceId: binary_sensor.home_energy_gateway_grid_status_2
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.home_energy_gateway_grid_status_2
+    attribute: state
+  - op: lt
+    type: device_state
+    value: 31
+    deviceId: sensor.home_energy_gateway_battery
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.power_level_verbal_warnings
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: >-
+        Power levels are critical. Batteries at {{ states('sensor.home_energy_gateway_battery') }} percent. Reduce power
+        immediately. 
+      deviceId: ''
+    deviceId: notify.alexa_media

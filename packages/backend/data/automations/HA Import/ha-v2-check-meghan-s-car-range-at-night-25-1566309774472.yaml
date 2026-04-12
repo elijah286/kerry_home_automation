@@ -1,0 +1,30 @@
+id: ha-v2-check-meghan-s-car-range-at-night-25-1566309774472
+name: 'V2: Check Meghan''s Car Range at Night (25%)'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566309774472).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: lt
+    type: device_state
+    value: 25
+    deviceId: sensor.voyager_battery_sensor
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: 'WARNING: Model X battery is below 25%'
+      deviceId: ''
+    deviceId: notify.everyone
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.car_warning
+    deviceId: input_boolean.car_warning

@@ -1,0 +1,41 @@
+id: ha-auto-lights-on-toilet-room-16042473334100
+name: 'auto lights on: toilet room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 16042473334100).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_toilet_room
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.toilet_closet2
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.toilet_closet2
+          brightness: 255
+        deviceId: light.toilet_closet2
+    then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.toilet_closet2
+          brightness: 38
+        deviceId: light.toilet_closet2
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state

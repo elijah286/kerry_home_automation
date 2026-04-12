@@ -1,0 +1,39 @@
+id: ha-v2-memory-warning-1690823997126
+name: 'V2: Memory warning'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1690823997126).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.memory_free
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: lt
+    type: device_state
+    value: 200
+    deviceId: sensor.memory_free
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: persistent_notification
+      message: System Memory is Low. Reboot Recommended
+      deviceId: ''
+    deviceId: notify.persistent_notification
+  - type: device_command
+    command:
+      type: notify
+      action: admin
+      message: Home automation system may stop working if more memory is used by the system. A reboot is recommended
+      deviceId: ''
+    deviceId: notify.admin
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.system_memory_warning
+    deviceId: input_boolean.system_memory_warning

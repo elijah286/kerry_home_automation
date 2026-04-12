@@ -1,0 +1,59 @@
+id: ha-flicker-office-main-lights-1761834027357
+name: Flicker Office Main Lights
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761834027357).'
+enabled: false
+mode: parallel
+triggers:
+  - to: 'on'
+    for: '00:00:02'
+    type: device_state
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.flicker_dining_room_lights
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+  - cron: '* * * * *'
+    type: time
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.flicker_office_lights
+    attribute: state
+actions:
+  - then:
+      - else:
+          - type: device_command
+            command:
+              type: light
+              action: turn_on
+              deviceId: light.office_main_lights
+              brightness: 18
+            deviceId: light.office_main_lights
+        then:
+          - type: device_command
+            command:
+              type: light
+              action: turn_off
+              deviceId: light.office_main_lights
+            deviceId: light.office_main_lights
+        type: condition
+        condition:
+          op: eq
+          type: device_state
+          value: 'on'
+          deviceId: light.office_main_lights
+          attribute: state
+    type: condition
+    condition:
+      op: gt
+      type: device_state
+      value: 80
+      deviceId: light.office_main_lights
+      attribute: state

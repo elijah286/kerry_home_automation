@@ -1,0 +1,98 @@
+id: ha-auto-blinds-open-game-room-1737901316683
+name: 'auto blinds open: game room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1737901316683).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.day_mode
+    attribute: state
+  - type: sun
+    event: sunrise
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: switch.vertical_toggle_control_game_room
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+  - type: time_window
+    after: '06:00'
+    before: '23:59'
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.vertical_toggle_control_game_room
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Critical
+      deviceId: input_select.power_saving_mode
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.movie_mode
+    attribute: state
+  - type: not
+    condition:
+      type: or
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: media_player.movie_room_tv_androit
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: media_player.viziocastdisplay4417
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: media_player.movie_left_tv
+          attribute: state
+actions:
+  - type: device_command
+    command:
+      type: cover
+      action: open_cover
+      deviceId: cover.game_room_blinds
+    deviceId: cover.game_room_blinds
+  - then:
+      - type: device_command
+        command:
+          type: cover
+          action: open_cover
+          deviceId: cover.movie_room_blind
+        deviceId: cover.movie_room_blind
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: input_boolean.movie_mode
+      attribute: state

@@ -1,0 +1,23 @@
+id: ha-v2-movie-mode-activated-based-on-tv-input-1704687897091
+name: 'V2: Movie mode activated based on TV input'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1704687897091).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.movie_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.movie_mode
+    deviceId: input_boolean.movie_mode

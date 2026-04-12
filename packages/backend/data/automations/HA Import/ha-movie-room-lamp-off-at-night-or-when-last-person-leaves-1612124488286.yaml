@@ -1,0 +1,22 @@
+id: ha-movie-room-lamp-off-at-night-or-when-last-person-leaves-1612124488286
+name: Movie Room Lamp off at night or when last person leaves
+group: HA Import
+description: 'Imported from Home Assistant (id: 1612124488286).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.night_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off

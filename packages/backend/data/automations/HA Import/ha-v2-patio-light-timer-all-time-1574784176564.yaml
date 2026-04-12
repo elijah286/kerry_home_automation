@@ -1,0 +1,57 @@
+id: ha-v2-patio-light-timer-all-time-1574784176564
+name: 'V2: Patio light timer all time'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1574784176564).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.motion_in_back
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.patio_light
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.flood
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.motion_detected_on_back_porch
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.patio_light
+    deviceId: switch.patio_light
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.flood
+    deviceId: light.flood

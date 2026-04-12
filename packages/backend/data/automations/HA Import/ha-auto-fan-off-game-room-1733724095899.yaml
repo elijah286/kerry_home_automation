@@ -1,0 +1,60 @@
+id: ha-auto-fan-off-game-room-1733724095899
+name: 'auto fan off: game room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733724095899).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: fan.game_room_ceiling_fan
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: fan
+          action: turn_off
+          deviceId: fan.game_room_ceiling_fan
+        deviceId: fan.game_room_ceiling_fan
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.party_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: fan
+          action: turn_off
+          deviceId: fan.game_room_ceiling_fan
+        deviceId: fan.game_room_ceiling_fan
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: input_boolean.game_room_motion_detected
+      attribute: state

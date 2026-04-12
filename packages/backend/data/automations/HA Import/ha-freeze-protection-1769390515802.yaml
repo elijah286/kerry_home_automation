@@ -1,0 +1,35 @@
+id: ha-freeze-protection-1769390515802
+name: Freeze Protection
+group: HA Import
+description: 'Imported from Home Assistant (id: 1769390515802).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: device_state
+    deviceId: sensor.home_realfeel_temperature
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.freeze_protection
+        deviceId: input_boolean.freeze_protection
+    then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.freeze_protection
+        deviceId: input_boolean.freeze_protection
+    type: condition
+    condition:
+      op: lt
+      type: device_state
+      value: 35
+      deviceId: sensor.home_realfeel_temperature
+      attribute: state

@@ -1,0 +1,24 @@
+id: ha-v2-motion-stops-on-front-porch-during-late-night-turns-off-exterior-sconces-1698145388390
+name: 'V2: Motion stops on front porch during late night turns off exterior sconces'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1698145388390).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.person_in_front_yard
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.late_night
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.exterior_sconces
+    deviceId: switch.exterior_sconces

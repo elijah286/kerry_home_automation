@@ -1,0 +1,38 @@
+id: ha-turn-on-router-and-modem-1641177058263
+name: Turn on Router and Modem
+group: HA Import
+description: 'Imported from Home Assistant (id: 1641177058263).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.router
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.router
+    deviceId: switch.router
+  - type: device_command
+    command:
+      type: persistent_notification
+      action: create
+      message: Modem and router have been power cycled
+      deviceId: ''
+    deviceId: persistent_notification.create
+  - type: delay
+    duration: '00:05:00'
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Router and modem powered back on 5 minutes ago
+      deviceId: ''
+    deviceId: notify.everyone

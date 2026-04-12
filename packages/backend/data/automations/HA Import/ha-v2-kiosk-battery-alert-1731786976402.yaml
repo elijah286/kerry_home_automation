@@ -1,0 +1,113 @@
+id: ha-v2-kiosk-battery-alert-1731786976402
+name: 'V2: Kiosk Battery Alert'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1731786976402).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - type: or
+    conditions:
+      - op: lt
+        type: device_state
+        value: 60
+        deviceId: sensor.movie_room_kiosk_battery
+        attribute: state
+      - op: lt
+        type: device_state
+        value: 60
+        deviceId: sensor.main_office_kiosk_battery
+        attribute: state
+      - op: lt
+        type: device_state
+        value: 60
+        deviceId: sensor.eli_s_office_battery
+        attribute: state
+      - op: lt
+        type: device_state
+        value: 60
+        deviceId: sensor.bedroom_kiosk_battery
+        attribute: state
+      - op: lt
+        type: device_state
+        value: 60
+        deviceId: sensor.main_hallway_kiosk_battery
+        attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: admin
+          message: Movie Room
+          deviceId: ''
+        deviceId: notify.admin
+    type: condition
+    condition:
+      op: lt
+      type: device_state
+      value: 60
+      deviceId: sensor.movie_room_kiosk_battery
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: admin
+          message: Main Hallway
+          deviceId: ''
+        deviceId: notify.admin
+    type: condition
+    condition:
+      op: lt
+      type: device_state
+      value: 60
+      deviceId: sensor.main_hallway_kiosk_battery
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: admin
+          message: Main Office
+          deviceId: ''
+        deviceId: notify.admin
+    type: condition
+    condition:
+      op: lt
+      type: device_state
+      value: 60
+      deviceId: sensor.main_office_kiosk_battery
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: admin
+          message: Bedroom
+          deviceId: ''
+        deviceId: notify.admin
+    type: condition
+    condition:
+      op: lt
+      type: device_state
+      value: 60
+      deviceId: sensor.bedroom_kiosk_battery
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: admin
+          message: Eli's Office
+          deviceId: ''
+        deviceId: notify.admin
+    type: condition
+    condition:
+      op: lt
+      type: device_state
+      value: 60
+      deviceId: sensor.eli_s_office_battery
+      attribute: state

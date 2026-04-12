@@ -1,0 +1,32 @@
+id: ha-v2-waking-kids-up-after-they-are-supposed-to-be-up-plays-music-1709299338325
+name: 'V2: Waking kids up after they are supposed to be up plays music'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1709299338325).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.wake_kids_up
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.4
+      deviceId: media_player.asher
+    deviceId: media_player.asher
+  - type: device_command
+    command:
+      type: media_player
+      action: play_media
+      deviceId: media_player.movie_room_echo
+      mediaContentId: play {{ states('input_text.wake_up_song_for_kids') }} on kids rooms group
+      mediaContentType: custom
+    deviceId: media_player.movie_room_echo

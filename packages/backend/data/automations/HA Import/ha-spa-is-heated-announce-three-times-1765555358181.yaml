@@ -1,0 +1,58 @@
+id: ha-spa-is-heated-announce-three-times-1765555358181
+name: 'Spa is heated: announce three times'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1765555358181).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: input_boolean.spa_is_ready
+    attribute: state
+  - to:
+      - 'on'
+    for: '00:10:00'
+    type: device_state
+    deviceId: input_boolean.spa_is_ready
+    attribute: state
+  - to:
+      - 'on'
+    for: '00:05:00'
+    type: device_state
+    deviceId: input_boolean.spa_is_ready
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.spa_heater
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media_living_room_echo
+      message: >-
+        Attention! The hot tub is heated and ready. It is now {{states.sensor.spa_current_temperature.state}} degrees
+        farenheit
+      deviceId: ''
+    deviceId: notify.alexa_media_living_room_echo
+  - type: delay
+    duration: '00:00:17'
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media_movie_room_echo
+      message: >-
+        Attention! The hot tub is heated and ready. It is now     {{states.sensor.spa_current_temperature.state}}
+        degrees farenheit
+      deviceId: ''
+    deviceId: notify.alexa_media_movie_room_echo

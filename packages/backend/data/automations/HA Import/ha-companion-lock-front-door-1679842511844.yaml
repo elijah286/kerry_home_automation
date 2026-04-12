@@ -1,0 +1,21 @@
+id: ha-companion-lock-front-door-1679842511844
+name: 'Companion: lock front door'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1679842511844).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+conditions:
+  - op: eq
+    type: device_state
+    value: unlocked
+    deviceId: lock.front_door
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: lock
+      action: lock
+      deviceId: lock.front_door
+    deviceId: lock.front_door

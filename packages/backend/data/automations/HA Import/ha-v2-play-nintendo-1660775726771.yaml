@@ -1,0 +1,31 @@
+id: ha-v2-play-nintendo-1660775726771
+name: 'V2: Play Nintendo'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660775726771).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.play_nintendo
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_on
+      deviceId: media_player.movie_room_tv
+    deviceId: media_player.movie_room_tv
+  - type: device_command
+    command:
+      type: media_player
+      action: select_source
+      source: HDMI 1
+      deviceId: media_player.movie_room_tv
+    deviceId: media_player.movie_room_tv
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.65
+      deviceId: media_player.movie_room_receiver
+    deviceId: media_player.movie_room_receiver

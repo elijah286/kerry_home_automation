@@ -1,0 +1,73 @@
+id: ha-person-clear-garage-1692155020203
+name: 'Person clear: garage'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1692155020203).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_detected_in_garage
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.garage_fridge_window_door_is_open
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.garage_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.garage_door
+        attribute: state
+  - type: or
+    conditions:
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: closed
+            deviceId: cover.red
+            attribute: state
+          - op: eq
+            type: device_state
+            value: closed
+            deviceId: cover.white
+            attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: input_boolean.person_in_front_yard
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.garage_freezer_door_window_door_is_open_2
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.garage_person_detected
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.garage_frigate_person_occupancy
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.motion_detected_in_garage
+    deviceId: input_boolean.motion_detected_in_garage

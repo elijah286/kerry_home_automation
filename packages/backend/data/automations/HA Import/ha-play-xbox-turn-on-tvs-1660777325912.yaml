@@ -1,0 +1,32 @@
+id: ha-play-xbox-turn-on-tvs-1660777325912
+name: 'Play XBOX: Turn on TVs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660777325912).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.play_xbox
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_on
+      deviceId: media_player.movie_room_tv
+    deviceId: media_player.movie_room_tv
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_on
+      deviceId: media_player.movie_left_tv
+    deviceId: media_player.movie_left_tv
+  - type: delay
+    duration: '00:00:05'
+  - type: device_command
+    command:
+      type: media_player
+      action: select_source
+      source: HDMI 1
+      deviceId: media_player.movie_room_tv
+    deviceId: media_player.movie_room_tv

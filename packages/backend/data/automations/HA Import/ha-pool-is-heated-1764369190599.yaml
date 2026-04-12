@@ -1,0 +1,34 @@
+id: ha-pool-is-heated-1764369190599
+name: 'Pool is Heated '
+group: HA Import
+description: 'Imported from Home Assistant (id: 1764369190599).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/10 * * * *'
+    type: time
+  - type: device_state
+    deviceId: sensor.pool_current_temperature
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.pool_is_ready
+        deviceId: input_boolean.pool_is_ready
+    then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.pool_is_ready
+        deviceId: input_boolean.pool_is_ready
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: input_boolean.pool_heater
+      attribute: state

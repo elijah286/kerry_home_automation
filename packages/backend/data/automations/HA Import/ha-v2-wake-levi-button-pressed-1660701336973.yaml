@@ -1,0 +1,48 @@
+id: ha-v2-wake-levi-button-pressed-1660701336973
+name: 'V2: Wake Levi Button Pressed'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660701336973).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.wake_levi
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: Time for school! Make your beds and brush your teeth!
+      deviceId: ''
+    deviceId: notify.alexa_media
+  - type: device_command
+    command:
+      type: cover
+      action: open_cover
+      deviceId: cover.levis_bedroom_blind
+    deviceId: cover.levis_bedroom_blind
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.levis_bedroom_ceiling_fan
+    deviceId: fan.levis_bedroom_ceiling_fan
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.levis_bedside_lamp
+    deviceId: light.levis_bedside_lamp
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.levis_bedroom_closet_light
+    deviceId: switch.levis_bedroom_closet_light
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.levi_sleeping
+    deviceId: input_boolean.levi_sleeping

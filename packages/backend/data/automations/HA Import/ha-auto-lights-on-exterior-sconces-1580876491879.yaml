@@ -1,0 +1,52 @@
+id: ha-auto-lights-on-exterior-sconces-1580876491879
+name: 'auto lights on: exterior sconces'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1580876491879).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - home
+    type: device_state
+    deviceId: person.elijah_kerry
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_front_yard
+    attribute: state
+  - type: sun
+    event: sunset
+    offset: '-00:30:00'
+  - cron: 30 5 * * *
+    type: time
+  - type: device_state
+    deviceId: sensor.apf_generation_entity
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.exterior_sconces
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+  - op: lt
+    type: device_state
+    value: 1000
+    deviceId: sensor.apf_generation_entity
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: ''
+    deviceId: switch.turn_on

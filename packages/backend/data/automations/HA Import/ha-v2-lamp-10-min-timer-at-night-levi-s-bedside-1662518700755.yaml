@@ -1,0 +1,37 @@
+id: ha-v2-lamp-10-min-timer-at-night-levi-s-bedside-1662518700755
+name: 'V2: Lamp 10 min Timer at Night. Levi''s Bedside'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1662518700755).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:10:00'
+    type: device_state
+    deviceId: light.levis_bedside_lamp
+    attribute: state
+  - cron: '*/1 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.levi_sleeping
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.levis_bedside_lamp
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.party_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.levis_bedside_lamp
+    deviceId: light.levis_bedside_lamp

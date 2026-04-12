@@ -1,0 +1,56 @@
+id: ha-person-detected-garage-1692154786279
+name: 'Person detected: garage'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1692154786279).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.garage_person_detected
+    attribute: state
+  - to: opening
+    type: device_state
+    deviceId: cover.red
+    attribute: state
+  - to: opening
+    type: device_state
+    deviceId: cover.white
+    attribute: state
+  - type: device_state
+    deviceId: binary_sensor.garage_fridge
+    attribute: state
+  - to: 'on'
+    for: '00:00:01'
+    type: device_state
+    deviceId: binary_sensor.garage_door
+    attribute: state
+  - to: open
+    type: device_state
+    deviceId: cover.red
+    attribute: state
+  - to: open
+    type: device_state
+    deviceId: cover.white
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: switch.garage_main_lights
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.garage_frigate_person_occupancy
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.motion_detected_in_garage
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.motion_detected_in_garage
+    deviceId: input_boolean.motion_detected_in_garage

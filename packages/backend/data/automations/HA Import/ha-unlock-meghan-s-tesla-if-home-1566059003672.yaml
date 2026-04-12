@@ -1,0 +1,23 @@
+id: ha-unlock-meghan-s-tesla-if-home-1566059003672
+name: Unlock Meghan's tesla if home
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566059003672).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.unlock_cars
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: zone.home
+    deviceId: device_tracker.voyager_location_tracker
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: lock
+      action: unlock
+      deviceId: lock.voyager_doors
+    deviceId: lock.voyager_doors

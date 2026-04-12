@@ -1,0 +1,23 @@
+id: ha-v2-water-heater-serviced-resets-datetime-1675105750468
+name: 'V2: Water Heater Serviced Resets Datetime'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1675105750468).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.reset_water_heater_reminder
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_datetime
+      action: set_datetime
+      deviceId: input_datetime.water_heater_last_serviced
+    deviceId: input_datetime.water_heater_last_serviced
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.water_heater_needs_service
+    deviceId: input_boolean.water_heater_needs_service

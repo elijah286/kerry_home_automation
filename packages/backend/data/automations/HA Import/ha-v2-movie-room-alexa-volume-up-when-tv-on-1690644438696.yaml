@@ -1,0 +1,19 @@
+id: ha-v2-movie-room-alexa-volume-up-when-tv-on-1690644438696
+name: 'V2: Movie Room Alexa Volume Up When TV On'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1690644438696).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: remote.sony_bravia_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.8
+      deviceId: media_player.movie_room_2
+    deviceId: media_player.movie_room_2

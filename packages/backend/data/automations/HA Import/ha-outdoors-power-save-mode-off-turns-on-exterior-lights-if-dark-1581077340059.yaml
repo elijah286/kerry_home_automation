@@ -1,0 +1,24 @@
+id: ha-outdoors-power-save-mode-off-turns-on-exterior-lights-if-dark-1581077340059
+name: Outdoors Power save mode off turns on exterior lights if dark
+group: HA Import
+description: 'Imported from Home Assistant (id: 1581077340059).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.power_saver
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.really_dark_day
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: ''
+    deviceId: switch.turn_on

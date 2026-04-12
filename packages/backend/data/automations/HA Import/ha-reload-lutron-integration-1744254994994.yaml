@@ -1,0 +1,20 @@
+id: ha-reload-lutron-integration-1744254994994
+name: 'Reload Lutron Integration '
+group: HA Import
+description: 'Imported from Home Assistant (id: 1744254994994).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 3 * * *
+    type: time
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: homeassistant
+      action: reload_config_entry
+      deviceId: light.game_room_main_lights
+    deviceId: light.game_room_main_lights

@@ -1,0 +1,18 @@
+id: ha-v2-theme-for-night-1681142936053
+name: 'V2: Theme for Night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1681142936053).'
+enabled: false
+mode: single
+triggers:
+  - to: Night
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: frontend
+      action: set_theme
+      deviceId: ''
+    deviceId: frontend.set_theme

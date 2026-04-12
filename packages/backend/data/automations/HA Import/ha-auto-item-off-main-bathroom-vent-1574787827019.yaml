@@ -1,0 +1,39 @@
+id: ha-auto-item-off-main-bathroom-vent-1574787827019
+name: 'auto item off: main bathroom vent'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1574787827019).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.sexy_time
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.master_bathroom_vent
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.master_bathroom_vent
+    deviceId: switch.master_bathroom_vent

@@ -1,0 +1,127 @@
+id: ha-halloween-control-porch-bulbs-1761679295189
+name: 'Halloween: Control porch bulbs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761679295189).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:00:05'
+    type: device_state
+    deviceId: switch.exterior_sconces
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.halloween_mode
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.exterior_sconces
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.front_porch_bulbs
+        deviceId: light.front_porch_bulbs
+    then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.front_porch_bulbs
+          brightness: 255
+        deviceId: light.front_porch_bulbs
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.front_porch_bulbs
+          brightness: 255
+        deviceId: light.front_porch_bulbs
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.inside_garage_bulbs
+          brightness: 255
+        deviceId: light.inside_garage_bulbs
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.outside_garage_bulbs
+          brightness: 255
+        deviceId: light.outside_garage_bulbs
+      - type: delay
+        duration: '00:00:01'
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.front_porch_bulbs
+          brightness: 255
+        deviceId: light.front_porch_bulbs
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.front_porch_bulbs
+          brightness: 255
+        deviceId: light.front_porch_bulbs
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.inside_garage_bulbs
+          brightness: 255
+        deviceId: light.inside_garage_bulbs
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.front_porch_bulbs
+          brightness: 255
+        deviceId: light.front_porch_bulbs
+      - type: delay
+        duration: '00:00:01'
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.front_porch_bulbs
+          brightness: 255
+        deviceId: light.front_porch_bulbs
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.front_porch_bulbs
+          brightness: 255
+        deviceId: light.front_porch_bulbs
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.inside_garage_bulbs
+          brightness: 255
+        deviceId: light.inside_garage_bulbs
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.outside_garage_bulbs
+          brightness: 255
+        deviceId: light.outside_garage_bulbs
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: input_boolean.halloween_mode
+      attribute: state

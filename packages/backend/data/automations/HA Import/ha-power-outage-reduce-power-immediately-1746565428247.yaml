@@ -1,0 +1,84 @@
+id: ha-power-outage-reduce-power-immediately-1746565428247
+name: 'Power Outage: Reduce Power Immediately'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1746565428247).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.home_energy_gateway_grid_status_2
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.home_energy_gateway_grid_status_2
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_select
+      action: select_option
+      option: Critical
+      deviceId: input_select.power_saving_mode
+    deviceId: input_select.power_saving_mode
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.motion_lights_on
+    deviceId: input_boolean.motion_lights_on
+  - type: device_command
+    command:
+      type: script
+      action: turn_off
+      deviceId: script.pool_off
+    deviceId: script.pool_off
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.living_room_ceiling_fan_light
+    deviceId: light.living_room_ceiling_fan_light
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.kitchen_breakfast_table
+    deviceId: switch.kitchen_breakfast_table
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.ashers_bedroom_ceiling_fan
+    deviceId: fan.ashers_bedroom_ceiling_fan
+  - type: device_command
+    command:
+      type: cover
+      action: close_cover
+      deviceId: cover.ashers_bedroom_blind
+    deviceId: cover.ashers_bedroom_blind
+  - type: device_command
+    command:
+      type: climate
+      action: set_fan_mode
+      deviceId: climate.main_floor
+      fan_mode: auto
+    deviceId: climate.main_floor
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.hvac_main_floor_fan_on
+    deviceId: input_boolean.hvac_main_floor_fan_on
+  - type: delay
+    duration: '00:00:05'
+  - type: device_command
+    command:
+      type: climate
+      action: turn_off
+      deviceId: climate.main_floor
+    deviceId: climate.main_floor

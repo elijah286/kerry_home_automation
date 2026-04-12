@@ -1,0 +1,45 @@
+id: ha-movie-tv-on-turn-on-speakers-1755317706486
+name: 'Movie tv on: turn on speakers '
+group: HA Import
+description: 'Imported from Home Assistant (id: 1755317706486).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: media_player.movie_room_tv
+    attribute: state
+  - type: device_state
+    deviceId: input_button.play_xbox
+    attribute: state
+actions:
+  - type: delay
+    duration: '00:00:02'
+  - then:
+      - type: device_command
+        command:
+          type: media_player
+          action: turn_on
+          deviceId: media_player.movie_room_receiver
+        deviceId: media_player.movie_room_receiver
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: media_player.movie_room_receiver
+      attribute: state
+  - type: device_command
+    command:
+      type: media_player
+      action: select_source
+      source: AUDIO1
+      deviceId: media_player.movie_room_receiver
+    deviceId: media_player.movie_room_receiver
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.63
+      deviceId: media_player.movie_room_receiver
+    deviceId: media_player.movie_room_receiver

@@ -1,0 +1,22 @@
+id: ha-v2-living-room-overhead-lights-turns-on-lamps-1707173821230
+name: 'V2: Living Room Overhead lights turns on lamps'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1707173821230).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.living_room_main_lights
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: light.living_room_ceiling_fan_light
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.living_room_lamps
+    deviceId: light.living_room_lamps

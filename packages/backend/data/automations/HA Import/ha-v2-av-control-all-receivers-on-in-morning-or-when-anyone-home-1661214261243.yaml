@@ -1,0 +1,22 @@
+id: ha-v2-av-control-all-receivers-on-in-morning-or-when-anyone-home-1661214261243
+name: 'V2: AV Control: All Receivers On in Morning or When Anyone Home'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1661214261243).'
+enabled: false
+mode: single
+triggers:
+  - to: Morning
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_on
+      deviceId: media_player.living_room_receiver
+    deviceId: media_player.living_room_receiver

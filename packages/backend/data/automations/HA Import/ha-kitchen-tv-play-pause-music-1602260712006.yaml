@@ -1,0 +1,24 @@
+id: ha-kitchen-tv-play-pause-music-1602260712006
+name: 'Kitchen TV: Play/Pause Music'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1602260712006).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.kitchen_music_top
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.living_room_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: media_play_pause
+      deviceId: ''
+    deviceId: media_player.media_play_pause

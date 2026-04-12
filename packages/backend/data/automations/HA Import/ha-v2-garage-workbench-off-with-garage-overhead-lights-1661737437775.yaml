@@ -1,0 +1,18 @@
+id: ha-v2-garage-workbench-off-with-garage-overhead-lights-1661737437775
+name: 'v2: Garage workbench off with garage overhead lights'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1661737437775).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: switch.garage_main_lights
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.garage_workbench
+    deviceId: switch.garage_workbench

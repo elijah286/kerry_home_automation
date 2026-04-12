@@ -1,0 +1,36 @@
+id: ha-levi-s-light-timer-at-night-1565060304436
+name: Levi's Light Timer at Night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565060304436).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:02:00'
+    type: device_state
+    deviceId: switch.levis_bedroom_main_lights
+    attribute: state
+  - to: 'on'
+    for: '00:15:00'
+    type: device_state
+    deviceId: light.study_desk_lamp
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.levi_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: ''
+    deviceId: switch.turn_off

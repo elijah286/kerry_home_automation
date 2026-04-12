@@ -1,0 +1,30 @@
+id: ha-v2-sloane-awake-during-when-vacation-mode-on-1692104937433
+name: 'V2: Sloane awake during when vacation mode on'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1692104937433).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.wake_sloane
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: input_boolean.vacation_mode
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: input_boolean.sloane_s_alarm
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.sloane_sleeping
+    deviceId: input_boolean.sloane_sleeping

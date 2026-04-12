@@ -1,0 +1,74 @@
+id: ha-set-measured-temperatures-based-on-system-mode-1767655522923
+name: Set measured temperatures based on system mode
+group: HA Import
+description: 'Imported from Home Assistant (id: 1767655522923).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: input_number
+          value: '{{ states(''sensor.main_floor_temperature'')|float }}'
+          action: set_value
+          deviceId: input_number.measured_temperature_for_main_floor
+        deviceId: input_number.measured_temperature_for_main_floor
+    then:
+      - type: device_command
+        command:
+          type: input_number
+          value: '{{ states(''sensor.main_bedroom_temperature'')|float }}'
+          action: set_value
+          deviceId: input_number.measured_temperature_for_main_floor
+        deviceId: input_number.measured_temperature_for_main_floor
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - type: not
+          condition:
+            op: eq
+            type: device_state
+            value: unavailable
+            deviceId: sensor.main_bedroom_temperature
+            attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: input_number
+          value: '{{ states(''sensor.upstairs_temperature'')|float }}'
+          action: set_value
+          deviceId: input_number.measured_temperature_for_upstairs
+        deviceId: input_number.measured_temperature_for_upstairs
+    then:
+      - type: device_command
+        command:
+          type: input_number
+          value: '{{ states(''sensor.game_room_temperature'')|float }}'
+          action: set_value
+          deviceId: input_number.measured_temperature_for_upstairs
+        deviceId: input_number.measured_temperature_for_upstairs
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.party_mode
+          attribute: state
+        - type: not
+          condition:
+            op: eq
+            type: device_state
+            value: unavailable
+            deviceId: sensor.game_room_temperature
+            attribute: state

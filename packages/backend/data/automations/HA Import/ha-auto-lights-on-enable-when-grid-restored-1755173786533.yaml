@@ -1,0 +1,24 @@
+id: ha-auto-lights-on-enable-when-grid-restored-1755173786533
+name: 'auto lights on: enable when grid restored'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1755173786533).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.grid_offline
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.sun_is_bright
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.motion_lights_on
+    deviceId: input_boolean.motion_lights_on

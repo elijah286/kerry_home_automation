@@ -1,0 +1,45 @@
+id: ha-chatgpt-set-hvac-setpoints-upstairs-1734847564775
+name: ChatGPT Set HVAC Setpoints (Upstairs)
+group: HA Import
+description: 'Imported from Home Assistant (id: 1734847564775).'
+enabled: false
+mode: restart
+triggers:
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: device_state
+    deviceId: input_number.night_setpoint_upstairs
+    attribute: state
+  - for: '00:00:30'
+    type: device_state
+    deviceId: input_boolean.upstairs_occupied
+    attribute: state
+  - for: '00:00:20'
+    from: away
+    type: device_state
+    deviceId: climate.upstairs
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: climate
+          action: set_temperature
+          deviceId: climate.upstairs
+          temperature: '{{ states(''input_number.morning_setpoint_upstairs'')|float }}'
+        deviceId: climate.upstairs
+      - type: device_command
+        command:
+          type: input_number
+          value: '{{ states(''input_number.morning_setpoint_upstairs'')|float }}'
+          action: set_value
+          deviceId: input_number.upstairs_target_temp
+        deviceId: input_number.upstairs_target_temp
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Morning
+      deviceId: input_select.system_mode
+      attribute: state

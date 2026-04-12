@@ -1,0 +1,40 @@
+id: ha-auto-lights-off-chandelier-light-off-at-night-1707998430071
+name: 'Auto lights off: Chandelier Light Off at Night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1707998430071).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/5 * * * *'
+    type: time
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.dining_room_chandelier
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.front_foyer_chandelier
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.front_foyer_chandelier
+    deviceId: light.front_foyer_chandelier

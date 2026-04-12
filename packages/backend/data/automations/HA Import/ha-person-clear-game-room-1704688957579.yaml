@@ -1,0 +1,85 @@
+id: ha-person-clear-game-room-1704688957579
+name: 'Person Clear: Game Room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1704688957579).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.apollo_msr_1_93f20c_radar_target
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.game_room_area_person_occupancy
+    attribute: state
+  - to: '0'
+    type: device_state
+    deviceId: sensor.game_room_area_person_active_count
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.balcony_door
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.game_room_area_person_occupancy
+        attribute: state
+      - op: eq
+        type: device_state
+        value: '0'
+        deviceId: sensor.game_room_area_person_active_count
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.apollo_msr_1_93f20c_radar_moving_target
+        attribute: state
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: binary_sensor.apollo_msr_1_93f20c_radar_moving_target
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: binary_sensor.apollo_msr_1_93f20c_radar_target
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: binary_sensor.apollo_msr_1_93f20c_radar_still_target
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 10
+            deviceId: sensor.apollo_msr_1_93f20c_radar_still_energy
+            attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_movie_room
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.game_room_motion_detected
+    deviceId: input_boolean.game_room_motion_detected

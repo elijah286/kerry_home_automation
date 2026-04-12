@@ -1,0 +1,18 @@
+id: ha-living-room-tv-on-stops-music-1588771671665
+name: Living Room TV On Stops Music
+group: HA Import
+description: 'Imported from Home Assistant (id: 1588771671665).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: switch.living_room_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on

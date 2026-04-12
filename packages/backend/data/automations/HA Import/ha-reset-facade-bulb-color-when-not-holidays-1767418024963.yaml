@@ -1,0 +1,36 @@
+id: ha-reset-facade-bulb-color-when-not-holidays-1767418024963
+name: Reset facade bulb color when not holidays
+group: HA Import
+description: 'Imported from Home Assistant (id: 1767418024963).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+  - type: device_state
+    deviceId: input_boolean.christmas_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.exterior_sconces
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.christmas_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.halloween_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.front_porch_bulbs
+      brightness: 255
+    deviceId: light.front_porch_bulbs

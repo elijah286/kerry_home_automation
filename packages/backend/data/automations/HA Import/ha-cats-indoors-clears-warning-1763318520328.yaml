@@ -1,0 +1,67 @@
+id: ha-cats-indoors-clears-warning-1763318520328
+name: Cats Indoors Clears Warning
+group: HA Import
+description: 'Imported from Home Assistant (id: 1763318520328).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.living_room_frigate_cat_count
+    attribute: state
+  - type: device_state
+    deviceId: sensor.back_door_frigate_cat_count
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.cats_detected_outdoors
+    attribute: state
+  - type: or
+    conditions:
+      - type: and
+        conditions:
+          - op: lt
+            type: device_state
+            value: 1
+            deviceId: sensor.driveway_frigate_cat_count
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 1
+            deviceId: sensor.back_door_frigate_cat_active_count
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 1
+            deviceId: sensor.backyard_frigate_cat_count
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 1
+            deviceId: sensor.pool_frigate_cat_count
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 1
+            deviceId: sensor.front_door_frigate_cat_count
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 1
+            deviceId: sensor.back_door_frigate_cat_count
+            attribute: state
+      - op: gt
+        type: device_state
+        value: 1
+        deviceId: sensor.living_room_frigate_cat_count
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.cats_detected_outdoors
+    deviceId: input_boolean.cats_detected_outdoors

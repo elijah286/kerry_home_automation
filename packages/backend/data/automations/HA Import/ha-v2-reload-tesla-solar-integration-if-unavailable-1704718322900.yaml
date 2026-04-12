@@ -1,0 +1,33 @@
+id: ha-v2-reload-tesla-solar-integration-if-unavailable-1704718322900
+name: 'V2: Reload Tesla Solar Integration if unavailable'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1704718322900).'
+enabled: false
+mode: single
+triggers:
+  - to: unavailable
+    type: device_state
+    deviceId: sensor.apf_generation_entity
+    attribute: state
+  - cron: '*/10 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: unavailable
+    deviceId: sensor.apf_generation_entity
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: homeassistant
+      action: reload_config_entry
+      deviceId: sensor.apf_generation_entity
+    deviceId: sensor.apf_generation_entity
+  - type: device_command
+    command:
+      type: notify
+      action: admin
+      message: 'ALERT: Tesla Solar Integration Reloaded'
+      deviceId: ''
+    deviceId: notify.admin

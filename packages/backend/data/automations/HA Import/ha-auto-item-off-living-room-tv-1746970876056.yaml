@@ -1,0 +1,41 @@
+id: ha-auto-item-off-living-room-tv-1746970876056
+name: 'auto item off: living room tv'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1746970876056).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - type: or
+    conditions:
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: input_boolean.living_room_motion_detected
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: input_boolean.kitchen_motion_detected
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'on'
+            deviceId: switch.living_room_tv
+            attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: input_boolean.anyone_home
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.living_room_tv
+    deviceId: switch.living_room_tv

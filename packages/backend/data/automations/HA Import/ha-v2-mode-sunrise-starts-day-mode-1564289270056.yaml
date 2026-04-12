@@ -1,0 +1,42 @@
+id: ha-v2-mode-sunrise-starts-day-mode-1564289270056
+name: 'V2 Mode: Sunrise starts day mode'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1564289270056).'
+enabled: false
+mode: single
+triggers:
+  - type: sun
+    event: sunrise
+  - cron: 10 * * * *
+    type: time
+conditions:
+  - type: time_window
+    after: '08:00'
+    before: '10:00'
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: Morning
+        deviceId: input_select.system_mode
+        attribute: state
+      - op: eq
+        type: device_state
+        value: Night
+        deviceId: input_select.system_mode
+        attribute: state
+  - type: time_window
+    after: '06:00'
+    before: '23:59'
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.vacation_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.day_mode
+    deviceId: input_button.day_mode

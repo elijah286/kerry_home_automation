@@ -1,0 +1,36 @@
+id: ha-security-first-person-returns-disarms-security-system-if-no-alarm-1579736362287
+name: 'SECURITY: First person returns disarms security system if no alarm'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1579736362287).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.portal_while_armed
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.motion_while_armed
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: alarm_control_panel
+      action: alarm_disarm
+      deviceId: ''
+    deviceId: alarm_control_panel.alarm_disarm
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Authorized user returned. Alarm disarmed
+      deviceId: ''
+    deviceId: notify.everyone

@@ -1,0 +1,19 @@
+id: ha-notification-house-empty-1753625122151
+name: 'Notification: house empty'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1753625122151).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: notify
+      message: Securing house and shutting down
+      deviceId: ''
+    deviceId: notify.notify

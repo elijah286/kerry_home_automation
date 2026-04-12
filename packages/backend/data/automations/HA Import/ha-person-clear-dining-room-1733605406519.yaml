@@ -1,0 +1,62 @@
+id: ha-person-clear-dining-room-1733605406519
+name: 'person clear: dining room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733605406519).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.dining_room_motion
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.person_in_dining_room
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.front_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.front_door
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.dining_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.dining_room
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.dining_room_motion
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.dining_room_motion
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.person_in_dining_room
+    deviceId: input_boolean.person_in_dining_room

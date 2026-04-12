@@ -1,0 +1,36 @@
+id: ha-v2-lock-front-door-at-night-1582341574971
+name: 'V2: Lock Front Door at Night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1582341574971).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: unlocked
+    deviceId: lock.front_door
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: lock
+      action: lock
+      deviceId: ''
+    deviceId: lock.lock
+  - type: device_command
+    command:
+      type: lock
+      action: lock
+      deviceId: ''
+    deviceId: lock.lock

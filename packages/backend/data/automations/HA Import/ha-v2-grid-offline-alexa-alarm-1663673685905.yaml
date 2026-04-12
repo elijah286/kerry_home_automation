@@ -1,0 +1,34 @@
+id: ha-v2-grid-offline-alexa-alarm-1663673685905
+name: 'V2: Grid offline Alexa alarm'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1663673685905).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.grid_status
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.grid_status
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media_living_room_3
+      message: 'Alert: The grid is offline. House is running off of backup emergency power'
+      deviceId: ''
+    deviceId: notify.alexa_media_living_room_3

@@ -1,0 +1,64 @@
+id: ha-v2-levi-s-light-timer-anytime-1682630102904
+name: 'V2: Levi''s Light Timer Anytime'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1682630102904).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.levis_bedside_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.levis_bedroom_closet_light
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.study_desk_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.levis_bedroom_main_lights
+        attribute: state
+  - type: not
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Evening
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Late Evening
+          deviceId: input_select.system_mode
+          attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.levis_bedside_lamp
+    deviceId: light.levis_bedside_lamp
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.levis_bedroom_main_lights
+    deviceId: switch.levis_bedroom_main_lights

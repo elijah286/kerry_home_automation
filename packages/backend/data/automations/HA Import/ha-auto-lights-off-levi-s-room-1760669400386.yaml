@@ -1,0 +1,94 @@
+id: ha-auto-lights-off-levi-s-room-1760669400386
+name: 'auto lights off: Levi''s Room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1760669400386).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+  - type: device_state
+    deviceId: light.levi_s_lights
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.levis_bedroom_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.levis_bedroom_closet_light
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.levis_bedside_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.study_desk_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.levis_led_lights
+        attribute: state
+actions:
+  - else:
+      - then:
+          - type: device_command
+            command:
+              type: light
+              action: turn_off
+              deviceId: light.levis_bedroom_main_lights
+            deviceId: light.levis_bedroom_main_lights
+        type: condition
+        condition:
+          op: eq
+          type: device_state
+          value: 'on'
+          deviceId: light.levis_bedroom_main_lights
+          attribute: state
+      - then:
+          - type: device_command
+            command:
+              type: light
+              action: turn_off
+              deviceId: light.levis_bedroom_closet_light
+            deviceId: light.levis_bedroom_closet_light
+        type: condition
+        condition:
+          op: eq
+          type: device_state
+          value: 'on'
+          deviceId: light.levis_bedroom_closet_light
+          attribute: state
+    then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.levi_s_lights
+        deviceId: light.levi_s_lights
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.upstairs_vacant
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: light.levi_s_lights
+          attribute: state

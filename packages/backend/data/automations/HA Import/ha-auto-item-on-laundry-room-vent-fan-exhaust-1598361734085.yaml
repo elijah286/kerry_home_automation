@@ -1,0 +1,18 @@
+id: ha-auto-item-on-laundry-room-vent-fan-exhaust-1598361734085
+name: 'Auto item on: laundry room vent fan exhaust'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1598361734085).'
+enabled: false
+mode: single
+triggers:
+  - cron: 5 4 * * *
+    type: time
+  - cron: 5 16 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: ''
+    deviceId: switch.turn_on

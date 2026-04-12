@@ -1,0 +1,15 @@
+id: ha-companion-toggle-fireplace-1679832899345
+name: 'Companion: Toggle Fireplace'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1679832899345).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: toggle
+      deviceId: switch.fireplace
+    deviceId: switch.fireplace

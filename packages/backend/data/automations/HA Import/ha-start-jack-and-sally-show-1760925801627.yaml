@@ -1,0 +1,48 @@
+id: ha-start-jack-and-sally-show-1760925801627
+name: Start Jack and Sally Show
+group: HA Import
+description: 'Imported from Home Assistant (id: 1760925801627).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: play_media
+      deviceId: media_player.brane_0101234101030114_airplay
+    deviceId: media_player.brane_0101234101030114_airplay
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.motion_lights_on
+    deviceId: input_boolean.motion_lights_on
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.exterior_sconces
+    deviceId: switch.exterior_sconces
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.front_foyer_chandelier
+    deviceId: light.front_foyer_chandelier
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.outdoor_strobe
+    deviceId: switch.outdoor_strobe
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.jack_sings
+    deviceId: switch.jack_sings

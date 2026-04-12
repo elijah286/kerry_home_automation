@@ -1,0 +1,15 @@
+id: ha-companion-living-room-tv-toggle-1679833255264
+name: 'Companion: Living Room TV Toggle'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1679833255264).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: toggle
+      deviceId: switch.living_room_tv
+    deviceId: switch.living_room_tv

@@ -1,0 +1,73 @@
+id: ha-halloween-toggle-fog-during-show-1760740565438
+name: 'Halloween: toggle fog during show'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1760740565438).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+  - type: device_state
+    deviceId: ''
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.fog_machine_power
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.constant_fog
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.fog
+        deviceId: switch.fog
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.relay_switch_1
+        deviceId: switch.relay_switch_1
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.fog
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.fog
+        deviceId: switch.fog
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.relay_switch_1
+        deviceId: switch.relay_switch_1
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: switch.fog
+      attribute: state

@@ -1,0 +1,39 @@
+id: ha-reload-pentair-pool-integration-if-unavailable-1756780393643
+name: Reload Pentair Pool Integration if Unavailable
+group: HA Import
+description: 'Imported from Home Assistant (id: 1756780393643).'
+enabled: false
+mode: single
+triggers:
+  - to: unavailable
+    for: '00:00:30'
+    type: device_state
+    deviceId: water_heater.spa
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: unavailable
+    deviceId: water_heater.pool
+    attribute: state
+  - op: eq
+    type: device_state
+    value: unavailable
+    deviceId: water_heater.pool
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: homeassistant
+      action: reload_config_entry
+      deviceId: water_heater.spa
+    deviceId: water_heater.spa
+  - type: device_command
+    command:
+      type: persistent_notification
+      action: create
+      message: Pool was unavailable.
+      deviceId: ''
+    deviceId: persistent_notification.create

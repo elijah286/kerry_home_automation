@@ -1,0 +1,20 @@
+id: ha-reconnect-kiosks-network-connection-1762720539890
+name: Reconnect Kiosks Network Connection
+group: HA Import
+description: 'Imported from Home Assistant (id: 1762720539890).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'off'
+    for: '00:00:05'
+    type: device_state
+    deviceId: switch.kiosk_bedroom
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.kiosk_bedroom
+    deviceId: switch.kiosk_bedroom

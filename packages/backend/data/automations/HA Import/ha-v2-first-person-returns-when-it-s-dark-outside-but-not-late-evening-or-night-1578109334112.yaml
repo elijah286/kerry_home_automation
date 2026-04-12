@@ -1,0 +1,43 @@
+id: ha-v2-first-person-returns-when-it-s-dark-outside-but-not-late-evening-or-night-1578109334112
+name: 'v2: First person returns when it''s dark outside but not late evening or night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1578109334112).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - type: not
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Evening
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Late Evening
+          deviceId: input_select.system_mode
+          attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.front_foyer_table_lamp
+    deviceId: light.front_foyer_table_lamp

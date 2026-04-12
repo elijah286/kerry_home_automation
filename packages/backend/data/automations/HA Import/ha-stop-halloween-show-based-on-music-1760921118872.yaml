@@ -1,0 +1,186 @@
+id: ha-stop-halloween-show-based-on-music-1760921118872
+name: Stop Halloween Show based on music
+group: HA Import
+description: 'Imported from Home Assistant (id: 1760921118872).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:00:52'
+    type: device_state
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.run_jack_and_sally_show
+        deviceId: input_boolean.run_jack_and_sally_show
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: input_boolean.run_jack_and_sally_show
+      attribute: state
+  - type: device_command
+    command:
+      type: media_player
+      action: media_stop
+      deviceId: media_player.brane_0101234101030114_2
+    deviceId: media_player.brane_0101234101030114_2
+  - type: device_command
+    command:
+      type: media_player
+      action: media_stop
+      deviceId: media_player.brane_0101234101030114_2
+    deviceId: media_player.brane_0101234101030114_2
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.outdoor_strobe
+    deviceId: switch.outdoor_strobe
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.jack_sings
+    deviceId: switch.jack_sings
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.sally_sings
+    deviceId: switch.sally_sings
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.fog
+    deviceId: switch.fog
+  - else:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.exterior_sconces
+        deviceId: switch.exterior_sconces
+    then: []
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.exterior_sconces
+      attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.motion_lights_on
+        deviceId: input_boolean.motion_lights_on
+    then: []
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: input_boolean.motion_lights_on
+      attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.front_foyer_chandelier
+        deviceId: light.front_foyer_chandelier
+    then: []
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.front_foyer_chandelier
+      attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.dining_room_chandelier
+        deviceId: light.dining_room_chandelier
+    then: []
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.dining_room_chandelier
+      attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.office_main_lights
+        deviceId: light.office_main_lights
+    then: []
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.office_main_lights
+      attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.game_room_main_lights
+        deviceId: light.game_room_main_lights
+    then: []
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.game_room_main_lights
+      attribute: state
+  - else:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.front_foyer_table_lamp
+        deviceId: light.front_foyer_table_lamp
+    then: []
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: light.front_foyer_table_lamp
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.garage_main_lights
+        deviceId: switch.garage_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: input_boolean.motion_detected_in_garage
+      attribute: state

@@ -1,0 +1,36 @@
+id: ha-check-eli-s-car-range-at-night-25-1566309664472
+name: Check Eli's Car Range at Night (25%)
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566309664472).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: lt
+    type: device_state
+    value: 25
+    deviceId: sensor.enterprise_battery_sensor
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: 'WARNING: Model S battery is below 25%'
+      deviceId: ''
+    deviceId: notify.everyone
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.home_alert
+    deviceId: input_boolean.home_alert
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.car_warning
+    deviceId: input_boolean.car_warning

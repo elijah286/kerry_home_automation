@@ -1,0 +1,24 @@
+id: ha-v2-living-room-main-lights-off-turns-off-lamps-1702308589247
+name: 'V2: Living Room Main Lights Off Turns off Lamps'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1702308589247).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.living_room_main_lights
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.living_room_table_lamp
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.living_room_table_lamp
+    deviceId: light.living_room_table_lamp

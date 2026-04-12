@@ -1,0 +1,31 @@
+id: ha-morning-turns-on-christmas-tree-and-holiday-lights-1576152234064
+name: Morning turns on Christmas tree and Holiday Lights
+group: HA Import
+description: 'Imported from Home Assistant (id: 1576152234064).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+  - for: '00:00:40'
+    type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+  - for: '00:01:00'
+    type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.indoor_holiday_decor
+    deviceId: switch.indoor_holiday_decor
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.christmas_tree
+    deviceId: light.christmas_tree

@@ -1,0 +1,71 @@
+id: ha-v2-motion-in-game-room-at-night-1574916835038
+name: 'V2: Motion in Game Room at Night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1574916835038).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: media_player.media_room_tv_3
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.game_room_main_lights
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.movie_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.party_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: media_player.media_room_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.game_room_main_lights
+      brightness: 64
+    deviceId: light.game_room_main_lights
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.theater_floor_lamp
+      brightness: 64
+    deviceId: light.theater_floor_lamp

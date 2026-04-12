@@ -1,0 +1,24 @@
+id: ha-v2-tire-set-3-fr-changed-update-log-1689460516635
+name: 'V2: Tire Set 3 FR changed - update log'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1689460516635).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.tire_set_3_fr_replaced
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_number
+      action: set_value
+      deviceId: ''
+    deviceId: input_number.set_value
+  - type: device_command
+    command:
+      type: input_number
+      value: 0
+      action: set_value
+      deviceId: input_number.tire_set_3_fr_miles_since_change
+    deviceId: input_number.tire_set_3_fr_miles_since_change

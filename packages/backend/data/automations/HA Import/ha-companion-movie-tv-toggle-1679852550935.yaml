@@ -1,0 +1,15 @@
+id: ha-companion-movie-tv-toggle-1679852550935
+name: 'Companion: Movie TV toggle'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1679852550935).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: remote
+      action: toggle
+      deviceId: remote.sony_bravia_tv
+    deviceId: remote.sony_bravia_tv

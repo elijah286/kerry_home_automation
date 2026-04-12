@@ -1,0 +1,21 @@
+id: ha-jack-sings-1760921837718
+name: Jack sings
+group: HA Import
+description: 'Imported from Home Assistant (id: 1760921837718).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:00:17'
+    type: device_state
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+actions:
+  - type: delay
+    duration: '00:00:00'
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.jack_sings
+    deviceId: switch.jack_sings

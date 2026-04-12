@@ -1,0 +1,30 @@
+id: ha-turn-on-fans-when-arriving-home-if-it-s-hot-1565738289562
+name: Turn on fans when arriving home if it's hot
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565738289562).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - op: gt
+    type: device_state
+    value: 78
+    deviceId: sensor.home_realfeel_temperature
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: homeassistant
+      action: turn_on
+      deviceId: group.main_fans
+    deviceId: group.main_fans
+  - type: device_command
+    command:
+      type: scene
+      action: turn_on
+      deviceId: scene.movie_room_fan_on
+    deviceId: scene.movie_room_fan_on

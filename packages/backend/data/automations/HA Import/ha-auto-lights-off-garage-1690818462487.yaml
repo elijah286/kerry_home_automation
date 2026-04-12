@@ -1,0 +1,81 @@
+id: ha-auto-lights-off-garage-1690818462487
+name: 'Auto lights off: garage'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1690818462487).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:01:00'
+    type: device_state
+    deviceId: input_boolean.motion_detected_in_garage
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.garage_workbench
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.garage_main_lights
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - type: or
+    conditions:
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: input_boolean.motion_detected_in_garage
+            attribute: state
+          - op: eq
+            type: device_state
+            value: closed
+            deviceId: cover.red
+            attribute: state
+          - op: eq
+            type: device_state
+            value: closed
+            deviceId: cover.white
+            attribute: state
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: input_boolean.motion_detected_in_garage
+            attribute: state
+          - type: or
+            conditions:
+              - type: not
+                condition:
+                  op: eq
+                  type: device_state
+                  value: closed
+                  deviceId: cover.white
+                  attribute: state
+              - type: not
+                condition:
+                  op: eq
+                  type: device_state
+                  value: closed
+                  deviceId: cover.red
+                  attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.garage_main_lights
+    deviceId: switch.garage_main_lights

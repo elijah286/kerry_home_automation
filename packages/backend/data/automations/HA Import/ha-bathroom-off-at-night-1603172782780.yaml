@@ -1,0 +1,18 @@
+id: ha-bathroom-off-at-night-1603172782780
+name: Bathroom off at night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1603172782780).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.night_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.master_bathroom_shower
+    deviceId: light.master_bathroom_shower

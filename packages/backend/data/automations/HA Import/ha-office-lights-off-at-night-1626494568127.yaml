@@ -1,0 +1,18 @@
+id: ha-office-lights-off-at-night-1626494568127
+name: Office lights off at night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1626494568127).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.night_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.office_main_lights
+    deviceId: light.office_main_lights

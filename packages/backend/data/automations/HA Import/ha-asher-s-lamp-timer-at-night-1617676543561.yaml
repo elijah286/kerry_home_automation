@@ -1,0 +1,39 @@
+id: ha-asher-s-lamp-timer-at-night-1617676543561
+name: Asher’s Lamp Timer at night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1617676543561).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:10:00'
+    type: device_state
+    deviceId: light.ashers_bedroom_table_lamp
+    attribute: state
+  - cron: '*/10 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.asher_sleeping
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.ashers_bedroom_table_lamp
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.ashers_bedroom_table_lamp
+    deviceId: light.ashers_bedroom_table_lamp
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Asher’s lamp turned off by timer
+      deviceId: ''
+    deviceId: notify.everyone

@@ -1,0 +1,38 @@
+id: ha-person-detected-pool-1734821471197
+name: 'Person detected: pool'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1734821471197).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.pool_person_occupancy
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.pool_person_detected
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: binary_sensor.spa_person_occupancy
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: binary_sensor.pool_water_person_occupancy
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_pool
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_pool
+    deviceId: input_boolean.person_in_pool

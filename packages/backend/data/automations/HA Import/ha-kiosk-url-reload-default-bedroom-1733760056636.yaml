@@ -1,0 +1,43 @@
+id: ha-kiosk-url-reload-default-bedroom-1733760056636
+name: 'Kiosk URL reload default: Bedroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733760056636).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'off'
+    for: '00:02:00'
+    type: device_state
+    deviceId: input_boolean.person_in_main_bedroom
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: input_boolean.show_doorbell_camera
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: http://192.168.68.203:8123/lovelace/bedroom?kiosk
+          deviceId: sensor.bedroom_kiosk_current_page
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+actions:
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.bedroom_kiosk_load_start_url
+    deviceId: button.bedroom_kiosk_load_start_url

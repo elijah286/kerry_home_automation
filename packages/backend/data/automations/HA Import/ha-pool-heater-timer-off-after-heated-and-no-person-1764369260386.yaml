@@ -1,0 +1,27 @@
+id: ha-pool-heater-timer-off-after-heated-and-no-person-1764369260386
+name: 'Pool Heater timer: Off After Heated and No Person'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1764369260386).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_pool
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.pool_is_ready
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.pool_heater_off
+    deviceId: input_button.pool_heater_off

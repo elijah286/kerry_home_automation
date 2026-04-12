@@ -1,0 +1,17 @@
+id: ha-v2-manually-turn-on-home-when-returning-home-pressed-1722810323833
+name: 'V2: Manually turn on home when ''returning home'' pressed'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1722810323833).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.returned
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.anyone_home
+    deviceId: input_boolean.anyone_home

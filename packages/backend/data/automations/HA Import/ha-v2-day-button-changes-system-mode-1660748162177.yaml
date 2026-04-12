@@ -1,0 +1,18 @@
+id: ha-v2-day-button-changes-system-mode-1660748162177
+name: 'V2: Day Button Changes System Mode'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660748162177).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.day_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_select
+      action: select_option
+      option: Day
+      deviceId: input_select.system_mode
+    deviceId: input_select.system_mode

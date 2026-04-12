@@ -1,0 +1,26 @@
+id: ha-boy-s-desk-lamps-on-for-school-1598010011400
+name: boy’s desk lamps on for school
+group: HA Import
+description: 'Imported from Home Assistant (id: 1598010011400).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 8 * * *
+    type: time
+conditions:
+  - type: time_window
+    after: '00:00'
+    before: '23:59'
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: ''
+    deviceId: light.turn_on
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: ''
+    deviceId: light.turn_on

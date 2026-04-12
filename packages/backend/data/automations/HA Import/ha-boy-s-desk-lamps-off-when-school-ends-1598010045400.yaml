@@ -1,0 +1,22 @@
+id: ha-boy-s-desk-lamps-off-when-school-ends-1598010045400
+name: Boy’s desk lamps off when school ends
+group: HA Import
+description: 'Imported from Home Assistant (id: 1598010045400).'
+enabled: false
+mode: single
+triggers:
+  - cron: 50 14 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off

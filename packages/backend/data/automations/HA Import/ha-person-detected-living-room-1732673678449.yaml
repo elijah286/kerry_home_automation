@@ -1,0 +1,65 @@
+id: ha-person-detected-living-room-1732673678449
+name: 'Person detected: living room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1732673678449).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.living_room_zone_person_occupancy
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.apollo_msr_1_f775b8_radar_target
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: switch.living_room_motion
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.bottom_stairs_motion_sensor
+    attribute: state
+  - type: device_state
+    deviceId: sensor.living_room_zone_person_active_count
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.living_room_motion_detected
+    attribute: state
+  - type: or
+    conditions:
+      - type: not
+        condition:
+          op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: Night
+            deviceId: input_select.system_mode
+            attribute: state
+          - op: gt
+            type: device_state
+            value: 0
+            deviceId: sensor.living_room_zone_person_active_count
+            attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: camera.living_room
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.living_room_motion_detected
+    deviceId: input_boolean.living_room_motion_detected

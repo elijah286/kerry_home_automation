@@ -1,0 +1,18 @@
+id: ha-v2-power-mode-is-critical-shuts-down-upstairs-1660769281537
+name: 'V2: Power Mode is Critical Shuts Down Upstairs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660769281537).'
+enabled: false
+mode: single
+triggers:
+  - to: Critical
+    type: device_state
+    deviceId: input_select.power_saving_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.upstairs_vacant
+    deviceId: input_boolean.upstairs_vacant

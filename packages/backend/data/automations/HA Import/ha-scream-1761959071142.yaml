@@ -1,0 +1,25 @@
+id: ha-scream-1761959071142
+name: Scream
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761959071142).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.scream
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: play_media
+      deviceId: media_player.brane_0101234101030114_airplay
+    deviceId: media_player.brane_0101234101030114_airplay
+  - type: delay
+    duration: '00:00:05'
+  - type: device_command
+    command:
+      type: automation
+      action: trigger
+      deviceId: automation.halloween_mode_spooky_sounds
+    deviceId: automation.halloween_mode_spooky_sounds

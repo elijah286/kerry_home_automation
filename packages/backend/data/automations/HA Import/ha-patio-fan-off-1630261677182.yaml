@@ -1,0 +1,37 @@
+id: ha-patio-fan-off-1630261677182
+name: 'Patio Fan Off '
+group: HA Import
+description: 'Imported from Home Assistant (id: 1630261677182).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '01:00:00'
+    type: device_state
+    deviceId: fan.exterior_ceiling_fan
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.night_mode
+    attribute: state
+  - to: Night
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: fan.exterior_ceiling_fan
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.exterior_ceiling_fan
+    deviceId: fan.exterior_ceiling_fan

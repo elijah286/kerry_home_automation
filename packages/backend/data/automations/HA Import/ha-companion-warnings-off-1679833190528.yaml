@@ -1,0 +1,21 @@
+id: ha-companion-warnings-off-1679833190528
+name: 'Companion: Warnings Off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1679833190528).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.car_warning
+    deviceId: input_boolean.car_warning
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.master_bedroom_hallway
+    deviceId: light.master_bedroom_hallway

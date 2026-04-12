@@ -1,0 +1,19 @@
+id: ha-bedjest-off-if-power-out-1769577297681
+name: Bedjest off if power out
+group: HA Import
+description: 'Imported from Home Assistant (id: 1769577297681).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: input_boolean.grid_offline
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: climate
+      action: turn_off
+      deviceId: climate.rpi_meghan
+    deviceId: climate.rpi_meghan

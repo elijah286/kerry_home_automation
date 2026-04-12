@@ -1,0 +1,51 @@
+id: ha-v2-video-game-timer-extended-2-hours-1704045017345
+name: 'V2: video game timer extended 2 hours'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1704045017345).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.extend_video_game_120_minutes
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: timer
+      action: cancel
+      deviceId: timer.video_game
+    deviceId: timer.video_game
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.video_game_time_elapsed
+    deviceId: input_boolean.video_game_time_elapsed
+  - type: device_command
+    command:
+      type: timer
+      action: start
+      deviceId: timer.video_game
+    deviceId: timer.video_game
+  - type: delay
+    duration: '00:00:01'
+  - type: device_command
+    command:
+      type: timer
+      action: pause
+      deviceId: timer.video_game
+    deviceId: timer.video_game
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Time Extended 1 hour
+      deviceId: ''
+    deviceId: notify.everyone
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: Video Game time extended by 2 entire hours
+      deviceId: ''
+    deviceId: notify.alexa_media

@@ -1,0 +1,50 @@
+id: ha-chatgpt-hvac-main-floor-fan-timer-1734847564773
+name: ChatGPT HVAC main floor fan timer
+group: HA Import
+description: 'Imported from Home Assistant (id: 1734847564773).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.sexy_time
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.sexy_time
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.hvac_main_floor_fan_on
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.hvac_main_floor_fan_on
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: input_boolean.hvac_main_floor_fan_on
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: climate
+      action: set_fan_mode
+      deviceId: climate.main_floor
+      fan_mode: auto
+    deviceId: climate.main_floor
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.hvac_main_floor_fan_on
+    deviceId: input_boolean.hvac_main_floor_fan_on

@@ -1,0 +1,27 @@
+id: ha-v2-kitchen-music-volume-down-1602260885265
+name: 'V2: Kitchen Music: Volume Down'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1602260885265).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.kitchen_music_down
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.volume_down_lr
+    attribute: state
+  - type: device_state
+    deviceId: input_button.lr_volume_down
+    attribute: state
+  - type: device_state
+    deviceId: f017366d5f31f75a38b8fedf19073596
+    attribute: press
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      deviceId: media_player.living_room_receiver
+    deviceId: media_player.living_room_receiver

@@ -1,0 +1,45 @@
+id: ha-hvac-evening-applies-evening-mode-for-main-floor-8576787876651
+name: HVAC Evening applies evening mode for main floor
+group: HA Import
+description: 'Imported from Home Assistant (id: 8576787876651).'
+enabled: false
+mode: single
+triggers:
+  - to: Evening
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - from: 'off'
+    type: device_state
+    deviceId: climate.upstairs
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Evening
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: climate.upstairs
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: climate
+      action: set_preset_mode
+      deviceId: ''
+      preset_mode: evening
+    deviceId: climate.set_preset_mode

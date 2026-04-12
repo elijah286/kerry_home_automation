@@ -1,0 +1,56 @@
+id: ha-kiosk-face-detection-main-office-1732654745701
+name: 'Kiosk face detection: main office'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1732654745701).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+  - type: manual
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.office_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: light.office_main_lights
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: closed
+        deviceId: cover.office
+        attribute: state
+      - op: eq
+        type: device_state
+        value: open
+        deviceId: cover.office
+        attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: everyone
+          message: face detected in main office
+          deviceId: ''
+        deviceId: notify.everyone
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: input_boolean.motion_detected_in_office
+      attribute: state
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.motion_detected_in_office
+    deviceId: input_boolean.motion_detected_in_office

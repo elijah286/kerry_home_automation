@@ -1,0 +1,33 @@
+id: ha-v2-kids-sleeping-turns-on-kids-sleeping-1660753172750
+name: 'V2: Kids Sleeping Turns on Kids Sleeping'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660753172750).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_boolean.levi_sleeping
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.sloane_sleeping
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.asher_sleeping
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.levi_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.kids_sleeping
+    deviceId: input_boolean.kids_sleeping

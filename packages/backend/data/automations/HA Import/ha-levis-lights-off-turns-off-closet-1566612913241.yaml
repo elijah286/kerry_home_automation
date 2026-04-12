@@ -1,0 +1,22 @@
+id: ha-levis-lights-off-turns-off-closet-1566612913241
+name: Levis lights off turns off closet
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566612913241).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.levis_bedroom_table_lamp
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: switch.levis_bedroom_main_lights
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: switch.levis_bedroom_closet_light
+    deviceId: switch.levis_bedroom_closet_light

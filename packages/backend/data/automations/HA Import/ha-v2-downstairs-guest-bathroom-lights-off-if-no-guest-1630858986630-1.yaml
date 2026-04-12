@@ -1,0 +1,35 @@
+id: ha-v2-downstairs-guest-bathroom-lights-off-if-no-guest-1630858986630-1
+name: 'V2: Downstairs Guest Bathroom Lights off if no guest'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1630858986630).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:03:00'
+    type: device_state
+    deviceId: binary_sensor.downstairs_guest_bathroom_motion
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.guest_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.downstairs_guest_bathroom_vanity_lights
+    deviceId: light.downstairs_guest_bathroom_vanity_lights
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.downstairs_guest_bathroom_shower_lights
+    deviceId: switch.downstairs_guest_bathroom_shower_lights

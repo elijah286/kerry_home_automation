@@ -1,0 +1,29 @@
+id: ha-person-detected-front-porch-1687812468591
+name: 'Person detected: front porch '
+group: HA Import
+description: 'Imported from Home Assistant (id: 1687812468591).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.front_door_frigate_person_occupancy
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.front_door
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.camera_motion_on_front_porch
+    attribute: state
+  - type: device_state
+    deviceId: sensor.front_door_frigate_person_count
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.motion_detected_on_front_patio
+    deviceId: input_boolean.motion_detected_on_front_patio

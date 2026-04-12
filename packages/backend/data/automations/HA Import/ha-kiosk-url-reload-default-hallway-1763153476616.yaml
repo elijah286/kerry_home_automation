@@ -1,0 +1,35 @@
+id: ha-kiosk-url-reload-default-hallway-1763153476616
+name: 'Kiosk URL reload default: Hallway'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1763153476616).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'off'
+    type: device_state
+    deviceId: input_boolean.person_in_hallway
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: input_boolean.show_doorbell_camera
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: http://192.168.68.203:8123/lovelace/v2?kiosk
+      deviceId: sensor.hallway_kiosk_current_page
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.hallway_kiosk_load_start_url
+    deviceId: button.hallway_kiosk_load_start_url

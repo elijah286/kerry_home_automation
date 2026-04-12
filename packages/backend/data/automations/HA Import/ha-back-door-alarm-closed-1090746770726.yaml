@@ -1,0 +1,18 @@
+id: ha-back-door-alarm-closed-1090746770726
+name: Back Door Alarm Closed
+group: HA Import
+description: 'Imported from Home Assistant (id: 1090746770726).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.back_door
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: ''
+    deviceId: input_boolean.turn_off

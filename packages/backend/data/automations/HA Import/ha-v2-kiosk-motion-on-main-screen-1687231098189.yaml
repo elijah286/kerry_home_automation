@@ -1,0 +1,15 @@
+id: ha-v2-kiosk-motion-on-main-screen-1687231098189
+name: 'V2: Kiosk Motion on Main Screen'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1687231098189).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.kiosk_motion_on_main_floor_screen
+    deviceId: input_button.kiosk_motion_on_main_floor_screen

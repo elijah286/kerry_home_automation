@@ -1,0 +1,19 @@
+id: ha-laundry-room-timer-60-min-1570537404891
+name: Laundry Room Timer (60 min)
+group: HA Import
+description: 'Imported from Home Assistant (id: 1570537404891).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:60:00'
+    type: device_state
+    deviceId: switch.utility_room_vent
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.utility_room_vent
+    deviceId: switch.utility_room_vent

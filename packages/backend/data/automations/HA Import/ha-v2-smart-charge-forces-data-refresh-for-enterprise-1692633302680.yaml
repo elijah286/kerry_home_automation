@@ -1,0 +1,41 @@
+id: ha-v2-smart-charge-forces-data-refresh-for-enterprise-1692633302680
+name: 'V2: Smart Charge forces data refresh for enterprise'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1692633302680).'
+enabled: false
+mode: single
+triggers:
+  - for: '00:00:05'
+    type: device_state
+    deviceId: number.enterprise_charging_amps
+    attribute: state
+  - from: '0'
+    type: device_state
+    deviceId: input_number.ev_charging_amp_set_point
+    attribute: state
+  - to: '0'
+    for: '00:00:10'
+    type: device_state
+    deviceId: input_number.ev_charging_amp_set_point
+    attribute: state
+  - type: device_state
+    deviceId: sensor.change_in_energy_demand
+    attribute: state
+  - type: device_state
+    deviceId: sensor.change_in_energy_demand
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: binary_sensor.enterprise_charging
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.enterprise_force_data_update
+    deviceId: button.enterprise_force_data_update

@@ -1,0 +1,24 @@
+id: ha-auto-item-on-sloanes-bathroom-vent-1738808062746
+name: 'auto item on: Sloanes bathroom vent'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1738808062746).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_sloanes_bathroom
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.sloanes_bathroom_exhaust_fan
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.sloanes_bathroom_exhaust_fan
+    deviceId: switch.sloanes_bathroom_exhaust_fan

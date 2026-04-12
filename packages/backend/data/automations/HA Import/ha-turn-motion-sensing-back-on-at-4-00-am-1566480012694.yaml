@@ -1,0 +1,16 @@
+id: ha-turn-motion-sensing-back-on-at-4-00-am-1566480012694
+name: Turn motion sensing back on at 4:00 am
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566480012694).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 5 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.motion_lights_on
+    deviceId: input_boolean.motion_lights_on

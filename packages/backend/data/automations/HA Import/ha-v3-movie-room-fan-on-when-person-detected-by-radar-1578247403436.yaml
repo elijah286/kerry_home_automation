@@ -1,0 +1,25 @@
+id: ha-v3-movie-room-fan-on-when-person-detected-by-radar-1578247403436
+name: 'V3: Movie Room Fan on When Person Detected by Radar'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1578247403436).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_movie_room
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: fan.movie_room_ceiling_fan
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      speed: high
+      action: turn_on
+      deviceId: fan.movie_room_ceiling_fan
+    deviceId: fan.movie_room_ceiling_fan

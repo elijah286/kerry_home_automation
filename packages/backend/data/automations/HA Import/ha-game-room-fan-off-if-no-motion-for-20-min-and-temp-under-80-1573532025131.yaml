@@ -1,0 +1,30 @@
+id: ha-game-room-fan-off-if-no-motion-for-20-min-and-temp-under-80-1573532025131
+name: 'Game Room: Fan Off if no motion for 20 min and temp under 80'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1573532025131).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:20:00'
+    type: device_state
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+conditions:
+  - op: lt
+    type: device_state
+    value: 80
+    deviceId: sensor.home_realfeel_temperature
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.party_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.game_room_ceiling_fan
+    deviceId: fan.game_room_ceiling_fan

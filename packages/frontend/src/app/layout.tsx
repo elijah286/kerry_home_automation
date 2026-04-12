@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { ThemeProvider } from '@/providers/ThemeProvider';
-import { AppShell } from '@/components/layout/AppShell';
+import { AuthProvider } from '@/providers/AuthProvider';
+import { AuthGate } from '@/components/layout/AuthGate';
 
 export const metadata: Metadata = {
   title: 'Home Automation',
@@ -13,9 +14,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" data-theme="dark" suppressHydrationWarning>
       <body>
         <ThemeProvider>
-          <AppShell>
-            {children}
-          </AppShell>
+          <AuthProvider>
+            <AuthGate>
+              {children}
+            </AuthGate>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

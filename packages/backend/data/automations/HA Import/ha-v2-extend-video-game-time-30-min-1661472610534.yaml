@@ -1,0 +1,18 @@
+id: ha-v2-extend-video-game-time-30-min-1661472610534
+name: 'V2: Extend video game time 30 min '
+group: HA Import
+description: 'Imported from Home Assistant (id: 1661472610534).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+  - type: device_state
+    deviceId: input_button.extend_video_game_30_minutes
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: script
+      action: video_games_30_mnutes
+      deviceId: ''
+    deviceId: script.video_games_30_mnutes

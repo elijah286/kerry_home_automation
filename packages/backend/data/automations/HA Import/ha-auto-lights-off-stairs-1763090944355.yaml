@@ -1,0 +1,45 @@
+id: ha-auto-lights-off-stairs-1763090944355
+name: 'auto lights off: stairs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1763090944355).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+  - to:
+      - 'off'
+    type: device_state
+    deviceId: input_boolean.person_at_top_of_stairs
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_at_top_of_stairs
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.stairs_main_lights
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.stairs_main_lights
+        deviceId: light.stairs_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: input_boolean.anyone_home
+      attribute: state

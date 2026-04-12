@@ -35,6 +35,10 @@ export function registerWebSocket(app: FastifyInstance): void {
     broadcast({ type: 'integration_health', id, health });
   });
 
+  eventBus.on('automation_executed', (event) => {
+    broadcast({ type: 'automation_executed', ...event });
+  });
+
   app.get('/ws', { websocket: true }, (socket) => {
     clients.add(socket);
     logger.info({ clients: clients.size }, 'WebSocket client connected');

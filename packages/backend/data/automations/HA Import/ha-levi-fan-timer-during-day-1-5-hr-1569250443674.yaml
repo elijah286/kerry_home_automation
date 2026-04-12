@@ -1,0 +1,25 @@
+id: ha-levi-fan-timer-during-day-1-5-hr-1569250443674
+name: Levi Fan Timer During Day (1.5 hr)
+group: HA Import
+description: 'Imported from Home Assistant (id: 1569250443674).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '02:30:00'
+    type: device_state
+    deviceId: fan.levis_bedroom_ceiling_fan
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.day_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.levis_bedroom_ceiling_fan
+    deviceId: fan.levis_bedroom_ceiling_fan

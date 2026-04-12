@@ -1,0 +1,19 @@
+id: ha-person-detected-stairs-1773311855431
+name: 'Person detected: stairs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1773311855431).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: binary_sensor.bottom_stairs_motion_sensor
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_at_top_of_stairs
+    deviceId: input_boolean.person_at_top_of_stairs

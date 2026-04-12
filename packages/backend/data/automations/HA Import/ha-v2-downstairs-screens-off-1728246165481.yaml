@@ -1,0 +1,23 @@
+id: ha-v2-downstairs-screens-off-1728246165481
+name: 'V2: Downstairs Screens Off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1728246165481).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.all_downstairs_screens_off
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_off
+      deviceId: media_player.patio_tv
+    deviceId: media_player.patio_tv
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.living_room_tv
+    deviceId: switch.living_room_tv

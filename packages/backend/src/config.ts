@@ -40,5 +40,10 @@ export const appConfig = {
   sony: {
     pollIntervalMs: parseInt(process.env.SONY_POLL_INTERVAL_MS ?? '10000', 10),
   },
+
+  auth: {
+    jwtSecret: process.env.JWT_SECRET ?? 'ha-dev-secret-change-in-production',
+    sessionTtlDays: parseInt(process.env.SESSION_TTL_DAYS ?? '30', 10),
+  },
 } as const;
 

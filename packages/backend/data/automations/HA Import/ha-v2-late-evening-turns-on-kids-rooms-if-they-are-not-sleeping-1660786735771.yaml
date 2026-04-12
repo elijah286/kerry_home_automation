@@ -1,0 +1,29 @@
+id: ha-v2-late-evening-turns-on-kids-rooms-if-they-are-not-sleeping-1660786735771
+name: 'V2: late evening turns on kids rooms if they are not sleeping'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660786735771).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.late_evening_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.levis_bedroom_table_lamp
+      brightness: 173
+    deviceId: light.levis_bedroom_table_lamp

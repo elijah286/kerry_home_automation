@@ -1,0 +1,18 @@
+id: ha-v2-tire-pressure-low-warning-for-enterprise-1689462124048
+name: 'V2: Tire Pressure Low Warning for Enterprise'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1689462124048).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+  - type: manual
+  - type: manual
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.tire_pressure_warning_for_enterprise
+    deviceId: input_boolean.tire_pressure_warning_for_enterprise

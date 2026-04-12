@@ -1,0 +1,24 @@
+id: ha-piano-area-lights-off-at-night-1611022905168
+name: Piano area lights off at night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1611022905168).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.night_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off

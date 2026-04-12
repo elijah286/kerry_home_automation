@@ -1,0 +1,37 @@
+id: ha-v2-determine-that-the-kerry-family-is-returning-from-a-trip-1688387385928
+name: 'V2: Determine that the Kerry family is returning from a trip'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1688387385928).'
+enabled: false
+mode: single
+triggers:
+  - to: Austin
+    from: not_home
+    type: device_state
+    deviceId: person.elijah_kerry
+    attribute: state
+  - to: Austin
+    from: not_home
+    type: device_state
+    deviceId: person.meghan_kerry
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: admin
+      message: Kerry family is returning from a trip!
+      deviceId: ''
+    deviceId: notify.admin
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.anyone_home
+    deviceId: input_boolean.anyone_home

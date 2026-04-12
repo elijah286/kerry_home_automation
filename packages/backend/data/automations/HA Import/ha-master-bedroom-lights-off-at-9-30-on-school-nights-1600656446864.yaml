@@ -1,0 +1,33 @@
+id: ha-master-bedroom-lights-off-at-9-30-on-school-nights-1600656446864
+name: Master Bedroom Lights Off at 9:30 on School Nights
+group: HA Import
+description: 'Imported from Home Assistant (id: 1600656446864).'
+enabled: false
+mode: single
+triggers:
+  - cron: 30 21 * * *
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.meghan_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.vacation_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off

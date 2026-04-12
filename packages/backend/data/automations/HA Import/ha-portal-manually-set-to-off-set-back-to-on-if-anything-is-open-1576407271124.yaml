@@ -1,0 +1,101 @@
+id: ha-portal-manually-set-to-off-set-back-to-on-if-anything-is-open-1576407271124
+name: 'Portal: manually set to off set back to on if anything is open'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1576407271124).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.portal_open
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.garage_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.front_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.sloanes_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.ashers_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.guest_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.back_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.balcony_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.office
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.bedroom_hallway
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.master_bedroom
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.dining_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.game_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.living_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.movie_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.breakfast_table
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.levis_room
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.portal_open
+    deviceId: input_boolean.portal_open

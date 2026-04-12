@@ -1,0 +1,19 @@
+id: ha-grid-offline-disable-pool-systems-1764380697249
+name: 'Grid Offline: Disable Pool Systems'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1764380697249).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: input_boolean.grid_offline
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.pool_heater_off
+    deviceId: input_button.pool_heater_off

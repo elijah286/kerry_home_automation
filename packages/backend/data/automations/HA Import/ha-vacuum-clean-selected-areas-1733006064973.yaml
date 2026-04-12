@@ -1,0 +1,18 @@
+id: ha-vacuum-clean-selected-areas-1733006064973
+name: 'Vacuum: Clean Selected Areas'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733006064973).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.start_cleaning_selected_areas
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: vacuum
+      action: send_command
+      command: app_segment_clean
+      deviceId: vacuum.saros_z70
+    deviceId: vacuum.saros_z70

@@ -1,0 +1,100 @@
+id: ha-v2-tire-mileage-warning-for-enterprise-cleared-1689183003730
+name: 'V2: Tire mileage warning for Enterprise cleared'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1689183003730).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.tire_set_3_fl_replaced
+    attribute: state
+  - type: device_state
+    deviceId: input_button.tire_set_3_fr_replaced
+    attribute: state
+  - type: device_state
+    deviceId: input_button.tire_set_3_rl_replaced
+    attribute: state
+  - type: device_state
+    deviceId: input_button.tire_set_3_rr_replaced
+    attribute: state
+  - type: device_state
+    deviceId: input_button.tire_set_4_fl_replaced
+    attribute: state
+  - type: device_state
+    deviceId: input_button.tire_set_4_fr_replaced
+    attribute: state
+  - type: device_state
+    deviceId: input_button.tire_set_4_rl_replaced
+    attribute: state
+  - type: device_state
+    deviceId: input_button.tire_set_4_rr_replaced
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 21" All Season Tires
+            deviceId: input_select.tires_on_red_tesla
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 15000
+            deviceId: input_number.tire_set_3_fl_miles_since_change
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 15000
+            deviceId: input_number.tire_set_3_fr_miles_since_change
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 15000
+            deviceId: input_number.tire_set_3_rl_miles_since_change
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 15000
+            deviceId: input_number.tire_set_3_rr_miles_since_change
+            attribute: state
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 19" Winter Tires
+            deviceId: input_select.tires_on_red_tesla
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 15000
+            deviceId: input_number.tire_set_4_fl_miles_since_change
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 15000
+            deviceId: input_number.tire_set_4_fr_miles_since_change
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 15000
+            deviceId: input_number.tire_set_4_rl_miles_since_change
+            attribute: state
+          - op: lt
+            type: device_state
+            value: 15000
+            deviceId: input_number.tire_set_4_rr_miles_since_change
+            attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.tire_mileage_warning_for_enterprise
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.tire_mileage_warning_for_enterprise
+    deviceId: input_boolean.tire_mileage_warning_for_enterprise

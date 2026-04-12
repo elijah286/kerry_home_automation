@@ -1,0 +1,21 @@
+id: ha-bedjet-timer-start-meghan-1771129733282
+name: 'Bedjet Timer Start: Meghan'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1771129733282).'
+enabled: false
+mode: single
+triggers:
+  - from:
+      - 'off'
+    type: device_state
+    deviceId: climate.rpi_meghan
+    attribute: state
+actions:
+  - type: log
+    message: '[HA variables] {"m":"{{ states(''input_number.bedjet_timer_duration_mk'') | int(0) }}"}'
+  - type: device_command
+    command:
+      type: timer
+      action: start
+      deviceId: timer.meghan_s_bedjet
+    deviceId: timer.meghan_s_bedjet

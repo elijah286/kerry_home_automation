@@ -1,0 +1,43 @@
+id: ha-dark-day-turns-on-christmas-tree-and-indoor-seasonal-lights-1574611972568
+name: Dark day turns on christmas tree and indoor seasonal lights
+group: HA Import
+description: 'Imported from Home Assistant (id: 1574611972568).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.christmas_tree
+    deviceId: switch.christmas_tree
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.christmas_tree
+    deviceId: light.christmas_tree
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.twinkly_tree
+    deviceId: light.twinkly_tree

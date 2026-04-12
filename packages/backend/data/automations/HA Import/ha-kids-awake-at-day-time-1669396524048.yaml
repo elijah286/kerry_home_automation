@@ -1,0 +1,29 @@
+id: ha-kids-awake-at-day-time-1669396524048
+name: Kids awake at day time
+group: HA Import
+description: 'Imported from Home Assistant (id: 1669396524048).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.day_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.wake_kids_up
+    deviceId: input_button.wake_kids_up
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.kids_sleeping
+    deviceId: input_boolean.kids_sleeping

@@ -1,0 +1,17 @@
+id: ha-fireplace-off-if-temp-above-65-1573532165334
+name: Fireplace off if temp above 65
+group: HA Import
+description: 'Imported from Home Assistant (id: 1573532165334).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.home_realfeel_temperature
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.qubino_goap_zmnhnd1_flush_1d_relay_switch
+    deviceId: switch.qubino_goap_zmnhnd1_flush_1d_relay_switch

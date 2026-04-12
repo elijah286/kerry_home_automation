@@ -1,0 +1,18 @@
+id: ha-v2-garage-workbench-turns-on-overhead-lights-1691883378471
+name: 'V2: Garage workbench turns on overhead lights'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1691883378471).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: switch.garage_workbench
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.garage_main_lights
+    deviceId: switch.garage_main_lights

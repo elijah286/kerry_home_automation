@@ -1,0 +1,33 @@
+id: ha-boys-bedroom-lamps-on-at-7-45-pm-1565919259886
+name: Boys Bedroom Lamps on at 7:45 PM
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565919259886).'
+enabled: false
+mode: single
+triggers:
+  - cron: 45 19 * * *
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.boys_sleeping
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.ashers_bedroom_table_lamp
+    deviceId: light.ashers_bedroom_table_lamp
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.levis_bedroom_table_lamp
+    deviceId: light.levis_bedroom_table_lamp

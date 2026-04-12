@@ -1,0 +1,18 @@
+id: ha-game-room-fan-off-turns-off-movie-room-fan-1578247407736
+name: Game Room Fan Off Turns off movie room fan
+group: HA Import
+description: 'Imported from Home Assistant (id: 1578247407736).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: fan.game_room_ceiling_fan
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: ''
+    deviceId: fan.turn_off

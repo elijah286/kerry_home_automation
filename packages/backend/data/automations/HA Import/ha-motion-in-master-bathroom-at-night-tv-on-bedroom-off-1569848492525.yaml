@@ -1,0 +1,45 @@
+id: ha-motion-in-master-bathroom-at-night-tv-on-bedroom-off-1569848492525
+name: Motion in Master Bathroom at Night TV ON Bedroom OFF
+group: HA Import
+description: 'Imported from Home Assistant (id: 1569848492525).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: remote.bedroom_tv
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: group.master_bedroom
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: remote.bedroom_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.master_bathroom_tub
+      brightness: '160'
+    deviceId: light.master_bathroom_tub

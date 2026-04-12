@@ -1,0 +1,39 @@
+id: ha-v2-1-sloane-s-bathroom-lights-off-when-kids-sleeping-1660788689506
+name: 'V2.1: Sloane''s Bathroom Lights Off when kids sleeping'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660788689506).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.sloane_sleeping
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.upstairs_guest_bathroom_motion_sensor
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.sloanes_bathroom_vanity_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.sloanes_bathroom_shower
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.sloanes_bathroom_vanity_lights
+    deviceId: light.sloanes_bathroom_vanity_lights

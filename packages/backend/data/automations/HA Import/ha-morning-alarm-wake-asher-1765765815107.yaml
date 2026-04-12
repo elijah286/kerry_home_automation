@@ -1,0 +1,95 @@
+id: ha-morning-alarm-wake-asher-1765765815107
+name: 'Morning Alarm: Wake Asher'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1765765815107).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 NaN * * *
+    type: time
+  - type: device_state
+    deviceId: input_button.wake_asher
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.asher_s_alarm
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: Time for school! Make your beds and brush your teeth!
+      deviceId: ''
+    deviceId: notify.alexa_media
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.asher_sleeping
+    deviceId: input_boolean.asher_sleeping
+  - type: device_command
+    command:
+      type: cover
+      action: open_cover
+      deviceId: cover.ashers_bedroom_blind
+    deviceId: cover.ashers_bedroom_blind
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.ashers_bedroom_ceiling_fan
+    deviceId: fan.ashers_bedroom_ceiling_fan
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.ashers_bedroom_desk_lamp
+    deviceId: light.ashers_bedroom_desk_lamp
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.ashers_bedroom_closet_light
+    deviceId: switch.ashers_bedroom_closet_light
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.stairs_main_lights
+      brightness: 127
+    deviceId: light.stairs_main_lights
+  - then:
+      - type: device_command
+        command:
+          type: media_player
+          action: volume_set
+          volume: 0.6
+          deviceId: media_player.asher_echo
+        deviceId: media_player.asher_echo
+      - type: device_command
+        command:
+          type: media_player
+          action: play_media
+          deviceId: media_player.asher_echo
+        deviceId: media_player.asher_echo
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: input_boolean.wake_asher_with_music
+      attribute: state
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_piano_room
+    deviceId: input_boolean.person_in_piano_room

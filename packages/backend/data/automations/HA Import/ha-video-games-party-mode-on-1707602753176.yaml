@@ -1,0 +1,32 @@
+id: ha-video-games-party-mode-on-1707602753176
+name: 'Video Games: Party Mode On '
+group: HA Import
+description: 'Imported from Home Assistant (id: 1707602753176).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.party_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.video_game_time_elapsed
+    deviceId: input_boolean.video_game_time_elapsed
+  - type: device_command
+    command:
+      type: timer
+      action: start
+      deviceId: timer.video_game
+    deviceId: timer.video_game
+  - type: delay
+    duration: '00:00:01'
+  - type: device_command
+    command:
+      type: timer
+      action: pause
+      deviceId: timer.video_game
+    deviceId: timer.video_game

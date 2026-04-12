@@ -1,0 +1,30 @@
+id: ha-v2-boys-bathroom-motion-at-night-1671409149066
+name: 'V2: Boys Bathroom Motion at Night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1671409149066).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.boys_bathroom_motion
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.boys_bathroom_vanity_lights_new
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.boys_bathroom_vanity_lights_new
+      brightness: 51
+    deviceId: light.boys_bathroom_vanity_lights_new

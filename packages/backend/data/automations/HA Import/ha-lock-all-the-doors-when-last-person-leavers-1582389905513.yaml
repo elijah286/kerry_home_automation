@@ -1,0 +1,24 @@
+id: ha-lock-all-the-doors-when-last-person-leavers-1582389905513
+name: Lock all the doors when last person leavers
+group: HA Import
+description: 'Imported from Home Assistant (id: 1582389905513).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: lock
+      action: lock
+      deviceId: ''
+    deviceId: lock.lock
+  - type: device_command
+    command:
+      type: lock
+      action: lock
+      deviceId: ''
+    deviceId: lock.lock

@@ -1,0 +1,41 @@
+id: ha-ashers-lamp-timer-during-day-15-min-when-light-outside-1564775344444
+name: 'Ashers Lamp Timer during day: 15 min when light outside'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1564775344444).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:15'
+    type: device_state
+    deviceId: light.ashers_bedroom_table_lamp
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - cron: '*/15 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.day_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: ''
+    deviceId: light.ashers_bedroom_desk_lamp
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.ashers_bedroom_table_lamp
+    deviceId: light.ashers_bedroom_table_lamp

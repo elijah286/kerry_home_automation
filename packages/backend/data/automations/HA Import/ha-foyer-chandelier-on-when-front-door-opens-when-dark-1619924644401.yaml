@@ -1,0 +1,43 @@
+id: ha-foyer-chandelier-on-when-front-door-opens-when-dark-1619924644401
+name: Foyer Chandelier on when front door opens when dark
+group: HA Import
+description: 'Imported from Home Assistant (id: 1619924644401).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.front_door
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.sleepover_party
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.front_foyer_chandelier
+      brightness: 168
+    deviceId: light.front_foyer_chandelier
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.motion_in_dining
+    deviceId: input_boolean.motion_in_dining

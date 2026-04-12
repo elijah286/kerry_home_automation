@@ -1,0 +1,33 @@
+id: ha-reload-tesla-powerwall-connectivity-1754271536058
+name: Reload Tesla Powerwall Connectivity
+group: HA Import
+description: 'Imported from Home Assistant (id: 1754271536058).'
+enabled: false
+mode: single
+triggers:
+  - to: unavailable
+    type: device_state
+    deviceId: sensor.home_energy_gateway_battery
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: unavailable
+    deviceId: sensor.home_energy_gateway_battery
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: homeassistant
+      action: reload_config_entry
+      deviceId: sensor.home_energy_gateway_battery
+    deviceId: sensor.home_energy_gateway_battery
+  - type: device_command
+    command:
+      type: persistent_notification
+      action: create
+      message: Powerwall Connectivity Reloaded
+      deviceId: ''
+    deviceId: persistent_notification.create

@@ -1,0 +1,52 @@
+id: ha-apply-mode-asher-sleeping-1733805296946
+name: 'apply mode: Asher sleeping'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733805296946).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:01:00'
+    type: device_state
+    deviceId: light.ashers_bedroom_desk_lamp
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - type: time_window
+    after: '20:00'
+    before: '23:59'
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.asher_sleeping
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: Night
+        deviceId: input_select.system_mode
+        attribute: state
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: light.ashers_bedroom_desk_lamp
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: light.ashers_bedroom_table_lamp
+            attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.asher_sleeping
+    deviceId: input_boolean.asher_sleeping

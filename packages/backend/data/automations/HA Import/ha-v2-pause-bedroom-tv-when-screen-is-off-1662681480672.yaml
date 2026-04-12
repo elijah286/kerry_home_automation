@@ -1,0 +1,24 @@
+id: ha-v2-pause-bedroom-tv-when-screen-is-off-1662681480672
+name: 'V2: Pause Bedroom TV when screen is off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1662681480672).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: switch.bedroom_tv
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: playing
+    deviceId: media_player.master_bedroom
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: media_play_pause
+      deviceId: media_player.master_bedroom
+    deviceId: media_player.master_bedroom

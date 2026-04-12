@@ -1,0 +1,74 @@
+id: ha-hvac-simulated-fan-1732544024585
+name: HVAC Simulated Fan
+group: HA Import
+description: 'Imported from Home Assistant (id: 1732544024585).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.simulated_hvac_fan_main_floor
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.sexy_time
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.simulated_hvac_fan_main_floor
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: Night
+        deviceId: input_select.system_mode
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.sexy_time
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_on
+      deviceId: media_player.master_suite
+    deviceId: media_player.master_suite
+  - type: delay
+    duration: '00:00:01'
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.6
+      deviceId: media_player.master_suite
+    deviceId: media_player.master_suite
+  - type: delay
+    duration: '00:00:01'
+  - type: device_command
+    command:
+      type: media_player
+      action: play_media
+      deviceId: media_player.master_bedroom_echo
+      mediaContentId: play white noise for sleep on repeat
+      mediaContentType: custom
+    deviceId: media_player.master_bedroom_echo
+  - type: device_command
+    command:
+      type: music_assistant
+      action: play_media
+      deviceId: media_player.master_suite_receiver_4
+    deviceId: media_player.master_suite_receiver_4
+  - type: device_command
+    command:
+      type: media_player
+      action: repeat_set
+      deviceId: media_player.master_suite_receiver_4
+    deviceId: media_player.master_suite_receiver_4

@@ -29,7 +29,7 @@ export default function AreasPage() {
   const [editName, setEditName] = useState('');
 
   const loadAreas = useCallback(() => {
-    fetch(`${API_BASE}/api/areas`)
+    fetch(`${API_BASE}/api/areas`, { credentials: 'include' })
       .then((r) => r.json())
       .then((data: { areas: Area[] }) => setAreas(data.areas))
       .catch(() => {})
@@ -41,7 +41,7 @@ export default function AreasPage() {
   const createArea = async () => {
     const name = newName.trim();
     if (!name) return;
-    await fetch(`${API_BASE}/api/areas`, {
+    await fetch(`${API_BASE}/api/areas`, { credentials: 'include',
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
@@ -53,7 +53,7 @@ export default function AreasPage() {
   const updateArea = async (id: string) => {
     const name = editName.trim();
     if (!name) return;
-    await fetch(`${API_BASE}/api/areas/${id}`, {
+    await fetch(`${API_BASE}/api/areas/${id}`, { credentials: 'include',
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
@@ -63,7 +63,7 @@ export default function AreasPage() {
   };
 
   const deleteArea = async (id: string) => {
-    await fetch(`${API_BASE}/api/areas/${id}`, { method: 'DELETE' });
+    await fetch(`${API_BASE}/api/areas/${id}`, { credentials: 'include', method: 'DELETE' });
     loadAreas();
   };
 

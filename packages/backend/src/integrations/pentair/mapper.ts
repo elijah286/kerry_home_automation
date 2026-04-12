@@ -41,7 +41,7 @@ export function mapBody(raw: ICObject, entryId?: string): PoolBodyState {
     lastUpdated: now(),
     kind,
     on: isOn,
-    currentTemp: toNumOrNull(isOn ? p.TEMP : p.LSTTMP),
+    currentTemp: toNumOrNull(p.TEMP ?? p.LSTTMP),
     setPoint: toNumOrNull(p.LOTMP ?? p.HITMP),
     heaterOn: p.HTMODE != null && p.HTMODE !== '0' && p.HTMODE !== 'OFF',
   };

@@ -1,0 +1,17 @@
+id: ha-play-xbox-close-blinds-1767209069479
+name: 'Play Xbox: close blinds'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1767209069479).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.play_xbox
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: cover
+      action: close_cover
+      deviceId: cover.game_room_blinds
+    deviceId: cover.game_room_blinds

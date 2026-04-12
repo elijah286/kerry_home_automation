@@ -1,0 +1,39 @@
+id: ha-v2-smoke-detector-service-reminder-1690652640215
+name: 'V2: Smoke Detector service reminder'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1690652640215).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.smoke_detector_service_days_left
+    attribute: state
+  - cron: '* */12 * * *'
+    type: time
+conditions:
+  - op: lt
+    type: device_state
+    value: 1
+    deviceId: sensor.smoke_detector_service_days_left
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.smoke_detector_needs_service
+    deviceId: input_boolean.smoke_detector_needs_service
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Smoke detector batteries should be replaced
+      deviceId: ''
+    deviceId: notify.everyone
+  - type: device_command
+    command:
+      type: notify
+      action: persistent_notification
+      message: Smoke detector batteries should be replaced
+      deviceId: ''
+    deviceId: notify.persistent_notification

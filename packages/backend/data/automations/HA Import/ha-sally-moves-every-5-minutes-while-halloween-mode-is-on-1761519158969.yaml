@@ -1,0 +1,22 @@
+id: ha-sally-moves-every-5-minutes-while-halloween-mode-is-on-1761519158969
+name: Sally moves every 5 minutes while halloween mode is on
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761519158969).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.halloween_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.sally_sings
+    deviceId: switch.sally_sings

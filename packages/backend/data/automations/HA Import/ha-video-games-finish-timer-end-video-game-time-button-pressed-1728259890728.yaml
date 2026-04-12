@@ -1,0 +1,17 @@
+id: ha-video-games-finish-timer-end-video-game-time-button-pressed-1728259890728
+name: 'video games: finish timer: end video game time button pressed'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1728259890728).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.end_video_game_time
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: timer
+      action: start
+      deviceId: timer.video_game
+    deviceId: timer.video_game

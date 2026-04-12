@@ -1,0 +1,41 @@
+id: ha-v2-empty-roborock-dust-bin-1728269017450
+name: 'V2: Empty roborock dust bin'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1728269017450).'
+enabled: false
+mode: single
+triggers:
+  - to: docked
+    for: '00:02:00'
+    from: returning
+    type: device_state
+    deviceId: vacuum.roborock_s7
+    attribute: state
+  - to: idle
+    from: returning
+    type: device_state
+    deviceId: vacuum.roborock_s7
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Morning
+          deviceId: input_select.system_mode
+          attribute: state
+actions:
+  - type: device_command
+    command:
+      type: vacuum
+      action: send_command
+      command: app_start_collect_dust
+      deviceId: vacuum.roborock_s7
+    deviceId: vacuum.roborock_s7

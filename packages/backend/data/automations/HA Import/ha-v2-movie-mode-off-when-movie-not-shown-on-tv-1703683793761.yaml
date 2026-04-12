@@ -1,0 +1,30 @@
+id: ha-v2-movie-mode-off-when-movie-not-shown-on-tv-1703683793761
+name: 'V2: Movie Mode Off When Movie Not Shown on TV'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1703683793761).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+  - type: device_state
+    deviceId: media_player.movie_room_tv
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: remote.sony_bravia_tv
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.movie_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.movie_mode
+    deviceId: input_boolean.movie_mode

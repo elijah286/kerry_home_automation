@@ -1,0 +1,18 @@
+id: ha-dishwasher-alert-off-when-run-1600124862865
+name: Dishwasher alert off when run
+group: HA Import
+description: 'Imported from Home Assistant (id: 1600124862865).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.dishwasher_run
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: ''
+    deviceId: input_boolean.turn_off

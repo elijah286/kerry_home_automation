@@ -1,0 +1,65 @@
+id: ha-auto-re-activate-blind-control-office-1735253806540
+name: 'auto re-activate blind control: office'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1735253806540).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: device_state
+    deviceId: input_button.day_mode
+    attribute: state
+  - type: sun
+    event: sunrise
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_detected_in_office
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+  - type: time_window
+    after: '06:00'
+    before: '23:59'
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_detected_in_office
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.vertical_toggle_control_office
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: clear-night
+        deviceId: weather.home
+        attribute: state
+      - op: eq
+        type: device_state
+        value: sunny
+        deviceId: weather.home
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.vertical_toggle_control_office
+    deviceId: switch.vertical_toggle_control_office

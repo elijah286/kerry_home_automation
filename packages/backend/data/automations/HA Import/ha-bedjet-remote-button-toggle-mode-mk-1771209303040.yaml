@@ -1,0 +1,46 @@
+id: ha-bedjet-remote-button-toggle-mode-mk-1771209303040
+name: 'Bedjet Remote Button Toggle Mode: MK'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1771209303040).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: climate
+          action: set_hvac_mode
+          deviceId: climate.rpi_meghan
+          hvac_mode: heat
+        deviceId: climate.rpi_meghan
+      - type: device_command
+        command:
+          type: climate
+          action: set_temperature
+          deviceId: climate.rpi_meghan
+          temperature: 102
+        deviceId: climate.rpi_meghan
+    then:
+      - type: device_command
+        command:
+          type: climate
+          action: set_hvac_mode
+          deviceId: climate.rpi_meghan
+          hvac_mode: cool
+        deviceId: climate.rpi_meghan
+      - type: device_command
+        command:
+          type: climate
+          action: set_temperature
+          deviceId: climate.rpi_meghan
+          temperature: 68
+        deviceId: climate.rpi_meghan
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: heat
+      deviceId: climate.rpi_meghan
+      attribute: state

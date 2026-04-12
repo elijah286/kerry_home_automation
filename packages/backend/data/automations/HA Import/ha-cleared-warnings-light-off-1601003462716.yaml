@@ -1,0 +1,97 @@
+id: ha-cleared-warnings-light-off-1601003462716
+name: Cleared warnings light off
+group: HA Import
+description: 'Imported from Home Assistant (id: 1601003462716).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.car_warning
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.battery_warning
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.alarm_arming_warning
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.dishwasher_warning
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.portal_warning
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.garage_warning
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.fridge_warning
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.laundry_room_door_warning
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.garage_warning
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.car_warning
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.battery_warning
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.alarm_arming_warning
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.portal_warning
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.dishwasher_warning
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.fridge_warning
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: ''
+    deviceId: switch.turn_off
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: All warnings cleared
+      deviceId: ''
+    deviceId: notify.everyone

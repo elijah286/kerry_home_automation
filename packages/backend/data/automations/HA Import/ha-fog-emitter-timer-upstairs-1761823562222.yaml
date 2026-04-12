@@ -1,0 +1,19 @@
+id: ha-fog-emitter-timer-upstairs-1761823562222
+name: 'Fog Emitter Timer: Upstairs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761823562222).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:00:05'
+    type: device_state
+    deviceId: switch.fog
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.fog
+    deviceId: switch.fog

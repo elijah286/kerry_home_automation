@@ -1,0 +1,15 @@
+id: ha-kiosk-face-detected-guest-room-1733552004376
+name: 'kiosk face detected: guest room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733552004376).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_guest_room
+    deviceId: input_boolean.person_in_guest_room

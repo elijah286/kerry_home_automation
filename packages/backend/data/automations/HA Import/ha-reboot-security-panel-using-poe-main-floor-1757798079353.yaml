@@ -1,0 +1,26 @@
+id: ha-reboot-security-panel-using-poe-main-floor-1757798079353
+name: 'Reboot Security Panel using PoE: Main Floor'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1757798079353).'
+enabled: false
+mode: single
+triggers:
+  - to: unavailable
+    for: '00:05:00'
+    type: device_state
+    deviceId: binary_sensor.front_door
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: persistent_notification
+      action: create
+      message: Rebooting Main Floor Security Controller
+      deviceId: ''
+    deviceId: persistent_notification.create
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.security_panel_port_5_power_cycle
+    deviceId: button.security_panel_port_5_power_cycle

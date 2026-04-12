@@ -1,0 +1,35 @@
+id: ha-v2-recurring-alexa-that-garage-door-left-open-in-garage-1664712667431
+name: 'V2: recurring Alexa that garage door left open in garage'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1664712667431).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/2 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: binary_sensor.garage_door
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.silence_alerts
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: The door to the garage has been left open.
+      deviceId: ''
+    deviceId: notify.alexa_media

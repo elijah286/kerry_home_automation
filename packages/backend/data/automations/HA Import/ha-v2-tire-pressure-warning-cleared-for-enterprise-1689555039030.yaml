@@ -1,0 +1,26 @@
+id: ha-v2-tire-pressure-warning-cleared-for-enterprise-1689555039030
+name: 'V2: Tire Pressure Warning Cleared for Enterprise'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1689555039030).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+  - type: manual
+  - type: manual
+  - type: manual
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.tire_pressure_warning_for_enterprise
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.tire_pressure_warning_for_enterprise
+    deviceId: input_boolean.tire_pressure_warning_for_enterprise

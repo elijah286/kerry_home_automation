@@ -1,0 +1,48 @@
+id: ha-garage-fridge-doors-closed-clears-warning-1619231500244
+name: Garage Fridge doors closed clears warning
+group: HA Import
+description: 'Imported from Home Assistant (id: 1619231500244).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.garage_fridge_window_door_is_open
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.fridge_warning
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.garage_freezer_door_window_door_is_open
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.garage_fridge_window_door_is_open
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.refrigerator_door_open
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.fridge_warning
+    deviceId: input_boolean.fridge_warning
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: All fridge doors closed
+      deviceId: ''
+    deviceId: notify.everyone

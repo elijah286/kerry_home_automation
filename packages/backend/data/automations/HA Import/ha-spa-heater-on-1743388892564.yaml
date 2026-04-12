@@ -1,0 +1,36 @@
+id: ha-spa-heater-on-1743388892564
+name: Spa Heater On
+group: HA Import
+description: 'Imported from Home Assistant (id: 1743388892564).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.spa_heater
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.spa
+    deviceId: switch.spa
+  - type: device_command
+    command:
+      type: water_heater
+      action: turn_on
+      deviceId: water_heater.spa
+    deviceId: water_heater.spa
+  - type: device_command
+    command:
+      type: water_heater
+      action: set_operation_mode
+      deviceId: water_heater.spa
+    deviceId: water_heater.spa
+  - type: device_command
+    command:
+      type: script
+      action: pool_heat_spa
+      deviceId: ''
+    deviceId: script.pool_heat_spa

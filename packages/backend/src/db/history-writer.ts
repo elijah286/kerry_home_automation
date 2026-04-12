@@ -109,13 +109,22 @@ class HistoryWriter {
     const batch = this.buffer.splice(0);
 
     try {
+      // Filter out devices that have history recording disabled
+      const { rows: disabled } = await query<{ device_id: string }>(
+        'SELECT device_id FROM device_settings WHERE history_enabled = FALSE',
+      );
+      const disabledSet = new Set(disabled.map((r) => r.device_id));
+      const filtered = batch.filter((e) => !disabledSet.has(e.deviceId));
+
+      if (filtered.length === 0) return;
+
       await this.ensurePartition();
 
       const values: unknown[] = [];
       const placeholders: string[] = [];
       let idx = 1;
 
-      for (const entry of batch) {
+      for (const entry of filtered) {
         placeholders.push(`($${idx}, $${idx + 1}, $${idx + 2})`);
         values.push(entry.deviceId, JSON.stringify(entry.state), entry.changedAt);
         idx += 3;

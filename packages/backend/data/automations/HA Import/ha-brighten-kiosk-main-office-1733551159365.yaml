@@ -1,0 +1,22 @@
+id: ha-brighten-kiosk-main-office-1733551159365
+name: 'Brighten Kiosk: Main Office'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733551159365).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.office_main_lights
+    attribute: state
+  - type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: number
+      value: '255'
+      action: set_value
+      deviceId: number.main_office_kiosk_screen_brightness
+    deviceId: number.main_office_kiosk_screen_brightness

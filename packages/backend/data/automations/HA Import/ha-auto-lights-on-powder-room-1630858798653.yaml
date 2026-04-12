@@ -1,0 +1,61 @@
+id: ha-auto-lights-on-powder-room-1630858798653
+name: 'auto lights on: powder room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1630858798653).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_powder_room
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Critical
+      deviceId: input_select.power_saving_mode
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.downstairs_guest_bathroom_vanity_lights
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.downstairs_guest_bathroom_shower_lights_2
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.downstairs_guest_bathroom_exhaust_fan
+    deviceId: switch.downstairs_guest_bathroom_exhaust_fan
+  - else:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.downstairs_guest_bathroom_vanity_lights
+          brightness: 26
+        deviceId: light.downstairs_guest_bathroom_vanity_lights
+    then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.downstairs_guest_bathroom_vanity_lights
+          brightness: 127
+        deviceId: light.downstairs_guest_bathroom_vanity_lights
+    type: condition
+    condition:
+      type: not
+      condition:
+        op: eq
+        type: device_state
+        value: Night
+        deviceId: input_select.system_mode
+        attribute: state

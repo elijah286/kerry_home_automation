@@ -1,0 +1,24 @@
+id: ha-bedroom-lamps-off-when-bright-day-outside-1597171584721
+name: Bedroom lamps off when bright day outside
+group: HA Import
+description: 'Imported from Home Assistant (id: 1597171584721).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off

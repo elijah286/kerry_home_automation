@@ -1,0 +1,17 @@
+id: ha-v2-tires-on-white-tesla-swapped-1688786530150
+name: 'V2: Tires on White Tesla Swapped'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1688786530150).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_select.tires_on_white_tesla
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_number
+      action: set_value
+      deviceId: ''
+    deviceId: input_number.set_value

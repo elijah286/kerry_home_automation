@@ -1,0 +1,48 @@
+id: ha-kiosk-url-reload-default-kitchen-1763297038390
+name: 'Kiosk URL reload default: Kitchen'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1763297038390).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'off'
+    for: '00:20:00'
+    type: device_state
+    deviceId: input_boolean.kitchen_motion_detected
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: input_boolean.show_doorbell_camera
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: http://192.168.68.203:8123/lovelace/Kitchen?kiosk
+      deviceId: sensor.kitchen_kiosk_current_page
+      attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: de.ozerov.fully
+        deviceId: sensor.kitchen_kiosk_foreground_app
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: sensor.kitchen_kiosk_foreground_app
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.kitchen_kiosk_load_start_url
+    deviceId: button.kitchen_kiosk_load_start_url

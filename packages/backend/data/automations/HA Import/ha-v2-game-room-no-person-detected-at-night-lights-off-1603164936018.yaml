@@ -1,0 +1,120 @@
+id: ha-v2-game-room-no-person-detected-at-night-lights-off-1603164936018
+name: 'V2: Game Room. No person detected at night -->lights off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1603164936018).'
+enabled: false
+mode: single
+triggers:
+  - to: Night
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+  - cron: '*/30 * * * *'
+    type: time
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.person_in_movie_room
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.game_room_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.movie_room_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.theater_floor_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.game_room_ceiling_fan_light
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.movie_room_ceiling_fan_light
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.sleepover_party
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: None
+      deviceId: input_select.power_saving_mode
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: media_player.media_room_tv
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: '0'
+        deviceId: sensor.game_room_zone_person_count
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: sensor.game_room_zone_person_count
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.party_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_movie_room
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.game_room_main_lights
+    deviceId: light.game_room_main_lights
+  - type: device_command
+    command:
+      type: cover
+      action: close_cover
+      deviceId: cover.game_room_blinds
+    deviceId: cover.game_room_blinds
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.exterior_ceiling_fan
+    deviceId: fan.exterior_ceiling_fan

@@ -9,6 +9,10 @@ const API_BASE = typeof window !== 'undefined'
   ? `http://${window.location.hostname}:3000`
   : 'http://localhost:3000';
 
+export type EntrySaveDetail =
+  | { kind: 'created'; entryId: string }
+  | { kind: 'updated'; entryId: string };
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -17,7 +21,8 @@ interface Props {
   fields: ConfigField[];
   /** If provided, we're editing an existing entry */
   entry?: IntegrationEntry | null;
-  onSaved: () => void;
+  /** Called after a successful save. For new instances, includes the new entry id. */
+  onSaved: (detail?: EntrySaveDetail) => void;
 }
 
 export function AddEntryDialog({ open, onClose, integrationId, integrationName, fields, entry, onSaved }: Props) {
@@ -46,20 +51,28 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
     setSaving(true);
     try {
       if (entry) {
-        await fetch(`${API_BASE}/api/integrations/${integrationId}/entries/${entry.id}`, {
+        const res = await fetch(`${API_BASE}/api/integrations/${integrationId}/entries/${entry.id}`, {
+          credentials: 'include',
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ label, config: values }),
         });
+        if (!res.ok) return;
+        onSaved({ kind: 'updated', entryId: entry.id });
+        onClose();
       } else {
-        await fetch(`${API_BASE}/api/integrations/${integrationId}/entries`, {
+        const res = await fetch(`${API_BASE}/api/integrations/${integrationId}/entries`, {
+          credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ label, config: values }),
         });
+        if (!res.ok) return;
+        const data = (await res.json()) as { id?: string };
+        if (!data.id) return;
+        onSaved({ kind: 'created', entryId: data.id });
+        onClose();
       }
-      onSaved();
-      onClose();
     } finally {
       setSaving(false);
     }
@@ -94,12 +107,12 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
               </p>
             )}
 
-            {integrationId === 'weather' && (
+            {(integrationId === 'weather' || integrationId === 'sun') && (
               <button
                 type="button"
                 onClick={async () => {
                   try {
-                    const res = await fetch(`${API_BASE}/api/settings`);
+                    const res = await fetch(`${API_BASE}/api/settings`, { credentials: 'include' });
                     const data = await res.json();
                     const s = data.settings as Record<string, unknown>;
                     if (typeof s.home_latitude === 'number' && typeof s.home_longitude === 'number') {
@@ -107,6 +120,9 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
                         ...v,
                         latitude: String(s.home_latitude),
                         longitude: String(s.home_longitude),
+                        ...(!(v.label ?? '').trim() && typeof s.home_address === 'string'
+                          ? { label: s.home_address as string }
+                          : {}),
                       }));
                       if (!label && typeof s.home_address === 'string') {
                         setLabel(s.home_address as string);

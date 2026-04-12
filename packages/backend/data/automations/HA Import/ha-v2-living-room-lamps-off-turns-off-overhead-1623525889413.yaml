@@ -1,0 +1,22 @@
+id: ha-v2-living-room-lamps-off-turns-off-overhead-1623525889413
+name: 'V2: Living Room Lamps Off turns off overhead'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1623525889413).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.living_room_table_lamp
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: light.living_room_table_near_fireplace
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.living_room_ceiling_fan_light
+    deviceId: light.living_room_ceiling_fan_light

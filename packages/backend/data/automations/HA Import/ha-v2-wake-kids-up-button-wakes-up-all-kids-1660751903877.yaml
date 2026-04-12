@@ -1,0 +1,17 @@
+id: ha-v2-wake-kids-up-button-wakes-up-all-kids-1660751903877
+name: 'V2: Wake Kids Up Button wakes up all kids'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660751903877).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.wake_kids_up
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.wake_levi
+    deviceId: input_button.wake_levi

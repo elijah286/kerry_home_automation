@@ -1,0 +1,24 @@
+id: ha-person-detected-boys-bathroom-1735156366049
+name: 'Person detected: boys bathroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1735156366049).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.boys_bathroom_motion
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_boys_bathroom
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_boys_bathroom
+    deviceId: input_boolean.person_in_boys_bathroom

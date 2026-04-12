@@ -1,0 +1,24 @@
+id: ha-person-detected-toilet-room-1733454399264
+name: 'person detected: toilet room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733454399264).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.toilet_closet_motion_detection
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_toilet_room
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_toilet_room
+    deviceId: input_boolean.person_in_toilet_room

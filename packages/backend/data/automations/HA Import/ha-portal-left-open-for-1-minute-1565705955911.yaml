@@ -1,0 +1,27 @@
+id: ha-portal-left-open-for-1-minute-1565705955911
+name: 'Portal: left open for 1 minute'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565705955911).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:01:00'
+    from: 'off'
+    type: device_state
+    deviceId: input_boolean.portal_open
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: A window or door has been left open for 1 minute. AC will be turned off if it is left open for 10 minutes.
+      deviceId: ''
+    deviceId: notify.everyone
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.portal_left_open
+    deviceId: input_boolean.portal_left_open

@@ -1,0 +1,264 @@
+id: ha-person-detected-kitchen-1566664414331
+name: 'Person Detected: Kitchen'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566664414331).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.kitchen_motion_sensor
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.breakfast_table_motion
+    attribute: state
+  - type: device_state
+    deviceId: binary_sensor.back_door
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: light.kitchen_under_cabinet
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.kitchen_zone_person_occupancy
+    attribute: state
+  - type: device_state
+    deviceId: binary_sensor.breakfast_table_motion
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.kitchen_kiosk_person_occupancy
+    attribute: state
+  - type: device_state
+    deviceId: binary_sensor.refrigerator_door_open
+    attribute: state
+  - type: device_state
+    deviceId: binary_sensor.breakfast_table
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.kitchen_kiosk_person_occupancy
+    attribute: state
+  - type: device_state
+    deviceId: sensor.kitchen_kiosk_person_active_count
+    attribute: state
+  - type: device_state
+    deviceId: sensor.kitchen_zone_person_active_count
+    attribute: state
+  - to:
+      - 'off'
+    type: device_state
+    deviceId: input_boolean.kiosk_kitchen_screensaver
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.kitchen_motion_detected
+    attribute: state
+  - type: or
+    conditions:
+      - type: or
+        conditions:
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: 'off'
+              deviceId: binary_sensor.breakfast_table_motion
+              attribute: state
+          - op: eq
+            type: device_state
+            value: unavailable
+            deviceId: binary_sensor.breakfast_table_motion
+            attribute: state
+      - type: or
+        conditions:
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: 'off'
+              deviceId: binary_sensor.kitchen_motion_sensor
+              attribute: state
+          - op: eq
+            type: device_state
+            value: unavailable
+            deviceId: binary_sensor.kitchen_motion_sensor
+            attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.kitchen_zone_person_occupancy
+        attribute: state
+      - type: and
+        conditions:
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: 'on'
+              deviceId: binary_sensor.back_door
+              attribute: state
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: 'off'
+              deviceId: binary_sensor.back_door
+              attribute: state
+      - type: and
+        conditions:
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: 'on'
+              deviceId: binary_sensor.breakfast_table
+              attribute: state
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: 'off'
+              deviceId: binary_sensor.breakfast_table
+              attribute: state
+      - type: and
+        conditions:
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: Night
+              deviceId: input_select.system_mode
+              attribute: state
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: Kitchen
+              deviceId: sensor.saros_z70_current_room
+              attribute: state
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: Breakfast Table
+              deviceId: sensor.saros_z70_current_room
+              attribute: state
+          - type: or
+            conditions:
+              - op: eq
+                type: device_state
+                value: 'on'
+                deviceId: binary_sensor.breakfast_table_motion
+                attribute: state
+              - op: eq
+                type: device_state
+                value: 'on'
+                deviceId: binary_sensor.kitchen_motion_sensor
+                attribute: state
+      - type: and
+        conditions:
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: 'on'
+              deviceId: binary_sensor.refrigerator_door_open
+              attribute: state
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: 'off'
+              deviceId: binary_sensor.refrigerator_door_open
+              attribute: state
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: unavailable
+              deviceId: binary_sensor.refrigerator_door_open
+              attribute: state
+      - type: and
+        conditions:
+          - type: or
+            conditions:
+              - op: eq
+                type: device_state
+                value: 'on'
+                deviceId: binary_sensor.breakfast_table_motion
+                attribute: state
+              - op: eq
+                type: device_state
+                value: 'on'
+                deviceId: binary_sensor.kitchen_motion_sensor
+                attribute: state
+          - type: or
+            conditions:
+              - op: eq
+                type: device_state
+                value: 'off'
+                deviceId: input_boolean.levi_sleeping
+                attribute: state
+              - op: eq
+                type: device_state
+                value: 'off'
+                deviceId: input_boolean.asher_sleeping
+                attribute: state
+              - op: eq
+                type: device_state
+                value: 'off'
+                deviceId: input_boolean.sloane_sleeping
+                attribute: state
+      - type: and
+        conditions:
+          - type: and
+            conditions:
+              - type: not
+                condition:
+                  op: eq
+                  type: device_state
+                  value: 'on'
+                  deviceId: input_boolean.kiosk_kitchen_screensaver
+                  attribute: state
+              - type: not
+                condition:
+                  op: eq
+                  type: device_state
+                  value: 'off'
+                  deviceId: input_boolean.kiosk_kitchen_screensaver
+                  attribute: state
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: unavailable
+              deviceId: camera.kitchen_kiosk
+              attribute: state
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 'on'
+            deviceId: binary_sensor.kitchen_kiosk_person_occupancy
+            attribute: state
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: unavailable
+              deviceId: camera.kitchen_kiosk
+              attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.kitchen_motion_detected
+    deviceId: input_boolean.kitchen_motion_detected

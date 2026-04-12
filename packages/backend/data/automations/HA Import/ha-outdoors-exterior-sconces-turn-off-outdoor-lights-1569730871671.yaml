@@ -1,0 +1,24 @@
+id: ha-outdoors-exterior-sconces-turn-off-outdoor-lights-1569730871671
+name: Outdoors Exterior sconces turn off outdoor lights
+group: HA Import
+description: 'Imported from Home Assistant (id: 1569730871671).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: switch.exterior_sconces
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.front_porch_landscape_side
+    deviceId: switch.front_porch_landscape_side
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off

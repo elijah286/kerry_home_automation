@@ -1,0 +1,33 @@
+id: ha-asher-s-light-on-at-night-1565057699336
+name: Asher's Light on at night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565057699336).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.ashers_bedroom_table_lamp
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: light.ashers_bedroom_closet_light
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: switch.ashers_bedroom_main_lights
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.boys_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Asher's room lights are on when he should be sleeping
+      deviceId: ''
+    deviceId: notify.everyone

@@ -1,0 +1,44 @@
+id: ha-outdoors-backyard-motion-at-night-1581049053253
+name: Outdoors Backyard motion at night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1581049053253).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_in_back
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: ''
+    deviceId: switch.turn_on
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: ''
+      brightness: 255
+    deviceId: light.turn_on
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: ''
+    deviceId: switch.turn_on
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Motion in backyard at night
+      deviceId: ''
+    deviceId: notify.everyone

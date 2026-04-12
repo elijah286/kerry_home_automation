@@ -1,0 +1,34 @@
+id: ha-person-detected-main-bathroom-1733612439528
+name: 'Person detected: main bathroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733612439528).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.master_bathroom_motion
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: light.master_bathroom_main_lights
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: switch.master_bathroom_elis_closet
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_main_bathroom
+    deviceId: input_boolean.person_in_main_bathroom

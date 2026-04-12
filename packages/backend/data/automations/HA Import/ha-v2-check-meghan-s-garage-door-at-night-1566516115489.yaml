@@ -1,0 +1,30 @@
+id: ha-v2-check-meghan-s-garage-door-at-night-1566516115489
+name: 'V2: Check Meghan''s garage door at night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566516115489).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: open
+    deviceId: cover.white
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: 'WARNING: Meghans garage door is open'
+      deviceId: ''
+    deviceId: notify.everyone
+  - type: device_command
+    command:
+      type: scene
+      action: turn_on
+      deviceId: ''
+    deviceId: scene.turn_on

@@ -1,0 +1,22 @@
+id: ha-v2-night-button-change-mode-1660740563488
+name: 'V2 Night Button: Change Mode'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660740563488).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - type: time_window
+    after: '20:00'
+    before: '06:00'
+actions:
+  - type: device_command
+    command:
+      type: input_select
+      action: select_option
+      option: Night
+      deviceId: input_select.system_mode
+    deviceId: input_select.system_mode

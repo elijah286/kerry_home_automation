@@ -1,0 +1,15 @@
+id: ha-v2-trigger-goodnight-from-ios-shortcut-1670164431191
+name: 'V2: Trigger goodnight from iOS Shortcut'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1670164431191).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.night_mode
+    deviceId: input_button.night_mode

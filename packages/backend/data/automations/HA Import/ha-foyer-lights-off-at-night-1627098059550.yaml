@@ -1,0 +1,18 @@
+id: ha-foyer-lights-off-at-night-1627098059550
+name: Foyer lights off at night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1627098059550).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.night_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.front_foyer_chandelier
+    deviceId: light.front_foyer_chandelier

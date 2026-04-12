@@ -1,0 +1,39 @@
+id: ha-v2-water-heater-service-reminder-1674922614100
+name: 'V2: Water Heater Service Reminder'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1674922614100).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.water_heater_service_days_left
+    attribute: state
+  - cron: '* */12 * * *'
+    type: time
+conditions:
+  - op: lt
+    type: device_state
+    value: 1
+    deviceId: sensor.water_heater_service_days_left
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.water_heater_needs_service
+    deviceId: input_boolean.water_heater_needs_service
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Water Heater Needs Service
+      deviceId: ''
+    deviceId: notify.everyone
+  - type: device_command
+    command:
+      type: persistent_notification
+      action: create
+      message: Water Heater Needs Service
+      deviceId: ''
+    deviceId: persistent_notification.create

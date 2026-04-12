@@ -1,0 +1,32 @@
+id: ha-reset-backyard-speaker-switch-if-living-room-not-playing-1602258894179
+name: Reset Backyard Speaker Switch if living room not playing
+group: HA Import
+description: 'Imported from Home Assistant (id: 1602258894179).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: media_player.living_room
+    attribute: state
+  - cron: 0 1 * * *
+    type: time
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.night_mode
+    attribute: state
+  - from: AUDIO2
+    type: device_state
+    deviceId: media_player.outdoor_speakers_receiver
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.outdoor_speakers_sync_to_main
+    deviceId: input_boolean.outdoor_speakers_sync_to_main

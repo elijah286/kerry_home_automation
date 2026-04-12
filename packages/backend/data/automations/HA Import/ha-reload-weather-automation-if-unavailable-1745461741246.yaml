@@ -1,0 +1,22 @@
+id: ha-reload-weather-automation-if-unavailable-1745461741246
+name: Reload weather automation if unavailable
+group: HA Import
+description: 'Imported from Home Assistant (id: 1745461741246).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/2 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: unavailable
+    deviceId: weather.home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: homeassistant
+      action: reload_config_entry
+      deviceId: weather.home
+    deviceId: weather.home

@@ -1,0 +1,31 @@
+id: ha-claudia-and-unis-code-1614543390937
+name: Claudia and Unis Code
+group: HA Import
+description: 'Imported from Home Assistant (id: 1614543390937).'
+enabled: false
+mode: single
+triggers:
+  - to: '2'
+    type: device_state
+    deviceId: sensor.front_door_lock_alarm_level
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Claudia and Unis have unlocked the front door
+      deviceId: ''
+    deviceId: notify.everyone
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on

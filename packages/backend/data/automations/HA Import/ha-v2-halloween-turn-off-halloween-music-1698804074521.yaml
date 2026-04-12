@@ -1,0 +1,18 @@
+id: ha-v2-halloween-turn-off-halloween-music-1698804074521
+name: 'V2: Halloween: turn off halloween music'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1698804074521).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.halloween_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: media_stop
+      deviceId: media_player.elijah_s_brane_x_prod
+    deviceId: media_player.elijah_s_brane_x_prod

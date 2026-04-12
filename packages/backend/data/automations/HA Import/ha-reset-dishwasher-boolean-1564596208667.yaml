@@ -1,0 +1,18 @@
+id: ha-reset-dishwasher-boolean-1564596208667
+name: Reset dishwasher boolean
+group: HA Import
+description: 'Imported from Home Assistant (id: 1564596208667).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.dinner_time
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.dishwasher_run
+    deviceId: input_boolean.dishwasher_run

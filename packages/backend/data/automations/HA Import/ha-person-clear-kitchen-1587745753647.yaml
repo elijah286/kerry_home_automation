@@ -1,0 +1,107 @@
+id: ha-person-clear-kitchen-1587745753647
+name: 'Person Clear: Kitchen'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1587745753647).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.kitchen_motion_detected
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: sensor.kitchen_zone_person_count
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.kitchen_zone_person_occupancy
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.kitchen_motion_sensor
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.kitchen_motion_sensor
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.kitchen_motion_sensor
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.kitchen_motion_sensor_low_battery_level
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.breakfast_table_motion
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.breakfast_table_motion
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.breakfast_table_motion
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.breakfast_table_motion_sensor_low_battery_level
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.kitchen_kiosk_person_occupancy
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.kitchen_kiosk_person_occupancy
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.kitchen_kiosk_person_occupancy
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.back_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.back_door
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.kitchen_motion_detected
+    deviceId: input_boolean.kitchen_motion_detected

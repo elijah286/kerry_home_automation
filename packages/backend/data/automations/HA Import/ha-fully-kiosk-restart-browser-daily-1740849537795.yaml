@@ -1,0 +1,20 @@
+id: ha-fully-kiosk-restart-browser-daily-1740849537795
+name: 'Fully Kiosk: Restart browser daily'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1740849537795).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 4 * * *
+    type: time
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.movie_room_kiosk_restart_browser
+    deviceId: button.movie_room_kiosk_restart_browser

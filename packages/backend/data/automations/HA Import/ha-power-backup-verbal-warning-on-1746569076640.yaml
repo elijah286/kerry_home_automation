@@ -1,0 +1,34 @@
+id: ha-power-backup-verbal-warning-on-1746569076640
+name: 'Power backup: verbal warning on'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1746569076640).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.home_energy_gateway_grid_status_2
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.home_energy_gateway_grid_status_2
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.power_level_verbal_warnings
+    deviceId: input_boolean.power_level_verbal_warnings

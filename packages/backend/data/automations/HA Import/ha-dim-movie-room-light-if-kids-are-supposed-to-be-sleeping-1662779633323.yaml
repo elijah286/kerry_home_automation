@@ -1,0 +1,34 @@
+id: ha-dim-movie-room-light-if-kids-are-supposed-to-be-sleeping-1662779633323
+name: Dim Movie Room light if kids are supposed to be sleeping
+group: HA Import
+description: 'Imported from Home Assistant (id: 1662779633323).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: light.movie_room_main_lights
+    attribute: state
+conditions:
+  - op: gt
+    type: device_state
+    value: 90
+    deviceId: light.movie_room_main_lights
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.movie_room_main_lights
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.movie_room_main_lights
+      brightness: 60
+    deviceId: light.movie_room_main_lights

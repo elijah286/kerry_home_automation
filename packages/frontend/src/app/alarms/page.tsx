@@ -27,6 +27,7 @@ import {
   enableAllAlarms,
 } from '@/lib/api';
 import type { Alarm, AlarmCreate, AlarmDeviceAction, DeviceState } from '@ha/shared';
+import { Select } from '@/components/ui/Select';
 
 const API_BASE = typeof window !== 'undefined'
   ? `http://${window.location.hostname}:3000`
@@ -215,29 +216,27 @@ function AlarmForm({
             return (
               <div key={idx} className="flex items-center gap-2 rounded-md border p-2"
                 style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-secondary)' }}>
-                <select
-                  value={da.deviceId}
-                  onChange={(e) => updateDevice(idx, 'deviceId', e.target.value)}
-                  className="flex-1 rounded border px-2 py-1.5 text-xs"
-                  style={{ backgroundColor: 'var(--color-bg)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
-                >
-                  <option value="">Select device...</option>
-                  {allDevices.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
-                <select
-                  value={da.action}
-                  onChange={(e) => updateDevice(idx, 'action', e.target.value)}
-                  className="w-28 rounded border px-2 py-1.5 text-xs"
-                  style={{ backgroundColor: 'var(--color-bg)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                <Select
+                  value={da.deviceId || '__none__'}
+                  onValueChange={(v) => updateDevice(idx, 'deviceId', v === '__none__' ? '' : v)}
+                  options={[
+                    { value: '__none__', label: 'Select device...' },
+                    ...allDevices.map((d) => ({ value: d.id, label: d.name })),
+                  ]}
+                  size="xs"
+                  className="flex-1"
+                />
+                <Select
+                  value={da.action || '__none__'}
+                  onValueChange={(v) => updateDevice(idx, 'action', v === '__none__' ? '' : v)}
+                  options={[
+                    { value: '__none__', label: 'Action...' },
+                    ...availableActions.map((a) => ({ value: a.value, label: a.label })),
+                  ]}
                   disabled={!da.deviceId}
-                >
-                  <option value="">Action...</option>
-                  {availableActions.map((a) => (
-                    <option key={a.value} value={a.value}>{a.label}</option>
-                  ))}
-                </select>
+                  size="xs"
+                  className="w-28"
+                />
                 <button onClick={() => removeDevice(idx)} className="p-1 rounded hover:bg-[var(--color-bg-hover)]">
                   <X className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
                 </button>
@@ -293,7 +292,7 @@ export default function AlarmsPage() {
     try {
       const [alarmRes, devRes] = await Promise.all([
         getAlarms(),
-        fetch(`${API_BASE}/api/devices`).then((r) => r.json()) as Promise<{ devices: DeviceState[] }>,
+        fetch(`${API_BASE}/api/devices`, { credentials: 'include' }).then((r) => r.json()) as Promise<{ devices: DeviceState[] }>,
       ]);
       setAlarms(alarmRes.alarms);
       setDevices(devRes.devices);

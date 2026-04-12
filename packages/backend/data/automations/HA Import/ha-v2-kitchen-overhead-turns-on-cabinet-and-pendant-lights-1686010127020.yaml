@@ -1,0 +1,18 @@
+id: ha-v2-kitchen-overhead-turns-on-cabinet-and-pendant-lights-1686010127020
+name: 'V2: Kitchen overhead turns on cabinet and pendant lights'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1686010127020).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: switch.kitchen_main_lights
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.kitchen_under_cabinet
+    deviceId: switch.kitchen_under_cabinet

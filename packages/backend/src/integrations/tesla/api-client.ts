@@ -41,6 +41,12 @@ export interface TeslaVehicleData {
     driver_temp_setting: number;
     passenger_temp_setting: number;
   };
+  drive_state: {
+    latitude: number;
+    longitude: number;
+    heading: number;
+    speed: number | null;
+  };
   vehicle_state: {
     locked: boolean;
     rt: number;

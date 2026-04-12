@@ -1,0 +1,18 @@
+id: ha-v2-boys-bathroom-off-when-kids-sleeping-1660794400936
+name: 'V2: Boys Bathroom off when kids sleeping'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660794400936).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.boys_bathroom_vanity_lights
+    deviceId: switch.boys_bathroom_vanity_lights

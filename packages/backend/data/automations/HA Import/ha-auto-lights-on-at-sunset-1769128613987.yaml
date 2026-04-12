@@ -1,0 +1,17 @@
+id: ha-auto-lights-on-at-sunset-1769128613987
+name: auto lights on at sunset
+group: HA Import
+description: 'Imported from Home Assistant (id: 1769128613987).'
+enabled: false
+mode: single
+triggers:
+  - type: sun
+    event: sunset
+    offset: '-00:30:00'
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.motion_lights_on
+    deviceId: input_boolean.motion_lights_on

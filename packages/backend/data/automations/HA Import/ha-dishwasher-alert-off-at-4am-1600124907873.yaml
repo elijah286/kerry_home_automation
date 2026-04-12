@@ -1,0 +1,16 @@
+id: ha-dishwasher-alert-off-at-4am-1600124907873
+name: Dishwasher Alert off at 4am
+group: HA Import
+description: 'Imported from Home Assistant (id: 1600124907873).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 4 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: ''
+    deviceId: input_boolean.turn_off

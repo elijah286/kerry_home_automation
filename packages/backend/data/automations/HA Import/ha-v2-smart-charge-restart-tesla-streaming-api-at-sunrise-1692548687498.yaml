@@ -1,0 +1,24 @@
+id: ha-v2-smart-charge-restart-tesla-streaming-api-at-sunrise-1692548687498
+name: 'V2: Smart Charge Restart Tesla streaming API at sunrise'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1692548687498).'
+enabled: false
+mode: single
+triggers:
+  - type: sun
+    event: sunrise
+actions:
+  - type: device_command
+    command:
+      type: hassio
+      action: addon_restart
+      deviceId: ''
+    deviceId: hassio.addon_restart
+  - type: delay
+    duration: '00:00:10'
+  - type: device_command
+    command:
+      type: hassio
+      action: addon_restart
+      deviceId: ''
+    deviceId: hassio.addon_restart

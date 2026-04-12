@@ -1,0 +1,15 @@
+id: ha-v2-kiosk-motion-on-upstairs-1687231360022
+name: 'V2: Kiosk Motion on Upstairs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1687231360022).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.kiosk_motion_on_upstairs_screen
+    deviceId: input_button.kiosk_motion_on_upstairs_screen

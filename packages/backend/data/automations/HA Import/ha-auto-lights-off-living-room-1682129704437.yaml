@@ -1,0 +1,109 @@
+id: ha-auto-lights-off-living-room-1682129704437
+name: 'auto lights off: living room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1682129704437).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.living_room_motion_detected
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.kitchen_motion_detected
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.living_room_table_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.front_foyer_table_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.living_room_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.living_room_ceiling_fan_light
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.living_room_table_near_fireplace
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.living_room_motion_detected
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.living_room_lamps
+          brightness: 89
+        deviceId: light.living_room_lamps
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - type: or
+          conditions:
+            - op: eq
+              type: device_state
+              value: Evening
+              deviceId: input_select.system_mode
+              attribute: state
+            - op: eq
+              type: device_state
+              value: Late Evening
+              deviceId: input_select.system_mode
+              attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.kitchen_motion_detected
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.living_room_ceiling_fan_light
+        deviceId: light.living_room_ceiling_fan_light
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.kitchen_motion_detected
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.living_room_motion_detected
+          attribute: state

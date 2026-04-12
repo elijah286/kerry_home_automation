@@ -1,0 +1,31 @@
+id: ha-car-warning-off-when-both-above-40-1600574734480
+name: Car Warning Off when both above 40%
+group: HA Import
+description: 'Imported from Home Assistant (id: 1600574734480).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.enterprise_battery_sensor
+    attribute: state
+  - type: device_state
+    deviceId: sensor.voyager_battery_sensor
+    attribute: state
+conditions:
+  - op: gt
+    type: device_state
+    value: 39
+    deviceId: sensor.enterprise_battery_sensor
+    attribute: state
+  - op: gt
+    type: device_state
+    value: 39
+    deviceId: sensor.voyager_battery_sensor
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: ''
+    deviceId: input_boolean.turn_off

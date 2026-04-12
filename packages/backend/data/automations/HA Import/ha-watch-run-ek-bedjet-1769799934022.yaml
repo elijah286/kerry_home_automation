@@ -1,0 +1,15 @@
+id: ha-watch-run-ek-bedjet-1769799934022
+name: 'Watch: run ek bedjet '
+group: HA Import
+description: 'Imported from Home Assistant (id: 1769799934022).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: script
+      action: ek_bedjet
+      deviceId: ''
+    deviceId: script.ek_bedjet

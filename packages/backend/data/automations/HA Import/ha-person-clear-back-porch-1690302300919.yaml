@@ -1,0 +1,86 @@
+id: ha-person-clear-back-porch-1690302300919
+name: 'Person clear: back porch'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1690302300919).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+  - type: device_state
+    deviceId: binary_sensor.back_door_person_detected
+    attribute: state
+  - to: 'off'
+    for: '00:00:30'
+    type: device_state
+    deviceId: binary_sensor.back_door_frigate_person_occupancy
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.back_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unknown
+        deviceId: binary_sensor.back_door
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_detected_on_back_porch
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.back_door_frigate_person_occupancy
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.back_door_person_detected
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.back_door_speaking_detected
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.flood
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: light.flood
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.patio_light
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: switch.patio_light
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.back_door_speaking_detected
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.motion_detected_on_back_porch
+    deviceId: input_boolean.motion_detected_on_back_porch

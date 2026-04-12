@@ -1,0 +1,16 @@
+id: ha-dishwasher-alert-on-at-6pm-1600124803268
+name: Dishwasher alert on at 6pm
+group: HA Import
+description: 'Imported from Home Assistant (id: 1600124803268).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 18 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on

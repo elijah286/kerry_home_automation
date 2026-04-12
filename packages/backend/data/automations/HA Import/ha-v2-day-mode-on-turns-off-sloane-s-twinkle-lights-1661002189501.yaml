@@ -1,0 +1,23 @@
+id: ha-v2-day-mode-on-turns-off-sloane-s-twinkle-lights-1661002189501
+name: 'v2: day mode on turns off Sloane''s twinkle lights'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1661002189501).'
+enabled: false
+mode: single
+triggers:
+  - to: Day
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.sloanes_twinkler_lights
+    deviceId: switch.sloanes_twinkler_lights

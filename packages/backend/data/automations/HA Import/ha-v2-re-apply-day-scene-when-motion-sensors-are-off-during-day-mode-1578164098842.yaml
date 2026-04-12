@@ -1,0 +1,30 @@
+id: ha-v2-re-apply-day-scene-when-motion-sensors-are-off-during-day-mode-1578164098842
+name: 'V2: Re-apply day scene when motion sensors are off during day mode'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1578164098842).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:00:00'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Day
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.day_mode
+    deviceId: input_button.day_mode

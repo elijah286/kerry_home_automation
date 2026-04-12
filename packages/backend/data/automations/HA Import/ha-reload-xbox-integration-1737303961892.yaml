@@ -1,0 +1,45 @@
+id: ha-reload-xbox-integration-1737303961892
+name: Reload XBOX integration
+group: HA Import
+description: 'Imported from Home Assistant (id: 1737303961892).'
+enabled: false
+mode: single
+triggers:
+  - to: unavailable
+    type: device_state
+    deviceId: remote.left_xbox_remote
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: remote.left_xbox_remote
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: remote.elis_xbox_remote
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: remote.right_xbox_remote
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: homeassistant
+      action: reload_config_entry
+      deviceId: media_player.left_xbox
+    deviceId: media_player.left_xbox
+  - type: device_command
+    command:
+      type: persistent_notification
+      action: create
+      message: Automatically reloaded
+      deviceId: ''
+    deviceId: persistent_notification.create

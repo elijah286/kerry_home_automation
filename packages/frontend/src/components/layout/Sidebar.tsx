@@ -10,8 +10,11 @@ import {
   CookingPot,
   AlarmClock,
   CalendarDays,
+  MapPin,
   Settings,
+  LogOut,
 } from 'lucide-react';
+import { useAuth } from '@/providers/AuthProvider';
 
 const mainNavItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -20,6 +23,7 @@ const mainNavItems = [
   { href: '/recipes', label: 'Recipes', icon: CookingPot },
   { href: '/alarms', label: 'Alarms', icon: AlarmClock },
   { href: '/calendar', label: 'Calendar', icon: CalendarDays },
+  { href: '/locations', label: 'Locations', icon: MapPin },
 ];
 
 const settingsItem = { href: '/settings', label: 'Settings', icon: Settings };
@@ -42,6 +46,7 @@ function NavLink({ href, label, icon: Icon, active }: { href: string; label: str
 
 export function Sidebar({ connected }: { connected: boolean }) {
   const pathname = usePathname();
+  const { user, isAdmin, logout } = useAuth();
   const isActive = (href: string) => href === '/' ? pathname === '/' : pathname.startsWith(href);
 
   return (
@@ -65,8 +70,19 @@ export function Sidebar({ connected }: { connected: boolean }) {
         ))}
       </nav>
 
-      <div className="px-2 pb-4">
-        <NavLink {...settingsItem} active={isActive(settingsItem.href)} />
+      <div className="px-2 pb-4 space-y-1">
+        {isAdmin && <NavLink {...settingsItem} active={isActive(settingsItem.href)} />}
+
+        {user && (
+          <button
+            onClick={() => { logout(); window.location.href = '/login'; }}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+            style={{ color: 'var(--color-sidebar-text)' }}
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span className="flex-1 text-left">{user.displayName}</span>
+          </button>
+        )}
       </div>
     </aside>
   );

@@ -1,0 +1,25 @@
+id: ha-v2-close-inside-garage-door-when-no-one-is-home-1676951371447
+name: 'V2: Close Inside garage door when no-one is home'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1676951371447).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:03:00'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: open
+    deviceId: cover.white
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: cover
+      action: close_cover
+      deviceId: cover.white
+    deviceId: cover.white

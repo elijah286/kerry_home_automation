@@ -1,0 +1,24 @@
+id: ha-v2-movie-tv-off-turns-off-warning-1661656458435
+name: 'V2: Movie TV Off turns off warning'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1661656458435).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: media_player.movie_room_tv
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.movie_tv_warning
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.movie_tv_warning
+    deviceId: input_boolean.movie_tv_warning

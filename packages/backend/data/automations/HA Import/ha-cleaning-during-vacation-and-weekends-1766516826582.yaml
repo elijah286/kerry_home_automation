@@ -1,0 +1,33 @@
+id: ha-cleaning-during-vacation-and-weekends-1766516826582
+name: Cleaning During Vacation and Weekends
+group: HA Import
+description: 'Imported from Home Assistant (id: 1766516826582).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 10 * * *
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.vacuum_auto_run
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.vacation_mode
+        attribute: state
+      - type: time_window
+        after: '00:00'
+        before: '23:59'
+actions:
+  - type: device_command
+    command:
+      type: vacuum
+      action: send_command
+      command: app_segment_clean
+      deviceId: vacuum.saros_z70
+    deviceId: vacuum.saros_z70

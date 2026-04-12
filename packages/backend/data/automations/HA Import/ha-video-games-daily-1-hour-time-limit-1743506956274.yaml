@@ -1,0 +1,34 @@
+id: ha-video-games-daily-1-hour-time-limit-1743506956274
+name: 'Video Games: Daily 1 hour time limit'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1743506956274).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 6 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: timer
+      action: cancel
+      deviceId: timer.video_game
+    deviceId: timer.video_game
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.video_game_time_elapsed
+    deviceId: input_boolean.video_game_time_elapsed
+  - type: device_command
+    command:
+      type: timer
+      action: start
+      deviceId: timer.video_game
+    deviceId: timer.video_game
+  - type: device_command
+    command:
+      type: timer
+      action: pause
+      deviceId: timer.video_game
+    deviceId: timer.video_game

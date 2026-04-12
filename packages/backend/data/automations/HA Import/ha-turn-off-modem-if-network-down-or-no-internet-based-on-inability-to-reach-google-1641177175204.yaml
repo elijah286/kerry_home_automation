@@ -1,0 +1,30 @@
+id: ha-turn-off-modem-if-network-down-or-no-internet-based-on-inability-to-reach-google-1641177175204
+name: Turn off modem if network down or no internet based on inability to reach google
+group: HA Import
+description: 'Imported from Home Assistant (id: 1641177175204).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:20:00'
+    type: device_state
+    deviceId: binary_sensor.router
+    attribute: state
+  - to: 'off'
+    for: '00:10:00'
+    type: device_state
+    deviceId: binary_sensor.google
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.router
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.router
+    deviceId: switch.router

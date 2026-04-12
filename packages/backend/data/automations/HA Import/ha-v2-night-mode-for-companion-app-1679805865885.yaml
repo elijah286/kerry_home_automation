@@ -1,0 +1,15 @@
+id: ha-v2-night-mode-for-companion-app-1679805865885
+name: 'V2: Night mode for companion app'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1679805865885).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.night_mode
+    deviceId: input_button.night_mode

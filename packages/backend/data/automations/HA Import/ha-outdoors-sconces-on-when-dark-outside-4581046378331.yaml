@@ -1,0 +1,18 @@
+id: ha-outdoors-sconces-on-when-dark-outside-4581046378331
+name: Outdoors Sconces on when dark outside
+group: HA Import
+description: 'Imported from Home Assistant (id: 4581046378331).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.really_dark_day
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: ''
+    deviceId: switch.turn_on

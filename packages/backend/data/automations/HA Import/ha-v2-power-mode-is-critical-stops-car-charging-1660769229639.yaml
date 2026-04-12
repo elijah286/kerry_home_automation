@@ -1,0 +1,18 @@
+id: ha-v2-power-mode-is-critical-stops-car-charging-1660769229639
+name: 'V2: Power Mode is Critical Stops Car Charging'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660769229639).'
+enabled: false
+mode: single
+triggers:
+  - to: Critical
+    type: device_state
+    deviceId: input_select.power_saving_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.enterprise_charger_switch
+    deviceId: switch.enterprise_charger_switch

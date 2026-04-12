@@ -1,0 +1,102 @@
+id: ha-person-clear-bedroom-1732575171302
+name: 'Person clear: bedroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1732575171302).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: light.master_bedroom_elis_lamp
+    attribute: state
+  - cron: '*/1 * * * *'
+    type: time
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.person_in_main_bedroom
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.master_bedroom_elis_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: light.master_bedroom_elis_lamp
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.master_bedroom_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: light.master_bedroom_main_lights
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.master_bedroom_ceiling_fan_light
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: switch.master_bedroom_ceiling_fan_light
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: media_player.bedroom_tv
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: media_player.bedroom_tv
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.main_bedroom_occupancy
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unknown
+        deviceId: binary_sensor.main_bedroom_occupancy
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.bedroom_kiosk_person_occupancy
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.person_in_main_bedroom
+    deviceId: input_boolean.person_in_main_bedroom

@@ -1,0 +1,25 @@
+id: ha-v3-announcement-button-read-text-to-verbalize-1718917019198
+name: 'V3: Announcement button --> read text to verbalize'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1718917019198).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.announcement_in_movie_room
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.75
+      deviceId: media_player.movie_room_echo
+    deviceId: media_player.movie_room_echo
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: '{{ states("input_text.text_to_verbalize_in_movie_room") }}'
+      deviceId: ''
+    deviceId: notify.alexa_media

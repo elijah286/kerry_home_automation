@@ -1,0 +1,52 @@
+id: ha-person-clear-movie-room-1713719621465
+name: 'Person Clear: Movie Room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1713719621465).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.apollo_msr_1_cb9624_radar_still_energy
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.person_in_movie_room
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.movie_room_area_person_occupancy
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.movie_room_kiosk_person_occupancy
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: media_player.movie_room_tv_androit
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: media_player.movie_room_tv_androit
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.movie_room_radar_still_target
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.person_in_movie_room
+    deviceId: input_boolean.person_in_movie_room

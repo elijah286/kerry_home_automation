@@ -1,0 +1,46 @@
+id: ha-pool-pumps-off-at-night-1746631548555
+name: Pool pumps off at night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1746631548555).'
+enabled: false
+mode: single
+triggers:
+  - to: Night
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - cron: 0 2 * * *
+    type: time
+conditions:
+  - type: time_window
+    after: '02:00'
+    before: '05:00'
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.pool_heater
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: script
+      action: turn_on
+      deviceId: script.pool_off
+    deviceId: script.pool_off
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.pool
+    deviceId: switch.pool
+  - type: device_command
+    command:
+      type: water_heater
+      action: set_operation_mode
+      deviceId: water_heater.pool
+    deviceId: water_heater.pool

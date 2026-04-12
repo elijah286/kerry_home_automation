@@ -1,0 +1,37 @@
+id: ha-v2-living-room-motion-stops-any-time-if-critical-or-aggressive-1660859400229
+name: V2 Living room motion stops any time if critical or aggressive
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660859400229).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:20:00'
+    type: device_state
+    deviceId: binary_sensor.living_room_motion
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: Critical
+        deviceId: input_select.power_saving_mode
+        attribute: state
+      - op: eq
+        type: device_state
+        value: Aggressive
+        deviceId: input_select.power_saving_mode
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.living_room_table_lamp
+    deviceId: light.living_room_table_lamp

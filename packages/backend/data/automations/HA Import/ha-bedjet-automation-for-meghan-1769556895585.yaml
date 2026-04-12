@@ -1,0 +1,55 @@
+id: ha-bedjet-automation-for-meghan-1769556895585
+name: Bedjet Automation for Meghan
+group: HA Import
+description: 'Imported from Home Assistant (id: 1769556895585).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.auto_bedjet_for_meghan
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.bedjet_mk_started_by_ha
+    deviceId: input_boolean.bedjet_mk_started_by_ha
+  - type: device_command
+    command:
+      type: climate
+      action: turn_on
+      deviceId: climate.rpi_meghan
+    deviceId: climate.rpi_meghan
+  - type: delay
+    duration: '00:00:01'
+  - type: device_command
+    command:
+      type: climate
+      action: set_hvac_mode
+      deviceId: climate.rpi_meghan
+      hvac_mode: heat
+    deviceId: climate.rpi_meghan
+  - type: delay
+    duration: '00:00:01'
+  - type: device_command
+    command:
+      type: climate
+      action: set_temperature
+      deviceId: climate.rpi_meghan
+      hvac_mode: heat
+      temperature: 102
+    deviceId: climate.rpi_meghan
+  - type: device_command
+    command:
+      type: fan
+      speed: high
+      action: turn_on
+      deviceId: fan.rpi_meghan
+    deviceId: fan.rpi_meghan

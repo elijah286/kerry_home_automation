@@ -1,0 +1,19 @@
+id: ha-downstairs-guest-bathroom-exhaust-fan-on-when-motion-lasts-1630859839357
+name: Downstairs Guest Bathroom Exhaust Fan on When Motion Lasts
+group: HA Import
+description: 'Imported from Home Assistant (id: 1630859839357).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:03:00'
+    type: device_state
+    deviceId: binary_sensor.downstairs_guest_bathroom_motion
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.down
+    deviceId: switch.down

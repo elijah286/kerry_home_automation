@@ -1,0 +1,97 @@
+id: ha-v2-smart-charge-modulates-charge-rate-based-on-solar-output-for-voyager-1692135226776
+name: 'V2: Smart Charge modulates charge rate based on solar output for voyager'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1692135226776).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.smart_charge
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.voyager_charger
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.voyager_charging
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+  - type: device_state
+    deviceId: sensor.excess_power
+    attribute: state
+  - type: device_state
+    deviceId: sensor.home_energy_gateway_charge_power
+    attribute: state
+  - type: device_state
+    deviceId: input_number.minimum_powerwall_charge_level
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.smart_charge
+    attribute: state
+  - op: gt
+    type: device_state
+    value: 0.5
+    deviceId: sensor.excess_power
+    attribute: state
+  - op: eq
+    type: device_state
+    value: home
+    deviceId: device_tracker.voyager_location_tracker
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: binary_sensor.voyager_charger
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.voyager_charger
+    deviceId: switch.voyager_charger
+  - type: device_command
+    command:
+      type: input_number
+      action: set_value
+      deviceId: ''
+    deviceId: input_number.set_value
+  - else:
+      - type: device_command
+        command:
+          type: number
+          action: set_value
+          deviceId: ''
+        deviceId: number.set_value
+    then:
+      - type: device_command
+        command:
+          type: input_number
+          action: set_value
+          deviceId: ''
+        deviceId: input_number.set_value
+      - type: device_command
+        command:
+          type: number
+          action: set_value
+          deviceId: ''
+        deviceId: number.set_value
+    type: condition
+    condition:
+      op: gt
+      type: device_state
+      value: null
+      deviceId: input_number.ev_charging_amp_set_point
+      attribute: state
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.voyager_force_data_update
+    deviceId: button.voyager_force_data_update

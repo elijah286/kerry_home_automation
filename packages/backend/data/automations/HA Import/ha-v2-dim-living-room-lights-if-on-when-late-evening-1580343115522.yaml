@@ -1,0 +1,29 @@
+id: ha-v2-dim-living-room-lights-if-on-when-late-evening-1580343115522
+name: 'V2: Dim living room lights (if on) when late evening'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1580343115522).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.late_evening_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.living_room_main_lights
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: ''
+      brightness: 100
+    deviceId: light.turn_on

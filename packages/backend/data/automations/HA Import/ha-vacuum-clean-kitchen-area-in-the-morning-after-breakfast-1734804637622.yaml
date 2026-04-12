@@ -1,0 +1,31 @@
+id: ha-vacuum-clean-kitchen-area-in-the-morning-after-breakfast-1734804637622
+name: 'Vacuum: Clean kitchen area in the morning after breakfast'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1734804637622).'
+enabled: false
+mode: single
+triggers:
+  - cron: 30 8 * * *
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: docked
+    deviceId: vacuum.roborock_s7
+    attribute: state
+  - type: time_window
+    after: '00:00'
+    before: '23:59'
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.vacation_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: vacuum
+      action: send_command
+      command: app_segment_clean
+      deviceId: vacuum.roborock_s7
+    deviceId: vacuum.roborock_s7

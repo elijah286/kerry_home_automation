@@ -1,0 +1,101 @@
+id: ha-dim-kiosk-bedroom-1733583760715
+name: 'Dim Kiosk: Bedroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733583760715).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: null
+    type: device_state
+    deviceId: light.master_bedroom_elis_lamp
+    attribute: state
+  - type: device_state
+    deviceId: light.master_bedroom_meghans_lamp
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: light.master_bedroom_hallway
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: media_player.bedroom_tv
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: light.master_bedroom_main_lights
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: switch.master_bedroom_ceiling_fan_light
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: device_state
+    deviceId: light.master_bathroom_main_lights
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: media_player.bedroom_tv
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.master_bedroom_elis_lamp
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.master_bedroom_meghans_lamp
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.master_bathroom_main_lights
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.master_bedroom_ceiling_fan_light
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.master_bedroom_hallway
+    attribute: state
+  - op: gt
+    type: device_state
+    value: 10
+    deviceId: number.bedroom_kiosk_screen_brightness
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - else:
+      - type: log
+        message: '[HA if/then] Could not translate if block'
+    then:
+      - type: device_command
+        command:
+          type: number
+          value: '1'
+          action: set_value
+          deviceId: number.bedroom_kiosk_screen_brightness
+        deviceId: number.bedroom_kiosk_screen_brightness
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state

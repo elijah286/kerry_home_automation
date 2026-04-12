@@ -1,0 +1,24 @@
+id: ha-auto-lights-off-levi-s-led-1739118412189
+name: 'Auto lights off: Levi’s LED'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1739118412189).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.upstairs_occupied
+    attribute: state
+  - cron: 0 22 * * *
+    type: time
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.levis_led_lights
+    deviceId: switch.levis_led_lights

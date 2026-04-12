@@ -1,0 +1,50 @@
+id: ha-v2-asher-s-room-light-timer-anytime-1617887460379
+name: 'V2: Asher''s Room Light Timer Anytime'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1617887460379).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.ashers_bedroom_table_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.ashers_bedroom_closet_light
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.ashers_bedroom_desk_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.ashers_bedroom_main_lights
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.ashers_bedroom_table_lamp
+    deviceId: light.ashers_bedroom_table_lamp
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.ashers_bedroom_closet_light
+    deviceId: switch.ashers_bedroom_closet_light

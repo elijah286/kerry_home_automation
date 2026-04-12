@@ -1,0 +1,32 @@
+id: ha-motion-lights-off-1660779395156
+name: Motion Lights OFF
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660779395156).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+conditions:
+  - type: time_window
+    after: '06:00'
+    before: '23:59'
+  - type: or
+    conditions:
+      - op: gt
+        type: device_state
+        value: 100
+        deviceId: sensor.illuminance
+        attribute: state
+      - op: gt
+        type: device_state
+        value: 2500
+        deviceId: sensor.apf_generation_entity
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.motion_lights_on
+    deviceId: input_boolean.motion_lights_on

@@ -1,0 +1,54 @@
+id: ha-share-power-between-chargers-1765984682406
+name: Share Power Between Chargers
+group: HA Import
+description: 'Imported from Home Assistant (id: 1765984682406).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: binary_sensor.enterprise_charging
+    attribute: state
+  - type: device_state
+    deviceId: binary_sensor.voyager_charging
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: input_number
+          value: 40
+          action: set_value
+          deviceId: input_number.power_sharing_max_amps_per_car
+        deviceId: input_number.power_sharing_max_amps_per_car
+    then:
+      - type: device_command
+        command:
+          type: input_number
+          value: 20
+          action: set_value
+          deviceId: input_number.power_sharing_max_amps_per_car
+        deviceId: input_number.power_sharing_max_amps_per_car
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: binary_sensor.enterprise_charging
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: binary_sensor.voyager_charging
+          attribute: state
+        - op: eq
+          type: device_state
+          value: home
+          deviceId: device_tracker.voyager_location_tracker
+          attribute: state
+        - op: eq
+          type: device_state
+          value: home
+          deviceId: device_tracker.enterprise_location_tracker
+          attribute: state

@@ -1,0 +1,30 @@
+id: ha-security-alarms-to-off-when-disarmed-1567634399503
+name: 'SECURITY: Alarms to off when disarmed'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1567634399503).'
+enabled: false
+mode: single
+triggers:
+  - to: disarmed
+    type: device_state
+    deviceId: alarm_control_panel.home_alarm
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.motion_while_armed
+    deviceId: input_boolean.motion_while_armed
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.portal_while_armed
+    deviceId: input_boolean.portal_while_armed
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: ''
+    deviceId: input_boolean.turn_off

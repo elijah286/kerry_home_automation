@@ -1,0 +1,64 @@
+id: ha-auto-blind-open-living-room-1737899748845
+name: 'auto blind open: living room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1737899748845).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: device_state
+    deviceId: input_button.day_mode
+    attribute: state
+  - type: sun
+    event: sunrise
+  - to: 'off'
+    type: device_state
+    deviceId: switch.vertical_toggle_control_living_room_v2_2
+    attribute: state
+  - type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+  - to:
+      - 'off'
+    for: '00:15:00'
+    type: device_state
+    deviceId: input_boolean.living_room_motion_detected
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+  - type: time_window
+    after: '06:00'
+    before: '23:59'
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.vertical_toggle_control_living_room_v2_2
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Critical
+      deviceId: input_select.power_saving_mode
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: cover
+      action: open_cover
+      deviceId: cover.living_room_blinds
+    deviceId: cover.living_room_blinds

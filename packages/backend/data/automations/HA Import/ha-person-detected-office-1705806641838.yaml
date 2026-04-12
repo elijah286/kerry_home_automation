@@ -1,0 +1,31 @@
+id: ha-person-detected-office-1705806641838
+name: 'Person detected: office'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1705806641838).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.office_motion_sensor
+    attribute: state
+  - type: device_state
+    deviceId: binary_sensor.office
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: media_player.main_office_monitor
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.motion_detected_in_office
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.motion_detected_in_office
+    deviceId: input_boolean.motion_detected_in_office

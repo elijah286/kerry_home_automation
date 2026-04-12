@@ -1,0 +1,18 @@
+id: ha-balcony-door-alarm-closed-158753556726
+name: Balcony Door Alarm Closed
+group: HA Import
+description: 'Imported from Home Assistant (id: 158753556726).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.balcony_door
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: ''
+    deviceId: input_boolean.turn_off

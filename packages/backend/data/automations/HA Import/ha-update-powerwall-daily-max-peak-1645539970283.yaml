@@ -1,0 +1,37 @@
+id: ha-update-powerwall-daily-max-peak-1645539970283
+name: Update powerwall daily max peak
+group: HA Import
+description: 'Imported from Home Assistant (id: 1645539970283).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.home_energy_gateway_charge
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: '0'
+        deviceId: input_number.powerwall_battery_daily_max
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: input_number.powerwall_battery_daily_max
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unknown
+        deviceId: input_number.powerwall_battery_daily_max
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_number
+      action: set_value
+      deviceId: ''
+    deviceId: input_number.set_value

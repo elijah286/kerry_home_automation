@@ -1,0 +1,67 @@
+id: ha-auto-lights-on-hallway-1574812690381
+name: 'Auto lights on: hallway'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1574812690381).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_hallway
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.person_in_hallway
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.grid_offline
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.hallway_main_lights
+          brightness: 204
+        deviceId: light.hallway_main_lights
+    then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.hallway_main_lights
+          brightness: 102
+        deviceId: light.hallway_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state

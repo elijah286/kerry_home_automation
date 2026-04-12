@@ -1,0 +1,16 @@
+helpers:
+  - id: guest_mode
+    type: toggle
+    name: Guest Mode
+    initial: false
+  - id: door_counter
+    type: counter
+    name: Daily Door Opens
+    initial: 0
+    step: 1
+    min: 0
+    max: 1000
+  - id: sleep_timer
+    type: timer
+    name: Sleep Timer
+    duration: '00:05:00'

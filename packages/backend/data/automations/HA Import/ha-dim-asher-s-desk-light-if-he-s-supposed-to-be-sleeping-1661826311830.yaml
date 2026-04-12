@@ -1,0 +1,34 @@
+id: ha-dim-asher-s-desk-light-if-he-s-supposed-to-be-sleeping-1661826311830
+name: Dim Asher's desk light if he's supposed to be sleeping
+group: HA Import
+description: 'Imported from Home Assistant (id: 1661826311830).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: light.ashers_bedroom_desk_lamp
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.asher_sleeping
+    attribute: state
+  - op: gt
+    type: device_state
+    value: 90
+    deviceId: light.ashers_bedroom_desk_lamp
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.ashers_bedroom_desk_lamp
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.ashers_bedroom_desk_lamp
+      brightness: 90
+    deviceId: light.ashers_bedroom_desk_lamp

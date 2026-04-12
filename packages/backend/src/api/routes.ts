@@ -14,8 +14,13 @@ import * as entryStore from '../db/integration-entry-store.js';
 import { query } from '../db/pool.js';
 import { UniFiIntegration } from '../integrations/unifi/index.js';
 import WebSocket from 'ws';
+import { registerChatRoutes } from './chat.js';
+import { registerHelperRoutes } from './helpers-routes.js';
+import { requireRole } from './auth.js';
 
 export function registerRoutes(app: FastifyInstance): void {
+  registerChatRoutes(app);
+  registerHelperRoutes(app);
   app.get('/api/health', async () => ({ ok: true, time: Date.now() }));
 
   // Camera snapshot — serve from backend cache (instant), fallback to live fetch from integration
@@ -149,11 +154,26 @@ export function registerRoutes(app: FastifyInstance): void {
   );
 
   // Device state history
-  app.get<{ Params: { id: string }; Querystring: { limit?: string } }>(
+  app.get<{ Params: { id: string }; Querystring: { limit?: string; from?: string; to?: string } }>(
     '/api/devices/:id/history',
     async (req, reply) => {
-      const limit = Math.min(parseInt(req.query.limit ?? '100', 10), 1000);
       try {
+        const from = req.query.from;
+        const to = req.query.to;
+
+        if (from) {
+          // Time-range query (ascending for graphing)
+          const fromDate = new Date(from);
+          const toDate = to ? new Date(to) : new Date();
+          const { rows } = await query<{ state: Record<string, unknown>; changed_at: Date }>(
+            'SELECT state, changed_at FROM state_history WHERE device_id = $1 AND changed_at >= $2 AND changed_at <= $3 ORDER BY changed_at ASC',
+            [req.params.id, fromDate, toDate],
+          );
+          return { history: rows.map((r) => ({ state: r.state, changedAt: r.changed_at })) };
+        }
+
+        // Legacy limit-based query (descending, most recent first)
+        const limit = Math.min(parseInt(req.query.limit ?? '100', 10), 1000);
         const { rows } = await query<{ state: Record<string, unknown>; changed_at: Date }>(
           'SELECT state, changed_at FROM state_history WHERE device_id = $1 ORDER BY changed_at DESC LIMIT $2',
           [req.params.id, limit],
@@ -210,8 +230,8 @@ export function registerRoutes(app: FastifyInstance): void {
     return { config: masked, configured: true };
   });
 
-  // Save config for an integration
-  app.post<{ Params: { id: string }; Body: Record<string, string> }>('/api/integrations/:id/config', async (req, reply) => {
+  // Save config for an integration (admin only)
+  app.post<{ Params: { id: string }; Body: Record<string, string> }>('/api/integrations/:id/config', { preHandler: [requireRole('admin')] }, async (req, reply) => {
     const id = req.params.id as IntegrationId;
     const info = KNOWN_INTEGRATIONS.find((i) => i.id === id);
     if (!info) return reply.code(404).send({ error: 'Unknown integration' });
@@ -230,8 +250,8 @@ export function registerRoutes(app: FastifyInstance): void {
     return { ok: true };
   });
 
-  // Restart an integration (clear cache / reconnect)
-  app.post<{ Params: { id: string } }>('/api/integrations/:id/restart', async (req, reply) => {
+  // Restart an integration (admin only)
+  app.post<{ Params: { id: string } }>('/api/integrations/:id/restart', { preHandler: [requireRole('admin')] }, async (req, reply) => {
     const id = req.params.id as IntegrationId;
     const info = KNOWN_INTEGRATIONS.find((i) => i.id === id);
     if (!info) return reply.code(404).send({ error: 'Unknown integration' });
@@ -243,6 +263,11 @@ export function registerRoutes(app: FastifyInstance): void {
       return { ok: true, message: 'Applied' };
     }
 
+    if (id === 'gamechanger' || id === 'sportsengine') {
+      const keys = await redis.keys(`ical:${id}:*`);
+      if (keys.length > 0) await redis.del(...keys);
+    }
+
     try {
       await registry.restart(id);
       return { ok: true, message: 'Restarted' };
@@ -252,8 +277,8 @@ export function registerRoutes(app: FastifyInstance): void {
     }
   });
 
-  // Rebuild: clear devices for a specific entry (instance), then restart integration to rediscover
-  app.post<{ Params: { id: string; entryId: string } }>('/api/integrations/:id/entries/:entryId/rebuild', async (req, reply) => {
+  // Rebuild entry (admin only)
+  app.post<{ Params: { id: string; entryId: string } }>('/api/integrations/:id/entries/:entryId/rebuild', { preHandler: [requireRole('admin')] }, async (req, reply) => {
     const id = req.params.id as IntegrationId;
     const info = KNOWN_INTEGRATIONS.find((i) => i.id === id);
     if (!info) return reply.code(404).send({ error: 'Unknown integration' });
@@ -276,6 +301,9 @@ export function registerRoutes(app: FastifyInstance): void {
       const keys = await redis.keys('paprika:*');
       if (keys.length > 0) await redis.del(...keys);
     }
+    if (id === 'gamechanger' || id === 'sportsengine') {
+      await redis.del(`ical:${id}:${entryId}`);
+    }
 
     // Restart the integration to rediscover all entries
     try {
@@ -287,8 +315,8 @@ export function registerRoutes(app: FastifyInstance): void {
     return { ok: true, message: `Cleared ${removed} devices for entry, rediscovering` };
   });
 
-  // Rebuild all: clear ALL devices for an integration (including orphans from old ID formats), then restart
-  app.post<{ Params: { id: string } }>('/api/integrations/:id/rebuild', async (req, reply) => {
+  // Rebuild all (admin only)
+  app.post<{ Params: { id: string } }>('/api/integrations/:id/rebuild', { preHandler: [requireRole('admin')] }, async (req, reply) => {
     const id = req.params.id as IntegrationId;
     const info = KNOWN_INTEGRATIONS.find((i) => i.id === id);
     if (!info) return reply.code(404).send({ error: 'Unknown integration' });
@@ -301,6 +329,10 @@ export function registerRoutes(app: FastifyInstance): void {
 
     if (id === 'paprika') {
       const keys = await redis.keys('paprika:*');
+      if (keys.length > 0) await redis.del(...keys);
+    }
+    if (id === 'gamechanger' || id === 'sportsengine') {
+      const keys = await redis.keys(`ical:${id}:*`);
       if (keys.length > 0) await redis.del(...keys);
     }
 
@@ -333,6 +365,7 @@ export function registerRoutes(app: FastifyInstance): void {
 
   app.post<{ Params: { id: string }; Body: { label: string; config: Record<string, string> } }>(
     '/api/integrations/:id/entries',
+    { preHandler: [requireRole('admin')] },
     async (req, reply) => {
       const id = req.params.id as IntegrationId;
       const info = KNOWN_INTEGRATIONS.find((i) => i.id === id);
@@ -359,6 +392,7 @@ export function registerRoutes(app: FastifyInstance): void {
 
   app.put<{ Params: { id: string; entryId: string }; Body: { label?: string; config?: Record<string, string>; enabled?: boolean } }>(
     '/api/integrations/:id/entries/:entryId',
+    { preHandler: [requireRole('admin')] },
     async (req, reply) => {
       const id = req.params.id as IntegrationId;
       const info = KNOWN_INTEGRATIONS.find((i) => i.id === id);
@@ -396,6 +430,7 @@ export function registerRoutes(app: FastifyInstance): void {
 
   app.delete<{ Params: { id: string; entryId: string } }>(
     '/api/integrations/:id/entries/:entryId',
+    { preHandler: [requireRole('admin')] },
     async (req, reply) => {
       const existing = await entryStore.getEntry(req.params.entryId);
       if (!existing) return reply.code(404).send({ error: 'Entry not found' });
@@ -423,8 +458,20 @@ export function registerRoutes(app: FastifyInstance): void {
     return { settings };
   });
 
+  app.get<{ Params: { key: string } }>(
+    '/api/settings/:key',
+    async (req) => {
+      const { rows } = await query<{ value: unknown }>(
+        'SELECT value FROM system_settings WHERE key = $1',
+        [req.params.key],
+      );
+      return { value: rows[0]?.value ?? null };
+    },
+  );
+
   app.put<{ Params: { key: string }; Body: { value: unknown } }>(
     '/api/settings/:key',
+    { preHandler: [requireRole('admin')] },
     async (req) => {
       await query(
         `INSERT INTO system_settings (key, value, updated_at) VALUES ($1, $2, NOW())
@@ -444,7 +491,7 @@ export function registerRoutes(app: FastifyInstance): void {
     return { areas: rows.map((r) => ({ id: r.id, name: r.name, createdAt: r.created_at })) };
   });
 
-  app.post<{ Body: { name: string } }>('/api/areas', async (req) => {
+  app.post<{ Body: { name: string } }>('/api/areas', { preHandler: [requireRole('admin')] }, async (req) => {
     const { rows } = await query<{ id: string }>(
       'INSERT INTO areas (name) VALUES ($1) RETURNING id',
       [req.body.name],
@@ -452,7 +499,7 @@ export function registerRoutes(app: FastifyInstance): void {
     return { ok: true, id: rows[0].id };
   });
 
-  app.put<{ Params: { id: string }; Body: { name: string } }>('/api/areas/:id', async (req, reply) => {
+  app.put<{ Params: { id: string }; Body: { name: string } }>('/api/areas/:id', { preHandler: [requireRole('admin')] }, async (req, reply) => {
     const { rowCount } = await query(
       'UPDATE areas SET name = $1 WHERE id = $2',
       [req.body.name, req.params.id],
@@ -461,7 +508,7 @@ export function registerRoutes(app: FastifyInstance): void {
     return { ok: true };
   });
 
-  app.delete<{ Params: { id: string } }>('/api/areas/:id', async (req, reply) => {
+  app.delete<{ Params: { id: string } }>('/api/areas/:id', { preHandler: [requireRole('admin')] }, async (req, reply) => {
     // Nullify device_settings references
     await query('UPDATE device_settings SET area_id = NULL WHERE area_id = $1', [req.params.id]);
     // Also update in-memory devices that reference this area
@@ -477,24 +524,35 @@ export function registerRoutes(app: FastifyInstance): void {
 
   // --- Per-device settings ---
 
-  app.get<{ Params: { id: string } }>('/api/devices/:id/settings', async (req) => {
-    const { rows } = await query<{ history_retention_days: number | null; display_name: string | null; area_id: string | null }>(
-      'SELECT history_retention_days, display_name, area_id FROM device_settings WHERE device_id = $1',
-      [req.params.id],
+  // Bulk: all device history settings for the history settings page
+  app.get('/api/device-settings/history', async () => {
+    const { rows } = await query<{ device_id: string; history_retention_days: number | null; history_enabled: boolean }>(
+      'SELECT device_id, history_retention_days, history_enabled FROM device_settings',
     );
-    return { settings: rows[0] ?? { history_retention_days: null, display_name: null, area_id: null } };
+    return { settings: rows };
   });
 
-  app.put<{ Params: { id: string }; Body: { history_retention_days?: number | null; display_name?: string | null; area_id?: string | null } }>(
+  app.get<{ Params: { id: string } }>('/api/devices/:id/settings', async (req) => {
+    const { rows } = await query<{ history_retention_days: number | null; display_name: string | null; area_id: string | null; history_enabled: boolean; aliases: string[] | null }>(
+      'SELECT history_retention_days, display_name, area_id, history_enabled, COALESCE(aliases, \'{}\') as aliases FROM device_settings WHERE device_id = $1',
+      [req.params.id],
+    );
+    return { settings: rows[0] ?? { history_retention_days: null, display_name: null, area_id: null, history_enabled: true, aliases: [] } };
+  });
+
+  app.put<{ Params: { id: string }; Body: { history_retention_days?: number | null; display_name?: string | null; area_id?: string | null; history_enabled?: boolean; aliases?: string[] } }>(
     '/api/devices/:id/settings',
+    { preHandler: [requireRole('admin')] },
     async (req) => {
       const { rows } = await query<{ display_name: string | null; area_id: string | null }>(
-        `INSERT INTO device_settings (device_id, history_retention_days, display_name, area_id, updated_at)
-         VALUES ($1, $2, $3, $4, NOW())
+        `INSERT INTO device_settings (device_id, history_retention_days, display_name, area_id, history_enabled, aliases, updated_at)
+         VALUES ($1, $2, $3, $4, COALESCE($7, TRUE), COALESCE($9, '{}'), NOW())
          ON CONFLICT (device_id) DO UPDATE SET
            history_retention_days = COALESCE($2, device_settings.history_retention_days),
            display_name = CASE WHEN $5 THEN $3 ELSE device_settings.display_name END,
            area_id = CASE WHEN $6 THEN $4 ELSE device_settings.area_id END,
+           history_enabled = CASE WHEN $8 THEN $7 ELSE device_settings.history_enabled END,
+           aliases = CASE WHEN $10 THEN COALESCE($9, '{}') ELSE device_settings.aliases END,
            updated_at = NOW()
          RETURNING display_name, area_id`,
         [
@@ -504,6 +562,10 @@ export function registerRoutes(app: FastifyInstance): void {
           req.body.area_id ?? null,
           'display_name' in req.body,
           'area_id' in req.body,
+          req.body.history_enabled ?? null,
+          'history_enabled' in req.body,
+          req.body.aliases ?? null,
+          'aliases' in req.body,
         ],
       );
 
@@ -516,6 +578,9 @@ export function registerRoutes(app: FastifyInstance): void {
         }
         if ('area_id' in req.body) {
           updated.userAreaId = req.body.area_id ?? undefined;
+        }
+        if ('aliases' in req.body) {
+          updated.aliases = req.body.aliases?.length ? req.body.aliases : undefined;
         }
         stateStore.update(updated);
       }

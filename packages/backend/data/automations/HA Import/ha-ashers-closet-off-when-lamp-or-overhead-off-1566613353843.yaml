@@ -1,0 +1,22 @@
+id: ha-ashers-closet-off-when-lamp-or-overhead-off-1566613353843
+name: Ashers closet off when lamp or overhead off
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566613353843).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.ashers_bedroom_table_lamp
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: switch.ashers_bedroom_main_lights
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: light.ashers_bedroom_closet_light
+    deviceId: light.ashers_bedroom_closet_light

@@ -1,0 +1,72 @@
+id: ha-set-system-mode-on-start-1734549030352
+name: Set System Mode on Start
+group: HA Import
+description: 'Imported from Home Assistant (id: 1734549030352).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: input_button
+          action: press
+          deviceId: input_button.day_mode
+        deviceId: input_button.day_mode
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.late_night
+        deviceId: input_boolean.late_night
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - type: time_window
+          after: '06:00'
+          before: '23:59'
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: input_button
+          action: press
+          deviceId: input_button.morning_mode
+        deviceId: input_button.morning_mode
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - type: time_window
+          after: '06:00'
+          before: '23:59'
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: input_button
+          action: press
+          deviceId: input_button.evening_mode
+        deviceId: input_button.evening_mode
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - type: time_window
+          after: '00:00'
+          before: '21:00'
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state

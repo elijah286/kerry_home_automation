@@ -1,0 +1,40 @@
+id: ha-dinner-start-dinner-mode-when-consistent-motion-after-5-30-for-5-minutes-1611497955004
+name: 'Dinner: Start Dinner Mode when consistent motion after 5:30 for 5 minutes'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1611497955004).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:10:00'
+    type: device_state
+    deviceId: input_boolean.motion_in_dining
+    attribute: state
+conditions:
+  - type: time_window
+    after: '16:00'
+    before: '21:00'
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.dinner_over
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: ''
+    deviceId: light.turn_on
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: ''
+    deviceId: light.turn_on

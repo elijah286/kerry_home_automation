@@ -1,0 +1,18 @@
+id: ha-fam-to-auto-in-morning-1732422578082
+name: Fam to auto in morning
+group: HA Import
+description: 'Imported from Home Assistant (id: 1732422578082).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: climate
+      action: set_fan_mode
+      deviceId: climate.main_floor
+      fan_mode: auto
+    deviceId: climate.main_floor

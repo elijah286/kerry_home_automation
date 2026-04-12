@@ -1,0 +1,30 @@
+id: ha-pool-turn-pool-heater-on-1743388846978
+name: 'Pool: Turn pool heater on'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1743388846978).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.pool_heater
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.pool
+    deviceId: switch.pool
+  - type: device_command
+    command:
+      type: water_heater
+      action: set_operation_mode
+      deviceId: water_heater.pool
+    deviceId: water_heater.pool
+  - type: device_command
+    command:
+      type: script
+      action: turn_on
+      deviceId: ''
+    deviceId: script.turn_on

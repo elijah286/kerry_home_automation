@@ -1,0 +1,32 @@
+id: ha-v2-alexa-warning-when-alarm-triggered-when-no-one-home-1728403246934
+name: 'V2: Alexa warning when alarm triggered when no one home'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1728403246934).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+  - to: triggered
+    type: device_state
+    deviceId: alarm_control_panel.home_alarm
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: triggered
+    deviceId: alarm_control_panel.home_alarm
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: Warning. Unauthorized entry detected. Alarm will sound.
+      deviceId: ''
+    deviceId: notify.alexa_media

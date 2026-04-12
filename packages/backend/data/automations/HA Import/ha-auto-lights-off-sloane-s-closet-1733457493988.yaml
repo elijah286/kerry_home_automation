@@ -1,0 +1,51 @@
+id: ha-auto-lights-off-sloane-s-closet-1733457493988
+name: 'Auto lights off: Sloane’s closet'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733457493988).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.sloanes_bedroom_closet_light
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.sloanes_bedroom_closet_light
+        deviceId: switch.sloanes_bedroom_closet_light
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: switch.sloanes_bedroom_closet_light
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.sloanes_bedroom_closet_light
+        deviceId: switch.sloanes_bedroom_closet_light
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: switch.sloanes_bedroom_closet_light
+      attribute: state

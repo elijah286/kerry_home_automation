@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { EventEmitter } from 'node:events';
-import type { DeviceState, IntegrationId, IntegrationHealth, DeviceCommand } from '@ha/shared';
+import type { DeviceState, IntegrationId, IntegrationHealth, DeviceCommand, AutomationExecutionStatus } from '@ha/shared';
 
 interface DeviceUpdatedEvent {
   prev: DeviceState | undefined;
@@ -19,11 +19,19 @@ interface IntegrationHealthEvent {
   health: IntegrationHealth;
 }
 
+interface AutomationExecutedEvent {
+  automationId: string;
+  executionId: string;
+  status: AutomationExecutionStatus;
+  triggeredAt: number;
+}
+
 type EventMap = {
   device_updated: [DeviceUpdatedEvent];
   device_removed: [DeviceRemovedEvent];
   integration_health: [IntegrationHealthEvent];
   command: [DeviceCommand];
+  automation_executed: [AutomationExecutedEvent];
 };
 
 class TypedEventBus {

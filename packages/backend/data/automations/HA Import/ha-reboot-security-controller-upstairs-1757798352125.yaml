@@ -1,0 +1,26 @@
+id: ha-reboot-security-controller-upstairs-1757798352125
+name: 'Reboot security controller: upstairs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1757798352125).'
+enabled: false
+mode: single
+triggers:
+  - to: unavailable
+    for: '00:05:00'
+    type: device_state
+    deviceId: binary_sensor.ashers_room
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: persistent_notification
+      action: create
+      message: Rebooting Upstairs Security Controller
+      deviceId: ''
+    deviceId: persistent_notification.create
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.security_panel_port_6_power_cycle
+    deviceId: button.security_panel_port_6_power_cycle

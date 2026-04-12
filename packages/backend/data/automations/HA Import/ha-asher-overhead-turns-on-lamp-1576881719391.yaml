@@ -1,0 +1,18 @@
+id: ha-asher-overhead-turns-on-lamp-1576881719391
+name: Asher Overhead turns on lamp
+group: HA Import
+description: 'Imported from Home Assistant (id: 1576881719391).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: switch.ashers_bedroom_main_lights
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.ashers_bedroom_table_lamp
+    deviceId: light.ashers_bedroom_table_lamp

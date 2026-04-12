@@ -1,0 +1,18 @@
+id: ha-v2-late-evening-mode-button-change-mode-1660757997671
+name: 'V2: Late Evening Mode button: change mode'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660757997671).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.late_evening_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_select
+      action: select_option
+      option: Late Evening
+      deviceId: input_select.system_mode
+    deviceId: input_select.system_mode

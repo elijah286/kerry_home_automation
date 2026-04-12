@@ -1,0 +1,49 @@
+id: ha-levi-is-not-sleeping-1765766989793
+name: Levi is not sleeping
+group: HA Import
+description: 'Imported from Home Assistant (id: 1765766989793).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.levis_bedside_lamp
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: light.study_desk_lamp
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: switch.levis_bedroom_closet_light
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: switch.levis_bedroom_main_lights
+    attribute: state
+  - type: device_state
+    deviceId: input_button.wake_levi
+    attribute: state
+  - type: device_state
+    deviceId: input_button.day_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.upstairs_occupied
+    attribute: state
+conditions:
+  - type: time_window
+    after: '05:30'
+    before: '10:00'
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.levi_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.levi_sleeping
+    deviceId: input_boolean.levi_sleeping

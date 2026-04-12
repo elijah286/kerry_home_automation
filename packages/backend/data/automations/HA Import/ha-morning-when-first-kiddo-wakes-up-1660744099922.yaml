@@ -1,0 +1,47 @@
+id: ha-morning-when-first-kiddo-wakes-up-1660744099922
+name: Morning when first kiddo wakes up
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660744099922).'
+enabled: false
+mode: single
+triggers:
+  - cron: 10 6 * * *
+    type: time
+  - to:
+      - 'off'
+    type: device_state
+    deviceId: input_boolean.sloane_sleeping
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: time_window
+    after: '06:10'
+    before: '23:59'
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: input_boolean.asher_sleeping
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: input_boolean.levi_sleeping
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: input_boolean.sloane_sleeping
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.morning_mode
+    deviceId: input_button.morning_mode

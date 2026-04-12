@@ -1,0 +1,44 @@
+id: ha-water-leak-detected-1752010725921
+name: Water Leak Detected
+group: HA Import
+description: 'Imported from Home Assistant (id: 1752010725921).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.flume_sensor_home_current
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.flume_sensor_home_leak_detected
+    attribute: state
+  - to: 'on'
+    for: '00:20:00'
+    type: device_state
+    deviceId: binary_sensor.water_flow_detected
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.spinkler_running
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: binary_sensor.water_flow_detected
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.water_left_running
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.water_left_running
+    deviceId: input_boolean.water_left_running

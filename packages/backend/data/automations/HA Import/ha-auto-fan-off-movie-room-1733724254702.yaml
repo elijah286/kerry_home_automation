@@ -1,0 +1,140 @@
+id: ha-auto-fan-off-movie-room-1733724254702
+name: 'auto fan off: movie room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733724254702).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.person_in_movie_room
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: fan.movie_room_ceiling_fan
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_movie_room
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: fan
+          action: turn_off
+          deviceId: fan.movie_room_ceiling_fan
+        deviceId: fan.movie_room_ceiling_fan
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: media_player.movie_room_tv
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.party_mode
+          attribute: state
+        - type: or
+          conditions:
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: media_player.movie_left_tv
+              attribute: state
+            - op: eq
+              type: device_state
+              value: unavailable
+              deviceId: media_player.movie_left_tv
+              attribute: state
+        - type: or
+          conditions:
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: media_player.elijah_s_tv
+              attribute: state
+            - op: eq
+              type: device_state
+              value: standby
+              deviceId: media_player.elijah_s_tv
+              attribute: state
+            - op: eq
+              type: device_state
+              value: unavailable
+              deviceId: media_player.elijah_s_tv
+              attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_movie_room
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: fan
+          action: turn_off
+          deviceId: fan.movie_room_ceiling_fan
+        deviceId: fan.movie_room_ceiling_fan
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: media_player.movie_room_tv
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.party_mode
+          attribute: state
+        - type: or
+          conditions:
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: media_player.movie_left_tv
+              attribute: state
+            - op: eq
+              type: device_state
+              value: unavailable
+              deviceId: media_player.movie_left_tv
+              attribute: state
+        - type: or
+          conditions:
+            - op: eq
+              type: device_state
+              value: 'off'
+              deviceId: media_player.elijah_s_tv
+              attribute: state
+            - op: eq
+              type: device_state
+              value: standby
+              deviceId: media_player.elijah_s_tv
+              attribute: state
+            - op: eq
+              type: device_state
+              value: unavailable
+              deviceId: media_player.elijah_s_tv
+              attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_movie_room
+          attribute: state

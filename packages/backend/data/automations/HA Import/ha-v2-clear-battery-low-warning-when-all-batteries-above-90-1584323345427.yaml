@@ -1,0 +1,17 @@
+id: ha-v2-clear-battery-low-warning-when-all-batteries-above-90-1584323345427
+name: 'V2: Clear battery low warning when all batteries above 90%'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1584323345427).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.lowest_sensor_battery
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.sensor_battery_warning
+    deviceId: input_boolean.sensor_battery_warning

@@ -1,0 +1,19 @@
+id: ha-morning-party-mode-off-1746937645634
+name: 'Morning: Party Mode Off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1746937645634).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+  - cron: 0 9 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.party_mode
+    deviceId: input_boolean.party_mode

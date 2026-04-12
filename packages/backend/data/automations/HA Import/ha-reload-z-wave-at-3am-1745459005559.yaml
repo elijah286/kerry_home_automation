@@ -1,0 +1,16 @@
+id: ha-reload-z-wave-at-3am-1745459005559
+name: Reload Z Wave at 3am
+group: HA Import
+description: 'Imported from Home Assistant (id: 1745459005559).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 3 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: hassio
+      action: addon_restart
+      deviceId: ''
+    deviceId: hassio.addon_restart

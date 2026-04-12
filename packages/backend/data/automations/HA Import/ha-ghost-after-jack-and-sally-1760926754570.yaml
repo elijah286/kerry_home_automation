@@ -1,0 +1,19 @@
+id: ha-ghost-after-jack-and-sally-1760926754570
+name: Ghost after jack and sally
+group: HA Import
+description: 'Imported from Home Assistant (id: 1760926754570).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:00:02'
+    type: device_state
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.ghost
+    deviceId: switch.ghost

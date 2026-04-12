@@ -1,0 +1,44 @@
+id: ha-v2-av-control-living-room-tv-on-sets-receiver-to-input-and-surround-sound-1566868673194
+name: 'V2: AV Control: Living room TV on sets receiver to input and surround sound'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566868673194).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: switch.living_room_tv
+    attribute: state
+  - to: 'on'
+    for: '00:00:02'
+    type: device_state
+    deviceId: switch.living_room_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_on
+      deviceId: media_player.living_room_receiver
+    deviceId: media_player.living_room_receiver
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.7
+      deviceId: media_player.living_room_receiver
+    deviceId: media_player.living_room_receiver
+  - type: device_command
+    command:
+      type: media_player
+      action: select_source
+      source: AUDIO1
+      deviceId: media_player.living_room_receiver
+    deviceId: media_player.living_room_receiver
+  - type: device_command
+    command:
+      type: media_player
+      action: select_sound_mode
+      deviceId: media_player.living_room_receiver
+      soundMode: surr_decoder
+    deviceId: media_player.living_room_receiver

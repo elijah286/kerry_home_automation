@@ -1,0 +1,23 @@
+id: ha-downstairs-guest-bathroom-lights-off-1630858987088
+name: Downstairs Guest Bathroom Lights off
+group: HA Import
+description: 'Imported from Home Assistant (id: 1630858987088).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:03:00'
+    type: device_state
+    deviceId: binary_sensor.downstairs_guest_bathroom_motion
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.downstairs_guest_bathroom_vanity_lights
+    deviceId: light.downstairs_guest_bathroom_vanity_lights

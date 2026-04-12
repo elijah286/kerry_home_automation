@@ -1,0 +1,21 @@
+id: ha-auto-lights-on-levi-s-led-1739118472841
+name: 'Auto lights on: Levi’s led '
+group: HA Import
+description: 'Imported from Home Assistant (id: 1739118472841).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.upstairs_occupied
+    attribute: state
+  - type: device_state
+    deviceId: input_button.wake_levi
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.levis_led_lights
+    deviceId: switch.levis_led_lights

@@ -1,0 +1,23 @@
+id: ha-night-mode-turns-off-lights-1748669096187
+name: Night mode turns off lights
+group: HA Import
+description: 'Imported from Home Assistant (id: 1748669096187).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.kitchen_breakfast_table
+    deviceId: switch.kitchen_breakfast_table
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.dining_room_chandelier
+    deviceId: light.dining_room_chandelier

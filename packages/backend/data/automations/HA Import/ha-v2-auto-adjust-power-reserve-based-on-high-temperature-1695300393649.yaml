@@ -1,0 +1,65 @@
+id: ha-v2-auto-adjust-power-reserve-based-on-high-temperature-1695300393649
+name: 'V2: Auto adjust power reserve based on high temperature'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1695300393649).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 5 * * *
+    type: time
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.auto_adjust_power_reserve
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.auto_adjust_power_reserve
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: number
+          value: '50'
+          action: set_value
+          deviceId: number.home_energy_gateway_backup_reserve
+        deviceId: number.home_energy_gateway_backup_reserve
+    type: condition
+    condition:
+      op: gt
+      type: device_state
+      value: 100
+      deviceId: input_number.high_temp_today
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: number
+          value: '40'
+          action: set_value
+          deviceId: number.home_energy_gateway_backup_reserve
+        deviceId: number.home_energy_gateway_backup_reserve
+    type: condition
+    condition:
+      op: gt
+      type: device_state
+      value: 90
+      deviceId: input_number.high_temp_today
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: number
+          value: '30'
+          action: set_value
+          deviceId: number.home_energy_gateway_backup_reserve
+        deviceId: number.home_energy_gateway_backup_reserve
+    type: condition
+    condition:
+      op: lt
+      type: device_state
+      value: 90
+      deviceId: input_number.high_temp_today
+      attribute: state

@@ -1,0 +1,40 @@
+id: ha-v2-game-room-motion-in-evening-or-at-night-1569912043761
+name: 'V2: Game Room motion in evening or at night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1569912043761).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.sleepover_party
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: remote.sony_bravia_tv
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.theater_floor_lamp
+      brightness: 64
+    deviceId: light.theater_floor_lamp

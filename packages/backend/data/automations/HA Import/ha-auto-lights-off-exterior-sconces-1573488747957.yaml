@@ -1,0 +1,75 @@
+id: ha-auto-lights-off-exterior-sconces-1573488747957
+name: 'auto lights off: exterior sconces'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1573488747957).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+  - to: Day
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: sun
+    event: sunrise
+    offset: '00:20:00'
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.exterior_sconces
+    attribute: state
+  - type: or
+    conditions:
+      - op: gt
+        type: device_state
+        value: 1000
+        deviceId: sensor.apf_generation_entity
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: sensor.apf_generation_entity
+        attribute: state
+      - op: eq
+        type: device_state
+        value: '0'
+        deviceId: sensor.apf_generation_entity
+        attribute: state
+  - type: or
+    conditions:
+      - type: time_window
+        after: '06:00'
+        before: '23:59'
+      - type: and
+        conditions:
+          - type: time_window
+            after: '23:30'
+            before: '05:30'
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: input_boolean.motion_detected_on_front_patio
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: input_boolean.person_in_front_yard
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: binary_sensor.driveway_person_detected
+            attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.exterior_sconces
+    deviceId: switch.exterior_sconces

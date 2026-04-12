@@ -1,0 +1,24 @@
+id: ha-reset-office-counter-if-off-for-30-seconds-or-on-for-1-hour-1599137171351
+name: Reset office counter if off for 30 seconds or on for 1 hour
+group: HA Import
+description: 'Imported from Home Assistant (id: 1599137171351).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '01:00:00'
+    type: device_state
+    deviceId: light.office_main_lights
+    attribute: state
+  - to: 'off'
+    for: '00:00:30'
+    type: device_state
+    deviceId: light.office_main_lights
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: counter
+      action: reset
+      deviceId: ''
+    deviceId: counter.reset

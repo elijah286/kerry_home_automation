@@ -1,0 +1,18 @@
+id: ha-v2-log-sexy-time-1727666952759
+name: 'V2: Log sexy time'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1727666952759).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.sexy_time
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: calendar
+      action: create_event
+      deviceId: calendar.private
+    deviceId: calendar.private

@@ -1,0 +1,19 @@
+id: ha-turn-off-spa-heater-button-off-when-water-heater-is-off-1743389031896
+name: Turn off spa heater button off when water_heater is off
+group: HA Import
+description: 'Imported from Home Assistant (id: 1743389031896).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'off'
+    type: device_state
+    deviceId: water_heater.spa
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.spa_heater
+    deviceId: input_boolean.spa_heater

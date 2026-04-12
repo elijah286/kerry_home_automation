@@ -1,0 +1,38 @@
+id: ha-if-dining-room-and-office-are-off-turn-off-chandelier-1566522170029
+name: If dining room and office are off, turn off chandelier
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566522170029).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.office_main_lights
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: light.dining_room_chandelier
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.dining_room_chandelier
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.office_main_lights
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.front_foyer_chandelier
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.front_foyer_chandelier
+    deviceId: light.front_foyer_chandelier

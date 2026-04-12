@@ -1,0 +1,28 @@
+id: ha-v2-automatically-arm-the-alarm-at-night-1728355802887
+name: 'V2: Automatically arm the alarm at night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1728355802887).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.automatically_arm_the_alarm
+    attribute: state
+  - op: eq
+    type: device_state
+    value: disarmed
+    deviceId: alarm_control_panel.home_alarm
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: alarm_control_panel
+      action: alarm_arm_home
+      deviceId: alarm_control_panel.home_alarm
+    deviceId: alarm_control_panel.home_alarm

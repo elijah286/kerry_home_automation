@@ -1,0 +1,228 @@
+id: ha-run-sprinkler-zone-1760930437147
+name: Run Sprinkler Zone
+group: HA Import
+description: 'Imported from Home Assistant (id: 1760930437147).'
+enabled: false
+mode: single
+triggers:
+  - for: '00:00:05'
+    type: device_state
+    deviceId: input_number.sprinkler_zone_to_run
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.back_grass_by_patio_stops_at_edge_of_house
+    deviceId: switch.back_grass_by_patio_stops_at_edge_of_house
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: everyone
+          message: '1: Plants Behind Pool'
+          deviceId: ''
+        deviceId: notify.everyone
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.back_grass_by_patio_stops_at_edge_of_house
+        deviceId: switch.back_grass_by_patio_stops_at_edge_of_house
+    type: condition
+    condition:
+      op: gt
+      type: device_state
+      value: 0
+      deviceId: input_number.sprinkler_zone_to_run
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: everyone
+          message: '2: Grass by waterfall'
+          deviceId: ''
+        deviceId: notify.everyone
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.back_grass_under_playscape_and_by_rockbed
+        deviceId: switch.back_grass_under_playscape_and_by_rockbed
+    type: condition
+    condition:
+      op: gt
+      type: device_state
+      value: 1
+      deviceId: input_number.sprinkler_zone_to_run
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: everyone
+          message: '3: Front Flower Beds'
+          deviceId: ''
+        deviceId: notify.everyone
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.front_flower_beds
+        deviceId: switch.front_flower_beds
+    type: condition
+    condition:
+      op: gt
+      type: device_state
+      value: 2
+      deviceId: input_number.sprinkler_zone_to_run
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: everyone
+          message: '4: Left Front Grass'
+          deviceId: ''
+        deviceId: notify.everyone
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.left_front_grass
+        deviceId: switch.left_front_grass
+    type: condition
+    condition:
+      op: gt
+      type: device_state
+      value: 3
+      deviceId: input_number.sprinkler_zone_to_run
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: everyone
+          message: '5: Left Side Front Grass'
+          deviceId: ''
+        deviceId: notify.everyone
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.left_side_front_grass
+        deviceId: switch.left_side_front_grass
+    type: condition
+    condition:
+      op: gt
+      type: device_state
+      value: 4
+      deviceId: input_number.sprinkler_zone_to_run
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: everyone
+          message: '6: Pool Beds Drip'
+          deviceId: ''
+        deviceId: notify.everyone
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.back_flower_bed_behind_playscape
+        deviceId: switch.back_flower_bed_behind_playscape
+    type: condition
+    condition:
+      op: gt
+      type: device_state
+      value: 5
+      deviceId: input_number.sprinkler_zone_to_run
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: everyone
+          message: '7: Backyard'
+          deviceId: ''
+        deviceId: notify.everyone
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.back_grass_in_the_middle_of_the_yard
+        deviceId: switch.back_grass_in_the_middle_of_the_yard
+    type: condition
+    condition:
+      op: gt
+      type: device_state
+      value: 6
+      deviceId: input_number.sprinkler_zone_to_run
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: everyone
+          message: '8: Right Front Grass'
+          deviceId: ''
+        deviceId: notify.everyone
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.right_front_grass
+        deviceId: switch.right_front_grass
+    type: condition
+    condition:
+      op: gt
+      type: device_state
+      value: 7
+      deviceId: input_number.sprinkler_zone_to_run
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: everyone
+          message: '9: Right of Drive'
+          deviceId: ''
+        deviceId: notify.everyone
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.right_of_drive
+        deviceId: switch.right_of_drive
+    type: condition
+    condition:
+      op: gt
+      type: device_state
+      value: 8
+      deviceId: input_number.sprinkler_zone_to_run
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: notify
+          action: everyone
+          message: '10: Street Strip'
+          deviceId: ''
+        deviceId: notify.everyone
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.front_walk_grass
+        deviceId: switch.front_walk_grass
+    type: condition
+    condition:
+      op: gt
+      type: device_state
+      value: 9
+      deviceId: input_number.sprinkler_zone_to_run
+      attribute: state

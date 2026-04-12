@@ -1,0 +1,32 @@
+id: ha-levis-overhead-light-timer-1564775311111
+name: Levis Overhead Light Timer
+group: HA Import
+description: 'Imported from Home Assistant (id: 1564775311111).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:30'
+    from: 'off'
+    type: device_state
+    deviceId: switch.levis_bedroom_main_lights
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.day_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.levis_bedroom_main_lights
+    deviceId: switch.levis_bedroom_main_lights
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: switch.levis_bedroom_closet_light
+    deviceId: switch.levis_bedroom_closet_light

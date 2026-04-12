@@ -1,0 +1,30 @@
+id: ha-v2-ashers-overhead-light-timer-at-night-1664595940669
+name: 'V2: Ashers overhead light timer at night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1664595940669).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:00:30'
+    type: device_state
+    deviceId: switch.ashers_bedroom_main_lights
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.asher_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.ashers_bedroom_main_lights
+    deviceId: switch.ashers_bedroom_main_lights

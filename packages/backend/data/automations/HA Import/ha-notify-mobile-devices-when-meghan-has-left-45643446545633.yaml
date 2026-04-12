@@ -1,0 +1,19 @@
+id: ha-notify-mobile-devices-when-meghan-has-left-45643446545633
+name: Notify mobile devices when Meghan has left
+group: HA Import
+description: 'Imported from Home Assistant (id: 45643446545633).'
+enabled: false
+mode: single
+triggers:
+  - from: home
+    type: device_state
+    deviceId: person.meghan_kerry
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Meghan has left home
+      deviceId: ''
+    deviceId: notify.everyone

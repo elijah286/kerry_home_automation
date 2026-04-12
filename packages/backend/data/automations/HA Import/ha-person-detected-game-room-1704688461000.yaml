@@ -1,0 +1,88 @@
+id: ha-person-detected-game-room-1704688461000
+name: 'Person Detected: Game Room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1704688461000).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: binary_sensor.balcony_door
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.game_room_area_person_occupancy
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: light.game_room_main_lights
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: binary_sensor.game_room_radar
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+  - type: or
+    conditions:
+      - type: and
+        conditions:
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: 'on'
+              deviceId: binary_sensor.balcony_door
+              attribute: state
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: 'off'
+              deviceId: binary_sensor.balcony_door
+              attribute: state
+      - type: and
+        conditions:
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: 'on'
+              deviceId: light.game_room_main_lights
+              attribute: state
+          - op: eq
+            type: device_state
+            value: 'on'
+            deviceId: light.game_room_main_lights
+            attribute: state
+      - type: and
+        conditions:
+          - type: not
+            condition:
+              op: eq
+              type: device_state
+              value: Night
+              deviceId: input_select.system_mode
+              attribute: state
+          - op: eq
+            type: device_state
+            value: 'on'
+            deviceId: binary_sensor.game_room_area_person_occupancy
+            attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.game_room_radar
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.game_room_motion_detected
+    deviceId: input_boolean.game_room_motion_detected

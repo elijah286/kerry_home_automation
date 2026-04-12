@@ -1,0 +1,34 @@
+id: ha-2-hour-timer-on-asher-s-fan-during-day-1571020211110
+name: 2 Hour Timer on Asher's Fan During Day
+group: HA Import
+description: 'Imported from Home Assistant (id: 1571020211110).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '02:00:00'
+    type: device_state
+    deviceId: fan.ashers_bedroom_ceiling_fan
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.kids_sleeping
+          attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.ashers_bedroom_ceiling_fan
+    deviceId: fan.ashers_bedroom_ceiling_fan

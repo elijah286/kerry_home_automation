@@ -1,0 +1,26 @@
+id: ha-person-detected-front-yard-1733719935651
+name: 'Person detected: front yard'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733719935651).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.front_yard_frigate_person_occupancy
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.front_door
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.driveway_person_detected
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_front_yard
+    deviceId: input_boolean.person_in_front_yard

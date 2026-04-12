@@ -1,0 +1,28 @@
+id: ha-cleaning-routine-during-work-day-not-tuesdays-1766516406018
+name: Cleaning Routine During Work Day (not Tuesdays)
+group: HA Import
+description: 'Imported from Home Assistant (id: 1766516406018).'
+enabled: false
+mode: single
+triggers:
+  - cron: 15 8 * * *
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.vacation_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.vacuum_auto_run
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: vacuum
+      action: send_command
+      command: app_segment_clean
+      deviceId: vacuum.saros_z70
+    deviceId: vacuum.saros_z70

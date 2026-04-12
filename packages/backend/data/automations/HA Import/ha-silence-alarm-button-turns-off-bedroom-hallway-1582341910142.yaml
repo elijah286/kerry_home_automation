@@ -1,0 +1,18 @@
+id: ha-silence-alarm-button-turns-off-bedroom-hallway-1582341910142
+name: Silence Alarm Button Turns off Bedroom Hallway
+group: HA Import
+description: 'Imported from Home Assistant (id: 1582341910142).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.clear_alarm
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: ''
+    deviceId: switch.turn_on

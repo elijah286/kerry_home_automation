@@ -1,0 +1,67 @@
+id: ha-auto-lights-on-kitchen-1565836646705
+name: 'Auto lights on: kitchen'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565836646705).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.kitchen_motion_detected
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.kitchen_island_pendants
+        deviceId: switch.kitchen_island_pendants
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - type: not
+          condition:
+            op: eq
+            type: device_state
+            value: Night
+            deviceId: input_select.system_mode
+            attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.kitchen_motion_detected
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.breakfast_pendant
+        deviceId: light.breakfast_pendant
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: input_boolean.kitchen_motion_detected
+      attribute: state

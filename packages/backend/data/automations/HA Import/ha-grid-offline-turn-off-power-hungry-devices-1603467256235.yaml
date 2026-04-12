@@ -1,0 +1,50 @@
+id: ha-grid-offline-turn-off-power-hungry-devices-1603467256235
+name: 'Grid Offline: Turn Off Power Hungry Devices'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1603467256235).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'off'
+    type: device_state
+    deviceId: binary_sensor.home_energy_gateway_grid_status
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.grid_offline
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.grid_offline
+    deviceId: input_boolean.grid_offline
+  - type: device_command
+    command:
+      type: input_select
+      action: select_option
+      option: Critical
+      deviceId: input_select.power_saving_mode
+    deviceId: input_select.power_saving_mode
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.exterior_landscape
+    deviceId: switch.exterior_landscape
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.dining_room_chandelier
+    deviceId: light.dining_room_chandelier
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.ashers_bedroom_ceiling_fan
+    deviceId: fan.ashers_bedroom_ceiling_fan

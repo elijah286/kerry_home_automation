@@ -1,0 +1,20 @@
+id: ha-portal-closed-after-being-left-open-1566007270791
+name: 'Portal: Closed after being left open'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566007270791).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    from: 'on'
+    type: device_state
+    deviceId: input_boolean.portal_left_open
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: all windows and doors are closed.
+      deviceId: ''
+    deviceId: notify.everyone

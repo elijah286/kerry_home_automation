@@ -1,0 +1,23 @@
+id: ha-halloween-mode-off-stops-all-music-1761192088004
+name: Halloween Mode Off Stops all music
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761192088004).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.halloween_mode
+    attribute: state
+  - to: 'off'
+    for: '00:01:00'
+    type: device_state
+    deviceId: binary_sensor.driveway_frigate_motion
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: media_stop
+      deviceId: media_player.brane_0101234101030114_2
+    deviceId: media_player.brane_0101234101030114_2

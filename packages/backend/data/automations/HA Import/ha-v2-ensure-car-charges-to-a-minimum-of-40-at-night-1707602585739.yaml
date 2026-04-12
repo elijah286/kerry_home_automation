@@ -1,0 +1,27 @@
+id: ha-v2-ensure-car-charges-to-a-minimum-of-40-at-night-1707602585739
+name: 'V2: Ensure car charges to a minimum of 40% at night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1707602585739).'
+enabled: false
+mode: single
+triggers:
+  - to: Night
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: sun
+    event: sunset
+conditions:
+  - op: lt
+    type: device_state
+    value: 40
+    deviceId: input_number.minimum_charge_level_for_smartcharge
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_number
+      value: 40
+      action: set_value
+      deviceId: input_number.minimum_charge_level_for_smartcharge
+    deviceId: input_number.minimum_charge_level_for_smartcharge

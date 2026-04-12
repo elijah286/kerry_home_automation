@@ -1,0 +1,68 @@
+id: ha-auto-lights-off-guest-room-1733939032106
+name: 'auto lights off: guest room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733939032106).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:05:00'
+    type: device_state
+    deviceId: input_boolean.person_in_guest_room
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.guest_room_desk
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.guest_room_sconces
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.guest_room_sconces
+        deviceId: light.guest_room_sconces
+      - type: device_command
+        command:
+          type: fan
+          action: turn_off
+          deviceId: fan.guest_room_ceiling_fan
+        deviceId: fan.guest_room_ceiling_fan
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.guest_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_guest_room
+          attribute: state

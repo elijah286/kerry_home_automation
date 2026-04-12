@@ -1,0 +1,77 @@
+id: ha-chatgpt-set-hvac-setpoints-1734847564772
+name: ChatGPT Set HVAC Setpoints
+group: HA Import
+description: 'Imported from Home Assistant (id: 1734847564772).'
+enabled: false
+mode: restart
+triggers:
+  - for: '00:00:30'
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.sexy_time
+    attribute: state
+  - for: '00:00:02'
+    type: device_state
+    deviceId: input_number.night_setpoint
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - from: 'off'
+    type: device_state
+    deviceId: climate.main_floor
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: climate
+          action: set_temperature
+          deviceId: climate.main_floor
+          temperature: 71
+        deviceId: climate.main_floor
+      - type: device_command
+        command:
+          type: input_number
+          value: 71
+          action: set_value
+          deviceId: input_number.main_floor_target_temp
+        deviceId: input_number.main_floor_target_temp
+    then:
+      - then:
+          - type: device_command
+            command:
+              type: climate
+              action: set_temperature
+              deviceId: climate.main_floor
+              temperature: '{{ states(''input_number.morning_setpoint'')|float }}'
+            deviceId: climate.main_floor
+          - type: device_command
+            command:
+              type: input_number
+              value: '{{ states(''input_number.morning_setpoint'')|float }}'
+              action: set_value
+              deviceId: input_number.main_floor_target_temp
+            deviceId: input_number.main_floor_target_temp
+        type: condition
+        condition:
+          op: eq
+          type: device_state
+          value: Morning
+          deviceId: input_select.system_mode
+          attribute: state
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: input_boolean.sexy_time
+      attribute: state

@@ -1,0 +1,37 @@
+id: ha-reload-meross-if-devices-become-unavailable-1616863683638
+name: Reload meross if devices become unavailable
+group: HA Import
+description: 'Imported from Home Assistant (id: 1616863683638).'
+enabled: false
+mode: single
+triggers:
+  - to: unavailable
+    type: device_state
+    deviceId: cover.red
+    attribute: state
+  - to: unavailable
+    type: device_state
+    deviceId: cover.white
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: cover.red
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: cover.white
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: homeassistant
+      action: reload_config_entry
+      deviceId: cover.white
+    deviceId: cover.white

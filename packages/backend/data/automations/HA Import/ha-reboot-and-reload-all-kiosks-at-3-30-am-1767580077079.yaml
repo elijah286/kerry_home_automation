@@ -1,0 +1,40 @@
+id: ha-reboot-and-reload-all-kiosks-at-3-30-am-1767580077079
+name: Reboot and reload all kiosks at 3:30 am
+group: HA Import
+description: 'Imported from Home Assistant (id: 1767580077079).'
+enabled: false
+mode: single
+triggers:
+  - cron: 30 3 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.guest_room_kiosk_restart_browser
+    deviceId: button.guest_room_kiosk_restart_browser
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.restart_browser_bedroom_kiosk
+    deviceId: button.restart_browser_bedroom_kiosk
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.hallway_kiosk_restart_browser
+    deviceId: button.hallway_kiosk_restart_browser
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.kitchen_kiosk_restart_browser
+    deviceId: button.kitchen_kiosk_restart_browser
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.movie_room_kiosk_restart_browser
+    deviceId: button.movie_room_kiosk_restart_browser

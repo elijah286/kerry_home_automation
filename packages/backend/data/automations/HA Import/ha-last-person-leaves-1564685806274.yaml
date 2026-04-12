@@ -1,0 +1,44 @@
+id: ha-last-person-leaves-1564685806274
+name: Last person leaves
+group: HA Import
+description: 'Imported from Home Assistant (id: 1564685806274).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    from: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.portal_while_armed
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.motion_while_armed
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.portal_while_armed
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.motion_while_armed
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: House is vacant. No Alarm. Shutting down the house
+      deviceId: ''
+    deviceId: notify.everyone

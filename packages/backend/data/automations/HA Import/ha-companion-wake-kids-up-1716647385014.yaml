@@ -1,0 +1,15 @@
+id: ha-companion-wake-kids-up-1716647385014
+name: 'Companion: Wake Kids Up'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1716647385014).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.wake_kids_up
+    deviceId: input_button.wake_kids_up

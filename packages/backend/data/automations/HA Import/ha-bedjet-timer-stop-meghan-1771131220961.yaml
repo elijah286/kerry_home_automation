@@ -1,0 +1,19 @@
+id: ha-bedjet-timer-stop-meghan-1771131220961
+name: 'Bedjet Timer Stop: Meghan'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1771131220961).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'off'
+    type: device_state
+    deviceId: climate.rpi_meghan
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: timer
+      action: finish
+      deviceId: timer.meghan_s_bedjet
+    deviceId: timer.meghan_s_bedjet

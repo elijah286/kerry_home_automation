@@ -1,0 +1,18 @@
+id: ha-v2-auto-lights-disabled-when-late-night-1727172071705
+name: 'V2: Auto lights disabled when late night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1727172071705).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.late_night
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.motion_lights_on
+    deviceId: input_boolean.motion_lights_on

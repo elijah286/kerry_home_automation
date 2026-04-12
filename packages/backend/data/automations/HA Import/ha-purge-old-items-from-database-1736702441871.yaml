@@ -1,0 +1,16 @@
+id: ha-purge-old-items-from-database-1736702441871
+name: Purge old items from database
+group: HA Import
+description: 'Imported from Home Assistant (id: 1736702441871).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 3 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: recorder
+      action: purge
+      deviceId: ''
+    deviceId: recorder.purge

@@ -1,0 +1,18 @@
+id: ha-v2-movie-tv-off-when-last-person-leaves-1663466349974
+name: 'V2: movie tv off when last person leaves'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1663466349974).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_off
+      deviceId: media_player.movie_room_tv
+    deviceId: media_player.movie_room_tv

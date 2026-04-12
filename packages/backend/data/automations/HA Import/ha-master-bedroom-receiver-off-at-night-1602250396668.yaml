@@ -1,0 +1,18 @@
+id: ha-master-bedroom-receiver-off-at-night-1602250396668
+name: Master Bedroom Receiver off at Night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1602250396668).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.night_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: ''
+    deviceId: switch.turn_off

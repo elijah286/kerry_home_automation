@@ -1,0 +1,17 @@
+id: ha-reset-powerwall-daily-max-peak-at-midnight-1601913343376
+name: Reset powerwall daily max peak at midnight
+group: HA Import
+description: 'Imported from Home Assistant (id: 1601913343376).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 0 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: input_number
+      value: 0
+      action: set_value
+      deviceId: input_number.powerwall_battery_daily_max
+    deviceId: input_number.powerwall_battery_daily_max

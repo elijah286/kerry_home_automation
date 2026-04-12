@@ -1,0 +1,32 @@
+id: ha-v2-overhead-lights-in-levi-rooms-on-3-min-timer-if-sun-bright-1661105198836
+name: 'V2: Overhead lights in levi rooms on 3 min timer if sun bright'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1661105198836).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:03:00'
+    type: device_state
+    deviceId: switch.levis_bedroom_main_lights
+    attribute: state
+  - cron: '*/3 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.levis_bedroom_main_lights
+    attribute: state
+  - op: gt
+    type: device_state
+    value: 6000
+    deviceId: sensor.apf_generation_entity
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.levis_bedroom_main_lights
+    deviceId: switch.levis_bedroom_main_lights

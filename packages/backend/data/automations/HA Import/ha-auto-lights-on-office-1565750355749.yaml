@@ -1,0 +1,58 @@
+id: ha-auto-lights-on-office-1565750355749
+name: 'auto lights on: office'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565750355749).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_detected_in_office
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.office_main_lights
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_detected_in_office
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.office_main_lights
+          brightness: 255
+        deviceId: light.office_main_lights
+    then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.office_main_lights
+          brightness: 179
+        deviceId: light.office_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Morning
+      deviceId: input_select.system_mode
+      attribute: state

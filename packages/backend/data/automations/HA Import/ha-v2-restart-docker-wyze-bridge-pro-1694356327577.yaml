@@ -1,0 +1,59 @@
+id: ha-v2-restart-docker-wyze-bridge-pro-1694356327577
+name: 'V2: Restart docker Wyze bridge pro '
+group: HA Import
+description: 'Imported from Home Assistant (id: 1694356327577).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/2 * * * *'
+    type: time
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: camera.back_door_camera
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: camera.front_door_2
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: camera.living_room
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: camera.garage
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: camera.driveway
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: camera.front_yard
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: camera.street
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: camera.backyard
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: hassio
+      action: addon_restart
+      deviceId: ''
+    deviceId: hassio.addon_restart

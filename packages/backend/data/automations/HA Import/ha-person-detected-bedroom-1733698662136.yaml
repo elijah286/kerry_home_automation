@@ -1,0 +1,50 @@
+id: ha-person-detected-bedroom-1733698662136
+name: 'Person detected: bedroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733698662136).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: binary_sensor.master_bedroom
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: media_player.bedroom_tv
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.main_bedroom_occupancy
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.bedroom_kiosk_person_occupancy
+    attribute: state
+  - type: device_state
+    deviceId: sensor.bedroom_kiosk_person_active_count
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_main_bedroom
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_main_bedroom
+    deviceId: input_boolean.person_in_main_bedroom

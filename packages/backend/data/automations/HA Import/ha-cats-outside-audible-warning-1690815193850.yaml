@@ -1,0 +1,51 @@
+id: ha-cats-outside-audible-warning-1690815193850
+name: Cats Outside Audible Warning
+group: HA Import
+description: 'Imported from Home Assistant (id: 1690815193850).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/5 * * * *'
+    type: time
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.cats_detected_outdoors
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.cats_detected_outdoors
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: A cat may be outdoors. Please find the cats.
+      deviceId: ''
+    deviceId: notify.alexa_media
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: A cat may be outdoors. Please find the cats.
+      deviceId: ''
+    deviceId: notify.alexa_media
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: A cat may be outdoors. Please find the cats.
+      deviceId: ''
+    deviceId: notify.alexa_media

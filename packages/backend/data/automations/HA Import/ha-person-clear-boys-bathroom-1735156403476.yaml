@@ -1,0 +1,43 @@
+id: ha-person-clear-boys-bathroom-1735156403476
+name: 'Person clear: boys bathroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1735156403476).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.boys_bathroom_motion
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.person_in_boys_bathroom
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.boys_bathroom_motion
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.boys_bathroom_shower_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: switch.boys_bathroom_shower_lights
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.person_in_boys_bathroom
+    deviceId: input_boolean.person_in_boys_bathroom

@@ -1,0 +1,17 @@
+id: ha-movie-mode-on-1756764470970
+name: Movie mode on
+group: HA Import
+description: 'Imported from Home Assistant (id: 1756764470970).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.play_movie
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.movie_mode
+    deviceId: input_boolean.movie_mode

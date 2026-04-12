@@ -1,0 +1,60 @@
+id: ha-auto-lights-on-stairs-1733187457364
+name: 'auto lights on: stairs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733187457364).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.living_room_lamps
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_at_top_of_stairs
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+  - type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.stairs_main_lights
+    attribute: state
+  - op: eq
+    type: device_state
+    value: ''
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.person_at_top_of_stairs
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.stairs_main_lights
+          brightness: 127
+        deviceId: light.stairs_main_lights
+    then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.stairs_main_lights
+          brightness: 51
+        deviceId: light.stairs_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state

@@ -1,0 +1,42 @@
+id: ha-v2-asher-sleeping-mode-set-manually-1660996975611
+name: 'V2: Asher Sleeping Mode Set Manually'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660996975611).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.asher_sleeping
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.ashers_bedroom_table_lamp
+    deviceId: light.ashers_bedroom_table_lamp
+  - type: device_command
+    command:
+      type: fan
+      action: turn_on
+      deviceId: fan.ashers_bedroom_ceiling_fan
+    deviceId: fan.ashers_bedroom_ceiling_fan
+  - type: device_command
+    command:
+      type: cover
+      action: close_cover
+      deviceId: cover.ashers_bedroom_blind
+    deviceId: cover.ashers_bedroom_blind
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.ashers_bedroom_closet_light
+    deviceId: switch.ashers_bedroom_closet_light

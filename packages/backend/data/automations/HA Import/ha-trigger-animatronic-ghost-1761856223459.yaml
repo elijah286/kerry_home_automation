@@ -1,0 +1,47 @@
+id: ha-trigger-animatronic-ghost-1761856223459
+name: 'Trigger animatronic: ghost'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761856223459).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:00:01'
+    type: device_state
+    deviceId: binary_sensor.ghost_trigger_person_occupancy
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.halloween_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.animatronics_armed
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.ghost
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: binary_sensor.ghost_trigger_person_occupancy
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.ghost
+    deviceId: switch.ghost

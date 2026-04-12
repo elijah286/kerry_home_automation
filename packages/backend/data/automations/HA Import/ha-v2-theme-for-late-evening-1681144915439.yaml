@@ -1,0 +1,24 @@
+id: ha-v2-theme-for-late-evening-1681144915439
+name: 'V2: Theme for Late Evening'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1681144915439).'
+enabled: false
+mode: single
+triggers:
+  - to: Late Evening
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Late Evening
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: frontend
+      action: set_theme
+      deviceId: ''
+    deviceId: frontend.set_theme

@@ -1,0 +1,18 @@
+id: ha-turn-off-bedroom-tv-when-last-person-leaves-1593045362682
+name: Turn off bedroom TV when last person leaves
+group: HA Import
+description: 'Imported from Home Assistant (id: 1593045362682).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: ''
+    deviceId: switch.turn_off

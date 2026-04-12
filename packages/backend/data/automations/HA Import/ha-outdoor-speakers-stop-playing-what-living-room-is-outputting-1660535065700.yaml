@@ -1,0 +1,18 @@
+id: ha-outdoor-speakers-stop-playing-what-living-room-is-outputting-1660535065700
+name: Outdoor speakers stop playing what living room is outputting
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660535065700).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.outdoor_speakers_sync_to_main
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.party_mode
+    deviceId: switch.party_mode

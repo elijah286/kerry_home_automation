@@ -1,0 +1,28 @@
+id: ha-eli-garage-door-left-open-no-one-home-1571848953737
+name: Eli Garage Door Left Open No One Home
+group: HA Import
+description: 'Imported from Home Assistant (id: 1571848953737).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/2 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: open
+    deviceId: cover.red
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: 'WARNING: Eli''s garage left open'
+      deviceId: ''
+    deviceId: notify.everyone

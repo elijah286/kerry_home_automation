@@ -1,0 +1,18 @@
+id: ha-breakfast-pendant-off-turns-off-breakfast-table-1566473520680
+name: Breakfast pendant off turns off breakfast table
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566473520680).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: switch.kitchen_table_pendants
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.kitchen_breakfast_table
+    deviceId: switch.kitchen_breakfast_table

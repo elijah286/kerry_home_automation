@@ -1,0 +1,24 @@
+id: ha-kitchen-music-remote-play-pause-when-tv-on-1588768049400
+name: Kitchen Music Remote Play Pause when TV On
+group: HA Import
+description: 'Imported from Home Assistant (id: 1588768049400).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.kitchen_music_top
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.living_room_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: media_play_pause
+      deviceId: ''
+    deviceId: media_player.media_play_pause

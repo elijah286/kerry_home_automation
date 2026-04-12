@@ -1,0 +1,19 @@
+id: ha-v2-lower-alexa-volume-on-kids-rooms-when-they-go-to-sleep-1663726942072
+name: 'V2: Lower Alexa volume on kids rooms when they go to sleep'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1663726942072).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.5
+      deviceId: media_player.piano_echo
+    deviceId: media_player.piano_echo

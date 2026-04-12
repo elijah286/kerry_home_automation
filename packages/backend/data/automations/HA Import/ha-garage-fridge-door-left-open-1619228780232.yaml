@@ -1,0 +1,57 @@
+id: ha-garage-fridge-door-left-open-1619228780232
+name: Garage Fridge Door Left Open
+group: HA Import
+description: 'Imported from Home Assistant (id: 1619228780232).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:00:30'
+    type: device_state
+    deviceId: binary_sensor.garage_fridge
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+  - to: 'on'
+    for: '00:00:30'
+    type: device_state
+    deviceId: binary_sensor.garage_freezer_door_window_door_is_open
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.refrigerator_door_open
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.garage_freezer_door_window_door_is_open
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.garage_fridge_window_door_is_open
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: Garage fridge left open
+      deviceId: ''
+    deviceId: notify.alexa_media
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.fridge_warning
+    deviceId: input_boolean.fridge_warning
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: Garage fridge left open
+      deviceId: ''
+    deviceId: notify.alexa_media

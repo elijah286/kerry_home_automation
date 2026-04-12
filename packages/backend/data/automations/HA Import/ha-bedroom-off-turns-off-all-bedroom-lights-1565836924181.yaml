@@ -1,0 +1,28 @@
+id: ha-bedroom-off-turns-off-all-bedroom-lights-1565836924181
+name: Bedroom off turns off all bedroom lights
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565836924181).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.master_bedroom_elis_lamp
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: light.master_bedroom_meghans_lamp
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: ''
+    deviceId: switch.turn_off
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off

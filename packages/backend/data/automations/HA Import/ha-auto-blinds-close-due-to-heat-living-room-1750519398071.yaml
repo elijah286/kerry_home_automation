@@ -1,0 +1,67 @@
+id: ha-auto-blinds-close-due-to-heat-living-room-1750519398071
+name: 'auto blinds close due to heat: living room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1750519398071).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - op: gt
+    type: device_state
+    value: 100
+    deviceId: sensor.home_realfeel_temperature
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: clear-night
+        deviceId: weather.home
+        attribute: state
+      - op: eq
+        type: device_state
+        value: sunny
+        deviceId: weather.home
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.vertical_toggle_control_living_room_v2_2
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.vertical_toggle_control_living_room_v2_2
+    deviceId: switch.vertical_toggle_control_living_room_v2_2
+  - else:
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: create
+          message: Living room window left open
+          deviceId: ''
+        deviceId: persistent_notification.create
+    then:
+      - type: device_command
+        command:
+          type: cover
+          action: close_cover
+          deviceId: ''
+        deviceId: cover.close_cover
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: dismiss
+          deviceId: ''
+        deviceId: persistent_notification.dismiss
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: binary_sensor.living_room
+      attribute: state

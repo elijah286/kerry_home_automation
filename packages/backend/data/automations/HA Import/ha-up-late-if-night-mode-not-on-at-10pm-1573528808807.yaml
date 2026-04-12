@@ -1,0 +1,16 @@
+id: ha-up-late-if-night-mode-not-on-at-10pm-1573528808807
+name: Up late if night mode not on at 10pm
+group: HA Import
+description: 'Imported from Home Assistant (id: 1573528808807).'
+enabled: false
+mode: single
+triggers:
+  - cron: 30 22 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.up_late
+    deviceId: input_boolean.up_late

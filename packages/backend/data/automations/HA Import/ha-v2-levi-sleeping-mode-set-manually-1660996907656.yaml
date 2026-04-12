@@ -1,0 +1,44 @@
+id: ha-v2-levi-sleeping-mode-set-manually-1660996907656
+name: 'V2: Levi Sleeping Mode Set Manually'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660996907656).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.levi_sleeping
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.levis_bedroom_table_lamp
+    deviceId: light.levis_bedroom_table_lamp
+  - type: device_command
+    command:
+      type: cover
+      action: close_cover
+      deviceId: cover.levis_bedroom_blind
+    deviceId: cover.levis_bedroom_blind
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.levis_bedroom_main_lights
+    deviceId: switch.levis_bedroom_main_lights
+  - then:
+      - type: device_command
+        command:
+          type: fan
+          action: turn_on
+          deviceId: fan.levis_bedroom_ceiling_fan
+        deviceId: fan.levis_bedroom_ceiling_fan
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: input_boolean.upstairs_vacant
+      attribute: state

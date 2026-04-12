@@ -11,7 +11,7 @@ const MAX_BODY = 512_000;
 export async function musicCastGet(host: string, path: string): Promise<Record<string, unknown> | null> {
   return new Promise((resolve) => {
     const req = httpRequest(
-      { hostname: host, port: 5000, path, method: 'GET', timeout: TIMEOUT_MS },
+      { hostname: host, port: 80, path, method: 'GET', timeout: TIMEOUT_MS },
       (res) => {
         let raw = '';
         res.setEncoding('utf8');

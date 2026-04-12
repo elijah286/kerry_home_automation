@@ -1,0 +1,19 @@
+id: ha-sloane-s-overhead-turns-on-lamp-1576883112873
+name: Sloane's overhead turns on lamp
+group: HA Import
+description: 'Imported from Home Assistant (id: 1576883112873).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: switch.sloanes_bedroom_ceiling_fan_light
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.sloanes_bedroom_bedside_lamp
+      brightness: 255
+    deviceId: light.sloanes_bedroom_bedside_lamp

@@ -1,0 +1,25 @@
+id: ha-v2-halloween-turn-lights-back-on-after-song-1698802597858
+name: 'V2: Halloween: turn lights back on after song'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1698802597858).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:01:30'
+    type: device_state
+    deviceId: switch.exterior_sconces
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.halloween_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.exterior_sconces
+    deviceId: switch.exterior_sconces

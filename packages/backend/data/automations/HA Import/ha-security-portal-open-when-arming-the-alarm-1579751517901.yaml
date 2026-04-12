@@ -1,0 +1,31 @@
+id: ha-security-portal-open-when-arming-the-alarm-1579751517901
+name: 'SECURITY: Portal open when arming the alarm'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1579751517901).'
+enabled: false
+mode: single
+triggers:
+  - to: pending
+    type: device_state
+    deviceId: alarm_control_panel.home_alarm
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.portal_open
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: scene
+      action: turn_on
+      deviceId: ''
+    deviceId: scene.turn_on
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: 'WARNING: Arming alarm while door or window open'
+      deviceId: ''
+    deviceId: notify.everyone

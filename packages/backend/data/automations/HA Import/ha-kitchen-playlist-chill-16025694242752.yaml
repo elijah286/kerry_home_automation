@@ -1,0 +1,25 @@
+id: ha-kitchen-playlist-chill-16025694242752
+name: 'Kitchen Playlist: Chill'
+group: HA Import
+description: 'Imported from Home Assistant (id: 16025694242752).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.music_chill
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: counter
+      value: 3
+      action: configure
+      deviceId: ''
+    deviceId: counter.configure
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on

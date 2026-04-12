@@ -1,0 +1,26 @@
+id: ha-v2-kids-asleep-turns-off-upstairs-1660767101542
+name: 'V2: Kids Asleep Turns Off Upstairs'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660767101542).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_boolean.kids_sleeping
+    attribute: state
+  - type: device_state
+    deviceId: input_button.puts_kids_to_sleep
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.upstairs_hallway_piano
+    deviceId: light.upstairs_hallway_piano
+  - type: device_command
+    command:
+      type: cover
+      action: close_cover
+      deviceId: cover.game_room_blinds
+    deviceId: cover.game_room_blinds

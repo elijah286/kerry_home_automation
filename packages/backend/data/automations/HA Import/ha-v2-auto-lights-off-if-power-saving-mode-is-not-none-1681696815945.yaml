@@ -1,0 +1,27 @@
+id: ha-v2-auto-lights-off-if-power-saving-mode-is-not-none-1681696815945
+name: 'V2: Auto lights off if power saving mode is not None'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1681696815945).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 1 * * *
+    type: time
+  - type: device_state
+    deviceId: input_select.power_saving_mode
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: None
+      deviceId: input_select.power_saving_mode
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.motion_lights_auto_off
+    deviceId: input_boolean.motion_lights_auto_off

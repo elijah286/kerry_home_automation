@@ -1,0 +1,27 @@
+id: ha-cleaning-routine-at-night-1766517108612
+name: Cleaning Routine at Night
+group: HA Import
+description: 'Imported from Home Assistant (id: 1766517108612).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - Night
+    for: '00:00:30'
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.vacuum_auto_run
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: vacuum
+      action: send_command
+      command: app_segment_clean
+      deviceId: vacuum.saros_z70
+    deviceId: vacuum.saros_z70

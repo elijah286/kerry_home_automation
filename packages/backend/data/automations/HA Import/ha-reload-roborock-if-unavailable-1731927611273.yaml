@@ -1,0 +1,33 @@
+id: ha-reload-roborock-if-unavailable-1731927611273
+name: Reload Roborock if unavailable
+group: HA Import
+description: 'Imported from Home Assistant (id: 1731927611273).'
+enabled: false
+mode: single
+triggers:
+  - to: unavailable
+    type: device_state
+    deviceId: vacuum.roborock_s7
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: unavailable
+    deviceId: vacuum.roborock_s7
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: homeassistant
+      action: reload_config_entry
+      deviceId: vacuum.roborock_s7
+    deviceId: vacuum.roborock_s7
+  - type: device_command
+    command:
+      type: persistent_notification
+      action: create
+      message: Automatically reloaded
+      deviceId: ''
+    deviceId: persistent_notification.create

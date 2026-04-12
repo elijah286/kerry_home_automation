@@ -1,0 +1,122 @@
+id: ha-auto-lights-off-guest-bathroom-powder-room-1631938724351
+name: 'auto lights off: guest bathroom / powder room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1631938724351).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.person_in_powder_room
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: input_boolean.anyone_home
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.motion_lights_auto_off
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_powder_room
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.downstairs_guest_bathroom_vanity_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.downstairs_guest_bathroom_shower_lights_2
+        attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.downstairs_guest_bathroom_shower_lights_2
+        deviceId: switch.downstairs_guest_bathroom_shower_lights_2
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.downstairs_guest_bathroom_vanity_lights
+        deviceId: light.downstairs_guest_bathroom_vanity_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Critical
+      deviceId: input_select.power_saving_mode
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.downstairs_guest_bathroom_shower_lights_2
+        deviceId: switch.downstairs_guest_bathroom_shower_lights_2
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.downstairs_guest_bathroom_vanity_lights
+        deviceId: light.downstairs_guest_bathroom_vanity_lights
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_powder_room
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.guest_mode
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.downstairs_guest_bathroom_shower_lights_2
+        deviceId: switch.downstairs_guest_bathroom_shower_lights_2
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.downstairs_guest_bathroom_vanity_lights
+        deviceId: light.downstairs_guest_bathroom_vanity_lights
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_powder_room
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.guest_mode
+          attribute: state

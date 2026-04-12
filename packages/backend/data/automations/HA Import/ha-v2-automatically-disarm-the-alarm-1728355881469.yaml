@@ -1,0 +1,33 @@
+id: ha-v2-automatically-disarm-the-alarm-1728355881469
+name: 'V2: Automatically Disarm the Alarm'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1728355881469).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: manual
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.automatically_disarm_the_alarm
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: alarm_control_panel
+      action: alarm_disarm
+      deviceId: alarm_control_panel.home_alarm
+    deviceId: alarm_control_panel.home_alarm

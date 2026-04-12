@@ -1,0 +1,35 @@
+id: ha-person-detection-sloanes-bathroom-1738806886127
+name: 'person detection: sloanes bathroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1738806886127).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: binary_sensor.sloanes_bathroom_presence_sensor
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: light.sloanes_bathroom_vanity_lights
+    attribute: state
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: switch.sloanes_bathroom_shower
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_sloanes_bathroom
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_sloanes_bathroom
+    deviceId: input_boolean.person_in_sloanes_bathroom

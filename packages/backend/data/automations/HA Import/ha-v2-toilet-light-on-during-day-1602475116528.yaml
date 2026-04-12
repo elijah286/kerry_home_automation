@@ -1,0 +1,27 @@
+id: ha-v2-toilet-light-on-during-day-1602475116528
+name: 'V2: Toilet Light on during day'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1602475116528).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.toilet_closet_motion_detection
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.toilet_closet2
+      brightness: 227
+    deviceId: light.toilet_closet2

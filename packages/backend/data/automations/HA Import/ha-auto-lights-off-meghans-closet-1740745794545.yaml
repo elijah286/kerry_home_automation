@@ -1,0 +1,84 @@
+id: ha-auto-lights-off-meghans-closet-1740745794545
+name: 'auto lights off: Meghans closet'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1740745794545).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.master_bathroom_meghans_closet
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.master_bathroom_meghans_closet
+        deviceId: switch.master_bathroom_meghans_closet
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_main_bathroom
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: switch.master_bathroom_meghans_closet
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.master_bathroom_meghans_closet
+        deviceId: switch.master_bathroom_meghans_closet
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - type: not
+          condition:
+            op: eq
+            type: device_state
+            value: Night
+            deviceId: input_select.system_mode
+            attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_main_bathroom
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: switch.master_bathroom_meghans_closet
+          attribute: state

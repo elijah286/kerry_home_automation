@@ -1,0 +1,50 @@
+id: ha-v2-hvac-resume-main-floor-day-when-someone-s-home-1575894206971
+name: 'V2: HVAC Resume main floor day when someone’s home'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1575894206971).'
+enabled: false
+mode: single
+triggers:
+  - from: 'off'
+    type: device_state
+    deviceId: climate.main_floor
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - from: '0'
+    type: device_state
+    deviceId: zone.austin
+    attribute: state
+  - from: '0'
+    type: device_state
+    deviceId: zone.home
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Day
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: gt
+    type: device_state
+    value: 0
+    deviceId: zone.home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: climate
+      action: set_preset_mode
+      deviceId: climate.main_floor
+      preset_mode: home
+    deviceId: climate.main_floor

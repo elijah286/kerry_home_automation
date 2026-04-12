@@ -1,0 +1,44 @@
+id: ha-auto-lights-off-office-1731345476551
+name: 'Auto lights off: office'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1731345476551).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:05:00'
+    type: device_state
+    deviceId: input_boolean.motion_detected_in_office
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.office_main_lights
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.office_main_lights
+        deviceId: light.office_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state

@@ -1,0 +1,31 @@
+id: ha-model-x-has-left-home-1623596037911
+name: Model X has left home
+group: HA Import
+description: 'Imported from Home Assistant (id: 1623596037911).'
+enabled: false
+mode: single
+triggers:
+  - to: not_home
+    type: device_state
+    deviceId: device_tracker.voyager_location_tracker
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.model_x_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: not_home
+    deviceId: device_tracker.voyager_location_tracker
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.model_x_home
+    deviceId: input_boolean.model_x_home

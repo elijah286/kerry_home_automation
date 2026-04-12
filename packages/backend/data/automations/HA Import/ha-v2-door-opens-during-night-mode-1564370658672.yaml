@@ -1,0 +1,32 @@
+id: ha-v2-door-opens-during-night-mode-1564370658672
+name: 'V2: Door Opens During Night Mode'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1564370658672).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    from: 'off'
+    type: device_state
+    deviceId: input_boolean.portal_open
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: scene
+      action: turn_on
+      deviceId: scene.HA_warning
+    deviceId: scene.HA_warning
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: A door or window has opened at night
+      deviceId: ''
+    deviceId: notify.everyone

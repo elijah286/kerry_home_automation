@@ -1,0 +1,76 @@
+id: ha-kiosk-screen-brightness-movie-1665365428331
+name: 'Kiosk Screen Brightness: Movie'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1665365428331).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.play_movie
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: light.movie_room_main_lights
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.movie_mode
+        attribute: state
+      - type: and
+        conditions:
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: light.game_room_main_lights
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: light.movie_room_main_lights
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: light.theater_floor_lamp
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: switch.movie_room_ceiling_fan_light
+            attribute: state
+          - op: eq
+            type: device_state
+            value: 'off'
+            deviceId: switch.game_room_ceiling_fan_light
+            attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: number
+          value: '50'
+          action: set_value
+          deviceId: number.movie_room_kiosk_screen_brightness
+        deviceId: number.movie_room_kiosk_screen_brightness
+    then:
+      - type: device_command
+        command:
+          type: number
+          value: '10'
+          action: set_value
+          deviceId: number.movie_room_kiosk_screen_brightness
+        deviceId: number.movie_room_kiosk_screen_brightness
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state

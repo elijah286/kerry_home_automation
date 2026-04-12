@@ -1,0 +1,27 @@
+id: ha-person-detected-starts-jack-and-sally-show-1759804932210
+name: Person detected starts jack and sally show
+group: HA Import
+description: 'Imported from Home Assistant (id: 1759804932210).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_detected_on_front_patio
+    attribute: state
+conditions:
+  - type: time_window
+    after: '19:00'
+    before: '21:00'
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.sally_spotlight
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: script
+      action: halloween_show_2
+      deviceId: ''
+    deviceId: script.halloween_show_2

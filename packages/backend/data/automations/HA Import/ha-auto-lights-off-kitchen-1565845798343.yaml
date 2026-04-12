@@ -1,0 +1,73 @@
+id: ha-auto-lights-off-kitchen-1565845798343
+name: 'Auto lights off: kitchen'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565845798343).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.kitchen_motion_detected
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.kitchen_island_pendants
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.kitchen_breakfast_table
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.kitchen_under_cabinet
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.kitchen_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: switch.kitchen_table_pendants
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.kitchen_motion_detected
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.kitchen_island_pendants
+        deviceId: switch.kitchen_island_pendants
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.kitchen_motion_detected
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state

@@ -1,0 +1,79 @@
+id: ha-auto-lights-on-game-room-1565812043761
+name: 'auto lights on: game room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565812043761).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.game_room_main_lights
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.upstairs_vacant
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: media_player.movie_room_tv
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.game_room_main_lights
+          brightness: 189
+        deviceId: light.game_room_main_lights
+    type: condition
+    condition:
+      type: not
+      condition:
+        op: eq
+        type: device_state
+        value: Night
+        deviceId: input_select.system_mode
+        attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.game_room_main_lights
+          brightness: 46
+        deviceId: light.game_room_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state

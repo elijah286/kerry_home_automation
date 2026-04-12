@@ -1,0 +1,69 @@
+id: ha-kiosk-control-show-ha-on-kitchen-tablet-1752581965389
+name: 'Kiosk control: show HA on kitchen tablet'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1752581965389).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'off'
+    for: '00:03:00'
+    type: device_state
+    deviceId: input_boolean.kitchen_motion_detected
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: de.ozerov.fully
+    type: device_state
+    deviceId: sensor.kitchen_kiosk_foreground_app
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: de.ozerov.fully
+      deviceId: sensor.kitchen_kiosk_foreground_app
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.show_ha_on_office_tablet
+    deviceId: button.show_ha_on_office_tablet
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.kitchen_kiosk_restart_browser
+    deviceId: button.kitchen_kiosk_restart_browser
+  - type: delay
+    duration: '00:00:00'
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.kitchen_kiosk_clear_browser_cache
+    deviceId: button.kitchen_kiosk_clear_browser_cache
+  - then:
+      - type: device_command
+        command:
+          type: button
+          action: press
+          deviceId: button.kitchen_kiosk_load_start_url
+        deviceId: button.kitchen_kiosk_load_start_url
+    type: condition
+    condition:
+      type: not
+      condition:
+        op: eq
+        type: device_state
+        value: http://192.168.68.203:8123/lovelace/Kitchen?kiosk
+        deviceId: sensor.bedroom_kiosk_current_page
+        attribute: state

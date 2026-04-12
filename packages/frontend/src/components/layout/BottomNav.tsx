@@ -9,9 +9,11 @@ import {
   CookingPot,
   AlarmClock,
   CalendarDays,
+  MapPin,
   Puzzle,
   Settings,
 } from 'lucide-react';
+import { useAuth } from '@/providers/AuthProvider';
 
 const navItems = [
   { href: '/', label: 'Home', icon: LayoutDashboard },
@@ -19,18 +21,20 @@ const navItems = [
   { href: '/cameras', label: 'Cameras', icon: Camera },
   { href: '/alarms', label: 'Alarms', icon: AlarmClock },
   { href: '/calendar', label: 'Calendar', icon: CalendarDays },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/locations', label: 'Map', icon: MapPin },
+  { href: '/settings', label: 'Settings', icon: Settings, adminOnly: true },
 ];
 
 export function BottomNav() {
   const pathname = usePathname();
+  const { isAdmin } = useAuth();
 
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t"
       style={{ backgroundColor: 'var(--color-sidebar-bg)', borderColor: 'var(--color-border)' }}
     >
-      {navItems.map(({ href, label, icon: Icon }) => {
+      {navItems.filter((item) => !('adminOnly' in item && item.adminOnly) || isAdmin).map(({ href, label, icon: Icon }) => {
         const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
         return (
           <Link

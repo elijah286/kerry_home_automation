@@ -1,0 +1,22 @@
+id: ha-back-door-opens-turns-on-patio-1566587367406
+name: Back door opens turns on patio
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566587367406).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.back_door
+    attribute: state
+conditions:
+  - type: time_window
+    after: '00:00'
+    before: '06:30'
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.patio
+    deviceId: switch.patio

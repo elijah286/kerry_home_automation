@@ -1,0 +1,27 @@
+id: ha-reset-unlock-teslas-boolean-1566059114196
+name: Reset unlock teslas boolean
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566059114196).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:00:02'
+    type: device_state
+    deviceId: input_boolean.unlock_teslas
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.unlock_teslas
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.unlock_teslas
+    deviceId: input_boolean.unlock_teslas

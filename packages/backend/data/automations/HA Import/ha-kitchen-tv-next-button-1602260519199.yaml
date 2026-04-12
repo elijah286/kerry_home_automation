@@ -1,0 +1,24 @@
+id: ha-kitchen-tv-next-button-1602260519199
+name: 'Kitchen TV: Next Button'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1602260519199).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.kitchen_music_bottom
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.living_room_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: media_next_track
+      deviceId: ''
+    deviceId: media_player.media_next_track

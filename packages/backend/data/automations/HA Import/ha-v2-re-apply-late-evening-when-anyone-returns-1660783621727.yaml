@@ -1,0 +1,25 @@
+id: ha-v2-re-apply-late-evening-when-anyone-returns-1660783621727
+name: 'V2: Re-apply late evening when anyone returns'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660783621727).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Late Evening
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.late_evening_mode
+    deviceId: input_button.late_evening_mode

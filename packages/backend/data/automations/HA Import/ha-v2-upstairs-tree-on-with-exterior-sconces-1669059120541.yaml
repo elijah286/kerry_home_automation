@@ -1,0 +1,18 @@
+id: ha-v2-upstairs-tree-on-with-exterior-sconces-1669059120541
+name: 'V2: Upstairs Tree On with Exterior Sconces'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1669059120541).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: switch.exterior_sconces
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.sally_spotlight
+    deviceId: switch.sally_spotlight

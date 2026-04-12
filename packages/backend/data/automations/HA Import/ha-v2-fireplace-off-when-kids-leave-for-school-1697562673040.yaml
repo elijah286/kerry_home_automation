@@ -1,0 +1,24 @@
+id: ha-v2-fireplace-off-when-kids-leave-for-school-1697562673040
+name: 'V2: Fireplace off when kids leave for school'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1697562673040).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.kids_at_school
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.fireplace
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.fireplace
+    deviceId: switch.fireplace

@@ -1,0 +1,34 @@
+id: ha-auto-item-off-main-bedroom-ceiling-fan-1735250393631
+name: 'auto item off: main bedroom ceiling fan'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1735250393631).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: fan.master_bedroom_ceiling_fan
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: fan
+          action: turn_off
+          deviceId: fan.master_bedroom_ceiling_fan
+        deviceId: fan.master_bedroom_ceiling_fan
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: input_boolean.anyone_home
+      attribute: state

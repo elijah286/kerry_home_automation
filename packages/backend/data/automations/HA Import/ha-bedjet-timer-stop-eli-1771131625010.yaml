@@ -1,0 +1,19 @@
+id: ha-bedjet-timer-stop-eli-1771131625010
+name: 'Bedjet Timer Stop: Eli'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1771131625010).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'off'
+    type: device_state
+    deviceId: climate.rpi_eli_c30a
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: timer
+      action: finish
+      deviceId: timer.eli_s_bedjet
+    deviceId: timer.eli_s_bedjet

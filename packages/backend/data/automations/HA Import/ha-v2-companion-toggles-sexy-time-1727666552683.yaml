@@ -1,0 +1,15 @@
+id: ha-v2-companion-toggles-sexy-time-1727666552683
+name: 'V2: Companion toggles sexy time'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1727666552683).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: toggle
+      deviceId: input_boolean.sexy_time
+    deviceId: input_boolean.sexy_time

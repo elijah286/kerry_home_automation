@@ -1,0 +1,18 @@
+id: ha-v2-critical-warning-turns-theme-red-1681143475264
+name: 'V2: Critical Warning Turns Theme Red'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1681143475264).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.critical_warning
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: frontend
+      action: set_theme
+      deviceId: ''
+    deviceId: frontend.set_theme

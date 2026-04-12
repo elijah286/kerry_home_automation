@@ -1,0 +1,18 @@
+id: ha-office-lights-on-increments-counter-1599136879251
+name: Office Lights On Increments Counter
+group: HA Import
+description: 'Imported from Home Assistant (id: 1599136879251).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.office_main_lights
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: counter
+      action: increment
+      deviceId: ''
+    deviceId: counter.increment

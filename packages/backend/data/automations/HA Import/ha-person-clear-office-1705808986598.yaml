@@ -1,0 +1,60 @@
+id: ha-person-clear-office-1705808986598
+name: 'Person clear: office'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1705808986598).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.office_motion_sensor
+    attribute: state
+  - type: device_state
+    deviceId: binary_sensor.office
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.office
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.office
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_detected_in_office
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.office_motion_sensor
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.office_motion_sensor
+        attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: media_player.main_office_monitor
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.motion_detected_in_office
+    deviceId: input_boolean.motion_detected_in_office

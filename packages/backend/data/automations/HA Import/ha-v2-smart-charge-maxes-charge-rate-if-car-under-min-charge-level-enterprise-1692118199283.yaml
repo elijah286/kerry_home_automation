@@ -1,0 +1,64 @@
+id: ha-v2-smart-charge-maxes-charge-rate-if-car-under-min-charge-level-enterprise-1692118199283
+name: 'V2: Smart charge maxes charge rate if car under min charge level enterprise'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1692118199283).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.smart_charge
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.enterprise_charger
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.enterprise_charging
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+  - type: device_state
+    deviceId: input_number.minimum_charge_level_for_smartcharge
+    attribute: state
+  - type: device_state
+    deviceId: number.enterprise_charging_amps
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: home
+    deviceId: device_tracker.enterprise_location_tracker
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: binary_sensor.enterprise_charger
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.smart_charge
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.enterprise_charger
+    deviceId: switch.enterprise_charger
+  - type: device_command
+    command:
+      type: number
+      value: '{{ (states.input_number.power_sharing_max_amps_per_car.state)|int() }}'
+      action: set_value
+      deviceId: number.enterprise_charging_amps
+    deviceId: number.enterprise_charging_amps
+  - type: device_command
+    command:
+      type: input_number
+      value: 40
+      action: set_value
+      deviceId: input_number.ev_charging_amp_set_point
+    deviceId: input_number.ev_charging_amp_set_point

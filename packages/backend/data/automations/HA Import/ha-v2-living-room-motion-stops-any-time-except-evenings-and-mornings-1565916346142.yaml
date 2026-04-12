@@ -1,0 +1,58 @@
+id: ha-v2-living-room-motion-stops-any-time-except-evenings-and-mornings-1565916346142
+name: V2 Living room motion stops any time except evenings and mornings
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565916346142).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:20:00'
+    type: device_state
+    deviceId: binary_sensor.living_room_motion
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - type: not
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Morning
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Evening
+          deviceId: input_select.system_mode
+          attribute: state
+  - type: not
+    condition:
+      op: gt
+      type: device_state
+      value: 0
+      deviceId: sensor.living_room_frigate_person_count
+      attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: '0'
+        deviceId: sensor.living_room_frigate_person_count
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: sensor.living_room_frigate_person_count
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.living_room_table_lamp
+    deviceId: light.living_room_table_lamp

@@ -1,0 +1,39 @@
+id: ha-balcony-fan-off-timer-1715969449533
+name: Balcony fan off timer
+group: HA Import
+description: 'Imported from Home Assistant (id: 1715969449533).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - for: '01:00:00'
+    type: device_state
+    deviceId: binary_sensor.balcony_door
+    attribute: state
+  - to: 'on'
+    for: '01:00:00'
+    type: device_state
+    deviceId: fan.balcony
+    attribute: state
+  - cron: '*/1 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: fan.balcony
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.balcony_door
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.balcony
+    deviceId: fan.balcony

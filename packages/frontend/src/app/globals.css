@@ -41,6 +41,21 @@
     --color-slider-range: #3b82f6;
     --color-slider-thumb: #ffffff;
 
+    /* Chart / visualization palette */
+    --color-chart-grid: #e2e8f0;
+    --color-chart-text: #64748b;
+    --color-chart-tooltip-bg: #ffffff;
+    --color-chart-tooltip-border: #e2e8f0;
+    --color-chart-crosshair: #94a3b8;
+    --color-chart-1: #3b82f6;
+    --color-chart-2: #f59e0b;
+    --color-chart-3: #22c55e;
+    --color-chart-4: #ef4444;
+    --color-chart-5: #a855f7;
+    --color-chart-6: #06b6d4;
+    --color-chart-7: #ec4899;
+    --color-chart-8: #f97316;
+
     --radius: 8px;
     --radius-sm: 4px;
     --radius-lg: 12px;
@@ -76,6 +91,21 @@
     --color-slider-track: #334155;
     --color-slider-range: #60a5fa;
     --color-slider-thumb: #f1f5f9;
+
+    /* Chart / visualization palette */
+    --color-chart-grid: #334155;
+    --color-chart-text: #94a3b8;
+    --color-chart-tooltip-bg: #1e293b;
+    --color-chart-tooltip-border: #475569;
+    --color-chart-crosshair: #64748b;
+    --color-chart-1: #60a5fa;
+    --color-chart-2: #fbbf24;
+    --color-chart-3: #4ade80;
+    --color-chart-4: #f87171;
+    --color-chart-5: #c084fc;
+    --color-chart-6: #22d3ee;
+    --color-chart-7: #f472b6;
+    --color-chart-8: #fb923c;
   }
 
   /* Base styles */

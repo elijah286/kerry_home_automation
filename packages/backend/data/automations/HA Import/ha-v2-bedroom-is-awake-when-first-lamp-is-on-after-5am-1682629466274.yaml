@@ -1,0 +1,31 @@
+id: ha-v2-bedroom-is-awake-when-first-lamp-is-on-after-5am-1682629466274
+name: 'V2: Bedroom is awake when first lamp is on after 5am'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1682629466274).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.master_bedroom_meghans_lamp
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: light.master_bedroom_elis_lamp
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.bedroom_is_awake
+    attribute: state
+  - type: time_window
+    after: '05:00'
+    before: '23:59'
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.bedroom_is_awake
+    deviceId: input_boolean.bedroom_is_awake

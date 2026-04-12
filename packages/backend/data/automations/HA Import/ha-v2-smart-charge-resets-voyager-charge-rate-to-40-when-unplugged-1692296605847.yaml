@@ -1,0 +1,19 @@
+id: ha-v2-smart-charge-resets-voyager-charge-rate-to-40-when-unplugged-1692296605847
+name: 'V2: Smart charge resets voyager charge rate to 40 when unplugged'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1692296605847).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.voyager_charger
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: number
+      value: '40'
+      action: set_value
+      deviceId: number.voyager_charging_amps
+    deviceId: number.voyager_charging_amps

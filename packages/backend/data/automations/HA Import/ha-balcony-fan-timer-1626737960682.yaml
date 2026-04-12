@@ -1,0 +1,23 @@
+id: ha-balcony-fan-timer-1626737960682
+name: Balcony Fan Timer
+group: HA Import
+description: 'Imported from Home Assistant (id: 1626737960682).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '01:30:00'
+    type: device_state
+    deviceId: fan.exterior_ceiling_fan
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.night_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: fan.exterior_ceiling_fan
+    deviceId: fan.exterior_ceiling_fan

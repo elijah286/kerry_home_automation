@@ -1,0 +1,15 @@
+id: ha-bedjet-mk-remote-off-1771107556668
+name: 'BedJet MK Remote: Off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1771107556668).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: climate
+      action: turn_off
+      deviceId: climate.rpi_meghan
+    deviceId: climate.rpi_meghan

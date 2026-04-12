@@ -1,0 +1,35 @@
+id: ha-person-detection-bedroom-1711290185788
+name: 'Person Detection: Bedroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1711290185788).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: light.master_bedroom_elis_lamp
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_main_bedroom
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_main_bedroom
+    deviceId: input_boolean.person_in_main_bedroom

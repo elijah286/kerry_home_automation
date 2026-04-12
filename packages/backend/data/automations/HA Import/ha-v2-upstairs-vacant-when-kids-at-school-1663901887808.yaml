@@ -1,0 +1,51 @@
+id: ha-v2-upstairs-vacant-when-kids-at-school-1663901887808
+name: 'V2: Upstairs vacant when kids at school'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1663901887808).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.kids_at_school
+    attribute: state
+  - to: 'off'
+    for: '00:05:00'
+    type: device_state
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: None
+      deviceId: input_select.power_saving_mode
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.vacation_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.game_room_motion_detected
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.kids_at_school
+    attribute: state
+  - type: time_window
+    after: '06:00'
+    before: '09:00'
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.upstairs_vacant
+    deviceId: input_boolean.upstairs_vacant

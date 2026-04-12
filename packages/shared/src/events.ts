@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import type { DeviceState, IntegrationId } from './devices.js';
+import type { AutomationExecutionStatus } from './automations.js';
 
 export type ConnectionState =
   | 'init'
@@ -23,7 +24,8 @@ export type WsServerMessage =
   | { type: 'snapshot'; devices: DeviceState[]; integrations: Record<IntegrationId, IntegrationHealth> }
   | { type: 'device_updated'; device: DeviceState }
   | { type: 'device_removed'; deviceId: string }
-  | { type: 'integration_health'; id: IntegrationId; health: IntegrationHealth };
+  | { type: 'integration_health'; id: IntegrationId; health: IntegrationHealth }
+  | { type: 'automation_executed'; automationId: string; executionId: string; status: AutomationExecutionStatus; triggeredAt: number };
 
 export type WsClientMessage =
   | { type: 'ping' };

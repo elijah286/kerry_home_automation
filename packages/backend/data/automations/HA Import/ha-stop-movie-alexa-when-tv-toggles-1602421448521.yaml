@@ -1,0 +1,33 @@
+id: ha-stop-movie-alexa-when-tv-toggles-1602421448521
+name: Stop Movie Alexa when TV toggles
+group: HA Import
+description: 'Imported from Home Assistant (id: 1602421448521).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_boolean.movie_room_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on
+  - type: delay
+    duration: '00:00:01'
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on
+  - type: delay
+    duration: '00:00:02'
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on

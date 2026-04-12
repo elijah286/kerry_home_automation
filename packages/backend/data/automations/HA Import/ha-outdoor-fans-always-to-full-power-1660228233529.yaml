@@ -1,0 +1,19 @@
+id: ha-outdoor-fans-always-to-full-power-1660228233529
+name: Outdoor fans always to full power
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660228233529).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: fan.patio_fans
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      speed: high
+      action: turn_on
+      deviceId: fan.patio_fans
+    deviceId: fan.patio_fans

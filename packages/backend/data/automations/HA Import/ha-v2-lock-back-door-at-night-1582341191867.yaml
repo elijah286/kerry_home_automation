@@ -1,0 +1,28 @@
+id: ha-v2-lock-back-door-at-night-1582341191867
+name: 'V2: Lock Back Door at Night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1582341191867).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: Night
+    for: '00:01:00'
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: unlocked
+    deviceId: lock.back_door
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: lock
+      action: lock
+      deviceId: ''
+    deviceId: lock.lock

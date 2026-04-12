@@ -1,0 +1,42 @@
+id: ha-spa-heater-button-turned-on-if-heater-externally-controlled-1743708731380
+name: Spa heater button turned on if heater externally controlled
+group: HA Import
+description: 'Imported from Home Assistant (id: 1743708731380).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: switch.spa
+    attribute: state
+  - type: device_state
+    deviceId: water_heater.spa
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: water_heater.spa
+      attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: switch.spa
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.spa_heater
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.spa_heater
+    deviceId: input_boolean.spa_heater

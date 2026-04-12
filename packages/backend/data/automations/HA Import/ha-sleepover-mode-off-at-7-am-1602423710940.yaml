@@ -1,0 +1,22 @@
+id: ha-sleepover-mode-off-at-7-am-1602423710940
+name: Sleepover mode off at 7 AM
+group: HA Import
+description: 'Imported from Home Assistant (id: 1602423710940).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 7 * * *
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.sleepover_party
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: ''
+    deviceId: input_boolean.turn_off

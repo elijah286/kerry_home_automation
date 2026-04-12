@@ -1,0 +1,22 @@
+id: ha-freeze-protecton-keeps-lights-outside-on-1769223667638
+name: Freeze Protecton Keeps Lights Outside On
+group: HA Import
+description: 'Imported from Home Assistant (id: 1769223667638).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.freeze_protection
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.exterior_sconces
+    deviceId: switch.exterior_sconces

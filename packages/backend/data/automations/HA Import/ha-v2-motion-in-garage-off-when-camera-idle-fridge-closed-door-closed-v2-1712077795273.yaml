@@ -1,0 +1,89 @@
+id: ha-v2-motion-in-garage-off-when-camera-idle-fridge-closed-door-closed-v2-1712077795273
+name: 'V2: Motion in garage off when camera idle, fridge closed, door closed v2'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1712077795273).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+  - to: 'off'
+    for: '00:01:00'
+    type: device_state
+    deviceId: binary_sensor.garage_frigate_person_occupancy
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_detected_in_garage
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.garage_fridge_window_door_is_open
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.garage_door
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unknown
+        deviceId: binary_sensor.garage_door
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: binary_sensor.garage_frigate_person_occupancy
+        attribute: state
+      - op: eq
+        type: device_state
+        value: unavailable
+        deviceId: binary_sensor.garage_frigate_person_occupancy
+        attribute: state
+  - type: not
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: opening
+          deviceId: cover.red
+          attribute: state
+        - op: eq
+          type: device_state
+          value: closing
+          deviceId: cover.red
+          attribute: state
+  - type: not
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: opening
+          deviceId: cover.white
+          attribute: state
+        - op: eq
+          type: device_state
+          value: closing
+          deviceId: cover.white
+          attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.garage_freezer_door_window_door_is_open
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.motion_detected_in_garage
+    deviceId: input_boolean.motion_detected_in_garage

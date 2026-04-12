@@ -1,0 +1,19 @@
+id: ha-living-room-tv-off-stops-media-player-1628978268784
+name: Living room TV Off stops media player
+group: HA Import
+description: 'Imported from Home Assistant (id: 1628978268784).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: switch.living_room_tv
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: select_source
+      source: Alexa
+      deviceId: media_player.living_room_receiver
+    deviceId: media_player.living_room_receiver

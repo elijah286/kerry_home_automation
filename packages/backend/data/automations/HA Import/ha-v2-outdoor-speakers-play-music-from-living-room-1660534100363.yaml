@@ -1,0 +1,38 @@
+id: ha-v2-outdoor-speakers-play-music-from-living-room-1660534100363
+name: 'V2: Outdoor speakers play music from living room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660534100363).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.outdoor_speakers_sync_to_main
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_on
+      deviceId: media_player.backyard_receiver
+    deviceId: media_player.backyard_receiver
+  - type: device_command
+    command:
+      type: media_player
+      action: select_source
+      source: AUDIO2
+      deviceId: media_player.backyard_receiver
+    deviceId: media_player.backyard_receiver
+  - type: device_command
+    command:
+      type: media_player
+      action: volume_set
+      volume: 0.75
+      deviceId: media_player.backyard_receiver
+    deviceId: media_player.backyard_receiver
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.party_mode
+    deviceId: switch.party_mode

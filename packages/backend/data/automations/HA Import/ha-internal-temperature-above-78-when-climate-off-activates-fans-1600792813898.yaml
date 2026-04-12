@@ -1,0 +1,60 @@
+id: ha-internal-temperature-above-78-when-climate-off-activates-fans-1600792813898
+name: Internal Temperature Above 78 when climate off activates fans
+group: HA Import
+description: 'Imported from Home Assistant (id: 1600792813898).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.upstairs_temperature
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: climate.main_floor
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: climate.main_floor
+    attribute: state
+  - op: gt
+    type: device_state
+    value: 78
+    deviceId: sensor.upstairs_temperature
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      action: turn_on
+      deviceId: ''
+    deviceId: fan.turn_on
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Internal temperature is above 78. Activating fans
+      deviceId: ''
+    deviceId: notify.everyone
+  - type: device_command
+    command:
+      type: fan
+      action: turn_on
+      deviceId: ''
+    deviceId: fan.turn_on
+  - type: device_command
+    command:
+      type: fan
+      action: turn_on
+      deviceId: ''
+    deviceId: fan.turn_on

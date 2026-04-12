@@ -1,0 +1,21 @@
+id: ha-hvac-setpoint-for-upstairs-manually-updated-1735000641543
+name: 'HVAC: setpoint for upstairs manually updated'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1735000641543).'
+enabled: false
+mode: restart
+triggers:
+  - type: device_state
+    deviceId: group.upstairs
+    attribute: state
+  - type: device_state
+    deviceId: climate.upstairs
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_number
+      value: '{{ state_attr(''climate.upstairs'',''temperature'')|float(0) }}'
+      action: set_value
+      deviceId: input_number.upstairs_target_temp
+    deviceId: input_number.upstairs_target_temp

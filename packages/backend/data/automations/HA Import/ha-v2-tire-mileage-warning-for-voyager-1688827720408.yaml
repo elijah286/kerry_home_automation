@@ -1,0 +1,81 @@
+id: ha-v2-tire-mileage-warning-for-voyager-1688827720408
+name: 'V2: Tire Mileage Warning for Voyager'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1688827720408).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_number.tire_set_1_fl_miles_since_change
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_1_fr_miles_since_change
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_1_rl_miles_since_change
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_1_rr_miles_since_change
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_2_fl_miles_since_change
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_2_fr_miles_since_change
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_2_rl_miles_since_change
+    attribute: state
+  - type: device_state
+    deviceId: input_number.tire_set_2_rr_miles_since_change
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: gt
+        type: device_state
+        value: 15000
+        deviceId: input_number.tire_set_1_fl_miles_since_change
+        attribute: state
+      - op: gt
+        type: device_state
+        value: 15000
+        deviceId: input_number.tire_set_1_fr_miles_since_change
+        attribute: state
+      - op: gt
+        type: device_state
+        value: 15000
+        deviceId: input_number.tire_set_1_rl_miles_since_change
+        attribute: state
+      - op: gt
+        type: device_state
+        value: 15000
+        deviceId: input_number.tire_set_1_rr_miles_since_change
+        attribute: state
+      - op: gt
+        type: device_state
+        value: 15000
+        deviceId: input_number.tire_set_2_fl_miles_since_change
+        attribute: state
+      - op: gt
+        type: device_state
+        value: 15000
+        deviceId: input_number.tire_set_2_fr_miles_since_change
+        attribute: state
+      - op: gt
+        type: device_state
+        value: 15000
+        deviceId: input_number.tire_set_2_rl_miles_since_change
+        attribute: state
+      - op: gt
+        type: device_state
+        value: 15000
+        deviceId: input_number.tire_set_2_rr_miles_since_change
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.tire_mileage_warning_for_voyager
+    deviceId: input_boolean.tire_mileage_warning_for_voyager

@@ -1,0 +1,24 @@
+id: ha-v2-sloanes-bathroom-off-when-no-one-home-1708437311232
+name: 'V2: Sloanes Bathroom Off When No One Home'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1708437311232).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.sloanes_bathroom_shower
+    deviceId: light.sloanes_bathroom_shower
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.sloanes_bathroom_exhaust_fan
+    deviceId: switch.sloanes_bathroom_exhaust_fan

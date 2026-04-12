@@ -1,0 +1,21 @@
+id: ha-auto-items-off-av-equipment-1746717491488
+name: 'Auto items off: AV Equipment'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1746717491488).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: turn_off
+      deviceId: media_player.backyard_receiver
+    deviceId: media_player.backyard_receiver

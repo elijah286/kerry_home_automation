@@ -1,0 +1,43 @@
+id: ha-v2-sloane-sleeping-mode-set-manually-1660997100712
+name: 'V2: Sloane Sleeping Mode Set Manually'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660997100712).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.sloane_sleeping
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.sloanes_bedroom_dresser_lamp
+    deviceId: light.sloanes_bedroom_dresser_lamp
+  - type: device_command
+    command:
+      type: fan
+      speed: high
+      action: turn_on
+      deviceId: fan.sloanes_bedroom_ceiling_fan
+    deviceId: fan.sloanes_bedroom_ceiling_fan
+  - type: device_command
+    command:
+      type: cover
+      action: close_cover
+      deviceId: cover.sloanes_bedroom_blind
+    deviceId: cover.sloanes_bedroom_blind
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.sloanes_bedroom_closet_light
+    deviceId: switch.sloanes_bedroom_closet_light

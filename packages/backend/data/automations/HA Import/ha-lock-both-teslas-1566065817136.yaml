@@ -1,0 +1,32 @@
+id: ha-lock-both-teslas-1566065817136
+name: Lock both teslas
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566065817136).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.lock_teslas
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: lock
+      action: lock
+      deviceId: lock.enterprise_door_lock
+    deviceId: lock.enterprise_door_lock
+  - type: device_command
+    command:
+      type: lock
+      action: lock
+      deviceId: lock.voyager_door_lock
+    deviceId: lock.voyager_door_lock
+  - type: log
+    message: '[HA unknown action] ["timeout","wait_template"]'
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.lock_teslas
+    deviceId: input_boolean.lock_teslas

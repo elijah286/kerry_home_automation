@@ -1,0 +1,32 @@
+id: ha-v2-1-sloanes-bedroom-lamp-on-at-7-45-pm-1565919253136
+name: 'V2.1: Sloanes Bedroom Lamp on at 7:45 PM'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565919253136).'
+enabled: false
+mode: single
+triggers:
+  - cron: 45 19 * * *
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.sloane_sleeping
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.upstairs_vacant
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.sloanes_bedroom_bedside_lamp
+    deviceId: light.sloanes_bedroom_bedside_lamp

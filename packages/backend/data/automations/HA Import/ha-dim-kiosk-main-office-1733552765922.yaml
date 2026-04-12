@@ -1,0 +1,33 @@
+id: ha-dim-kiosk-main-office-1733552765922
+name: 'Dim kiosk: main office'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733552765922).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.office_main_lights
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.office_main_lights
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: number
+      value: '1'
+      action: set_value
+      deviceId: number.main_office_kiosk_screen_brightness
+    deviceId: number.main_office_kiosk_screen_brightness

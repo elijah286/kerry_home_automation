@@ -1,0 +1,32 @@
+id: ha-v2-kids-at-school-off-at-1-30-1663625452747
+name: 'V2: Kids at school off at 1:30'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1663625452747).'
+enabled: false
+mode: single
+triggers:
+  - cron: 30 13 * * *
+    type: time
+  - cron: '*/5 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.kids_at_school
+    attribute: state
+  - type: or
+    conditions:
+      - type: time_window
+        after: '15:00'
+        before: '23:59'
+      - type: time_window
+        after: '00:00'
+        before: '06:00'
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.kids_at_school
+    deviceId: input_boolean.kids_at_school

@@ -1,0 +1,24 @@
+id: ha-master-bedroom-fan-off-when-last-person-leaves-and-outdoor-temp-under-85-1578962250602
+name: Master Bedroom Fan off when last person leaves and outdoor temp under 85
+group: HA Import
+description: 'Imported from Home Assistant (id: 1578962250602).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - op: lt
+    type: device_state
+    value: 85
+    deviceId: sensor.home_realfeel_temperature
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: fan
+      action: turn_off
+      deviceId: ''
+    deviceId: fan.turn_off

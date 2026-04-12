@@ -1,0 +1,65 @@
+id: ha-kiosk-face-detection-bedroom-1732574898200
+name: 'Kiosk face detection: bedroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1732574898200).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+  - type: manual
+conditions:
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.master_bedroom_elis_lamp
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: light.master_bedroom_elis_lamp
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.master_bedroom_main_lights
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: light.master_bedroom_main_lights
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: open
+        deviceId: cover.master_bedroom_blinds
+        attribute: state
+      - op: eq
+        type: device_state
+        value: closed
+        deviceId: cover.master_bedroom_blinds
+        attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: media_player.bedroom_tv
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: media_player.bedroom_tv
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.person_in_main_bedroom
+    deviceId: input_boolean.person_in_main_bedroom

@@ -1,0 +1,79 @@
+id: ha-auto-lights-on-living-room-1565916128746
+name: 'Auto lights on: living room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1565916128746).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.living_room_motion_detected
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.living_room_motion_detected
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.living_room_lamps
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.front_foyer_table_lamp
+          brightness: 255
+        deviceId: light.front_foyer_table_lamp
+    type: condition
+    condition:
+      type: not
+      condition:
+        op: eq
+        type: device_state
+        value: Night
+        deviceId: input_select.system_mode
+        attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.living_room_table_lamp
+          brightness: 51
+        deviceId: light.living_room_table_lamp
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.living_room_table_near_fireplace
+          brightness: 33
+        deviceId: light.living_room_table_near_fireplace
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state

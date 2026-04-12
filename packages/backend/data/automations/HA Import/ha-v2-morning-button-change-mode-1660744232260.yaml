@@ -1,0 +1,18 @@
+id: ha-v2-morning-button-change-mode-1660744232260
+name: 'V2: Morning button: change mode'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660744232260).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.morning_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_select
+      action: select_option
+      option: Morning
+      deviceId: input_select.system_mode
+    deviceId: input_select.system_mode

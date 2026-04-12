@@ -1,0 +1,51 @@
+id: ha-dim-kiosk-living-room-1733552672644
+name: 'Dim kiosk: living room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733552672644).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.living_room_lamps
+    attribute: state
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: switch.living_room_tv
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: switch.kitchen_breakfast_table
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.living_room_lamps
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.living_room_main_lights
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.living_room_ceiling_fan_light
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: number
+      value: '10'
+      action: set_value
+      deviceId: number.galaxy_tab_a9_screen_brightness
+    deviceId: number.galaxy_tab_a9_screen_brightness

@@ -1,0 +1,45 @@
+id: ha-dinner-motion-in-dining-off-for-2-minutes-during-dinner-time-means-dinner-is-ove-1598279243842
+name: 'Dinner: Motion in Dining off for 2 minutes during dinner time means dinner is over'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1598279243842).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:02:00'
+    type: device_state
+    deviceId: input_boolean.motion_in_dining
+    attribute: state
+conditions:
+  - type: time_window
+    after: '18:00'
+    before: '23:59'
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.dinner_over
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.dinner_time
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: ''
+    deviceId: input_boolean.turn_off
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: ''
+    deviceId: light.turn_off

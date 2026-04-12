@@ -1,0 +1,35 @@
+id: ha-vacuum-end-of-5-minute-pause-resume-cleaning-1682441630436
+name: 'Vacuum: End of 5 minute pause. Resume cleaning'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1682441630436).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '00:05:00'
+    type: device_state
+    deviceId: input_boolean.pause_vacuum_for_5_min
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.pause_vacuum_for_5_min
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: paused
+    deviceId: vacuum.saros_z70
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: vacuum
+      action: start
+      deviceId: vacuum.saros_z70
+    deviceId: vacuum.saros_z70
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.pause_vacuum_for_5_min
+    deviceId: input_boolean.pause_vacuum_for_5_min

@@ -1,0 +1,16 @@
+id: ha-pool-start-vacuum-at-7am-1746631737551
+name: 'Pool: start vacuum at 7am'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1746631737551).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 7 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.cleaner
+    deviceId: switch.cleaner

@@ -1,0 +1,25 @@
+id: ha-anyone-home-re-apply-day-mode-1660783550575
+name: 'Anyone Home: Re-apply Day Mode'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660783550575).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Day
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.day_mode
+    deviceId: input_button.day_mode

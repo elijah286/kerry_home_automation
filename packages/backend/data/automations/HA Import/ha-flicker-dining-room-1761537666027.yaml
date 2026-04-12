@@ -1,0 +1,72 @@
+id: ha-flicker-dining-room-1761537666027
+name: Flicker dining room
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761537666027).'
+enabled: false
+mode: parallel
+triggers:
+  - to: 'on'
+    for: '00:00:02'
+    type: device_state
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.flicker_dining_room_lights
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+  - cron: '* * * * *'
+    type: time
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.flicker_dining_room_lights
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.dining_room_chandelier
+        deviceId: light.dining_room_chandelier
+      - else:
+          - type: device_command
+            command:
+              type: light
+              action: turn_on
+              deviceId: light.dining_room_chandelier
+              brightness: 18
+            deviceId: light.dining_room_chandelier
+        then:
+          - type: device_command
+            command:
+              type: light
+              action: turn_off
+              deviceId: light.dining_room_chandelier
+            deviceId: light.dining_room_chandelier
+        type: condition
+        condition:
+          op: eq
+          type: device_state
+          value: 'on'
+          deviceId: light.dining_room_chandelier
+          attribute: state
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: light.dining_room_chandelier
+          attribute: state
+        - op: gt
+          type: device_state
+          value: 80
+          deviceId: light.dining_room_chandelier
+          attribute: state

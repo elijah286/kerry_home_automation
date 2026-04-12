@@ -1,0 +1,24 @@
+id: ha-v2-play-movie-dims-theater-lamp-1660878050739
+name: 'V2: Play Movie Dims Theater Lamp'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660878050739).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.play_movie
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.theater_floor_lamp
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.theater_floor_lamp
+      brightness: 102
+    deviceId: light.theater_floor_lamp

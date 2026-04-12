@@ -1,0 +1,23 @@
+id: ha-bedjet-mk-remote-temp-up-1771110286684
+name: 'BedJet MK Remote: Temp Up'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1771110286684).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: log
+    message: >-
+      [HA variables] {"current_temp":"{{ state_attr('climate.rpi_meghan', 'temperature') | float(0) }}","new_temp":"{{
+      current_temp + 1 }}"}
+  - type: device_command
+    command:
+      type: climate
+      action: set_temperature
+      deviceId: climate.rpi_meghan
+      hvac_mode: heat
+      temperature: '{{ new_temp }}'
+    deviceId: climate.rpi_meghan
+  - type: log
+    message: '[HA choose] Could not translate choose block'

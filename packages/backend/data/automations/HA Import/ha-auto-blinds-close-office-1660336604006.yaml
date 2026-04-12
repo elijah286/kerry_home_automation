@@ -1,0 +1,79 @@
+id: ha-auto-blinds-close-office-1660336604006
+name: 'auto blinds close: office'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660336604006).'
+enabled: false
+mode: single
+triggers:
+  - to: Night
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: sun
+    event: sunset
+    offset: '00:30:00'
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.office
+    attribute: state
+  - to: Critical
+    type: device_state
+    deviceId: input_select.power_saving_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.office
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: Night
+        deviceId: input_select.system_mode
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'off'
+        deviceId: input_boolean.anyone_home
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.vertical_toggle_control_office
+    deviceId: switch.vertical_toggle_control_office
+  - else:
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: create
+          message: Office blinds left open
+          deviceId: ''
+        deviceId: persistent_notification.create
+    then:
+      - type: device_command
+        command:
+          type: cover
+          action: close_cover
+          deviceId: cover.office
+        deviceId: cover.office
+      - type: device_command
+        command:
+          type: persistent_notification
+          action: dismiss
+          deviceId: ''
+        deviceId: persistent_notification.dismiss
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: binary_sensor.office
+      attribute: state

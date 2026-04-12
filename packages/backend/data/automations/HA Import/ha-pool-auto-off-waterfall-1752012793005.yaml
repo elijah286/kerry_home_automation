@@ -1,0 +1,32 @@
+id: ha-pool-auto-off-waterfall-1752012793005
+name: 'Pool auto off: waterfall'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1752012793005).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_pool
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.waterfall
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.freeze_protection
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.waterfall
+    deviceId: switch.waterfall

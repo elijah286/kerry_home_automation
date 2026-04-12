@@ -1,0 +1,32 @@
+id: ha-halloween-mode-sets-flickering-1761834229174
+name: Halloween Mode Sets Flickering
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761834229174).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_boolean.halloween_mode
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.flicker_dining_room_lights
+        deviceId: input_boolean.flicker_dining_room_lights
+    then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.flicker_dining_room_lights
+        deviceId: input_boolean.flicker_dining_room_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: input_boolean.halloween_mode
+      attribute: state

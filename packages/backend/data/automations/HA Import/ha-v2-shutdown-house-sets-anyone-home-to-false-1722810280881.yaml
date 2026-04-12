@@ -1,0 +1,17 @@
+id: ha-v2-shutdown-house-sets-anyone-home-to-false-1722810280881
+name: 'V2: Shutdown house sets anyone home to false'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1722810280881).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.shutdown_house
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.anyone_home
+    deviceId: input_boolean.anyone_home

@@ -1,0 +1,30 @@
+id: ha-v2-recurring-laundry-room-door-open-notice-in-garage-1664664355702
+name: 'V2: recurring laundry room door open notice in garage'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1664664355702).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/2 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: binary_sensor.laundry_room_door
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: alexa_media
+      message: Laundry Room Door Open
+      deviceId: ''
+    deviceId: notify.alexa_media

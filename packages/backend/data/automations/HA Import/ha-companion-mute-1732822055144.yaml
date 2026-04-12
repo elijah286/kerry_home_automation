@@ -1,0 +1,11 @@
+id: ha-companion-mute-1732822055144
+name: Companion mute
+group: HA Import
+description: 'Imported from Home Assistant (id: 1732822055144).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: log
+    message: '[HA if/then] Could not translate if block'

@@ -1,0 +1,26 @@
+id: ha-grid-offline-restore-normal-operation-1766090373452
+name: 'Grid Offline: Restore Normal Operation'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1766090373452).'
+enabled: false
+mode: single
+triggers:
+  - to:
+      - 'on'
+    type: device_state
+    deviceId: binary_sensor.home_energy_gateway_grid_status
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.grid_offline
+    deviceId: input_boolean.grid_offline
+  - type: device_command
+    command:
+      type: input_select
+      action: select_option
+      option: Normal
+      deviceId: input_select.power_saving_mode
+    deviceId: input_select.power_saving_mode

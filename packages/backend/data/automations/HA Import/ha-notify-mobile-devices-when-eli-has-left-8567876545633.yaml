@@ -1,0 +1,19 @@
+id: ha-notify-mobile-devices-when-eli-has-left-8567876545633
+name: Notify mobile devices when Eli has left
+group: HA Import
+description: 'Imported from Home Assistant (id: 8567876545633).'
+enabled: false
+mode: single
+triggers:
+  - from: home
+    type: device_state
+    deviceId: person.elijah_kerry
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Eli has left home
+      deviceId: ''
+    deviceId: notify.everyone

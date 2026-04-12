@@ -1,0 +1,18 @@
+id: ha-warning-portal-closed-sets-portal-warning-to-off-1584309641325
+name: 'WARNING: Portal Closed Sets Portal Warning to Off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1584309641325).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.portal_open
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: ''
+    deviceId: input_boolean.turn_off

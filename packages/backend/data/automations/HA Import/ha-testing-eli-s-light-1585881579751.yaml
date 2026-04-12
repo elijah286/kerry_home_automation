@@ -1,0 +1,25 @@
+id: ha-testing-eli-s-light-1585881579751
+name: testing eli's light
+group: HA Import
+description: 'Imported from Home Assistant (id: 1585881579751).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: light.master_bedroom_elis_lamp
+    attribute: state
+conditions:
+  - op: gt
+    type: device_state
+    value: 250
+    deviceId: light.master_bedroom_elis_lamp
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Above 250
+      deviceId: ''
+    deviceId: notify.everyone

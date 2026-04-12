@@ -1,0 +1,39 @@
+id: ha-dim-kiosk-guest-room-1733550830845
+name: 'Dim Kiosk: Guest Room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733550830845).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: light.guest_room_desk
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.guest_room_desk
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.guest_room_sconces
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.guest_room_ceiling_fan_light
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: number
+      value: '1'
+      action: set_value
+      deviceId: number.guest_room_kiosk_screen_brightness
+    deviceId: number.guest_room_kiosk_screen_brightness

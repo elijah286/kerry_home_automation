@@ -1,0 +1,171 @@
+id: ha-brighten-kiosk-bedroom-1688209750182
+name: 'Brighten Kiosk: Bedroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1688209750182).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+  - to: null
+    type: device_state
+    deviceId: light.master_bedroom_elis_lamp
+    attribute: state
+  - type: device_state
+    deviceId: light.master_bedroom_meghans_lamp
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: light.master_bedroom_hallway
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: media_player.bedroom_tv
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: light.master_bedroom_main_lights
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: switch.master_bedroom_ceiling_fan_light
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: manual
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: number
+          value: '80'
+          action: set_value
+          deviceId: number.bedroom_kiosk_screen_brightness
+        deviceId: number.bedroom_kiosk_screen_brightness
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - type: or
+          conditions:
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: light.master_bedroom_elis_lamp
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: light.master_bedroom_meghans_lamp
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: light.master_bedroom_main_lights
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: light.master_bedroom_hallway
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: media_player.bedroom_tv
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: fan.master_bedroom_ceiling_fan
+              attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: number
+          value: '255'
+          action: set_value
+          deviceId: number.bedroom_kiosk_screen_brightness
+        deviceId: number.bedroom_kiosk_screen_brightness
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - type: or
+          conditions:
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: light.master_bedroom_elis_lamp
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: light.master_bedroom_meghans_lamp
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: light.master_bedroom_main_lights
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: light.master_bedroom_hallway
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: media_player.bedroom_tv
+              attribute: state
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: fan.master_bedroom_ceiling_fan
+              attribute: state
+            - type: time_window
+              after: '06:00'
+              before: '23:59'
+        - type: not
+          condition:
+            op: eq
+            type: device_state
+            value: Night
+            deviceId: input_select.system_mode
+            attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: number
+          value: '255'
+          action: set_value
+          deviceId: number.bedroom_kiosk_screen_brightness
+        deviceId: number.bedroom_kiosk_screen_brightness
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Day
+      deviceId: input_select.system_mode
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: number
+          value: '255'
+          action: set_value
+          deviceId: number.bedroom_kiosk_screen_brightness
+        deviceId: number.bedroom_kiosk_screen_brightness
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Morning
+      deviceId: input_select.system_mode
+      attribute: state

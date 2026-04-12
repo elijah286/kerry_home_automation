@@ -1,0 +1,24 @@
+id: ha-notification-dishwasher-1753623561670
+name: 'Notification: Dishwasher'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1753623561670).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.dishwasher_warning
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: notify
+      action: notify
+      message: Dishwasher not run
+      deviceId: ''
+    deviceId: notify.notify

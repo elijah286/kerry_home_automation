@@ -1,0 +1,16 @@
+id: ha-v2-force-tesla-data-update-every-minute-1669322621989
+name: 'v2: Force Tesla Data update every minute'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1669322621989).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.enterprise_force_data_update
+    deviceId: button.enterprise_force_data_update

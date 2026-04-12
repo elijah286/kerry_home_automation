@@ -1,0 +1,177 @@
+id: ha-auto-de-activate-blind-control-all-1735256285649
+name: 'auto de-activate blind control: all'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1735256285649).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_detected_in_office
+    attribute: state
+  - type: device_state
+    deviceId: weather.home
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      type: or
+      conditions:
+        - op: eq
+          type: device_state
+          value: clear-night
+          deviceId: weather.home
+          attribute: state
+        - op: eq
+          type: device_state
+          value: sunny
+          deviceId: weather.home
+          attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.vertical_toggle_control_living_room_v2_2
+    deviceId: switch.vertical_toggle_control_living_room_v2_2
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.vertical_toggle_control_living_room_v2_2
+        deviceId: switch.vertical_toggle_control_living_room_v2_2
+      - type: device_command
+        command:
+          type: cover
+          action: open_cover
+          deviceId: cover.living_room_blinds
+        deviceId: cover.living_room_blinds
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - type: time_window
+          after: '06:00'
+          before: '23:59'
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.anyone_home
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.living_room_motion_detected
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: switch.vertical_toggle_control_levi_s_blinds
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.vertical_toggle_control_levi_s_blinds
+        deviceId: switch.vertical_toggle_control_levi_s_blinds
+      - type: device_command
+        command:
+          type: cover
+          action: open_cover
+          deviceId: cover.ashers_bedroom_blind
+        deviceId: cover.ashers_bedroom_blind
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - type: time_window
+          after: '06:00'
+          before: '23:59'
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.upstairs_occupied
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: switch.vertical_toggle_control_levi_s_blinds
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.vertical_toggle_control_office
+        deviceId: switch.vertical_toggle_control_office
+      - type: device_command
+        command:
+          type: cover
+          action: open_cover
+          deviceId: cover.office
+        deviceId: cover.office
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - type: time_window
+          after: '06:00'
+          before: '23:59'
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.anyone_home
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.motion_detected_in_office
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: switch.vertical_toggle_control_office
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.vertical_toggle_control_game_room
+        deviceId: switch.vertical_toggle_control_game_room
+      - type: device_command
+        command:
+          type: cover
+          action: open_cover
+          deviceId: cover.game_room_blinds
+        deviceId: cover.game_room_blinds
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - type: time_window
+          after: '06:00'
+          before: '23:59'
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.upstairs_occupied
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.game_room_motion_detected
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: switch.vertical_toggle_control_game_room
+          attribute: state

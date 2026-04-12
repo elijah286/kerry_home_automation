@@ -1,0 +1,27 @@
+id: ha-companion-video-games-off-1716648046028
+name: 'Companion: Video Games Off'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1716648046028).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.movie_systems_off
+    deviceId: input_button.movie_systems_off
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.video_game_time_elapsed
+    deviceId: input_boolean.video_game_time_elapsed
+  - type: device_command
+    command:
+      type: timer
+      action: finish
+      deviceId: timer.video_game
+    deviceId: timer.video_game

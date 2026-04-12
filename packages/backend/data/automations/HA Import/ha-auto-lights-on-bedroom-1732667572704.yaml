@@ -1,0 +1,114 @@
+id: ha-auto-lights-on-bedroom-1732667572704
+name: 'Auto lights on: bedroom'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1732667572704).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_main_bedroom
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - type: not
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Morning
+          deviceId: input_select.system_mode
+          attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.sexy_time
+    attribute: state
+  - type: time_window
+    after: '09:00'
+    before: '20:30'
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.person_in_main_bedroom
+        attribute: state
+      - op: eq
+        type: device_state
+        value: Evening
+        deviceId: input_select.system_mode
+        attribute: state
+      - op: eq
+        type: device_state
+        value: Late Evening
+        deviceId: input_select.system_mode
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Critical
+      deviceId: input_select.power_saving_mode
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: media_player.bedroom_tv
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.master_bedroom_elis_lamp
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.master_bedroom_meghans_lamp
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.master_bedroom_meghans_lamp
+          brightness: 181
+        deviceId: light.master_bedroom_meghans_lamp
+    then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.master_bedroom_meghans_lamp
+          brightness: 102
+        deviceId: light.master_bedroom_meghans_lamp
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Late Evening
+      deviceId: input_select.system_mode
+      attribute: state

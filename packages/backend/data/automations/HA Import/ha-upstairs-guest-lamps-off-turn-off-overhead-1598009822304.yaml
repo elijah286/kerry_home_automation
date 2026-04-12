@@ -1,0 +1,18 @@
+id: ha-upstairs-guest-lamps-off-turn-off-overhead-1598009822304
+name: Upstairs Guest Lamps Off turn off overhead
+group: HA Import
+description: 'Imported from Home Assistant (id: 1598009822304).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.guest_bedroom_table_lamps_2
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: ''
+    deviceId: switch.turn_off

@@ -1,0 +1,30 @@
+id: ha-update-nws-high-low-today-1761222939926
+name: Update NWS High/Low (Today)
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761222939926).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+  - cron: 10 0 * * *
+    type: time
+  - type: device_state
+    deviceId: weather.nws
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: weather
+      action: get_forecasts
+      deviceId: weather.nws
+    deviceId: weather.nws
+  - type: log
+    message: >-
+      [HA variables] {"today":"{{ now().date().isoformat() }}","hours":"{% set f = (wx['weather.nws'].forecast if wx and
+      'weather.nws' in wx else []) %} {{ f\n   | selectattr('datetime','defined')\n   | selectattr('datetime','search',
+      '^' ~ today)\n   | list }}","temps":"{{ hours | map(attribute='temperature') | select('number') | list
+      }}","hi":"{{ temps|max if temps else none }}","lo":"{{ temps|min if temps else none }}"}
+  - type: log
+    message: '[HA if/then] Could not translate if block'
+  - type: log
+    message: '[HA if/then] Could not translate if block'

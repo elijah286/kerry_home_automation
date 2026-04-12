@@ -1,0 +1,24 @@
+id: ha-v2-theme-for-day-1564545417829
+name: 'V2: Theme for Day'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1564545417829).'
+enabled: false
+mode: single
+triggers:
+  - to: Day
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Day
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: frontend
+      action: set_theme
+      deviceId: ''
+    deviceId: frontend.set_theme

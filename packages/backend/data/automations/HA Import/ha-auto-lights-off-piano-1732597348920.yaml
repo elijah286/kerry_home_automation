@@ -1,0 +1,66 @@
+id: ha-auto-lights-off-piano-1732597348920
+name: 'Auto lights off: piano'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1732597348920).'
+enabled: false
+mode: single
+triggers:
+  - cron: '* * * * *'
+    type: time
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_piano_room
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.upstairs_hallway_piano_lamps
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.upstairs_hallway_alcove
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.top_of_stairs_main_lights
+        attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.top_of_stairs_main_lights
+        deviceId: light.top_of_stairs_main_lights
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_piano_room
+          attribute: state
+        - type: time_window
+          after: '22:00'
+          before: '05:00'

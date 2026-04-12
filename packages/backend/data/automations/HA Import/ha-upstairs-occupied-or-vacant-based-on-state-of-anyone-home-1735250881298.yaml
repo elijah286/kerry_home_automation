@@ -1,0 +1,61 @@
+id: ha-upstairs-occupied-or-vacant-based-on-state-of-anyone-home-1735250881298
+name: upstairs occupied or vacant based on state of anyone home
+group: HA Import
+description: 'Imported from Home Assistant (id: 1735250881298).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.kids_at_school
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.upstairs_vacant
+        deviceId: input_boolean.upstairs_vacant
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.upstairs_occupied
+        deviceId: input_boolean.upstairs_occupied
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'off'
+      deviceId: input_boolean.anyone_home
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.upstairs_vacant
+        deviceId: input_boolean.upstairs_vacant
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.upstairs_occupied
+        deviceId: input_boolean.upstairs_occupied
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.anyone_home
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.kids_at_school
+          attribute: state

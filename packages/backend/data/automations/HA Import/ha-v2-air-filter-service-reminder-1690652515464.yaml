@@ -1,0 +1,39 @@
+id: ha-v2-air-filter-service-reminder-1690652515464
+name: 'V2: Air Filter Service Reminder'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1690652515464).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.air_filter_service_days_left
+    attribute: state
+  - cron: '* */12 * * *'
+    type: time
+conditions:
+  - op: lt
+    type: device_state
+    value: 1
+    deviceId: sensor.air_filter_service_days_left
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.air_filter_needs_service
+    deviceId: input_boolean.air_filter_needs_service
+  - type: device_command
+    command:
+      type: notify
+      action: everyone
+      message: Air filters need to be changed
+      deviceId: ''
+    deviceId: notify.everyone
+  - type: device_command
+    command:
+      type: persistent_notification
+      action: create
+      message: Air Filter Needs Service
+      deviceId: ''
+    deviceId: persistent_notification.create

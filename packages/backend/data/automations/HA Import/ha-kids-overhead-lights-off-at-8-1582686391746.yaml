@@ -1,0 +1,28 @@
+id: ha-kids-overhead-lights-off-at-8-1582686391746
+name: Kids overhead lights off at 8
+group: HA Import
+description: 'Imported from Home Assistant (id: 1582686391746).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 20 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: ''
+    deviceId: switch.turn_off
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: ''
+    deviceId: switch.turn_off
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: ''
+    deviceId: switch.turn_off

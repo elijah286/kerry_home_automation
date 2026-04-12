@@ -1,0 +1,18 @@
+id: ha-v2-slownes-bedside-lamp-off-turns-off-dresser-lamp-1660780113447
+name: 'v2: slownes bedside lamp off turns off dresser lamp'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1660780113447).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: light.sloanes_bedroom_table_lamp
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.sloanes_bedroom_dresser_lamp
+    deviceId: light.sloanes_bedroom_dresser_lamp

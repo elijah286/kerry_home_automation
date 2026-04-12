@@ -1,0 +1,21 @@
+id: ha-kiosk-url-reload-default-all-1733720606368
+name: 'Kiosk URL reload default: ALL'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733720606368).'
+enabled: false
+mode: single
+triggers:
+  - type: manual
+  - cron: 0 3 * * *
+    type: time
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.guest_room_kiosk_load_start_url
+    deviceId: button.guest_room_kiosk_load_start_url

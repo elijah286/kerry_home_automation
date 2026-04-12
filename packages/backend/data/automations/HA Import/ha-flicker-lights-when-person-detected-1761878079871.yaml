@@ -1,0 +1,73 @@
+id: ha-flicker-lights-when-person-detected-1761878079871
+name: Flicker lights when person detected
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761878079871).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: binary_sensor.fog_trigger_person_occupancy
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.motion_detected_on_front_patio
+    attribute: state
+  - type: device_state
+    deviceId: input_boolean.person_in_front_yard
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.driveway_frigate_motion
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.halloween_mode
+    attribute: state
+actions:
+  - else:
+      - then:
+          - type: device_command
+            command:
+              type: input_boolean
+              action: turn_on
+              deviceId: input_boolean.flicker_dining_room_lights
+            deviceId: input_boolean.flicker_dining_room_lights
+        type: condition
+        condition:
+          op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.halloween_mode
+          attribute: state
+    then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.flicker_dining_room_lights
+        deviceId: input_boolean.flicker_dining_room_lights
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: binary_sensor.fog_trigger_person_occupancy
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.motion_detected_on_front_patio
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_front_yard
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: binary_sensor.driveway_frigate_motion
+          attribute: state

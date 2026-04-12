@@ -1,0 +1,16 @@
+id: ha-up-late-boolean-resets-to-off-at-3am-1573529075970
+name: Up late boolean resets to off at 3am
+group: HA Import
+description: 'Imported from Home Assistant (id: 1573529075970).'
+enabled: false
+mode: single
+triggers:
+  - cron: 0 3 * * *
+    type: time
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.up_late
+    deviceId: input_boolean.up_late

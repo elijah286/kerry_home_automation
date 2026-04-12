@@ -1,0 +1,33 @@
+id: ha-warning-garage-doors-closed-disables-warning-1584310160882
+name: 'WARNING: Garage Doors Closed Disables Warning'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1584310160882).'
+enabled: false
+mode: single
+triggers:
+  - to: closed
+    type: device_state
+    deviceId: cover.red
+    attribute: state
+  - to: closed
+    type: device_state
+    deviceId: cover.white
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: closed
+    deviceId: cover.white
+    attribute: state
+  - op: eq
+    type: device_state
+    value: closed
+    deviceId: cover.red
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: ''
+    deviceId: input_boolean.turn_off

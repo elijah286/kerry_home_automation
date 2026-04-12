@@ -1,0 +1,18 @@
+id: ha-movie-screens-off-if-no-one-is-home-1694310320568
+name: Movie screens off if no one is home
+group: HA Import
+description: 'Imported from Home Assistant (id: 1694310320568).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.movie_systems_off
+    deviceId: input_button.movie_systems_off

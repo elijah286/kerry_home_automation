@@ -1,0 +1,74 @@
+id: ha-auto-lights-off-patio-1728223467159
+name: 'auto lights off: patio'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1728223467159).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+  - to: 'off'
+    type: device_state
+    deviceId: switch.exterior_backyard_landscaping
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.motion_lights_on
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.flood
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: light.patio_light
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.exterior_backyard_landscaping
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_off
+          deviceId: switch.patio_light
+        deviceId: switch.patio_light
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: switch.patio_light
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.flood
+        deviceId: light.flood
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: light.flood
+      attribute: state

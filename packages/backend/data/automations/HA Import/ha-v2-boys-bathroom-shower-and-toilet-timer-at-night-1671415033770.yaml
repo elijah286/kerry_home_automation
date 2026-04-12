@@ -1,0 +1,36 @@
+id: ha-v2-boys-bathroom-shower-and-toilet-timer-at-night-1671415033770
+name: 'v2: boys bathroom shower and toilet timer at night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1671415033770).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:01:00'
+    type: device_state
+    deviceId: light.boys_bathroom_vanity_lights_new
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - cron: '*/2 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.boys_bathroom_vanity_lights_new
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.boys_bathroom_vanity_lights
+    deviceId: switch.boys_bathroom_vanity_lights

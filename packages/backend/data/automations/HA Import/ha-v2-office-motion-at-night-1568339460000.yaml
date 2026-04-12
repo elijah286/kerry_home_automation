@@ -1,0 +1,40 @@
+id: ha-v2-office-motion-at-night-1568339460000
+name: 'v2: Office motion at night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1568339460000).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.office_motion_sensor
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: binary_sensor.office_motion_sensor
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.office_motion_sensor
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.office_main_lights
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_on
+      deviceId: light.office_main_lights
+      brightness: 41
+    deviceId: light.office_main_lights

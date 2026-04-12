@@ -1,0 +1,70 @@
+id: ha-halloween-mode-spooky-sounds-1761191225068
+name: Halloween Mode Spooky Sounds
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761191225068).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.halloween_mode
+    attribute: state
+  - to: 'off'
+    for: '00:00:05'
+    type: device_state
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+  - type: sun
+    event: sunset
+  - cron: '*/20 * * * *'
+    type: time
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.driveway_frigate_motion
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.halloween_mode
+    attribute: state
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.driveway_frigate_motion
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: binary_sensor.driveway_frigate_person_occupancy
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.motion_detected_on_front_patio
+        attribute: state
+      - op: eq
+        type: device_state
+        value: 'on'
+        deviceId: input_boolean.person_in_front_yard
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: media_player
+      action: play_media
+      deviceId: media_player.brane_0101234101030114_airplay
+    deviceId: media_player.brane_0101234101030114_airplay
+  - type: device_command
+    command:
+      type: media_player
+      action: play_media
+      deviceId: media_player.brane_0101234101030114_airplay
+    deviceId: media_player.brane_0101234101030114_airplay

@@ -1,0 +1,31 @@
+id: ha-ha-theme-set-by-system-state-1761943505239
+name: HA Theme Set by System State
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761943505239).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: frontend
+          action: set_theme
+          deviceId: ''
+        deviceId: frontend.set_theme
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: Late Evening
+      deviceId: input_select.system_mode
+      attribute: state
+  - type: device_command
+    command:
+      type: button
+      action: press
+      deviceId: button.bedroom_kiosk_load_start_url
+    deviceId: button.bedroom_kiosk_load_start_url

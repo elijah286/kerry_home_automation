@@ -1,0 +1,35 @@
+id: ha-v2-bathroom-lights-off-after-10-seconds-if-morning-and-bedroom-dark-1569635634492
+name: 'V2: Bathroom lights off after 10 seconds if morning and bedroom dark'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1569635634492).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '00:00:10'
+    type: device_state
+    deviceId: input_boolean.person_in_main_bathroom
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: Morning
+    deviceId: input_select.system_mode
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: light.master_bathroom_main_lights
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: group.master_bedroom
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: light
+      action: turn_off
+      deviceId: light.master_bathroom_main_lights
+    deviceId: light.master_bathroom_main_lights

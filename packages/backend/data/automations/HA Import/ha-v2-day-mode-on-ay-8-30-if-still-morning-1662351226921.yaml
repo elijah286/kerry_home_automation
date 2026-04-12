@@ -1,0 +1,24 @@
+id: ha-v2-day-mode-on-ay-8-30-if-still-morning-1662351226921
+name: 'V2: Day Mode on ay 8:30 if still morning'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1662351226921).'
+enabled: false
+mode: single
+triggers:
+  - cron: 30 8 * * *
+    type: time
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Day
+      deviceId: input_select.system_mode
+      attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.day_mode
+    deviceId: input_button.day_mode

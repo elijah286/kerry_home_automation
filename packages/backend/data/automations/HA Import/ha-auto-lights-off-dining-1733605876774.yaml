@@ -1,0 +1,111 @@
+id: ha-auto-lights-off-dining-1733605876774
+name: 'auto lights off: dining'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1733605876774).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    type: device_state
+    deviceId: input_boolean.person_in_dining_room
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.person_in_dining_room
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: light.dining_room_chandelier
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.dining_room_chandelier
+        deviceId: light.dining_room_chandelier
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Night
+          deviceId: input_select.system_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_dining_room
+          attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.dining_room_chandelier
+        deviceId: light.dining_room_chandelier
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_dining_room
+          attribute: state
+        - type: or
+          conditions:
+            - op: eq
+              type: device_state
+              value: Morning
+              deviceId: input_select.system_mode
+              attribute: state
+            - op: eq
+              type: device_state
+              value: Day
+              deviceId: input_select.system_mode
+              attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.dining_room_chandelier
+        deviceId: light.dining_room_chandelier
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'off'
+          deviceId: input_boolean.person_in_dining_room
+          attribute: state
+        - type: or
+          conditions:
+            - op: eq
+              type: device_state
+              value: Evening
+              deviceId: input_select.system_mode
+              attribute: state
+            - op: eq
+              type: device_state
+              value: Late Evening
+              deviceId: input_select.system_mode
+              attribute: state

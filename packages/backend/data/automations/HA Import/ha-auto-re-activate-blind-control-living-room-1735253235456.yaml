@@ -1,0 +1,68 @@
+id: ha-auto-re-activate-blind-control-living-room-1735253235456
+name: 'auto re-activate blind control: living room'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1735253235456).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: device_state
+    deviceId: input_button.day_mode
+    attribute: state
+  - type: sun
+    event: sunrise
+  - type: device_state
+    deviceId: weather.home
+    attribute: state
+  - to: 'off'
+    type: device_state
+    deviceId: binary_sensor.living_room
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.anyone_home
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Night
+      deviceId: input_select.system_mode
+      attribute: state
+  - type: time_window
+    after: '06:00'
+    before: '23:59'
+  - type: or
+    conditions:
+      - op: eq
+        type: device_state
+        value: clear-night
+        deviceId: weather.home
+        attribute: state
+      - op: eq
+        type: device_state
+        value: sunny
+        deviceId: weather.home
+        attribute: state
+      - op: eq
+        type: device_state
+        value: partlycloudy
+        deviceId: weather.home
+        attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: binary_sensor.living_room
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: switch.vertical_toggle_control_living_room_v2_2
+    deviceId: switch.vertical_toggle_control_living_room_v2_2

@@ -1,0 +1,65 @@
+id: ha-video-game-timer-check-if-video-games-are-being-played-1764647470788
+name: 'Video Game Timer: Check if video games are being played'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1764647470788).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/5 * * * *'
+    type: time
+  - type: device_state
+    deviceId: media_player.movie_room_right_screen
+    attribute: state
+actions:
+  - else:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_off
+          deviceId: input_boolean.video_games_being_played
+        deviceId: input_boolean.video_games_being_played
+    then:
+      - type: device_command
+        command:
+          type: input_boolean
+          action: turn_on
+          deviceId: input_boolean.video_games_being_played
+        deviceId: input_boolean.video_games_being_played
+    type: condition
+    condition:
+      type: or
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: media_player.elis_xbox
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: media_player.right_xbox
+          attribute: state
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: media_player.movie_room_right_screen
+          attribute: state
+        - type: or
+          conditions:
+            - op: eq
+              type: device_state
+              value: 'on'
+              deviceId: media_player.movie_left_tv
+              attribute: state
+            - type: and
+              conditions:
+                - op: eq
+                  type: device_state
+                  value: unavailable
+                  deviceId: media_player.movie_left_tv
+                  attribute: state
+                - op: eq
+                  type: device_state
+                  value: 'on'
+                  deviceId: media_player.left_xbox
+                  attribute: state

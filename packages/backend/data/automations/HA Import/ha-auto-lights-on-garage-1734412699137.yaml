@@ -1,0 +1,66 @@
+id: ha-auto-lights-on-garage-1734412699137
+name: 'Auto lights on: garage'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1734412699137).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.motion_detected_in_garage
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_front_yard
+    attribute: state
+conditions:
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: Critical
+      deviceId: input_select.power_saving_mode
+      attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.garage_main_lights
+        deviceId: switch.garage_main_lights
+    type: condition
+    condition:
+      op: eq
+      type: device_state
+      value: 'on'
+      deviceId: input_boolean.motion_detected_in_garage
+      attribute: state
+  - then:
+      - type: device_command
+        command:
+          type: switch
+          action: turn_on
+          deviceId: switch.garage_main_lights
+        deviceId: switch.garage_main_lights
+    type: condition
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: 'on'
+          deviceId: input_boolean.person_in_front_yard
+          attribute: state
+        - type: or
+          conditions:
+            - op: eq
+              type: device_state
+              value: open
+              deviceId: cover.red
+              attribute: state
+            - op: eq
+              type: device_state
+              value: open
+              deviceId: cover.white
+              attribute: state

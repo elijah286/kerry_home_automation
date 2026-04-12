@@ -1,0 +1,49 @@
+id: ha-car-warning-on-when-below-30-1600574595947
+name: Car Warning On When Below 30%
+group: HA Import
+description: 'Imported from Home Assistant (id: 1600574595947).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: sensor.enterprise_battery_sensor
+    attribute: state
+  - type: device_state
+    deviceId: sensor.voyager_battery_sensor
+    attribute: state
+  - to: Morning
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - to: Night
+    type: device_state
+    deviceId: input_select.system_mode
+    attribute: state
+  - to: home
+    type: device_state
+    deviceId: device_tracker.enterprise_location_tracker
+    attribute: state
+  - to: home
+    type: device_state
+    deviceId: device_tracker.voyager_location_tracker
+    attribute: state
+conditions:
+  - type: or
+    conditions:
+      - op: lt
+        type: device_state
+        value: 30
+        deviceId: sensor.voyager_battery_sensor
+        attribute: state
+      - op: lt
+        type: device_state
+        value: 30
+        deviceId: sensor.enterprise_battery_sensor
+        attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: ''
+    deviceId: input_boolean.turn_on

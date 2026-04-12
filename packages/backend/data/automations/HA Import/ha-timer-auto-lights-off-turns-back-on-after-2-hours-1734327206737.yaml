@@ -1,0 +1,19 @@
+id: ha-timer-auto-lights-off-turns-back-on-after-2-hours-1734327206737
+name: 'timer: auto lights off turns back on after 2 hours'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1734327206737).'
+enabled: false
+mode: single
+triggers:
+  - to: 'off'
+    for: '02:00:00'
+    type: device_state
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_on
+      deviceId: input_boolean.motion_lights_auto_off
+    deviceId: input_boolean.motion_lights_auto_off

@@ -1,0 +1,44 @@
+id: ha-v2-backyard-motion-stops-for-10-minutes-when-not-night-and-power-saver-on-1581049762269
+name: 'V2: Backyard motion stops for 10 minutes when not night and power saver on'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1581049762269).'
+enabled: false
+mode: single
+triggers:
+  - cron: '*/1 * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.motion_lights_auto_off
+    attribute: state
+  - op: eq
+    type: device_state
+    value: Night
+    deviceId: input_select.system_mode
+    attribute: state
+  - type: not
+    condition:
+      op: eq
+      type: device_state
+      value: None
+      deviceId: input_select.power_saving_mode
+      attribute: state
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: switch.exterior_backyard_landscaping
+    attribute: state
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: input_boolean.motion_detected_on_back_porch
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_off
+      deviceId: switch.exterior_backyard_landscaping
+    deviceId: switch.exterior_backyard_landscaping

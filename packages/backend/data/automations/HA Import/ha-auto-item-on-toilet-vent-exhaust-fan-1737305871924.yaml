@@ -1,0 +1,38 @@
+id: ha-auto-item-on-toilet-vent-exhaust-fan-1737305871924
+name: 'auto item on: toilet vent exhaust fan'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1737305871924).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.person_in_toilet_room
+    attribute: state
+conditions:
+  - op: eq
+    type: device_state
+    value: 'off'
+    deviceId: switch.master_bathroom_exhaust_fan
+    attribute: state
+  - type: not
+    condition:
+      type: and
+      conditions:
+        - op: eq
+          type: device_state
+          value: Critical
+          deviceId: input_select.power_saving_mode
+          attribute: state
+        - op: eq
+          type: device_state
+          value: Aggressive
+          deviceId: input_select.power_saving_mode
+          attribute: state
+actions:
+  - type: device_command
+    command:
+      type: switch
+      action: turn_on
+      deviceId: ''
+    deviceId: switch.turn_on

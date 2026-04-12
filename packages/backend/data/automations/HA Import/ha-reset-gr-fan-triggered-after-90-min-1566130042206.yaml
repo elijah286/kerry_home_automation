@@ -1,0 +1,19 @@
+id: ha-reset-gr-fan-triggered-after-90-min-1566130042206
+name: Reset GR Fan Triggered after 90 min
+group: HA Import
+description: 'Imported from Home Assistant (id: 1566130042206).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    for: '01:30:00'
+    type: device_state
+    deviceId: input_boolean.gr_fan_triggered
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.gr_fan_triggered
+    deviceId: input_boolean.gr_fan_triggered

@@ -1,0 +1,18 @@
+id: ha-v2-kiosk-motion-on-main-floor-when-laundry-room-door-opened-or-closed-1687234030067
+name: 'V2: Kiosk motion on main floor when laundry room door opened or closed'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1687234030067).'
+enabled: false
+mode: single
+triggers:
+  - to: 'on'
+    type: device_state
+    deviceId: binary_sensor.laundry_room_door
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_button
+      action: press
+      deviceId: input_button.kiosk_motion_on_main_floor_screen
+    deviceId: input_button.kiosk_motion_on_main_floor_screen

@@ -1,0 +1,17 @@
+id: ha-v2-motion-lights-off-at-night-1679803307249
+name: 'V2: Motion lights off at night'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1679803307249).'
+enabled: false
+mode: single
+triggers:
+  - type: device_state
+    deviceId: input_button.night_mode
+    attribute: state
+actions:
+  - type: device_command
+    command:
+      type: input_boolean
+      action: turn_off
+      deviceId: input_boolean.motion_lights_on
+    deviceId: input_boolean.motion_lights_on

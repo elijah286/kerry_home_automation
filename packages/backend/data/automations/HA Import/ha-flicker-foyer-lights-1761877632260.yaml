@@ -1,0 +1,50 @@
+id: ha-flicker-foyer-lights-1761877632260
+name: 'Flicker: Foyer Lights'
+group: HA Import
+description: 'Imported from Home Assistant (id: 1761877632260).'
+enabled: false
+mode: parallel
+triggers:
+  - to: 'on'
+    for: '00:00:02'
+    type: device_state
+    deviceId: input_boolean.run_jack_and_sally_show
+    attribute: state
+  - to: 'on'
+    type: device_state
+    deviceId: input_boolean.flicker_dining_room_lights
+    attribute: state
+  - cron: '* * * * *'
+    type: time
+  - cron: '* * * * *'
+    type: time
+  - cron: '* * * * *'
+    type: time
+conditions:
+  - op: eq
+    type: device_state
+    value: 'on'
+    deviceId: input_boolean.flicker_foyer_lights
+    attribute: state
+actions:
+  - then:
+      - type: device_command
+        command:
+          type: light
+          action: turn_on
+          deviceId: light.front_foyer_chandelier
+          brightness: 3
+        deviceId: light.front_foyer_chandelier
+      - type: device_command
+        command:
+          type: light
+          action: turn_off
+          deviceId: light.front_foyer_chandelier
+        deviceId: light.front_foyer_chandelier
+    type: condition
+    condition:
+      op: gt
+      type: device_state
+      value: 80
+      deviceId: light.front_foyer_chandelier
+      attribute: state
