@@ -8,7 +8,6 @@ import type { Integration } from '../registry.js';
 import { stateStore } from '../../state/store.js';
 import { appConfig } from '../../config.js';
 import { logger } from '../../logger.js';
-import { CircuitBreaker } from '../../connection/circuit-breaker.js';
 import { eventBus } from '../../state/event-bus.js';
 import * as entryStore from '../../db/integration-entry-store.js';
 import { IntelliCenterClient, type ICResponse } from './intellicenter-client.js';
@@ -19,9 +18,7 @@ const DEFAULT_PORT = 6680;
 interface ControllerCtx {
   entryId: string;
   client: IntelliCenterClient;
-  breaker: CircuitBreaker;
   pollTimer: ReturnType<typeof setInterval> | null;
-  reconnectTimer: ReturnType<typeof setTimeout> | null;
 }
 
 export class PentairIntegration implements Integration {
@@ -43,21 +40,7 @@ export class PentairIntegration implements Integration {
 
     for (const entry of entries) {
       if (!entry.enabled || !entry.config.host) continue;
-      try {
-        await this.connectController(entry.id, entry.config.host, entry.config.port);
-      } catch (err) {
-        logger.error({ err, entryId: entry.id }, 'Pentair controller failed to connect');
-        this.lastError = String(err);
-        // Schedule retry
-        this.scheduleReconnect(entry.id, entry.config.host, entry.config.port);
-      }
-    }
-
-    if (this.controllers.size > 0) {
-      this.lastConnected = Date.now();
-      this.emitHealth('connected');
-    } else if (entries.length > 0) {
-      this.emitHealth('reconnecting');
+      await this.connectController(entry.id, entry.config.host, entry.config.port);
     }
   }
 
@@ -65,64 +48,86 @@ export class PentairIntegration implements Integration {
     const port = portStr ? parseInt(portStr, 10) : DEFAULT_PORT;
     const client = new IntelliCenterClient({ host, port });
 
-    await client.connect((msg) => this.handleNotification(entryId, msg));
-
-    const breaker = new CircuitBreaker(5, 30_000);
-    breaker.recordSuccess();
-
-    const ctx: ControllerCtx = { entryId, client, breaker, pollTimer: null, reconnectTimer: null };
+    const ctx: ControllerCtx = { entryId, client, pollTimer: null };
     this.controllers.set(entryId, ctx);
 
-    // Initial poll — get all equipment status
-    await this.poll(ctx);
+    // ConnectionManager handles retries internally via exponential backoff.
+    // We pass callbacks so the integration layer can react to connect/disconnect.
+    await client.start(
+      (msg) => this.handleNotification(entryId, msg),
+      () => this.handleControllerDisconnect(entryId),
+      () => this.handleControllerReconnect(entryId),
+    ).then(() => {
+      // Initial connect succeeded
+      this.lastConnected = Date.now();
+      this.emitHealth('connected');
+      this.startPolling(ctx);
+      this.subscribeAll(ctx).catch(() => {});
+    }).catch(() => {
+      // Initial connect failed — ConnectionManager is already retrying.
+      // Emit reconnecting so frontend shows accurate state.
+      this.lastError = `Failed to connect to ${host}:${port}`;
+      this.emitHealth('reconnecting');
+    });
+  }
 
-    // Subscribe to real-time updates for discovered bodies/circuits
-    this.subscribeAll(ctx).catch(() => {});
+  private handleControllerDisconnect(entryId: string): void {
+    if (this.stopping) return;
+    logger.warn({ entryId }, 'Pentair controller disconnected');
 
-    // Start periodic polling as fallback
+    // Mark all devices for this controller as unavailable
+    const devices = stateStore.getByIntegration('pentair');
+    for (const device of devices) {
+      if (!device.id.includes(entryId)) continue;
+      if (device.available) {
+        stateStore.update({ ...device, available: false, lastUpdated: Date.now() });
+      }
+    }
+
+    // Stop polling — no point polling a dead connection
+    const ctx = this.controllers.get(entryId);
+    if (ctx?.pollTimer) {
+      clearInterval(ctx.pollTimer);
+      ctx.pollTimer = null;
+    }
+
+    this.emitHealth('reconnecting');
+  }
+
+  private handleControllerReconnect(entryId: string): void {
+    if (this.stopping) return;
+    logger.info({ entryId }, 'Pentair controller reconnected');
+    this.lastConnected = Date.now();
+    this.emitHealth('connected');
+
+    const ctx = this.controllers.get(entryId);
+    if (!ctx) return;
+
+    // Re-poll to refresh all device states and mark available again
+    this.poll(ctx).then(() => {
+      this.startPolling(ctx);
+      this.subscribeAll(ctx).catch(() => {});
+    }).catch((err) => {
+      logger.error({ err, entryId }, 'Pentair re-poll after reconnect failed');
+    });
+  }
+
+  private startPolling(ctx: ControllerCtx): void {
+    if (ctx.pollTimer) clearInterval(ctx.pollTimer);
     ctx.pollTimer = setInterval(() => {
-      if (this.stopping || ctx.breaker.isOpen) return;
+      if (this.stopping || !ctx.client.connected) return;
       this.poll(ctx).catch((err) => {
-        logger.error({ err, entryId }, 'Pentair poll error');
-        ctx.breaker.recordFailure();
+        logger.error({ err, entryId: ctx.entryId }, 'Pentair poll error');
         this.lastError = String(err);
       });
     }, appConfig.pentair.pollIntervalMs);
-
-    logger.info({ host, port, entryId }, 'Pentair IntelliCenter started');
-  }
-
-  private scheduleReconnect(entryId: string, host: string, portStr?: string): void {
-    if (this.stopping) return;
-    const delay = 30_000;
-    logger.info({ entryId, delay }, 'Pentair scheduling reconnect');
-    const timer = setTimeout(async () => {
-      if (this.stopping) return;
-      try {
-        await this.connectController(entryId, host, portStr);
-        this.lastConnected = Date.now();
-        this.emitHealth('connected');
-      } catch (err) {
-        logger.error({ err, entryId }, 'Pentair reconnect failed');
-        this.lastError = String(err);
-        this.emitHealth('reconnecting');
-        this.scheduleReconnect(entryId, host, portStr);
-      }
-    }, delay);
-
-    // Store timer so we can clean up
-    const existing = this.controllers.get(entryId);
-    if (existing) {
-      existing.reconnectTimer = timer;
-    }
   }
 
   async stop(): Promise<void> {
     this.stopping = true;
     for (const ctx of this.controllers.values()) {
       if (ctx.pollTimer) clearInterval(ctx.pollTimer);
-      if (ctx.reconnectTimer) clearTimeout(ctx.reconnectTimer);
-      ctx.client.disconnect();
+      await ctx.client.disconnect();
     }
     this.controllers.clear();
   }
@@ -159,9 +164,18 @@ export class PentairIntegration implements Integration {
 
   getHealth(): IntegrationHealth {
     const anyConnected = [...this.controllers.values()].some((ctx) => ctx.client.connected);
-    const anyOpen = [...this.controllers.values()].some((ctx) => ctx.breaker.currentState === 'open');
+    const anyTrying = [...this.controllers.values()].some((ctx) =>
+      ctx.client.state === 'reconnecting' || ctx.client.state === 'connecting',
+    );
+    const state: ConnectionState = anyConnected
+      ? 'connected'
+      : anyTrying
+        ? 'reconnecting'
+        : this.controllers.size > 0
+          ? 'error'
+          : 'disconnected';
     return {
-      state: anyConnected ? 'connected' : anyOpen ? 'error' : 'disconnected',
+      state,
       lastConnected: this.lastConnected,
       lastError: this.lastError,
       failureCount: 0,
@@ -180,8 +194,6 @@ export class PentairIntegration implements Integration {
       ctx.client.getChemStatus(),
     ]);
 
-    ctx.breaker.recordSuccess();
-
     if (bodies.status === 'fulfilled') this.processObjects(ctx.entryId, bodies.value, 'body');
     if (circuits.status === 'fulfilled') this.processObjects(ctx.entryId, circuits.value, 'circuit');
     if (pumps.status === 'fulfilled') this.processObjects(ctx.entryId, pumps.value, 'pump');
@@ -189,7 +201,6 @@ export class PentairIntegration implements Integration {
   }
 
   private processObjects(entryId: string, response: ICResponse, category: string): void {
-    // IntelliCenter responses have objectList with objnam + params
     const objectList = response.objectList as Array<{ objnam?: string; params?: Record<string, string> }> | undefined;
     if (!Array.isArray(objectList)) {
       logger.debug({ category, keys: Object.keys(response) }, 'Pentair: no objectList in response');
@@ -219,7 +230,6 @@ export class PentairIntegration implements Integration {
     }
   }
 
-  /** Subscribe to real-time updates for all known objects */
   private async subscribeAll(ctx: ControllerCtx): Promise<void> {
     const devices = stateStore.getByIntegration('pentair');
     for (const device of devices) {
@@ -232,7 +242,7 @@ export class PentairIntegration implements Integration {
         : device.type === 'pool_pump'
           ? ['STATUS', 'RPM', 'PWR']
           : device.type === 'pool_chemistry'
-            ? ['PHVAL', 'ORPVAL', 'SALT']
+            ? ['PHVAL', 'PHSET', 'ORPVAL', 'ORPSET', 'SALT', 'ALK', 'CALC', 'CYACID', 'QUALTY']
             : ['STATUS'];
 
       try {
@@ -261,7 +271,6 @@ export class PentairIntegration implements Integration {
         else if (objType === 'PUMP') stateStore.update(mapPump(obj, entryId));
         else if (objType === 'CHEM') stateStore.update(mapChemistry(obj, entryId));
         else {
-          // Try to match by existing device ID prefix
           const existing = stateStore.get(`pentair.${entryId}.body.${obj.objnam}`);
           if (existing) stateStore.update(mapBody(obj, entryId));
           else if (stateStore.get(`pentair.${entryId}.circuit.${obj.objnam}`)) stateStore.update(mapCircuit(obj, entryId));

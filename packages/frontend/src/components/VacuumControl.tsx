@@ -1,10 +1,15 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import type { VacuumState } from '@ha/shared';
 import { useCommand } from '@/hooks/useCommand';
 import { ButtonSpinner } from '@/components/ui/ButtonSpinner';
 import { Badge } from '@/components/ui/Badge';
-import { Battery, Home, Play, Pause, Square, Volume2 } from 'lucide-react';
+import { Battery, Home, Map as MapIcon, Play, Pause, Volume2 } from 'lucide-react';
+
+const API_BASE = typeof window !== 'undefined'
+  ? `http://${window.location.hostname}:3000`
+  : 'http://localhost:3000';
 
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'default'> = {
   cleaning: 'success',
@@ -20,6 +25,53 @@ export function VacuumControl({ device }: { device: VacuumState }) {
   const cmd = (action: string, fanSpeed?: string) => {
     send(action, { type: 'vacuum', action, fanSpeed });
   };
+
+  const [mapObjectUrl, setMapObjectUrl] = useState<string | null>(null);
+  const [mapError, setMapError] = useState(false);
+
+  useEffect(() => {
+    if (device.integration !== 'roborock' || device.mapUpdatedAt == null) {
+      setMapObjectUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setMapError(false);
+      return;
+    }
+
+    let revoked: string | null = null;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/roborock/map?deviceId=${encodeURIComponent(device.id)}&t=${device.mapUpdatedAt}`,
+          { credentials: 'include' },
+        );
+        if (cancelled) return;
+        if (!res.ok) {
+          setMapError(true);
+          return;
+        }
+        const blob = await res.blob();
+        if (cancelled) return;
+        const url = URL.createObjectURL(blob);
+        revoked = url;
+        setMapObjectUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev);
+          return url;
+        });
+        setMapError(false);
+      } catch {
+        if (!cancelled) setMapError(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (revoked) URL.revokeObjectURL(revoked);
+    };
+  }, [device.id, device.integration, device.mapUpdatedAt]);
 
   return (
     <div className="space-y-3">
@@ -42,6 +94,27 @@ export function VacuumControl({ device }: { device: VacuumState }) {
 
       {device.errorMessage && (
         <p className="text-xs" style={{ color: 'var(--color-danger)' }}>{device.errorMessage}</p>
+      )}
+
+      {device.integration === 'roborock' && device.mapUpdatedAt != null && (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+            <MapIcon className="h-3.5 w-3.5" />
+            Floor map
+          </div>
+          {mapObjectUrl ? (
+            <img
+              src={mapObjectUrl}
+              alt={`${device.name} map`}
+              className="w-full max-h-64 rounded-md border object-contain"
+              style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-secondary)' }}
+            />
+          ) : (
+            <p className="text-xs" style={{ color: mapError ? 'var(--color-warning)' : 'var(--color-text-muted)' }}>
+              {mapError ? 'Map not ready yet — refreshes about every 50s when the bridge can reach the vacuum.' : 'Loading map…'}
+            </p>
+          )}
+        </div>
       )}
 
       {/* Controls */}

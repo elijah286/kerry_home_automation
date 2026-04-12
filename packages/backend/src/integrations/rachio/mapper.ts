@@ -34,6 +34,6 @@ export function mapSprinklerState(
     timeRemaining: isRunning ? (schedule?.remainingDuration ?? null) : null,
     zones,
     standby: !device.on,
-    rainDelay: false,
+    rainDelay: device.rainDelayExpirationDate != null && device.rainDelayExpirationDate > Date.now(),
   };
 }

@@ -542,7 +542,7 @@ export default function RecipesPage() {
     <div className="max-w-6xl mx-auto p-4 lg:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: 'var(--color-accent)', opacity: 0.15 }}>
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}>
             <CookingPot className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
           </div>
           <div>

@@ -20,9 +20,22 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
+const CALENDAR_ENTRY_PALETTE = [
+  '#2563eb', // blue
+  '#7c3aed', // violet
+  '#db2777', // pink
+  '#ea580c', // orange
+  '#059669', // emerald
+  '#d97706', // amber
+  '#0891b2', // cyan
+  '#4f46e5', // indigo
+  '#dc2626', // red
+  '#16a34a', // green
+];
+
 interface CalendarEvent {
   type: 'alarm' | 'meal' | 'ical';
-  icalIntegration?: 'gamechanger' | 'sportsengine';
+  icalEntryId?: string;
   label: string;
   time?: string;
   detail?: string;
@@ -69,8 +82,6 @@ const DAY_ABBREVS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const EVENT_COLORS: Record<string, string> = {
   alarm: 'var(--color-accent)',
   meal: 'var(--color-success)',
-  ical_gamechanger: '#2563eb',
-  ical_sportsengine: '#7c3aed',
 };
 
 const MEAL_TYPE_LABELS: Record<number, string> = {
@@ -94,6 +105,24 @@ export default function CalendarPage() {
     dateKey(today.getFullYear(), today.getMonth(), today.getDate()),
   );
 
+  const [hiddenEntries, setHiddenEntries] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const stored = localStorage.getItem('calendar_hidden_entries');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  const toggleEntry = useCallback((entryId: string) => {
+    setHiddenEntries(prev => {
+      const next = new Set(prev);
+      if (next.has(entryId)) next.delete(entryId);
+      else next.add(entryId);
+      localStorage.setItem('calendar_hidden_entries', JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -114,6 +143,19 @@ export default function CalendarPage() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const calendarFeeds = useMemo(
+    () => icalFeeds.filter(f => f.integration === 'calendar'),
+    [icalFeeds],
+  );
+
+  const entryColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    calendarFeeds.forEach((feed, idx) => {
+      map.set(feed.entryId, CALENDAR_ENTRY_PALETTE[idx % CALENDAR_ENTRY_PALETTE.length]);
+    });
+    return map;
+  }, [calendarFeeds]);
 
   // Build events map for the current month
   const eventsMap = useMemo(() => {
@@ -151,25 +193,24 @@ export default function CalendarPage() {
       });
     }
 
-    // GameChanger / SportsEngine (ICS)
-    for (const feed of icalFeeds) {
-      if (feed.integration !== 'gamechanger' && feed.integration !== 'sportsengine') continue;
-      const integ = feed.integration;
+    // Calendar feeds (ICS)
+    for (const feed of calendarFeeds) {
+      if (hiddenEntries.has(feed.entryId)) continue;
       for (const ev of feed.events) {
         const key = dateKeyForIcalEvent(ev);
         if (!key) continue;
         addEvent(key, {
           type: 'ical',
-          icalIntegration: integ,
+          icalEntryId: feed.entryId,
           label: ev.summary,
           time: formatIcalTime(ev),
-          detail: [feed.label, ev.location].filter(Boolean).join(' · '),
+          detail: [feed.label, ev.location].filter(Boolean).join(' \u00b7 '),
         });
       }
     }
 
     return map;
-  }, [alarms, meals, icalFeeds, viewYear, viewMonth]);
+  }, [alarms, meals, calendarFeeds, hiddenEntries, viewYear, viewMonth]);
 
   const prevMonth = () => {
     if (viewMonth === 0) { setViewYear((y) => y - 1); setViewMonth(11); }
@@ -208,7 +249,7 @@ export default function CalendarPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: 'var(--color-accent)', opacity: 0.15 }}>
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}>
             <CalendarDays className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
           </div>
           <h1 className="text-lg font-semibold">Calendar</h1>
@@ -221,8 +262,8 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+      {/* Legend with toggleable calendars */}
+      <div className="flex items-center gap-4 text-xs flex-wrap" style={{ color: 'var(--color-text-muted)' }}>
         <span className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: EVENT_COLORS.alarm }} />
           Alarms
@@ -231,14 +272,17 @@ export default function CalendarPage() {
           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: EVENT_COLORS.meal }} />
           Meals
         </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: EVENT_COLORS.ical_gamechanger }} />
-          GameChanger
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: EVENT_COLORS.ical_sportsengine }} />
-          SportsEngine
-        </span>
+        {calendarFeeds.map(feed => (
+          <button
+            key={feed.entryId}
+            onClick={() => toggleEntry(feed.entryId)}
+            className="flex items-center gap-1.5 transition-opacity"
+            style={{ opacity: hiddenEntries.has(feed.entryId) ? 0.35 : 1 }}
+          >
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entryColorMap.get(feed.entryId) }} />
+            {feed.label}
+          </button>
+        ))}
       </div>
 
       {error && (
@@ -292,8 +336,9 @@ export default function CalendarPage() {
               const isSelected = key === selectedDate;
               const alarmCount = events.filter((e) => e.type === 'alarm').length;
               const mealCount = events.filter((e) => e.type === 'meal').length;
-              const gcCount = events.filter((e) => e.type === 'ical' && e.icalIntegration === 'gamechanger').length;
-              const seCount = events.filter((e) => e.type === 'ical' && e.icalIntegration === 'sportsengine').length;
+              const icalEntryIds = [...new Set(
+                events.filter(e => e.type === 'ical' && e.icalEntryId).map(e => e.icalEntryId!),
+              )];
 
               return (
                 <button
@@ -319,12 +364,9 @@ export default function CalendarPage() {
                       {mealCount > 0 && (
                         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: EVENT_COLORS.meal }} />
                       )}
-                      {gcCount > 0 && (
-                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: EVENT_COLORS.ical_gamechanger }} />
-                      )}
-                      {seCount > 0 && (
-                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: EVENT_COLORS.ical_sportsengine }} />
-                      )}
+                      {icalEntryIds.map(eid => (
+                        <span key={eid} className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: entryColorMap.get(eid) }} />
+                      ))}
                     </div>
                   )}
                 </button>
@@ -354,9 +396,13 @@ export default function CalendarPage() {
               .sort((a, b) => (a.time ?? '24:00').localeCompare(b.time ?? '24:00'))
               .map((event, i) => {
                 const dot =
-                  event.type === 'ical' && event.icalIntegration
-                    ? EVENT_COLORS[`ical_${event.icalIntegration}`]
+                  event.type === 'ical' && event.icalEntryId
+                    ? entryColorMap.get(event.icalEntryId) ?? '#888'
                     : EVENT_COLORS[event.type];
+                const feedLabel =
+                  event.type === 'ical'
+                    ? calendarFeeds.find(f => f.entryId === event.icalEntryId)?.label ?? 'Calendar'
+                    : event.type === 'alarm' ? 'Alarm' : 'Meal';
                 return (
                   <Card key={i} className="!p-3">
                     <div className="flex items-start gap-2.5">
@@ -370,7 +416,7 @@ export default function CalendarPage() {
                             {event.type === 'alarm' && <AlarmClock className="h-3 w-3" />}
                             {event.type === 'meal' && <CookingPot className="h-3 w-3" />}
                             {event.type === 'ical' && <CalendarRange className="h-3 w-3" />}
-                            {event.type === 'alarm' ? 'Alarm' : event.type === 'meal' ? 'Meal' : event.icalIntegration === 'gamechanger' ? 'GameChanger' : 'SportsEngine'}
+                            {feedLabel}
                           </span>
                         </div>
                       </div>

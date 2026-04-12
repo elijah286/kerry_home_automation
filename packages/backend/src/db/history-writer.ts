@@ -93,6 +93,97 @@ class HistoryWriter {
         return (prev as typeof current).online !== current.online;
       case 'recipe_library':
         return (prev as typeof current).recipeCount !== current.recipeCount;
+      case 'energy_site': {
+        const p = prev as typeof current;
+        return p.solarPower !== current.solarPower
+          || p.batteryPower !== current.batteryPower
+          || p.gridPower !== current.gridPower
+          || p.loadPower !== current.loadPower
+          || p.batteryPercentage !== current.batteryPercentage
+          || p.gridServicesPower !== current.gridServicesPower
+          || p.generatorPower !== current.generatorPower
+          || p.energyLeft !== current.energyLeft
+          || p.gridStatus !== current.gridStatus
+          || p.operationMode !== current.operationMode
+          || p.stormModeEnabled !== current.stormModeEnabled
+          || p.backupReservePercent !== current.backupReservePercent;
+      }
+      case 'vehicle': {
+        const p = prev as typeof current;
+        return p.batteryLevel !== current.batteryLevel
+          || p.batteryRange !== current.batteryRange
+          || p.chargeState !== current.chargeState
+          || p.chargerPower !== current.chargerPower
+          || p.chargeRate !== current.chargeRate
+          || p.sleepState !== current.sleepState
+          || p.locked !== current.locked
+          || p.latitude !== current.latitude
+          || p.longitude !== current.longitude
+          || p.speed !== current.speed
+          || p.shiftState !== current.shiftState
+          || p.power !== current.power
+          || p.climateOn !== current.climateOn
+          || p.insideTemp !== current.insideTemp
+          || p.outsideTemp !== current.outsideTemp;
+      }
+      case 'thermostat': {
+        const p = prev as typeof current;
+        return p.temperature !== current.temperature
+          || p.humidity !== current.humidity
+          || p.hvacMode !== current.hvacMode
+          || p.hvacAction !== current.hvacAction
+          || p.heatSetpoint !== current.heatSetpoint
+          || p.coolSetpoint !== current.coolSetpoint
+          || p.fanMode !== current.fanMode;
+      }
+      case 'sensor':
+        return (prev as typeof current).value !== current.value;
+      case 'energy_monitor': {
+        const p = prev as typeof current;
+        return p.powerW !== current.powerW || p.solarW !== current.solarW;
+      }
+      case 'pool_body': {
+        const p = prev as typeof current;
+        return p.on !== current.on || p.currentTemp !== current.currentTemp
+          || p.heaterOn !== current.heaterOn || p.setPoint !== current.setPoint;
+      }
+      case 'pool_pump': {
+        const p = prev as typeof current;
+        return p.on !== current.on || p.rpm !== current.rpm || p.watts !== current.watts;
+      }
+      case 'pool_chemistry': {
+        const p = prev as typeof current;
+        return p.ph !== current.ph || p.orp !== current.orp || p.saltPpm !== current.saltPpm
+          || p.alkalinity !== current.alkalinity || p.calciumHardness !== current.calciumHardness
+          || p.cya !== current.cya || p.saturationIndex !== current.saturationIndex;
+      }
+      case 'pool_circuit':
+        return (prev as typeof current).on !== current.on;
+      case 'garage_door':
+        return (prev as typeof current).open !== current.open;
+      case 'sprinkler':
+        return (prev as typeof current).running !== current.running
+          || (prev as typeof current).currentZone !== current.currentZone;
+      case 'vacuum':
+        return (prev as typeof current).status !== current.status
+          || (prev as typeof current).battery !== current.battery;
+      case 'doorbell':
+        return (prev as typeof current).lastMotion !== current.lastMotion
+          || (prev as typeof current).lastRing !== current.lastRing;
+      case 'water_softener': {
+        const p = prev as typeof current;
+        return p.capacityPercent !== current.capacityPercent
+          || p.saltPercent !== current.saltPercent;
+      }
+      case 'weather': {
+        const p = prev as typeof current;
+        return p.temperature !== current.temperature
+          || p.humidity !== current.humidity
+          || p.condition !== current.condition;
+      }
+      case 'speedtest':
+        return (prev as typeof current).downloadMbps !== current.downloadMbps
+          || (prev as typeof current).uploadMbps !== current.uploadMbps;
       default:
         return true;
     }

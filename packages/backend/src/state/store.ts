@@ -29,6 +29,11 @@ class StateStore {
       if (prev.displayName && !device.displayName) device.displayName = prev.displayName;
       if (prev.aliases?.length && !device.aliases?.length) device.aliases = prev.aliases;
       if (prev.userAreaId && !device.userAreaId) device.userAreaId = prev.userAreaId;
+      if (prev.type === 'vacuum' && device.type === 'vacuum') {
+        if (prev.mapUpdatedAt != null && device.mapUpdatedAt == null) {
+          device.mapUpdatedAt = prev.mapUpdatedAt;
+        }
+      }
     }
     // Validate parent reference exists (if parent should already be registered)
     if (device.parentDeviceId && !this.devices.has(device.parentDeviceId)) {

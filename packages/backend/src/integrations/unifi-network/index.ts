@@ -3,7 +3,7 @@
 // Each entry = one UniFi controller instance
 // ---------------------------------------------------------------------------
 
-import type { DeviceCommand, IntegrationHealth, ConnectionState } from '@ha/shared';
+import type { DeviceCommand, IntegrationHealth, ConnectionState, NetworkDeviceCommand } from '@ha/shared';
 import type { Integration } from '../registry.js';
 import { stateStore } from '../../state/store.js';
 import { logger } from '../../logger.js';
@@ -19,6 +19,7 @@ interface ControllerCtx {
   label: string;
   client: UnifiNetworkClient;
   pollTimer: ReturnType<typeof setInterval> | null;
+  badCredentials: boolean;
 }
 
 export class UnifiNetworkIntegration implements Integration {
@@ -39,11 +40,14 @@ export class UnifiNetworkIntegration implements Integration {
     for (const entry of entries) {
       if (!entry.enabled || !entry.config.host || !entry.config.username || !entry.config.password) continue;
 
+      const useUnifiOsProxy = entry.config.use_unifi_os_proxy !== 'false';
+
       const client = new UnifiNetworkClient(
         entry.config.host,
         entry.config.username,
         entry.config.password,
         (entry.config.site as string) || 'default',
+        { useUnifiOsProxy },
       );
 
       const ctx: ControllerCtx = {
@@ -51,6 +55,7 @@ export class UnifiNetworkIntegration implements Integration {
         label: entry.label || 'UniFi Network',
         client,
         pollTimer: null,
+        badCredentials: false,
       };
       this.controllers.set(entry.id, ctx);
 
@@ -61,10 +66,15 @@ export class UnifiNetworkIntegration implements Integration {
       } catch (err) {
         logger.error({ err, entryId: entry.id }, 'UniFi Network: initial connection failed');
         this.lastError = String(err);
+        if (this.isAuthError(err)) {
+          ctx.badCredentials = true;
+          logger.error({ entryId: entry.id }, 'UniFi Network: bad credentials — polling suspended until credentials are updated');
+          this.emitHealth('error');
+        }
       }
 
       ctx.pollTimer = setInterval(() => {
-        if (this.stopping) return;
+        if (this.stopping || ctx.badCredentials) return;
         this.poll(ctx).catch((err) => {
           this.lastError = String(err);
         });
@@ -85,15 +95,44 @@ export class UnifiNetworkIntegration implements Integration {
     this.controllers.clear();
   }
 
-  async handleCommand(_cmd: DeviceCommand): Promise<void> {
-    // Network devices don't support commands
+  async handleCommand(cmd: DeviceCommand): Promise<void> {
+    if (cmd.type !== 'network_device') return;
+    const c = cmd as NetworkDeviceCommand;
+    const dev = stateStore.get(c.deviceId);
+    if (!dev || dev.type !== 'network_device' || dev.integration !== this.id) {
+      throw new Error('Device not found or not a UniFi network entity');
+    }
+    if (dev.deviceType !== 'client') {
+      throw new Error('Access control applies to client devices only (not APs/switches).');
+    }
+
+    const match = c.deviceId.match(/^unifi_network\.(.+)\.client\.([a-f0-9]{12})$/i);
+    if (!match) {
+      throw new Error('Invalid UniFi client device id');
+    }
+    const entryId = match[1];
+    const macHex = match[2];
+    const ctx = this.controllers.get(entryId);
+    if (!ctx || ctx.badCredentials) {
+      throw new Error('This UniFi instance is not connected');
+    }
+
+    const macColon = macHex
+      .toLowerCase()
+      .match(/.{2}/g)!
+      .join(':');
+    const block = c.action === 'block_network_access';
+
+    await ctx.client.setClientBlocked(macColon, block);
+    await this.poll(ctx);
   }
 
   getHealth(): IntegrationHealth {
+    const anyBadCredentials = [...this.controllers.values()].some((c) => c.badCredentials);
     return {
-      state: this.lastConnected ? 'connected' : this.controllers.size > 0 ? 'error' : 'disconnected',
+      state: anyBadCredentials ? 'error' : this.lastConnected ? 'connected' : this.controllers.size > 0 ? 'error' : 'disconnected',
       lastConnected: this.lastConnected,
-      lastError: this.lastError,
+      lastError: anyBadCredentials ? 'Bad credentials — update username/password to resume polling' : this.lastError,
       failureCount: 0,
     };
   }
@@ -115,6 +154,18 @@ export class UnifiNetworkIntegration implements Integration {
       }
 
       this.lastConnected = Date.now();
+
+      const site = ctx.client.getSiteKey();
+      logger.info(
+        { entryId: ctx.entryId, site, devices: devices.length, clients: clients.length },
+        'UniFi Network: polled controller',
+      );
+      if (devices.length === 0 && clients.length === 0) {
+        logger.warn(
+          { entryId: ctx.entryId, site },
+          'UniFi Network: API returned no devices or clients — confirm Site matches your UniFi site name (UniFi OS: Settings → System → Site, or the site list in the old UI). Wrong site names return HTTP 200 with empty lists.',
+        );
+      }
     } catch (err: any) {
       // Re-login on 401
       if (err?.status === 401) {
@@ -135,14 +186,31 @@ export class UnifiNetworkIntegration implements Integration {
             stateStore.update(mapClient(ctx.entryId, client));
           }
           this.lastConnected = Date.now();
+          logger.info(
+            { entryId: ctx.entryId, site: ctx.client.getSiteKey(), devices: devices.length, clients: clients.length },
+            'UniFi Network: polled controller (after re-auth)',
+          );
           return;
         } catch (reLoginErr) {
           logger.error({ err: reLoginErr, entryId: ctx.entryId }, 'UniFi Network: re-login failed');
           this.lastError = String(reLoginErr);
+          if (this.isAuthError(reLoginErr)) {
+            ctx.badCredentials = true;
+            logger.error({ entryId: ctx.entryId }, 'UniFi Network: bad credentials — polling suspended until credentials are updated');
+            this.emitHealth('error');
+          }
         }
       }
       throw err;
     }
+  }
+
+  private isAuthError(err: unknown): boolean {
+    if (!err || typeof err !== 'object') return false;
+    const e = err as any;
+    if (e.status === 401 || e.status === 403) return true;
+    if (typeof e.message === 'string' && /login failed|401|403|unauthorized/i.test(e.message)) return true;
+    return false;
   }
 
   private emitHealth(state: ConnectionState): void {

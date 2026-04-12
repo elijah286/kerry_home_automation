@@ -7,7 +7,14 @@ import { ButtonSpinner } from '@/components/ui/ButtonSpinner';
 import { ThrottledSlider } from '@/components/ui/ThrottledSlider';
 import { Badge } from '@/components/ui/Badge';
 
-export function VehicleControl({ device }: { device: VehicleState }) {
+export function VehicleControl({
+  device,
+  detailMode = false,
+}: {
+  device: VehicleState;
+  /** When true (device detail page), telemetry list is expanded and taller. */
+  detailMode?: boolean;
+}) {
   const { send, isPending } = useCommand(device.id);
   const lock = () => send('lock', { type: 'vehicle', action: device.locked ? 'door_unlock' : 'door_lock' });
   const climate = () => send('climate', { type: 'vehicle', action: device.climateOn ? 'climate_stop' : 'climate_start' });
@@ -36,7 +43,13 @@ export function VehicleControl({ device }: { device: VehicleState }) {
       <div className="space-y-1">
         <div className="flex items-center justify-between text-xs" style={{ color: 'var(--color-text-muted)' }}>
           <span>Battery</span>
-          <span>{device.batteryLevel}% &middot; {device.batteryRange} mi</span>
+          <span>
+            {device.batteryLevel}%
+            {device.usableBatteryLevel != null && device.usableBatteryLevel !== device.batteryLevel && (
+              <> (usable {device.usableBatteryLevel}%)</>
+            )}
+            {' '}&middot; {device.batteryRange} mi
+          </span>
         </div>
         <div className="h-2 w-full rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-bg-hover)' }}>
           <div
@@ -78,10 +91,15 @@ export function VehicleControl({ device }: { device: VehicleState }) {
       </div>
 
       {/* Temps */}
-      {device.insideTemp != null && (
-        <div className="flex gap-4 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-          <span>Inside: {device.insideTemp.toFixed(1)}&deg;C</span>
+      {(device.insideTemp != null || device.outsideTemp != null || device.guiTempUnits || device.guiDistanceUnits) && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+          {device.insideTemp != null && <span>Inside: {device.insideTemp.toFixed(1)}&deg;C</span>}
           {device.outsideTemp != null && <span>Outside: {device.outsideTemp.toFixed(1)}&deg;C</span>}
+          {(device.guiTempUnits || device.guiDistanceUnits) && (
+            <span className="opacity-80">
+              [{[device.guiTempUnits, device.guiDistanceUnits].filter(Boolean).join(' · ')}]
+            </span>
+          )}
         </div>
       )}
 
@@ -107,6 +125,48 @@ export function VehicleControl({ device }: { device: VehicleState }) {
             </button>
           )}
         </div>
+        {/* Charging details */}
+        {device.chargeState === 'charging' && (
+          <div
+            className="grid grid-cols-2 gap-2 rounded-md p-2 text-xs"
+            style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+          >
+            {device.chargerPower > 0 && (
+              <div>
+                <span style={{ color: 'var(--color-text-muted)' }}>Power: </span>
+                <span className="font-medium">{device.chargerPower} kW</span>
+              </div>
+            )}
+            {device.chargerVoltage != null && device.chargerVoltage > 0 && (
+              <div>
+                <span style={{ color: 'var(--color-text-muted)' }}>Voltage: </span>
+                <span className="font-medium">{device.chargerVoltage} V</span>
+              </div>
+            )}
+            {device.chargerActualCurrent != null && device.chargerActualCurrent > 0 && (
+              <div>
+                <span style={{ color: 'var(--color-text-muted)' }}>Current: </span>
+                <span className="font-medium">{device.chargerActualCurrent} A</span>
+              </div>
+            )}
+            {device.chargeEnergyAdded > 0 && (
+              <div>
+                <span style={{ color: 'var(--color-text-muted)' }}>Added: </span>
+                <span className="font-medium">{device.chargeEnergyAdded.toFixed(1)} kWh</span>
+              </div>
+            )}
+            {device.timeToFullCharge > 0 && (
+              <div className="col-span-2">
+                <span style={{ color: 'var(--color-text-muted)' }}>Time to full: </span>
+                <span className="font-medium">
+                  {device.timeToFullCharge >= 1
+                    ? `${Math.floor(device.timeToFullCharge)}h ${Math.round((device.timeToFullCharge % 1) * 60)}m`
+                    : `${Math.round(device.timeToFullCharge * 60)}m`}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
         <div className="space-y-1">
           <label className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
             Charge limit: {device.chargeLimitSoc}%
@@ -177,9 +237,79 @@ export function VehicleControl({ device }: { device: VehicleState }) {
         </button>
       </div>
 
+      {/* Driving status */}
+      {device.shiftState && (device.shiftState === 'D' || device.shiftState === 'R') && (
+        <div
+          className="rounded-md p-2 text-xs"
+          style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="font-medium" style={{ color: 'var(--color-accent)' }}>
+              {device.shiftState === 'D' ? 'Driving' : 'Reversing'}
+            </span>
+            {device.speed != null && (
+              <span className="font-medium">{device.speed} mph</span>
+            )}
+          </div>
+          {device.power != null && (
+            <div style={{ color: 'var(--color-text-muted)' }}>
+              Power: {device.power > 0 ? `${device.power} kW` : `${Math.abs(device.power)} kW regen`}
+            </div>
+          )}
+          {device.heading != null && (
+            <div style={{ color: 'var(--color-text-muted)' }}>
+              Heading: {device.heading}&deg;
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Location */}
+      {device.latitude != null && device.longitude != null && (
+        <div className="text-xs space-y-0.5" style={{ color: 'var(--color-text-muted)' }}>
+          <div>
+            Location: {device.latitude.toFixed(5)}, {device.longitude.toFixed(5)}
+          </div>
+          {device.locationUpdatedAt != null && (
+            <div className="opacity-80">
+              GPS sample: {new Date(device.locationUpdatedAt).toLocaleString()}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Full vehicle_data primitives — charge.climate.drive.vehicle.gui.location.config */}
+      {device.vehicleTelemetry && Object.keys(device.vehicleTelemetry).length > 0 && (
+        <details open={detailMode} className="rounded-md border text-xs" style={{ borderColor: 'var(--color-border)' }}>
+          <summary className="cursor-pointer px-2 py-1.5 font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+            All API sensors ({Object.keys(device.vehicleTelemetry).length})
+          </summary>
+          <div
+            className={`${detailMode ? 'max-h-[min(50vh,480px)]' : 'max-h-48'} overflow-y-auto px-2 pb-2 font-mono space-y-0.5 border-t`}
+            style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}
+          >
+            {Object.entries(device.vehicleTelemetry)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([k, v]) => (
+                <div key={k} className="break-all">
+                  <span className="opacity-70">{k}</span>
+                  <span className="mx-1">=</span>
+                  <span>{v === null ? 'null' : String(v)}</span>
+                </div>
+              ))}
+          </div>
+        </details>
+      )}
+
       {/* Info row */}
-      <div className="flex gap-4 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
         {device.sentryMode && <span>Sentry ON</span>}
+        {device.isUserPresent && <span>User present</span>}
+        {device.windowsOpen && <span>Windows open</span>}
+        {device.chargePortOpen && <span>Charge port open</span>}
+        {device.seatHeaterLeft > 0 && <span>Seat heater L:{device.seatHeaterLeft}</span>}
+        {device.seatHeaterRight > 0 && <span>Seat heater R:{device.seatHeaterRight}</span>}
+        {device.steeringWheelHeater && <span>Steering heater ON</span>}
         {device.odometer > 0 && <span>{device.odometer.toLocaleString()} mi</span>}
         {device.softwareVersion && <span>v{device.softwareVersion}</span>}
       </div>

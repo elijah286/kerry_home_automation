@@ -6,6 +6,8 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
 import type { UserRole } from '@ha/shared';
+import type { Permission } from '@ha/shared';
+import { ROLE_PERMISSIONS } from '@ha/shared';
 import { appConfig } from '../config.js';
 import { query } from '../db/pool.js';
 
@@ -94,6 +96,20 @@ export function requireRole(...roles: UserRole[]) {
       return reply.code(401).send({ error: 'Authentication required' });
     }
     if (!roles.includes(req.user.role)) {
+      return reply.code(403).send({ error: 'Insufficient permissions' });
+    }
+  };
+}
+
+/** Requires the current user’s role to include at least one of the given permissions */
+export function requirePermission(...permissions: Permission[]) {
+  return async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!req.user) {
+      return reply.code(401).send({ error: 'Authentication required' });
+    }
+    const granted = ROLE_PERMISSIONS[req.user.role] ?? [];
+    const ok = permissions.some((p) => granted.includes(p));
+    if (!ok) {
       return reply.code(403).send({ error: 'Insufficient permissions' });
     }
   };

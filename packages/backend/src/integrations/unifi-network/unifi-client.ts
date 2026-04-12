@@ -1,6 +1,7 @@
 // ---------------------------------------------------------------------------
 // UniFi Network Controller API client
-// Communicates with UniFi OS controllers via cookie-based auth + CSRF
+// UniFi OS: cookie auth + CSRF; paths prefixed with /proxy/network
+// Standalone Network app (Cloud Key / software): same auth, paths /api/... only
 // ---------------------------------------------------------------------------
 
 import https from 'node:https';
@@ -13,7 +14,7 @@ export interface UnifiDevice {
   name?: string;
   model?: string;
   type: string;
-  state: number;
+  state: number | string;
   uptime?: number;
   num_sta?: number;
   'tx_bytes-r'?: number;
@@ -34,7 +35,6 @@ export interface UnifiClient {
   network?: string;
 }
 
-/** Decode JWT payload segment (middle part); UniFi OS TOKEN cookie is a JWT whose payload includes csrfToken. */
 function decodeJwtPayload(jwt: string): Record<string, unknown> | null {
   const parts = jwt.trim().split('.');
   if (parts.length < 2) return null;
@@ -47,7 +47,6 @@ function decodeJwtPayload(jwt: string): Record<string, unknown> | null {
   }
 }
 
-/** Pull csrfToken from TOKEN=… cookie (see Art-of-WiFi UniFi-API-client create_x_csrf_token_header). */
 function csrfFromTokenCookie(cookieHeader: string): string | null {
   for (const piece of cookieHeader.split(';')) {
     const trimmed = piece.trim();
@@ -63,18 +62,24 @@ function csrfFromTokenCookie(cookieHeader: string): string | null {
   return null;
 }
 
-function coerceDataArray<T>(data: unknown): T[] {
-  if (Array.isArray(data)) return data as T[];
-  if (data && typeof data === 'object') {
+/** Pull array from UniFi JSON `data` (shape varies by endpoint / version). */
+function extractItems(data: unknown): unknown[] {
+  if (data === undefined || data === null) return [];
+  if (Array.isArray(data)) return data;
+  if (typeof data === 'object') {
     const o = data as Record<string, unknown>;
-    for (const k of ['devices', 'list', 'items', 'results', 'sites']) {
-      if (Array.isArray(o[k])) return o[k] as T[];
+    for (const k of ['devices', 'list', 'items', 'results', 'sites', 'data', 'sta']) {
+      const v = o[k];
+      if (Array.isArray(v)) return v;
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        const inner = extractItems(v);
+        if (inner.length) return inner;
+      }
     }
   }
   return [];
 }
 
-/** Simple HTTPS request helper that accepts self-signed certs */
 function request(
   url: string,
   options: { method: string; headers?: Record<string, string>; body?: string; timeout?: number },
@@ -91,7 +96,7 @@ function request(
         path: parsed.pathname + parsed.search,
         method: options.method,
         headers: options.headers,
-        timeout: options.timeout ?? 10_000,
+        timeout: options.timeout ?? 30_000,
         rejectUnauthorized: false,
       },
       (res) => {
@@ -121,24 +126,27 @@ function request(
 export class UnifiNetworkClient {
   private cookies = '';
   private csrfToken = '';
-  /** Site short name used in /api/s/{site}/… (resolved after login when possible). */
   private siteKey: string;
+  /** '' = legacy standalone app; '/proxy/network' = UniFi OS (UDM, UCG, Dream Router, …) */
+  private readonly networkApiBase: string;
 
   constructor(
     private host: string,
     private username: string,
     private password: string,
     site: string = 'default',
+    options?: { useUnifiOsProxy?: boolean },
   ) {
     if (!/^https?:\/\//i.test(this.host)) {
       this.host = `https://${this.host}`;
     }
     this.host = this.host.replace(/\/+$/, '');
-    const s = (site || 'default').trim().toLowerCase();
+    const s = (site || 'default').trim();
     this.siteKey = s || 'default';
+    const useProxy = options?.useUnifiOsProxy !== false;
+    this.networkApiBase = useProxy ? '/proxy/network' : '';
   }
 
-  /** Effective site key after {@link login} (for logging). */
   getSiteKey(): string {
     return this.siteKey;
   }
@@ -168,7 +176,7 @@ export class UnifiNetworkClient {
     });
 
     if (res.status < 200 || res.status >= 300) {
-      throw new Error(`UniFi login failed: ${res.status} ${res.statusText} — ${res.body}`);
+      throw new Error(`UniFi login failed: ${res.status} ${res.statusText} — ${res.body.slice(0, 300)}`);
     }
 
     const setCookieRaw = res.headers['set-cookie'];
@@ -184,26 +192,35 @@ export class UnifiNetworkClient {
 
     await this.resolveSiteKey();
 
-    logger.info({ site: this.siteKey, hasCsrf: Boolean(this.csrfToken) }, 'UniFi Network: logged in');
+    logger.info(
+      { site: this.siteKey, hasCsrf: Boolean(this.csrfToken), proxy: Boolean(this.networkApiBase) },
+      'UniFi Network: logged in',
+    );
   }
 
   /**
-   * Match configured site to controller sites; wrong site name yields empty device lists with HTTP 200.
+   * Resolve site key for `/api/s/{site}/…`. Wrong name → empty device lists with HTTP 200.
    */
   private async resolveSiteKey(): Promise<void> {
-    const configured = this.siteKey;
+    const configured = this.siteKey.toLowerCase();
     try {
-      const raw = await this.apiJsonUnknown('GET', '/proxy/network/api/self/sites');
-      const sites = coerceDataArray<{ name?: string }>(raw);
-      const names = sites.map((s) => s.name).filter((n): n is string => Boolean(n));
+      const raw = await this.apiJsonUnknown('GET', `${this.networkApiBase}/api/self/sites`);
+      const sites = extractItems(raw) as { name?: string; desc?: string }[];
+      const names = sites
+        .map((s) => s.name)
+        .filter((n): n is string => typeof n === 'string' && n.length > 0);
+
       if (names.length === 0) {
-        logger.warn({ configured }, 'UniFi Network: /api/self/sites returned no sites; keeping configured key');
+        logger.warn({ configured }, 'UniFi Network: site list empty — using configured site key as-is');
         return;
       }
-      if (names.some((n) => n.toLowerCase() === configured)) {
-        this.siteKey = names.find((n) => n.toLowerCase() === configured)!;
+
+      const exact = names.find((n) => n.toLowerCase() === configured);
+      if (exact) {
+        this.siteKey = exact;
         return;
       }
+
       const fallback = names.find((n) => n === 'default') ?? names[0];
       logger.warn(
         { configured, fallback, available: names },
@@ -211,38 +228,68 @@ export class UnifiNetworkClient {
       );
       this.siteKey = fallback;
     } catch (err) {
-      logger.warn({ err, configured }, 'UniFi Network: could not list sites; keeping configured site key');
+      logger.warn({ err, configured }, 'UniFi Network: could not list sites; using configured site key');
     }
   }
 
+  private sitePath(suffix: string): string {
+    return `${this.networkApiBase}/api/s/${encodeURIComponent(this.siteKey)}${suffix}`;
+  }
+
+  /**
+   * Fetch infrastructure devices. Tries GET first (works reliably on many UniFi OS builds), then POST with filters.
+   */
   async getDevices(): Promise<UnifiDevice[]> {
-    const path = `/proxy/network/api/s/${this.siteKey}/stat/device`;
-    try {
-      const post = coerceDataArray<UnifiDevice>(
-        await this.apiJsonUnknown('POST', path, JSON.stringify({ macs: [] })),
-      );
-      if (post.length) return post.map(normalizeUnifiDevice);
-    } catch (err) {
-      logger.warn({ err }, 'UniFi Network: POST stat/device failed; trying GET fallbacks');
+    const attempts: { label: string; method: 'GET' | 'POST'; path: string; body?: string }[] = [
+      { label: 'GET stat/device', method: 'GET', path: this.sitePath('/stat/device') },
+      { label: 'GET stat/device-basic', method: 'GET', path: this.sitePath('/stat/device-basic') },
+      { label: 'POST stat/device macs[]', method: 'POST', path: this.sitePath('/stat/device'), body: JSON.stringify({ macs: [] }) },
+      { label: 'POST stat/device {}', method: 'POST', path: this.sitePath('/stat/device'), body: JSON.stringify({}) },
+    ];
+
+    let lastErr: unknown;
+    for (const a of attempts) {
+      try {
+        const raw = await this.apiJsonUnknown(a.method, a.path, a.body);
+        const items = extractItems(raw).map((x) => x as UnifiDevice);
+        const normalized = items.map(normalizeUnifiDevice).filter((d) => Boolean(d.mac));
+        if (normalized.length > 0) {
+          logger.info({ label: a.label, count: normalized.length }, 'UniFi Network: loaded devices');
+          return normalized;
+        }
+        if (items.length > 0 && normalized.length === 0) {
+          logger.warn(
+            { label: a.label, sample: items[0] },
+            'UniFi Network: devices returned but none had a usable MAC — check API format',
+          );
+        }
+      } catch (err) {
+        lastErr = err;
+      }
     }
-    try {
-      const basic = coerceDataArray<UnifiDevice>(
-        await this.apiJsonUnknown('GET', `${path}-basic`),
-      );
-      if (basic.length) return basic.map(normalizeUnifiDevice);
-    } catch (err) {
-      logger.warn({ err }, 'UniFi Network: GET stat/device-basic failed');
+
+    if (lastErr) {
+      logger.warn({ err: lastErr }, 'UniFi Network: all device fetch strategies failed');
     }
-    const plain = coerceDataArray<UnifiDevice>(await this.apiJsonUnknown('GET', path));
-    return plain.map(normalizeUnifiDevice);
+    return [];
   }
 
   async getClients(): Promise<UnifiClient[]> {
-    const raw = await this.apiJsonUnknown(
-      'GET',
-      `/proxy/network/api/s/${this.siteKey}/stat/sta`,
+    const raw = await this.apiJsonUnknown('GET', this.sitePath('/stat/sta'));
+    const items = extractItems(raw).map((x) => x as UnifiClient);
+    return items.map(normalizeUnifiClient).filter((c) => Boolean(c.mac));
+  }
+
+  /**
+   * Block or unblock a client (Wi‑Fi / LAN client) via stamgr. Primarily for wireless clients.
+   */
+  async setClientBlocked(macColon: string, blocked: boolean): Promise<void> {
+    const cmd = blocked ? 'block-sta' : 'unblock-sta';
+    await this.apiJsonUnknown(
+      'POST',
+      this.sitePath('/cmd/stamgr'),
+      JSON.stringify({ cmd, mac: macColon.toLowerCase() }),
     );
-    return coerceDataArray<UnifiClient>(raw).map(normalizeUnifiClient);
   }
 
   private parseDataUnknown(raw: string): unknown {
@@ -250,7 +297,8 @@ export class UnifiNetworkClient {
     if (json.meta?.rc === 'error') {
       throw new Error(json.meta.msg ?? 'UniFi API returned meta.rc=error');
     }
-    return json.data;
+    if ('data' in json) return json.data;
+    return json;
   }
 
   private async apiJsonUnknown(method: 'GET' | 'POST', path: string, body?: string): Promise<unknown> {
@@ -270,19 +318,22 @@ export class UnifiNetworkClient {
 
     if (res.status === 401) {
       const err = new Error('UniFi API 401 Unauthorized');
-      (err as any).status = 401;
+      (err as { status?: number }).status = 401;
       throw err;
     }
 
     if (res.status < 200 || res.status >= 300) {
-      throw new Error(`UniFi API ${res.status}: ${res.statusText} — ${res.body.slice(0, 200)}`);
+      throw new Error(`UniFi API ${res.status}: ${res.statusText} — ${res.body.slice(0, 400)}`);
     }
 
     const csrf = res.headers['x-csrf-token'];
     if (csrf) this.csrfToken = Array.isArray(csrf) ? csrf[0] : csrf;
     this.applyCsrfFromCookies();
 
-    const data = this.parseDataUnknown(res.body);
+    const trimmed = res.body.trim();
+    if (!trimmed) return [];
+
+    const data = this.parseDataUnknown(trimmed);
     if (data === undefined || data === null) {
       return [];
     }
@@ -290,8 +341,20 @@ export class UnifiNetworkClient {
   }
 }
 
+function pickMac(d: Record<string, unknown>): string | undefined {
+  const direct = d.mac ?? d.mac_addr;
+  if (typeof direct === 'string' && direct.length > 0) return direct;
+  const et = d.ethernet_table;
+  if (Array.isArray(et) && et[0] && typeof et[0] === 'object') {
+    const m = (et[0] as { mac?: string }).mac;
+    if (typeof m === 'string' && m.length > 0) return m;
+  }
+  return undefined;
+}
+
 function normalizeUnifiDevice(d: UnifiDevice): UnifiDevice {
-  const mac = d.mac ?? (d as { mac_addr?: string }).mac_addr;
+  const o = d as unknown as Record<string, unknown>;
+  const mac = pickMac(o);
   return { ...d, mac };
 }
 

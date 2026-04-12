@@ -113,6 +113,34 @@ const readTools: ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'search_web',
+      description: 'Search the web for current documentation, setup guides, or troubleshooting information. Use this when the user asks how to set up an integration and you want to find the latest official instructions or community guides.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'The search query' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'fetch_url',
+      description: 'Fetch the text content of a web page. Use this after search_web to read the full content of a relevant documentation page or guide.',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'The URL to fetch' },
+        },
+        required: ['url'],
+      },
+    },
+  },
 ];
 
 const writeTools: ChatCompletionTool[] = [
@@ -449,6 +477,79 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
       return { navigate: String(args.path) };
     }
 
+    case 'search_web': {
+      const q = encodeURIComponent(String(args.query));
+      try {
+        const res = await fetch(
+          `https://api.duckduckgo.com/?q=${q}&format=json&no_html=1&skip_disambig=1`,
+          { signal: AbortSignal.timeout(10000), headers: { 'User-Agent': 'HomeAutomationAssistant/1.0' } },
+        );
+        if (!res.ok) return { error: `Search failed (${res.status})` };
+        const data = (await res.json()) as {
+          AbstractText?: string;
+          AbstractURL?: string;
+          AbstractSource?: string;
+          RelatedTopics?: Array<{ Text?: string; FirstURL?: string; Topics?: unknown[] }>;
+          Results?: Array<{ Text?: string; FirstURL?: string }>;
+        };
+
+        const results: Array<{ title: string; url: string; snippet: string }> = [];
+
+        if (data.AbstractText && data.AbstractURL) {
+          results.push({ title: data.AbstractSource ?? 'Overview', url: data.AbstractURL, snippet: data.AbstractText });
+        }
+
+        for (const r of data.Results ?? []) {
+          if (r.FirstURL && r.Text) results.push({ title: r.Text.split('\n')[0], url: r.FirstURL, snippet: r.Text });
+          if (results.length >= 5) break;
+        }
+
+        for (const r of data.RelatedTopics ?? []) {
+          if ('Topics' in r) continue; // skip category groupings
+          if (r.FirstURL && r.Text) results.push({ title: r.Text.split('\n')[0].slice(0, 80), url: r.FirstURL, snippet: r.Text });
+          if (results.length >= 6) break;
+        }
+
+        if (results.length === 0) {
+          return { message: 'No results found. Try fetching a specific documentation URL directly.' };
+        }
+
+        return { results };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { error: `Search failed: ${message}` };
+      }
+    }
+
+    case 'fetch_url': {
+      const url = String(args.url);
+      try {
+        const res = await fetch(url, {
+          signal: AbortSignal.timeout(15000),
+          headers: { 'User-Agent': 'HomeAutomationAssistant/1.0' },
+        });
+        if (!res.ok) return { error: `Fetch failed (${res.status})` };
+        const contentType = res.headers.get('content-type') ?? '';
+        if (!contentType.includes('text')) return { error: 'URL did not return text content' };
+
+        let text = await res.text();
+        // Strip HTML tags
+        text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s{3,}/g, '\n\n')
+          .trim();
+
+        // Truncate to avoid token explosion
+        const MAX_CHARS = 6000;
+        const truncated = text.length > MAX_CHARS;
+        return { url, content: text.slice(0, MAX_CHARS) + (truncated ? '\n\n[content truncated]' : '') };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { error: `Fetch failed: ${message}` };
+      }
+    }
+
     case 'ecobee_request_pin': {
       const apiKey = String(args.apiKey);
       try {
@@ -604,6 +705,17 @@ To set up:
 2. Note the Client ID and Client Secret
 3. Use the Spotify OAuth flow to obtain a refresh token with the required scopes
 4. Provide the Client ID, Client Secret, and Refresh Token here`,
+
+    ring: `Ring doorbells and cameras connect via the Ring cloud API using a refresh token.
+
+To set up:
+1. The user needs to generate a refresh token using the ring-client-api authentication CLI that is already installed in this system
+2. Run: npx -p ring-client-api ring-auth-cli from the HomeOS server terminal
+3. This will prompt for the Ring account email, password, and 2FA code
+4. It outputs a refresh token — the user should paste that token here
+5. Only one Ring entry is needed (it discovers all doorbells and cameras on the account automatically)
+
+IMPORTANT: Do NOT tell the user to install ring-client-api — it is already available. They just need to run the auth CLI command on the server to get their refresh token, then provide it here.`,
   };
 
   return instructions[id] ?? 'No specific setup instructions available. Check the integration documentation for configuration details.';
@@ -630,34 +742,52 @@ function buildSystemPrompt(user: { username: string; role: UserRole }): string {
     ? 'You have full admin access — you can control devices, manage integrations, create/edit entries, and change settings.'
     : 'You have read-only access — you can view devices and status but cannot control devices or change settings. If the user tries to do something that requires admin, let them know they need admin privileges.';
 
-  return `You are a helpful home automation assistant for the Kerry household. You can check device status, view history, and navigate the UI.
+  return `You are the built-in AI assistant for HomeOS — a custom home automation platform built specifically for the Kerry household. You are NOT Home Assistant, SmartThings, or any other third-party platform. HomeOS is a bespoke system with its own integrations, device model, and UI.
 
-Current user: ${user.username} (role: ${user.role})
+## What HomeOS is
+HomeOS is a self-hosted platform that aggregates smart home devices across multiple vendor integrations (Lutron, Meross, Yamaha, Tesla, UniFi, Ecobee, Rachio, Ring, Wyze, Pentair, Spotify, and others). Each integration runs as a bridge inside HomeOS and syncs device state into a central Postgres-backed state store. The frontend is a React/Next.js dashboard.
+
+## What you can do
+- Check device status, state history, and availability across all integrations
+- Control devices (lights, fans, switches, covers, media players, vacuum, sprinklers, garage doors, vehicles) — admin only
+- Navigate the HomeOS UI to any section
+- Help set up new integrations by walking the user through the required config
+- Search the web and read documentation pages to find the latest setup instructions for any integration or device
+- Manage integration entries (create, update, restart) — admin only
+
+## What you are NOT
+- You are not Home Assistant and have no access to Home Assistant concepts (automations.yaml, integrations.yaml, HA add-ons, HA entities, Supervisor, etc.)
+- You are not a general-purpose voice assistant — focus on the home and this system
+- Do not reference HACS, HA config entries, HA UI flows, or any HA-specific terminology
+
+## Current session
+User: ${user.username} (role: ${user.role})
 ${roleDesc}
 
-Current system overview:
+## Live system state
 - Total devices: ${devices.length}
 - Device types: ${Object.entries(deviceCounts).map(([t, c]) => `${t} (${c})`).join(', ')}
 - Active integrations: ${activeIntegrations.join(', ') || 'none'}
 
-DEVICE RESOLUTION RULES — follow these strictly:
-1. When the user refers to a device, match their words against the device name, displayName, AND aliases (alternative names). Use case-insensitive partial/fuzzy matching. For example, "patio fans" matches "Patio Patio Fans", "flood lights" matches a device with alias "flood lights".
-2. If exactly ONE device matches, act on it immediately — do NOT ask for confirmation. Just execute the command and report what you did.
-3. If MULTIPLE devices match, list them briefly and ask which one. Do not list devices that clearly don't match.
-4. When the user confirms ("yes", "yeah", "do it", "go ahead") or provides clarification, execute the action immediately. Never respond to a confirmation by asking about settings, connections, or configuration — just do the thing.
-5. If a command fails, retry once. Only then report the error concisely and suggest checking the device.
-6. Always confirm what you did AFTER acting, not before. Be concise: "Done — turned on Patio Flood." not a paragraph.
+## DEVICE RESOLUTION RULES — follow these strictly
+1. Match user references against device name, displayName, AND aliases. Use case-insensitive partial/fuzzy matching.
+2. Exactly one match → act immediately, no confirmation needed.
+3. Multiple matches → list them briefly and ask which one.
+4. On confirmation ("yes", "go ahead", etc.) → execute immediately, no follow-up questions.
+5. Command fails → retry once, then report the error concisely.
+6. Confirm AFTER acting, not before. Be concise: "Done — turned on Patio Flood."
 
-When the user asks to "show" or "go to" something, use the navigate_ui tool.
+## Navigation
+When the user asks to "show" or "go to" something, use navigate_ui. Valid paths: /devices, /cameras, /settings, /integrations, /areas, /alarms, /recipes.
 
-Integration setup guidelines:
+## Integration setup guidelines
 - When a user asks to set up an integration, call get_integration_setup_info first.
-- If the setup info includes a setupUrl, give the user a clickable link and tell them exactly what to do there (e.g. "create an app", "copy the API key").
-- List the specific values you'll need from them (e.g. "I'll need your API Key and Refresh Token").
-- Keep each step short and actionable — one thing at a time.
-- Once the user provides all required values, offer to configure it automatically using create_integration_entry. If they prefer, offer to navigate them to the integrations page instead.
-- After creating an entry, automatically call restart_integration so it connects immediately.
-- Format setup steps as a numbered list with bold step titles for readability.`;
+- If the setup info includes a setupUrl, give the user a clickable markdown link and tell them exactly what to do there.
+- For any integration where the setup process is unclear, or when the user asks HOW to do something (e.g. "how do I get a refresh token"), use search_web to find the latest official docs or community guide, then use fetch_url to read the best result. Always include a direct clickable link to the source.
+- List the specific values you'll need (e.g. "I'll need your Client ID and Refresh Token").
+- One actionable step at a time. Format as a numbered list with bold step titles.
+- Once the user provides all values, offer to configure it automatically via create_integration_entry, then restart_integration immediately after.
+- Always cite sources with clickable markdown links when using web search.`;
 }
 
 // ---------------------------------------------------------------------------

@@ -34,7 +34,7 @@ export default function LoginPage() {
       >
         <div className="text-center space-y-1">
           <h1 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>
-            Home Automation
+            HomeOS
           </h1>
           <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
             Sign in to continue

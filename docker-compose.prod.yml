@@ -1,0 +1,95 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: home_automation
+      POSTGRES_USER: ha_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ha_dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ha_user -d home_automation"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  roborock-bridge:
+    build:
+      context: ./services/roborock-bridge
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      ROBOROCK_BRIDGE_SECRET: ${ROBOROCK_BRIDGE_SECRET:-change-me-roborock-bridge}
+    expose:
+      - "8765"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile.prod
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://ha_user:${POSTGRES_PASSWORD:-ha_dev_password}@postgres:5432/home_automation
+      REDIS_URL: redis://redis:6379
+      HOST: 0.0.0.0
+      PORT: 3000
+      ROBOROCK_BRIDGE_URL: http://roborock-bridge:8765
+      ROBOROCK_BRIDGE_SECRET: ${ROBOROCK_BRIDGE_SECRET:-change-me-roborock-bridge}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      roborock-bridge:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: packages/frontend/Dockerfile.prod
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      NEXT_PUBLIC_API_URL: http://backend:3000
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:

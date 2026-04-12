@@ -106,8 +106,13 @@ export function mapChemistry(raw: ICObject, entryId?: string): PoolChemistryStat
     ph: toNumOrNull(p.PHVAL),
     orp: toNumOrNull(p.ORPVAL),
     saltPpm: toNumOrNull(p.SALT),
-    saturationIndex: null,
+    saturationIndex: toNumOrNull(p.QUALTY),
     waterTemp: null,
+    phSetpoint: toNumOrNull(p.PHSET),
+    orpSetpoint: toNumOrNull(p.ORPSET),
+    alkalinity: toNumOrNull(p.ALK),
+    calciumHardness: toNumOrNull(p.CALC),
+    cya: toNumOrNull(p.CYACID),
   };
 }
 

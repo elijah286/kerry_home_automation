@@ -135,7 +135,9 @@ export function PoolChemistryControl({ device }: { device: PoolChemistryState })
       <div className="grid grid-cols-2 gap-2 text-xs">
         {device.ph != null && (
           <div className="rounded-md p-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-            <div style={{ color: 'var(--color-text-muted)' }}>pH</div>
+            <div style={{ color: 'var(--color-text-muted)' }}>
+              pH{device.phSetpoint != null && <span className="ml-1">(target: {device.phSetpoint.toFixed(1)})</span>}
+            </div>
             <div className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
               {device.ph.toFixed(1)}
             </div>
@@ -143,7 +145,9 @@ export function PoolChemistryControl({ device }: { device: PoolChemistryState })
         )}
         {device.orp != null && (
           <div className="rounded-md p-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-            <div style={{ color: 'var(--color-text-muted)' }}>ORP</div>
+            <div style={{ color: 'var(--color-text-muted)' }}>
+              ORP{device.orpSetpoint != null && <span className="ml-1">(target: {device.orpSetpoint})</span>}
+            </div>
             <div className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
               {device.orp} mV
             </div>
@@ -161,7 +165,43 @@ export function PoolChemistryControl({ device }: { device: PoolChemistryState })
           <div className="rounded-md p-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
             <div style={{ color: 'var(--color-text-muted)' }}>Water Temp</div>
             <div className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
-              {device.waterTemp}°F
+              {device.waterTemp}&deg;F
+            </div>
+          </div>
+        )}
+        {device.alkalinity != null && (
+          <div className="rounded-md p-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+            <div style={{ color: 'var(--color-text-muted)' }}>Alkalinity</div>
+            <div className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+              {device.alkalinity} ppm
+            </div>
+          </div>
+        )}
+        {device.calciumHardness != null && (
+          <div className="rounded-md p-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+            <div style={{ color: 'var(--color-text-muted)' }}>Calcium</div>
+            <div className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+              {device.calciumHardness} ppm
+            </div>
+          </div>
+        )}
+        {device.cya != null && (
+          <div className="rounded-md p-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+            <div style={{ color: 'var(--color-text-muted)' }}>CYA</div>
+            <div className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+              {device.cya} ppm
+            </div>
+          </div>
+        )}
+        {device.saturationIndex != null && (
+          <div className="rounded-md p-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+            <div style={{ color: 'var(--color-text-muted)' }}>LSI</div>
+            <div className="text-sm font-medium" style={{
+              color: device.saturationIndex >= -0.3 && device.saturationIndex <= 0.3
+                ? 'var(--color-success)'
+                : 'var(--color-warning)',
+            }}>
+              {device.saturationIndex.toFixed(2)}
             </div>
           </div>
         )}

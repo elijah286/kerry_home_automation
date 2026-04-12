@@ -12,6 +12,7 @@ import {
   MapPin,
   Puzzle,
   Settings,
+  User,
 } from 'lucide-react';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -22,6 +23,7 @@ const navItems = [
   { href: '/alarms', label: 'Alarms', icon: AlarmClock },
   { href: '/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/locations', label: 'Map', icon: MapPin },
+  { href: '/settings/account', label: 'Account', icon: User },
   { href: '/settings', label: 'Settings', icon: Settings, adminOnly: true },
 ];
 

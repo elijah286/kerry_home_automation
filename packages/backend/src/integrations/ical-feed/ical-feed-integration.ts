@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Poll ICS subscription URLs and cache events in Redis for the calendar UI
+// Poll ICS calendar subscription URLs and cache events in Redis for the calendar UI
 // ---------------------------------------------------------------------------
 
 import type { IntegrationHealth, ConnectionState, IntegrationId } from '@ha/shared';
@@ -17,15 +17,11 @@ function redisKey(integration: IntegrationId, entryId: string): string {
 }
 
 export class IcalFeedIntegration implements Integration {
-  readonly id: 'gamechanger' | 'sportsengine';
+  readonly id = 'calendar' as const;
   private timers = new Map<string, ReturnType<typeof setInterval>>();
   private stopping = false;
   private lastError: string | null = null;
   private lastOk: number | null = null;
-
-  constructor(id: 'gamechanger' | 'sportsengine') {
-    this.id = id;
-  }
 
   async start(): Promise<void> {
     const entries = await entryStore.getEntries(this.id);

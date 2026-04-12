@@ -94,6 +94,12 @@ export const KNOWN_INTEGRATIONS: IntegrationInfo[] = [
       { key: 'refresh_token', label: 'Refresh Token', type: 'password', required: true },
       { key: 'include_vehicles', label: 'Include Vehicles', type: 'checkbox', defaultValue: 'true' },
       { key: 'include_energy_sites', label: 'Include Energy Sites', type: 'checkbox', defaultValue: 'true' },
+      {
+        key: 'owner_streaming',
+        label: 'Live streaming (Owner API — same as TeslaMate GPS/drive updates)',
+        type: 'checkbox',
+        defaultValue: 'true',
+      },
     ],
   },
   {
@@ -156,12 +162,31 @@ export const KNOWN_INTEGRATIONS: IntegrationInfo[] = [
   {
     id: 'roborock',
     name: 'Roborock',
-    description: 'Roborock robot vacuums via local miIO protocol',
+    description:
+      'Roborock vacuums: Roborock-app login (email code) with local-first control when reachable, or legacy LAN miIO (IP + token). The backend creates services/roborock-bridge/.venv and installs Python dependencies automatically when no external bridge URL is configured.',
     providesDevices: true,
     supportsMultipleEntries: true,
     configFields: [
-      { key: 'host', label: 'Vacuum IP', type: 'text', placeholder: '192.168.1.70', required: true },
-      { key: 'token', label: 'Device Token', type: 'password', placeholder: '32-character hex token', required: true },
+      {
+        key: 'local_miio',
+        label: 'Use local miIO only (IP + token, no Roborock cloud)',
+        type: 'checkbox',
+        defaultValue: 'false',
+      },
+      { key: 'host', label: 'Vacuum IP (local miIO)', type: 'text', placeholder: '192.168.1.70' },
+      { key: 'token', label: 'Device token (local miIO)', type: 'password', placeholder: '32-character hex' },
+      {
+        key: 'email',
+        label: 'Roborock account email (cloud)',
+        type: 'text',
+        placeholder: 'Same email as Roborock app',
+      },
+      {
+        key: 'cloud_session',
+        label: 'Cloud session blob',
+        type: 'password',
+        placeholder: 'Use “Send code” + “Connect” below — do not paste manually',
+      },
     ],
   },
   {
@@ -229,6 +254,7 @@ export const KNOWN_INTEGRATIONS: IntegrationInfo[] = [
     description: 'Ring doorbells and security cameras via Ring cloud API',
     providesDevices: true,
     supportsMultipleEntries: false,
+    setupUrl: 'https://github.com/dgreif/ring/wiki/Refresh-Tokens',
     configFields: [
       { key: 'refresh_token', label: 'Refresh Token', type: 'password', placeholder: 'From ring-client-api auth', required: true },
     ],
@@ -259,7 +285,8 @@ export const KNOWN_INTEGRATIONS: IntegrationInfo[] = [
   {
     id: 'unifi_network',
     name: 'UniFi Network',
-    description: 'UniFi network infrastructure — APs, switches, gateways, and connected clients',
+    description:
+      'UniFi infrastructure (APs, switches, gateways) and active clients via the controller API. Use Site = the short site name from UniFi (often "default"). Turn off "UniFi OS API" only for Cloud Key / software controllers without the UniFi OS shell.',
     providesDevices: true,
     supportsMultipleEntries: true,
     configFields: [
@@ -267,6 +294,12 @@ export const KNOWN_INTEGRATIONS: IntegrationInfo[] = [
       { key: 'username', label: 'Username', type: 'text', required: true },
       { key: 'password', label: 'Password', type: 'password', required: true },
       { key: 'site', label: 'Site', type: 'text', placeholder: 'default', defaultValue: 'default' },
+      {
+        key: 'use_unifi_os_proxy',
+        label: 'UniFi OS API (/proxy/network)',
+        type: 'checkbox',
+        defaultValue: 'true',
+      },
     ],
   },
   {
@@ -305,29 +338,15 @@ export const KNOWN_INTEGRATIONS: IntegrationInfo[] = [
     ],
   },
   {
-    id: 'gamechanger',
-    name: 'GameChanger',
+    id: 'calendar',
+    name: 'Calendar',
     description:
-      'Import games and practices on your calendar via an iCal / webcal subscription URL from the GameChanger app (Team → Schedule → Subscribe).',
+      'Subscribe to any iCal / ICS calendar feed. Add one entry per calendar URL (team schedules, school events, etc.).',
     providesDevices: false,
     supportsMultipleEntries: true,
-    setupUrl: 'https://gc.com/',
     configFields: [
       { key: 'ical_url', label: 'Calendar (ICS) URL', type: 'password', placeholder: 'https://… or webcal://…', required: true },
-      { key: 'label', label: 'Label', type: 'text', placeholder: 'Team name', required: true },
-    ],
-  },
-  {
-    id: 'sportsengine',
-    name: 'SportsEngine',
-    description:
-      'Import team schedule events via an iCal subscription URL from your SportsEngine / Sports Connect calendar (calendar export / subscribe).',
-    providesDevices: false,
-    supportsMultipleEntries: true,
-    setupUrl: 'https://www.sportsengine.com/',
-    configFields: [
-      { key: 'ical_url', label: 'Calendar (ICS) URL', type: 'password', placeholder: 'https://… or webcal://…', required: true },
-      { key: 'label', label: 'Label', type: 'text', placeholder: 'Team name', required: true },
+      { key: 'label', label: 'Label', type: 'text', placeholder: 'Calendar name', required: true },
     ],
   },
   {
@@ -342,6 +361,19 @@ export const KNOWN_INTEGRATIONS: IntegrationInfo[] = [
       { key: 'email', label: 'Remind Email', type: 'text', placeholder: 'your@email.com', required: true },
       { key: 'password', label: 'Remind Password', type: 'password', required: true },
       { key: 'device_id', label: 'Device ID (optional)', type: 'text', placeholder: 'Leave blank to use first device on account' },
+    ],
+  },
+  {
+    id: 'screensaver',
+    name: 'Screensaver',
+    description: 'Photo screensaver that rotates through images from an iCloud shared album or other source. Creates per-user on/off controls.',
+    providesDevices: true,
+    supportsMultipleEntries: false,
+    configFields: [
+      { key: 'album_url', label: 'iCloud Shared Album URL', type: 'text', placeholder: 'https://www.icloud.com/sharedalbum/#B24G0ehgLJP8Lmi' },
+      { key: 'rotation_interval', label: 'Rotation Interval (sec)', type: 'number', placeholder: '30', defaultValue: '30' },
+      { key: 'effect', label: 'Effect (ken_burns, pan, zoom, none)', type: 'text', placeholder: 'ken_burns', defaultValue: 'ken_burns' },
+      { key: 'user_ids', label: 'User IDs (comma-separated)', type: 'text', placeholder: 'Leave blank for all users' },
     ],
   },
   {

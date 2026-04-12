@@ -19,6 +19,11 @@ function formatPower(watts: number): string {
   return `${Math.round(watts)} W`;
 }
 
+function formatEnergy(wh: number): string {
+  if (wh >= 1000) return `${(wh / 1000).toFixed(1)} kWh`;
+  return `${Math.round(wh)} Wh`;
+}
+
 export function EnergySiteControl({ device }: { device: EnergySiteState }) {
   const { send, isPending } = useCommand(device.id);
 
@@ -42,17 +47,34 @@ export function EnergySiteControl({ device }: { device: EnergySiteState }) {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">{device.name}</span>
-        <Badge variant={device.gridStatus === 'connected' ? 'success' : 'warning'}>
-          Grid {device.gridStatus}
-        </Badge>
+        <div>
+          <span className="text-sm font-medium">{device.name}</span>
+          {device.batteryCount > 0 && (
+            <span className="text-xs ml-2" style={{ color: 'var(--color-text-muted)' }}>
+              {device.batteryCount} Powerwall{device.batteryCount > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {device.gridServicesActive && (
+            <Badge variant="info">Grid Services</Badge>
+          )}
+          <Badge variant={device.gridStatus === 'connected' ? 'success' : 'warning'}>
+            Grid {device.gridStatus}
+          </Badge>
+        </div>
       </div>
 
       {/* Battery */}
       <div className="space-y-1">
         <div className="flex items-center justify-between text-xs" style={{ color: 'var(--color-text-muted)' }}>
           <span>Powerwall</span>
-          <span>{device.batteryPercentage}%</span>
+          <span>
+            {device.batteryPercentage}%
+            {device.totalPackEnergy > 0 && (
+              <span className="ml-1">({formatEnergy(device.energyLeft)} / {formatEnergy(device.totalPackEnergy)})</span>
+            )}
+          </span>
         </div>
         <div className="h-2 w-full rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-bg-hover)' }}>
           <div
@@ -100,7 +122,42 @@ export function EnergySiteControl({ device }: { device: EnergySiteState }) {
             </span>
           </div>
         </div>
+        {device.generatorPower !== 0 && (
+          <div className="space-y-0.5">
+            <div style={{ color: 'var(--color-text-muted)' }}>Generator</div>
+            <div className="text-sm font-medium">{formatPower(device.generatorPower)}</div>
+          </div>
+        )}
+        {device.gridServicesPower !== 0 && (
+          <div className="space-y-0.5">
+            <div style={{ color: 'var(--color-text-muted)' }}>Grid Services</div>
+            <div className="text-sm font-medium" style={{ color: 'var(--color-accent)' }}>
+              {formatPower(device.gridServicesPower)}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Wall Connectors */}
+      {device.wallConnectors.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>Wall Connectors</div>
+          {device.wallConnectors.map((wc) => (
+            <div
+              key={wc.din}
+              className="flex items-center justify-between rounded-md px-3 py-1.5 text-xs"
+              style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+            >
+              <span style={{ color: 'var(--color-text-secondary)' }}>
+                {wc.vin ? `Vehicle ...${wc.vin.slice(-4)}` : 'No vehicle'}
+              </span>
+              <span className="font-medium">
+                {wc.power > 0 ? formatPower(wc.power) : wc.state > 0 ? 'Connected' : 'Disconnected'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Backup reserve slider */}
       <div className="space-y-1">

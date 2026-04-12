@@ -9,7 +9,7 @@
 
 import { randomUUID } from 'node:crypto';
 import WebSocket from 'ws';
-import { logger } from '../../logger.js';
+import { ConnectionManager } from '../../connection/manager.js';
 
 export interface IntelliCenterConfig {
   host: string;
@@ -54,22 +54,41 @@ const CHEM_KEYS = [
   'SALT', 'ALK', 'CALC', 'CYACID', 'QUALTY', 'BODY',
 ];
 
-export class IntelliCenterClient {
+const CONNECT_TIMEOUT_MS = 20_000;
+const PING_INTERVAL_MS = 60_000;
+const STALE_TIMEOUT_MS = 90_000;
+
+export class IntelliCenterClient extends ConnectionManager {
   private ws: WebSocket | null = null;
   private pending = new Map<string, { resolve: (v: ICResponse) => void; reject: (e: Error) => void }>();
   private onNotification: ICMessageHandler = () => {};
-  private _connected = false;
+  private onDisconnect: (() => void) | null = null;
+  private onReconnect: (() => void) | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
-  private heartbeatTimeout: ReturnType<typeof setTimeout> | null = null;
+  private lastDataTime = 0;
 
-  constructor(private readonly config: IntelliCenterConfig) {}
-
-  get connected(): boolean {
-    return this._connected;
+  constructor(private readonly config: IntelliCenterConfig) {
+    super({ name: `pentair-${config.host}` });
   }
 
-  async connect(onNotification: ICMessageHandler): Promise<void> {
+  get connected(): boolean {
+    return this.state === 'connected';
+  }
+
+  /** Start connecting with notification + lifecycle callbacks */
+  async start(
+    onNotification: ICMessageHandler,
+    onDisconnect?: () => void,
+    onReconnect?: () => void,
+  ): Promise<void> {
     this.onNotification = onNotification;
+    this.onDisconnect = onDisconnect ?? null;
+    this.onReconnect = onReconnect ?? null;
+    await this.connect();
+  }
+
+  protected async doConnect(): Promise<void> {
+    this.destroySocket();
     const url = `ws://${this.config.host}:${this.config.port}`;
 
     return new Promise<void>((resolve, reject) => {
@@ -79,18 +98,23 @@ export class IntelliCenterClient {
       const timeout = setTimeout(() => {
         ws.terminate();
         reject(new Error(`Connection timeout to ${url}`));
-      }, 15_000);
+      }, CONNECT_TIMEOUT_MS);
 
       ws.on('open', () => {
         clearTimeout(timeout);
-        this._connected = true;
-        logger.info({ host: this.config.host }, 'IntelliCenter connected');
+        this.lastDataTime = Date.now();
+        this.log.info({ host: this.config.host }, 'IntelliCenter connected');
         this.startPing();
+        // If this is a reconnect (retryCount > 0 means we had prior failures),
+        // notify the integration layer so it can re-poll and update health
+        if (this.retryCount > 0 && this.onReconnect) {
+          this.onReconnect();
+        }
         resolve();
       });
 
       ws.on('message', (data) => {
-        this.resetHeartbeat();
+        this.lastDataTime = Date.now();
         try {
           const msg = JSON.parse(data.toString()) as ICResponse;
           const messageID = msg.messageID as string | undefined;
@@ -111,18 +135,45 @@ export class IntelliCenterClient {
       });
 
       ws.on('error', (err) => {
-        logger.error({ err, host: this.config.host }, 'IntelliCenter WS error');
+        this.log.error({ err, host: this.config.host }, 'IntelliCenter WS error');
+        if (this._state === 'connecting') reject(err);
       });
 
       ws.on('close', () => {
-        this._connected = false;
         this.stopPing();
-        for (const [, p] of this.pending) {
-          p.reject(new Error('WebSocket closed'));
+        this.rejectAllPending();
+        // Only auto-reconnect on unexpected close (same pattern as LeapClient)
+        if (this._state === 'connected') {
+          this.log.warn({ host: this.config.host }, 'IntelliCenter WS closed unexpectedly');
+          this._state = 'disconnected';
+          if (this.onDisconnect) this.onDisconnect();
+          void this.connect();
         }
-        this.pending.clear();
       });
     });
+  }
+
+  protected async doDisconnect(): Promise<void> {
+    this.stopPing();
+    this.destroySocket();
+  }
+
+  private destroySocket(): void {
+    if (this.ws) {
+      this.ws.removeAllListeners();
+      if (this.ws.readyState !== WebSocket.CLOSED) {
+        this.ws.terminate();
+      }
+      this.ws = null;
+    }
+    this.rejectAllPending();
+  }
+
+  private rejectAllPending(): void {
+    for (const [, p] of this.pending) {
+      p.reject(new Error('WebSocket closed'));
+    }
+    this.pending.clear();
   }
 
   private send(req: ICRequest): Promise<ICResponse> {
@@ -151,7 +202,6 @@ export class IntelliCenterClient {
 
   // ---- Query commands -------------------------------------------------------
 
-  /** Get the list of bodies and circuits (system configuration) */
   async getSystemConfig(): Promise<ICResponse> {
     const req = this.makeRequest('GetQuery');
     req.queryName = 'GetConfiguration';
@@ -159,7 +209,6 @@ export class IntelliCenterClient {
     return this.send(req);
   }
 
-  /** Get status of all bodies (pool, spa) */
   async getBodyStatus(): Promise<ICResponse> {
     const req = this.makeRequest('GetParamList');
     req.condition = 'OBJTYP = BODY';
@@ -167,7 +216,6 @@ export class IntelliCenterClient {
     return this.send(req);
   }
 
-  /** Get status of all circuits (lights, aux, features) */
   async getCircuitStatus(): Promise<ICResponse> {
     const req = this.makeRequest('GetParamList');
     req.condition = 'OBJTYP = CIRCUIT';
@@ -175,7 +223,6 @@ export class IntelliCenterClient {
     return this.send(req);
   }
 
-  /** Get status of all pumps */
   async getPumpStatus(): Promise<ICResponse> {
     const req = this.makeRequest('GetParamList');
     req.condition = 'OBJTYP = PUMP';
@@ -183,7 +230,6 @@ export class IntelliCenterClient {
     return this.send(req);
   }
 
-  /** Get chemistry data */
   async getChemStatus(): Promise<ICResponse> {
     const req = this.makeRequest('GetParamList');
     req.condition = 'OBJTYP = CHEM';
@@ -193,69 +239,59 @@ export class IntelliCenterClient {
 
   // ---- Control commands -----------------------------------------------------
 
-  /** Turn a circuit/body on or off */
   async setObjectStatus(objnam: string, on: boolean): Promise<void> {
     const req = this.makeRequest('SetParamList');
     req.objectList = [{ objnam, keys: [], params: { STATUS: on ? 'ON' : 'OFF' } }];
     await this.send(req);
   }
 
-  /** Set temperature setpoint for a body */
   async setSetPoint(objnam: string, temp: number): Promise<void> {
     const req = this.makeRequest('SetParamList');
     req.objectList = [{ objnam, keys: [], params: { LOTMP: String(temp) } }];
     await this.send(req);
   }
 
-  /** Set heat mode for a body */
   async setHeatMode(objnam: string, mode: string): Promise<void> {
     const req = this.makeRequest('SetParamList');
     req.objectList = [{ objnam, keys: [], params: { HTMODE: mode } }];
     await this.send(req);
   }
 
-  /** Subscribe to property changes on a specific object */
   async subscribeToUpdates(objnam: string, keys: string[]): Promise<void> {
     const req = this.makeRequest('RequestParamList');
     req.objectList = [{ objnam, keys }];
     await this.send(req);
   }
 
-  // ---- Connection management ------------------------------------------------
+  // ---- Connection health ----------------------------------------------------
 
   private startPing(): void {
+    this.stopPing();
     this.pingTimer = setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        const req = this.makeRequest('PingReq');
-        this.ws.send(JSON.stringify(req));
-      }
-    }, 60_000);
-    this.resetHeartbeat();
-  }
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
-  private resetHeartbeat(): void {
-    if (this.heartbeatTimeout) clearTimeout(this.heartbeatTimeout);
-    this.heartbeatTimeout = setTimeout(() => {
-      logger.warn({ host: this.config.host }, 'IntelliCenter heartbeat timeout');
-      this.ws?.terminate();
-    }, 65_000);
+      // Stale connection detection
+      if (this.lastDataTime > 0 && Date.now() - this.lastDataTime > STALE_TIMEOUT_MS) {
+        this.log.warn({ host: this.config.host, staleSecs: Math.round((Date.now() - this.lastDataTime) / 1000) },
+          'Connection stale — terminating socket');
+        this.destroySocket();
+        return;
+      }
+
+      const req = this.makeRequest('PingReq');
+      try {
+        this.ws.send(JSON.stringify(req));
+      } catch {
+        this.log.warn({ host: this.config.host }, 'Ping write failed — terminating socket');
+        this.destroySocket();
+      }
+    }, PING_INTERVAL_MS);
   }
 
   private stopPing(): void {
-    if (this.pingTimer) { clearInterval(this.pingTimer); this.pingTimer = null; }
-    if (this.heartbeatTimeout) { clearTimeout(this.heartbeatTimeout); this.heartbeatTimeout = null; }
-  }
-
-  disconnect(): void {
-    this._connected = false;
-    this.stopPing();
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
     }
-    for (const [, p] of this.pending) {
-      p.reject(new Error('Disconnected'));
-    }
-    this.pending.clear();
   }
 }

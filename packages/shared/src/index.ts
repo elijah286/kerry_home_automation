@@ -7,4 +7,5 @@ export * from './integration-config.js';
 export * from './alarms.js';
 export * from './automations.js';
 export * from './auth.js';
+export * from './ui-preferences.js';
 export * from './helpers.js';

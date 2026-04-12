@@ -166,27 +166,15 @@ export function RachioIcon(props: IconProps) {
 }
 
 // ---------------------------------------------------------------------------
-// GameChanger — calendar + ball
+// Calendar — calendar grid
 // ---------------------------------------------------------------------------
-export function GamechangerIcon(props: IconProps) {
+export function CalendarIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <rect x="3" y="4" width="18" height="18" rx="2" fill="currentColor" fillOpacity=".08" />
       <path d="M8 2v4M16 2v4M3 10h18" />
-      <circle cx="12" cy="15" r="4" />
-      <path d="M12 11v8M8.5 13.5h7" />
-    </svg>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// SportsEngine — stylised “SE” shield
-// ---------------------------------------------------------------------------
-export function SportsengineIcon(props: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M12 3l7 4v6c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z" fill="currentColor" fillOpacity=".08" />
-      <path d="M9 9.5h4.5a2 2 0 0 1 0 4H9v3.5M9 12h3" />
+      <rect x="7" y="13" width="3" height="3" rx=".5" fill="currentColor" fillOpacity=".25" />
+      <rect x="14" y="13" width="3" height="3" rx=".5" fill="currentColor" fillOpacity=".25" />
     </svg>
   );
 }

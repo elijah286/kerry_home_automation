@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, createElement } from 'react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -12,6 +12,7 @@ import {
   Speaker,
 } from 'lucide-react';
 import type { DeviceState, IntegrationHealth } from '@ha/shared';
+import { LCARSSection } from '@/components/lcars/LCARSSection';
 
 const typeConfig: Record<string, { icon: React.ElementType; label: string }> = {
   light: { icon: Lightbulb, label: 'Lights' },
@@ -52,34 +53,34 @@ export default function Dashboard() {
         </span>
       </div>
 
-      {/* Device counts */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-        {Object.entries(typeConfig).map(([type, { icon: Icon, label }]) => {
-          const count = counts.get(type) ?? 0;
-          return (
-            <Card key={type}>
-              <div className="flex items-center gap-3">
-                <div
-                  className="flex h-9 w-9 items-center justify-center rounded-lg"
-                  style={{ backgroundColor: 'var(--color-accent)', opacity: 0.15 }}
-                >
-                  <Icon className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
+      <LCARSSection title="Device inventory">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          {Object.entries(typeConfig).map(([type, { icon: Icon, label }]) => {
+            const count = counts.get(type) ?? 0;
+            return (
+              <Card key={type}>
+                <div className="flex items-center gap-3">
+                  <div
+                    className="flex h-9 w-9 items-center justify-center rounded-lg"
+                    style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}
+                  >
+                    {createElement(Icon, {
+                      className: 'h-4 w-4',
+                      style: { color: 'var(--color-accent)' },
+                    })}
+                  </div>
+                  <div>
+                    <div className="text-xl font-semibold">{count}</div>
+                    <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{label}</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-xl font-semibold">{count}</div>
-                  <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{label}</div>
-                </div>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+              </Card>
+            );
+          })}
+        </div>
+      </LCARSSection>
 
-      {/* Integration status */}
-      <div>
-        <h2 className="text-sm font-medium mb-3" style={{ color: 'var(--color-text-secondary)' }}>
-          Integrations
-        </h2>
+      <LCARSSection title="Integrations">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           {Object.entries(integrations).map(([id, health]) => (
             <Card key={id}>
@@ -90,7 +91,7 @@ export default function Dashboard() {
             </Card>
           ))}
         </div>
-      </div>
+      </LCARSSection>
     </div>
   );
 }

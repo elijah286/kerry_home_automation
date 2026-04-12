@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Tesla integration — vehicles + energy sites via Fleet API
+// Tesla integration — Owner API (vehicle_data + streaming) + energy sites
 // ---------------------------------------------------------------------------
 
 import type {
@@ -12,15 +12,17 @@ import type {
   ConnectionState,
 } from '@ha/shared';
 import type { Integration } from '../registry.js';
-import type { TeslaVehicleListItem, TeslaEnergySiteListItem } from './api-client.js';
+import type { TeslaVehicleListItem, TeslaEnergySiteListItem, TeslaEnergySiteInfo } from './api-client.js';
 import { TeslaApiClient } from './api-client.js';
 import { mapVehicleData, mapVehicleStub, mapEnergySiteLive } from './mapper.js';
+import { startOwnerStreaming, type OwnerStreamingHandle } from './owner-streaming.js';
 import { stateStore } from '../../state/store.js';
 import { logger } from '../../logger.js';
 import * as entryStore from '../../db/integration-entry-store.js';
 
-const VEHICLE_POLL_MS = 5 * 60_000;   // 5 minutes
-const ENERGY_POLL_MS = 30_000;          // 30 seconds
+const VEHICLE_POLL_IDLE_MS = 5 * 60_000;   // 5 minutes when parked/asleep
+const VEHICLE_POLL_ACTIVE_MS = 30_000;      // 30 seconds when driving or charging
+const ENERGY_POLL_MS = 30_000;              // 30 seconds
 
 interface EntryContext {
   client: TeslaApiClient;
@@ -28,6 +30,12 @@ interface EntryContext {
   label: string;
   vehicles: TeslaVehicleListItem[];
   energySites: TeslaEnergySiteListItem[];
+  /** Cached site_info per site — fetched once at startup, refreshed on reconnect */
+  siteInfoCache: Map<string, TeslaEnergySiteInfo>;
+  /** Tracks which vehicles are actively driving/charging for adaptive polling */
+  activeVehicles: Set<string>;
+  /** TeslaMate-style Owner streaming WebSocket(s) for live GPS / drive fields */
+  streaming?: OwnerStreamingHandle;
 }
 
 export class TeslaIntegration implements Integration {
@@ -92,7 +100,12 @@ export class TeslaIntegration implements Integration {
     await client.authenticate();
     this.log.info({ entryId, label }, 'Tesla entry authenticated');
 
-    const ctx: EntryContext = { client, entryId, label, vehicles: [], energySites: [] };
+    const ctx: EntryContext = {
+      client, entryId, label,
+      vehicles: [], energySites: [],
+      siteInfoCache: new Map(),
+      activeVehicles: new Set(),
+    };
 
     // Discover vehicles
     if (config.include_vehicles !== 'false') {
@@ -123,10 +136,19 @@ export class TeslaIntegration implements Integration {
         ctx.energySites = await client.getEnergySites();
         this.log.info({ entryId, count: ctx.energySites.length }, 'Tesla energy sites discovered');
         for (const site of ctx.energySites) {
+          // Fetch site_info for static config (battery count, capacity, etc.)
+          const siteInfo = await client.getEnergySiteInfo(site.energy_site_id);
+          if (siteInfo) {
+            ctx.siteInfoCache.set(site.energy_site_id, siteInfo);
+            this.log.info(
+              { entryId, siteId: site.energy_site_id, batteries: siteInfo.battery_count },
+              'Energy site info loaded',
+            );
+          }
           const live = await client.getEnergySiteLiveStatus(site.energy_site_id);
           if (live) {
             stateStore.update(
-              mapEnergySiteLive(entryId, site.energy_site_id, site.site_name, live),
+              mapEnergySiteLive(entryId, site.energy_site_id, site.site_name, live, siteInfo),
             );
           }
         }
@@ -135,12 +157,18 @@ export class TeslaIntegration implements Integration {
       }
     }
 
+    if (ctx.vehicles.length > 0 && config.owner_streaming !== 'false') {
+      ctx.streaming = startOwnerStreaming({ entryId, client, vehicles: ctx.vehicles });
+      this.log.info({ entryId, vehicles: ctx.vehicles.length }, 'Tesla Owner API streaming started (live location)');
+    }
+
     this.entries.set(entryId, ctx);
   }
 
   private startPolling(): void {
-    // Vehicle poll — check list every 5 min, only fetch data for online vehicles
-    const vehicleTimer = setInterval(() => void this.pollVehicles(), VEHICLE_POLL_MS);
+    // Vehicle poll — adaptive: 30s when driving/charging, 5min when idle/asleep
+    // We use the faster interval and skip idle vehicles based on their state
+    const vehicleTimer = setInterval(() => void this.pollVehicles(), VEHICLE_POLL_ACTIVE_MS);
     this.pollTimers.push(vehicleTimer);
 
     // Energy site poll — every 30s
@@ -148,7 +176,11 @@ export class TeslaIntegration implements Integration {
     this.pollTimers.push(energyTimer);
   }
 
+  /** Tracks last full poll time per vehicle for idle throttling */
+  private lastVehiclePoll = new Map<string, number>();
+
   private async pollVehicles(): Promise<void> {
+    const nowMs = Date.now();
     for (const ctx of this.entries.values()) {
       if (ctx.vehicles.length === 0) continue;
       try {
@@ -161,12 +193,31 @@ export class TeslaIntegration implements Integration {
           const existing = stateStore.get(deviceId) as VehicleState | undefined;
 
           if (v.state === 'online') {
+            const isActive = ctx.activeVehicles.has(v.vin);
+            const lastPoll = this.lastVehiclePoll.get(v.vin) ?? 0;
+            const elapsed = nowMs - lastPoll;
+
+            // Skip this poll if vehicle is idle and we polled recently
+            if (!isActive && elapsed < VEHICLE_POLL_IDLE_MS) continue;
+
             const data = await ctx.client.getVehicleData(v.vin);
             if (data) {
-              stateStore.update(mapVehicleData(ctx.entryId, v, data));
+              const state = mapVehicleData(ctx.entryId, v, data);
+              stateStore.update(state);
+              this.lastVehiclePoll.set(v.vin, nowMs);
+
+              // Determine if vehicle is active (driving or charging)
+              const isDriving = state.shiftState === 'D' || state.shiftState === 'R';
+              const isCharging = state.chargeState === 'charging';
+              if (isDriving || isCharging) {
+                ctx.activeVehicles.add(v.vin);
+              } else {
+                ctx.activeVehicles.delete(v.vin);
+              }
             }
           } else {
             // Asleep/offline — update sleep state without waking
+            ctx.activeVehicles.delete(v.vin);
             stateStore.update(mapVehicleStub(ctx.entryId, v, existing));
           }
         }
@@ -182,8 +233,9 @@ export class TeslaIntegration implements Integration {
         try {
           const live = await ctx.client.getEnergySiteLiveStatus(site.energy_site_id);
           if (live) {
+            const siteInfo = ctx.siteInfoCache.get(site.energy_site_id);
             stateStore.update(
-              mapEnergySiteLive(ctx.entryId, site.energy_site_id, site.site_name, live),
+              mapEnergySiteLive(ctx.entryId, site.energy_site_id, site.site_name, live, siteInfo),
             );
           }
         } catch (err) {
@@ -334,6 +386,9 @@ export class TeslaIntegration implements Integration {
   async stop(): Promise<void> {
     for (const timer of this.pollTimers) clearInterval(timer);
     this.pollTimers = [];
+    for (const ctx of this.entries.values()) {
+      ctx.streaming?.stop();
+    }
     this.entries.clear();
     this.connectionState = 'disconnected';
   }

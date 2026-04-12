@@ -11,6 +11,19 @@ const CLIENT_ID = 'ownerapi';
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
+/**
+ * Sub-endpoints for `GET /api/1/vehicles/{id}/vehicle_data?endpoints=...`
+ * Matches teslajsonpy `VEHICLE_DATA` so Owner/third-party tokens receive the same
+ * slices as Home Assistant's Tesla integration (including `location_data` for FW 2023.38+).
+ *
+ * Other authenticated vehicle URLs exist but are separate HTTP calls (not merged here):
+ * `GET .../service_data`, `.../nearby_charging_sites`, `.../mobile_enabled`, `.../release_notes`,
+ * `.../recent_alerts`, `POST .../wake_up`, `POST .../command/*`. Fleet-only or paid endpoints
+ * (e.g. `specs`) are out of scope for this refresh-token Owner API client.
+ */
+export const TESLA_VEHICLE_DATA_ENDPOINTS =
+  'charge_state;climate_state;drive_state;gui_settings;vehicle_config;vehicle_state;location_data';
+
 // ---------------------------------------------------------------------------
 // Raw API response shapes
 // ---------------------------------------------------------------------------
@@ -18,6 +31,11 @@ const REQUEST_TIMEOUT_MS = 15_000;
 export interface TeslaVehicleListItem {
   id: number;
   vehicle_id: number;
+  /**
+   * String form of `id` from the API — required for streaming tag matching and fleet vehicles
+   * where `id` exceeds JS Number safe integer precision.
+   */
+  id_s?: string;
   vin: string;
   display_name: string;
   state: 'online' | 'asleep' | 'offline';
@@ -29,10 +47,25 @@ export interface TeslaVehicleData {
   state: string;
   charge_state: {
     battery_level: number;
+    usable_battery_level?: number;
     battery_range: number;
+    est_battery_range?: number;
+    ideal_battery_range?: number;
     charge_limit_soc: number;
     charging_state: string;
     charge_rate: number;
+    charger_power: number;
+    charger_voltage: number;
+    charger_actual_current: number;
+    charge_energy_added: number;
+    time_to_full_charge: number;
+    charge_port_door_open: boolean;
+    scheduled_charging_start_time: number | null;
+    preconditioning_enabled: boolean;
+    charge_current_request?: number;
+    conn_charge_cable?: string;
+    fast_charger_present?: boolean;
+    timestamp?: number;
   };
   climate_state: {
     inside_temp: number | null;
@@ -40,12 +73,48 @@ export interface TeslaVehicleData {
     is_climate_on: boolean;
     driver_temp_setting: number;
     passenger_temp_setting: number;
+    seat_heater_left: number;
+    seat_heater_right: number;
+    steering_wheel_heater: boolean;
+    defrost_mode: number;
+    is_preconditioning?: boolean;
+    fan_status?: number;
+    battery_heater?: boolean;
+    climate_keeper_mode?: string;
+    timestamp?: number;
   };
+  gui_settings?: {
+    gui_24_hour_time?: boolean;
+    gui_charge_rate_units?: string;
+    gui_distance_units?: string;
+    gui_range_display?: string;
+    gui_temperature_units?: string;
+    show_range_units?: boolean;
+    timestamp?: number;
+  };
+  vehicle_config?: Record<string, unknown>;
+  /**
+   * Required for FW 2023.38+ location while parked; shape may include latitude/longitude
+   * or fields nested by firmware region.
+   */
+  location_data?: Record<string, unknown>;
   drive_state: {
-    latitude: number;
-    longitude: number;
-    heading: number;
+    latitude?: number | null;
+    longitude?: number | null;
+    /** Some firmware / fleet payloads expose corrected estimates here. */
+    est_corrected_lat?: number | null;
+    est_corrected_lng?: number | null;
+    native_latitude?: number | null;
+    native_longitude?: number | null;
+    /** When 1/true, teslajsonpy prefers native_* coordinates over WGS84 lat/long. */
+    native_location_supported?: number | boolean;
+    /** GPS fix time (seconds in some payloads, ms in others — normalized in mapper). */
+    gps_as_of?: number;
+    heading?: number | null;
     speed: number | null;
+    power: number | null;
+    shift_state: string | null;
+    timestamp: number;
   };
   vehicle_state: {
     locked: boolean;
@@ -54,6 +123,11 @@ export interface TeslaVehicleData {
     sentry_mode: boolean;
     odometer: number;
     car_version: string;
+    is_user_present: boolean;
+    fd_window: number;
+    fp_window: number;
+    rd_window: number;
+    rp_window: number;
   };
 }
 
@@ -68,11 +142,40 @@ export interface TeslaEnergySiteLive {
   battery_power: number;
   grid_power: number;
   load_power: number;
+  grid_services_power: number;
+  generator_power: number;
   percentage_charged: number;
+  total_pack_energy: number;
+  energy_left: number;
   backup_reserve_percent: number;
   default_real_mode: string;
   storm_mode_active: boolean;
   grid_status: string;
+  backup_capable: boolean;
+  grid_services_active: boolean;
+  island_status: string;
+  wall_connectors: {
+    din: string;
+    wall_connector_power: number;
+    wall_connector_state: number;
+    vin: string | null;
+  }[];
+  timestamp: string;
+}
+
+export interface TeslaEnergySiteInfo {
+  site_name: string;
+  battery_count: number;
+  nameplate_power: number;
+  nameplate_energy: number;
+  installation_date: string;
+  components: {
+    battery: boolean;
+    solar: boolean;
+    grid: boolean;
+    load_meter: boolean;
+    market_type: string;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +206,11 @@ export class TeslaApiClient {
 
   async authenticate(): Promise<void> {
     await this.refreshAccessToken(this.opts.refreshToken);
+  }
+
+  /** Current access token (refreshes if expired). Used by Owner streaming WebSocket. */
+  async getAccessToken(): Promise<string> {
+    return this.ensureToken();
   }
 
   private async ensureToken(): Promise<string> {
@@ -192,7 +300,16 @@ export class TeslaApiClient {
   /** Filter products to vehicles only */
   async getVehicles(): Promise<TeslaVehicleListItem[]> {
     const products = await this.getProducts();
-    return products.filter((p: any) => 'vehicle_id' in p) as TeslaVehicleListItem[];
+    return products
+      .filter((p: any) => 'vehicle_id' in p)
+      .map((p: any) => ({
+        id: p.id as number,
+        vehicle_id: p.vehicle_id as number,
+        vin: String(p.vin),
+        display_name: String(p.display_name ?? ''),
+        state: p.state as TeslaVehicleListItem['state'],
+        id_s: typeof p.id_s === 'string' ? p.id_s : undefined,
+      }));
   }
 
   /** Filter products to energy sites only */
@@ -208,7 +325,7 @@ export class TeslaApiClient {
       return await this.request<TeslaVehicleData>(
         'GET',
         `/api/1/vehicles/${idOrVin}/vehicle_data?endpoints=${encodeURIComponent(
-          'charge_state;climate_state;drive_state;vehicle_state;vehicle_config',
+          TESLA_VEHICLE_DATA_ENDPOINTS,
         )}`,
       );
     } catch (err) {
@@ -231,6 +348,18 @@ export class TeslaApiClient {
       );
     } catch (err) {
       this.log.warn({ err, siteId }, 'Failed to fetch energy site live status');
+      return null;
+    }
+  }
+
+  async getEnergySiteInfo(siteId: string): Promise<TeslaEnergySiteInfo | null> {
+    try {
+      return await this.request<TeslaEnergySiteInfo>(
+        'GET',
+        `/api/1/energy_sites/${siteId}/site_info`,
+      );
+    } catch (err) {
+      this.log.warn({ err, siteId }, 'Failed to fetch energy site info');
       return null;
     }
   }

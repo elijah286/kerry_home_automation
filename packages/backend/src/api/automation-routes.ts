@@ -4,6 +4,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { Automation, AutomationCreate, AutomationUpdate, AutomationExecutionLog, AutomationActionLog } from '@ha/shared';
+import yaml from 'js-yaml';
 import { query } from '../db/pool.js';
 import { automationEngine } from '../automations/engine.js';
 import { exportOne, deleteYaml, exportAll } from '../automations/yaml-sync.js';
@@ -287,5 +288,114 @@ export function registerAutomationRoutes(app: FastifyInstance): void {
     const automation = rowToAutomation(rows[0]);
     void exportOne(automation).catch(() => {});
     return { automation };
+  });
+
+  // ---- Bulk YAML editor endpoints ----
+
+  // Get all automations as a single YAML document
+  app.get('/api/automations/yaml', async () => {
+    const { rows } = await query<AutomationRow>(
+      'SELECT * FROM automations ORDER BY group_name NULLS LAST, name',
+    );
+    const docs = rows.map(r => {
+      const a = rowToAutomation(r);
+      const doc: Record<string, unknown> = { id: a.id, name: a.name };
+      if (a.group) doc.group = a.group;
+      if (a.description) doc.description = a.description;
+      doc.enabled = a.enabled;
+      doc.mode = a.mode;
+      doc.triggers = a.triggers;
+      if (a.conditions.length > 0) doc.conditions = a.conditions;
+      doc.actions = a.actions;
+      return doc;
+    });
+    const content = docs.map(d => yaml.dump(d, { lineWidth: 120, noRefs: true, sortKeys: false })).join('---\n');
+    return { yaml: content };
+  });
+
+  // Save all automations from a single YAML document (multi-doc)
+  app.put<{ Body: { yaml: string } }>('/api/automations/yaml', async (req, reply) => {
+    const raw = req.body.yaml;
+    if (!raw || typeof raw !== 'string') {
+      return reply.code(400).send({ error: 'yaml field is required' });
+    }
+
+    let parsed: unknown[];
+    try {
+      parsed = yaml.loadAll(raw) as unknown[];
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Invalid YAML';
+      return reply.code(400).send({ error: `YAML parse error: ${msg}` });
+    }
+
+    // Validate each doc has at minimum id, name, triggers, actions
+    const docs = parsed.filter(Boolean) as Record<string, unknown>[];
+    for (const doc of docs) {
+      if (!doc.id || !doc.name || !doc.triggers || !doc.actions) {
+        return reply.code(400).send({ error: `Automation "${doc.id ?? doc.name ?? '?'}" missing required fields (id, name, triggers, actions)` });
+      }
+    }
+
+    // Get current automation IDs
+    const { rows: currentRows } = await query<{ id: string; group_name: string | null }>(
+      'SELECT id, group_name FROM automations',
+    );
+    const currentIds = new Set(currentRows.map(r => r.id));
+    const incomingIds = new Set(docs.map(d => d.id as string));
+
+    // Delete automations not in the incoming set
+    for (const row of currentRows) {
+      if (!incomingIds.has(row.id)) {
+        await query('DELETE FROM automations WHERE id = $1', [row.id]);
+        void deleteYaml(row.id, row.group_name ?? undefined).catch(() => {});
+        logger.info({ automationId: row.id }, 'Automation deleted via YAML editor');
+      }
+    }
+
+    // Upsert each automation
+    const results: Automation[] = [];
+    for (const doc of docs) {
+      const id = doc.id as string;
+      const name = doc.name as string;
+      const group = (doc.group as string) ?? null;
+      const description = (doc.description as string) ?? null;
+      const enabled = doc.enabled !== false;
+      const mode = (doc.mode as string) ?? 'single';
+      const definition = JSON.stringify({
+        triggers: doc.triggers,
+        conditions: doc.conditions ?? [],
+        actions: doc.actions,
+      });
+
+      let rows: AutomationRow[];
+      if (currentIds.has(id)) {
+        ({ rows } = await query<AutomationRow>(
+          `UPDATE automations SET name=$1, group_name=$2, description=$3, enabled=$4, mode=$5, definition=$6, updated_at=NOW()
+           WHERE id=$7 RETURNING *`,
+          [name, group, description, enabled, mode, definition, id],
+        ));
+      } else {
+        ({ rows } = await query<AutomationRow>(
+          `INSERT INTO automations (id, name, group_name, description, enabled, mode, definition)
+           VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+          [id, name, group, description, enabled, mode, definition],
+        ));
+      }
+
+      const automation = rowToAutomation(rows[0]);
+      results.push(automation);
+      await automationEngine.reload(id);
+      void exportOne(automation).catch(() => {});
+    }
+
+    // Reload deleted ones
+    for (const row of currentRows) {
+      if (!incomingIds.has(row.id)) {
+        await automationEngine.reload(row.id);
+      }
+    }
+
+    logger.info({ count: results.length }, 'Automations updated via YAML editor');
+    return { ok: true, count: results.length };
   });
 }

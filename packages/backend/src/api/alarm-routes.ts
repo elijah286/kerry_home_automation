@@ -14,6 +14,7 @@ interface AlarmRow {
   days_of_week: number[];
   enabled: boolean;
   devices: Alarm['devices'];
+  automation_id: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -28,6 +29,7 @@ function rowToAlarm(r: AlarmRow): Alarm {
     daysOfWeek: r.days_of_week,
     enabled: r.enabled,
     devices: r.devices,
+    automationId: r.automation_id ?? null,
     createdAt: r.created_at.toISOString(),
     updatedAt: r.updated_at.toISOString(),
   };
@@ -44,12 +46,12 @@ export function registerAlarmRoutes(app: FastifyInstance): void {
 
   // Create
   app.post<{ Body: AlarmCreate }>('/api/alarms', async (req) => {
-    const { name, time, daysOfWeek, enabled, devices } = req.body;
+    const { name, time, daysOfWeek, enabled, devices, automationId } = req.body;
     const { rows } = await query<AlarmRow>(
-      `INSERT INTO alarms (name, time, days_of_week, enabled, devices)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO alarms (name, time, days_of_week, enabled, devices, automation_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [name, time, daysOfWeek ?? [], enabled ?? true, JSON.stringify(devices ?? [])],
+      [name, time, daysOfWeek ?? [], enabled ?? true, JSON.stringify(devices ?? []), automationId ?? null],
     );
     logger.info({ alarmId: rows[0].id }, 'Alarm created');
     return { alarm: rowToAlarm(rows[0]) };
@@ -68,6 +70,7 @@ export function registerAlarmRoutes(app: FastifyInstance): void {
       if (req.body.daysOfWeek !== undefined) { sets.push(`days_of_week = $${idx++}`); vals.push(req.body.daysOfWeek); }
       if (req.body.enabled !== undefined) { sets.push(`enabled = $${idx++}`); vals.push(req.body.enabled); }
       if (req.body.devices !== undefined) { sets.push(`devices = $${idx++}`); vals.push(JSON.stringify(req.body.devices)); }
+      if (req.body.automationId !== undefined) { sets.push(`automation_id = $${idx++}`); vals.push(req.body.automationId); }
 
       if (sets.length === 0) return reply.code(400).send({ error: 'No fields to update' });
 
@@ -99,10 +102,10 @@ export function registerAlarmRoutes(app: FastifyInstance): void {
     if (existing.length === 0) return reply.code(404).send({ error: 'Alarm not found' });
     const src = existing[0];
     const { rows } = await query<AlarmRow>(
-      `INSERT INTO alarms (name, time, days_of_week, enabled, devices)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO alarms (name, time, days_of_week, enabled, devices, automation_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [`${src.name} (copy)`, src.time, src.days_of_week, src.enabled, JSON.stringify(src.devices)],
+      [`${src.name} (copy)`, src.time, src.days_of_week, src.enabled, JSON.stringify(src.devices), src.automation_id],
     );
     return { alarm: rowToAlarm(rows[0]) };
   });

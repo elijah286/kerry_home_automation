@@ -5,6 +5,7 @@ import type {
   SensorState, SprinklerState, VacuumState, ThermostatState,
   HelperToggleState, HelperCounterState, HelperTimerState, HelperButtonState,
   HelperNumberState, HelperTextState, HelperDateTimeState, HelperSensorState,
+  NetworkDeviceState,
 } from '@ha/shared';
 import { LightControl } from './LightControl';
 import { MediaPlayerControl } from './MediaPlayerControl';
@@ -19,6 +20,7 @@ import { VacuumControl } from './VacuumControl';
 import { ThermostatControl } from './ThermostatControl';
 import { EnergyMonitorControl } from './EnergyMonitorControl';
 import { WaterSoftenerControl } from './WaterSoftenerControl';
+import { ScreensaverControl } from './ScreensaverControl';
 import { ThrottledSlider } from '@/components/ui/ThrottledSlider';
 import { ButtonSpinner } from '@/components/ui/ButtonSpinner';
 import { sendCommand } from '@/lib/api';
@@ -337,6 +339,61 @@ function HelperDateTimeControl({ device }: { device: HelperDateTimeState }) {
   );
 }
 
+function NetworkDeviceControl({ device }: { device: NetworkDeviceState }) {
+  const { send, isPending } = useCommand(device.id);
+  const canBlock = device.deviceType === 'client';
+  if (!canBlock) {
+    return (
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">{device.displayName || device.name}</span>
+          <span className="text-xs" style={{ color: device.connected ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
+            {device.connected ? 'Online' : 'Offline'}
+          </span>
+        </div>
+        <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+          {device.deviceType.toUpperCase()}
+          {device.model ? ` · ${device.model}` : ''}
+          {device.ip ? ` · ${device.ip}` : ''}
+          {device.mac ? ` · ${device.mac}` : ''}
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">{device.displayName || device.name}</span>
+        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Client</span>
+      </div>
+      <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+        {device.ip ?? 'No IP'}
+        {device.mac ? ` · ${device.mac}` : ''}
+      </p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => send('block', { type: 'network_device', action: 'block_network_access' })}
+          disabled={isPending('block')}
+          className="rounded-md px-3 py-1 text-xs font-medium border"
+          style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
+        >
+          {isPending('block') ? <ButtonSpinner /> : 'Block access'}
+        </button>
+        <button
+          type="button"
+          onClick={() => send('unblock', { type: 'network_device', action: 'unblock_network_access' })}
+          disabled={isPending('unblock')}
+          className="rounded-md px-3 py-1 text-xs font-medium border"
+          style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+        >
+          {isPending('unblock') ? <ButtonSpinner /> : 'Allow access'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function HelperSensorControl({ device }: { device: HelperSensorState }) {
   const displayValue = typeof device.value === 'boolean'
     ? (device.value ? 'On' : 'Off')
@@ -354,7 +411,14 @@ function HelperSensorControl({ device }: { device: HelperSensorState }) {
   );
 }
 
-export function DeviceCard({ device }: { device: DeviceState }) {
+export function DeviceCard({
+  device,
+  variant = 'default',
+}: {
+  device: DeviceState;
+  /** `detail` — e.g. Tesla: expand telemetry on the device detail page. */
+  variant?: 'default' | 'detail';
+}) {
   switch (device.type) {
     case 'light':
       return <LightControl device={device} />;
@@ -367,7 +431,7 @@ export function DeviceCard({ device }: { device: DeviceState }) {
     case 'media_player':
       return <MediaPlayerControl device={device} />;
     case 'vehicle':
-      return <VehicleControl device={device} />;
+      return <VehicleControl device={device} detailMode={variant === 'detail'} />;
     case 'energy_site':
       return <EnergySiteControl device={device} />;
     case 'pool_body':
@@ -398,6 +462,8 @@ export function DeviceCard({ device }: { device: DeviceState }) {
       return <EnergyMonitorControl device={device} />;
     case 'water_softener':
       return <WaterSoftenerControl device={device} />;
+    case 'screensaver':
+      return <ScreensaverControl device={device} />;
     case 'helper_toggle':
       return <HelperToggleControl device={device} />;
     case 'helper_counter':
@@ -414,6 +480,8 @@ export function DeviceCard({ device }: { device: DeviceState }) {
       return <HelperDateTimeControl device={device} />;
     case 'helper_sensor':
       return <HelperSensorControl device={device} />;
+    case 'network_device':
+      return <NetworkDeviceControl device={device} />;
     default:
       return null;
   }

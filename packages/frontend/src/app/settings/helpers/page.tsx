@@ -146,7 +146,7 @@ export default function HelpersPage() {
         <button onClick={() => router.push('/settings')} className="p-1 rounded hover:bg-[var(--color-bg-hover)]">
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: 'var(--color-accent)', opacity: 0.15 }}>
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}>
           <ToggleLeft className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
         </div>
         <h1 className="text-lg font-semibold flex-1">Helpers</h1>

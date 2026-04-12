@@ -549,24 +549,15 @@ class AutomationEngine {
       triggeredAt: triggeredAt.getTime(),
     });
 
+    let conditionsPassedResult = false;
+
     try {
       // Evaluate conditions (synchronous — no async needed)
-      const conditionsPassed = automation.conditions.length === 0 ||
-        this.evaluateConditions(automation.conditions);
+      conditionsPassedResult =
+        automation.conditions.length === 0 || this.evaluateConditions(automation.conditions);
 
-      if (!conditionsPassed) {
+      if (!conditionsPassedResult) {
         status = 'completed';
-        executionWriter.write({
-          id: executionId,
-          automationId: automation.id,
-          triggeredAt,
-          triggerType,
-          triggerDetail,
-          conditionsPassed: false,
-          actionsExecuted: [],
-          status: 'completed',
-          completedAt: new Date(),
-        });
         return;
       }
 
@@ -597,7 +588,7 @@ class AutomationEngine {
         triggeredAt,
         triggerType,
         triggerDetail,
-        conditionsPassed: true,
+        conditionsPassed: conditionsPassedResult,
         actionsExecuted: actionLogs,
         status,
         error,
@@ -610,6 +601,18 @@ class AutomationEngine {
         status,
         triggeredAt: triggeredAt.getTime(),
       });
+
+      logger.info(
+        {
+          automation: automation.name,
+          automationId: automation.id,
+          trigger: triggerType,
+          status,
+          conditionsPassed: conditionsPassedResult,
+          ...(error ? { error } : {}),
+        },
+        'Automation run finished',
+      );
     }
   }
 

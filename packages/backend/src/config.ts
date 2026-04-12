@@ -9,6 +9,12 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 loadDotenv({ path: resolve(__dirname, '../.env') });
 
+/** Filled from env, or by the managed Python bridge when `ROBOROCK_BRIDGE_URL` is unset */
+export const roborockBridgeSettings: { baseUrl: string; secret: string } = {
+  baseUrl: (process.env.ROBOROCK_BRIDGE_URL ?? '').trim(),
+  secret: (process.env.ROBOROCK_BRIDGE_SECRET ?? '').trim(),
+};
+
 export const appConfig = {
   port: parseInt(process.env.PORT ?? '3000', 10),
   host: process.env.HOST ?? '0.0.0.0',
@@ -44,6 +50,18 @@ export const appConfig = {
   auth: {
     jwtSecret: process.env.JWT_SECRET ?? 'ha-dev-secret-change-in-production',
     sessionTtlDays: parseInt(process.env.SESSION_TTL_DAYS ?? '30', 10),
+  },
+
+  serverInstaller: {
+    isoCacheDir: process.env.ISO_CACHE_DIR ?? '/tmp/ha-iso-cache',
+    workDir: process.env.ISO_WORK_DIR ?? '/tmp/ha-iso-work',
+    ubuntuIsoUrl: process.env.UBUNTU_ISO_URL ??
+      'https://releases.ubuntu.com/24.04.2/ubuntu-24.04.2-live-server-amd64.iso',
+    ubuntuIsoSha256: process.env.UBUNTU_ISO_SHA256 ??
+      'd6dab0c3a657988501b4bd76f1297c053df710e06e0a02068863f1ab43a1bc65',
+    appRepoUrl: process.env.APP_REPO_URL ?? '',
+    envFilePath: process.env.ENV_FILE_PATH ?? resolve(__dirname, '../.env'),
+    prodComposePath: process.env.PROD_COMPOSE_PATH ?? '/opt/home-automation/docker-compose.prod.yml',
   },
 } as const;
 

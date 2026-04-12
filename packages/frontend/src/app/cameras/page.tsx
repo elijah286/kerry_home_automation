@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { X } from 'lucide-react';
 
 const API_BASE = typeof window !== 'undefined'
@@ -12,7 +12,7 @@ const WS_BASE = typeof window !== 'undefined'
   : 'ws://localhost:3000';
 
 // ---------------------------------------------------------------------------
-// MSE stream — lightweight MP4-over-WebSocket via backend proxy
+// MSE stream — fMP4 over WebSocket (invisible until frames actually play)
 // ---------------------------------------------------------------------------
 
 function MSEStream({
@@ -25,6 +25,7 @@ function MSEStream({
   const videoRef = useRef<HTMLVideoElement>(null);
   const onPlayingRef = useRef(onPlaying);
   onPlayingRef.current = onPlaying;
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -38,6 +39,66 @@ function MSEStream({
     let queue: ArrayBuffer[] = [];
     let disposed = false;
 
+    const flushQueue = () => {
+      if (disposed || !sourceBuffer || sourceBuffer.updating || queue.length === 0) return;
+      const chunk = queue.shift()!;
+      try {
+        sourceBuffer.appendBuffer(chunk);
+      } catch {
+        queue.unshift(chunk);
+      }
+    };
+
+    const onUpdateEnd = () => {
+      if (disposed || !sourceBuffer) return;
+      flushQueue();
+      if (sourceBuffer.buffered.length > 0) {
+        const end = sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1);
+        if (end > 10) {
+          try {
+            sourceBuffer.remove(0, end - 5);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    };
+
+    const ensureSourceBuffer = (mime: string) => {
+      if (disposed || sourceBuffer) return;
+      if (!MediaSource.isTypeSupported(mime)) {
+        console.warn('MSE codec not supported:', mime);
+        return;
+      }
+      try {
+        sourceBuffer = ms.addSourceBuffer(mime);
+        sourceBuffer.mode = 'segments';
+        sourceBuffer.addEventListener('updateend', onUpdateEnd);
+        flushQueue();
+        void video.play().catch(() => {});
+      } catch (err) {
+        console.warn('MSE source buffer creation failed:', err);
+      }
+    };
+
+    const appendBinary = (data: ArrayBuffer) => {
+      if (!sourceBuffer) {
+        queue.push(data);
+        return;
+      }
+      if (sourceBuffer.updating || queue.length > 0) {
+        if (queue.length > 10) queue.splice(0, queue.length - 5);
+        queue.push(data);
+      } else {
+        try {
+          sourceBuffer.appendBuffer(data);
+        } catch {
+          queue.push(data);
+        }
+      }
+      void video.play().catch(() => {});
+    };
+
     ms.addEventListener('sourceopen', () => {
       if (disposed) return;
 
@@ -46,69 +107,52 @@ function MSEStream({
 
       ws.onmessage = (ev) => {
         if (disposed) return;
-        const data = ev.data as ArrayBuffer;
 
-        if (!sourceBuffer) {
-          // First message from go2rtc is the MP4 init segment — detect codec from it
-          // go2rtc sends fMP4 with codecs like avc1/hevc + aac/opus
+        if (typeof ev.data === 'string') {
           try {
-            // Try common codecs — go2rtc typically transcodes to H.264
-            const codecs = ['video/mp4; codecs="avc1.640029,mp4a.40.2"', 'video/mp4; codecs="avc1.640029"', 'video/mp4; codecs="avc1.42e01e"'];
-            const supported = codecs.find((c) => MediaSource.isTypeSupported(c));
-            if (!supported) {
-              console.warn('No supported MSE codec found');
-              return;
+            const msg = JSON.parse(ev.data) as { type?: string; value?: unknown };
+            if (msg.type === 'mse' && typeof msg.value === 'string') {
+              ensureSourceBuffer(msg.value);
+            } else if (msg.type === 'error') {
+              console.warn('go2rtc:', msg.value);
             }
-            sourceBuffer = ms.addSourceBuffer(supported);
-            sourceBuffer.mode = 'segments';
-            sourceBuffer.addEventListener('updateend', () => {
-              if (disposed || !sourceBuffer) return;
-              // Append queued buffers
-              if (queue.length > 0 && !sourceBuffer.updating) {
-                sourceBuffer.appendBuffer(queue.shift()!);
-              }
-              // Keep buffer trimmed to last 5 seconds to prevent memory growth
-              if (sourceBuffer.buffered.length > 0) {
-                const end = sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1);
-                if (end > 10) {
-                  try { sourceBuffer.remove(0, end - 5); } catch { /* ignore */ }
-                }
-              }
-            });
-          } catch (err) {
-            console.warn('MSE source buffer creation failed:', err);
-            return;
+          } catch {
+            /* ignore non-JSON text */
           }
+          return;
         }
 
-        if (sourceBuffer.updating || queue.length > 0) {
-          // Drop old frames if queue gets too long (prevent lag buildup)
-          if (queue.length > 10) queue.splice(0, queue.length - 5);
-          queue.push(data);
-        } else {
-          try {
-            sourceBuffer.appendBuffer(data);
-          } catch {
-            queue.push(data);
-          }
-        }
+        appendBinary(ev.data as ArrayBuffer);
       };
 
       ws.onerror = () => ws?.close();
     });
 
-    video.addEventListener('playing', () => onPlayingRef.current?.(), { once: true });
+    const onPlayingHandler = () => {
+      setVisible(true);
+      onPlayingRef.current?.();
+    };
+    video.addEventListener('playing', onPlayingHandler, { once: true });
 
     return () => {
       disposed = true;
+      setVisible(false);
       ws?.close();
       queue = [];
       if (ms.readyState === 'open') {
-        try { ms.endOfStream(); } catch { /* ignore */ }
+        try {
+          ms.endOfStream();
+        } catch {
+          /* ignore */
+        }
       }
       URL.revokeObjectURL(video.src);
     };
   }, [name]);
+
+  if (typeof window !== 'undefined' && !window.MediaSource) {
+    return null;
+  }
 
   return (
     <video
@@ -116,14 +160,14 @@ function MSEStream({
       autoPlay
       muted
       playsInline
-      className="absolute inset-0 w-full h-full object-cover"
-      style={{ zIndex: 2 }}
+      className="pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-300"
+      style={{ zIndex: 2, opacity: visible ? 1 : 0 }}
     />
   );
 }
 
 // ---------------------------------------------------------------------------
-// WebRTC stream — high quality, single camera (fullscreen only)
+// WebRTC — hidden until video actually plays (avoids black overlay)
 // ---------------------------------------------------------------------------
 
 function WebRTCStream({
@@ -136,6 +180,7 @@ function WebRTCStream({
   const videoRef = useRef<HTMLVideoElement>(null);
   const onPlayingRef = useRef(onPlaying);
   onPlayingRef.current = onPlaying;
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -152,7 +197,6 @@ function WebRTCStream({
       if (ev.streams[0]) video.srcObject = ev.streams[0];
     };
 
-    // SDP exchange through backend proxy (not direct to go2rtc)
     pc.createOffer()
       .then((offer) => pc.setLocalDescription(offer))
       .then(() =>
@@ -166,9 +210,14 @@ function WebRTCStream({
       .then((sdp) => pc.setRemoteDescription({ type: 'answer', sdp }))
       .catch(() => {});
 
-    video.addEventListener('playing', () => onPlayingRef.current?.(), { once: true });
+    const onPlayingHandler = () => {
+      setVisible(true);
+      onPlayingRef.current?.();
+    };
+    video.addEventListener('playing', onPlayingHandler, { once: true });
 
     return () => {
+      setVisible(false);
       pc.close();
     };
   }, [name]);
@@ -179,8 +228,8 @@ function WebRTCStream({
       autoPlay
       muted
       playsInline
-      className="absolute inset-0 w-full h-full object-cover"
-      style={{ zIndex: 3 }}
+      className="pointer-events-none absolute inset-0 h-full w-full object-contain transition-opacity duration-300"
+      style={{ zIndex: 3, opacity: visible ? 1 : 0 }}
     />
   );
 }
@@ -195,7 +244,7 @@ interface CameraInfo {
 }
 
 // ---------------------------------------------------------------------------
-// Camera tile — snapshot → MSE (no WebRTC in grid)
+// Camera tile — snapshot (always first) + MSE when it works
 // ---------------------------------------------------------------------------
 
 const CameraTile = memo(function CameraTile({
@@ -205,9 +254,18 @@ const CameraTile = memo(function CameraTile({
   cam: CameraInfo;
   onSelect: () => void;
 }) {
-  const [snapshotLoaded, setSnapshotLoaded] = useState(false);
-  const [mseReady, setMseReady] = useState(false);
+  const [snapshotRev, setSnapshotRev] = useState(0);
+  const [snapLoaded, setSnapLoaded] = useState(false);
+  const [msePlaying, setMsePlaying] = useState(false);
   const [error, setError] = useState(false);
+
+  const hideSpinner = snapLoaded || msePlaying;
+
+  useEffect(() => {
+    if (msePlaying) return;
+    const t = window.setInterval(() => setSnapshotRev((n) => n + 1), 3000);
+    return () => window.clearInterval(t);
+  }, [msePlaying]);
 
   return (
     <div
@@ -220,33 +278,27 @@ const CameraTile = memo(function CameraTile({
         </div>
       ) : (
         <>
-          {!snapshotLoaded && (
-            <div className="absolute inset-0 flex items-center justify-center z-10">
+          {!hideSpinner && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center">
               <div className="h-4 w-4 rounded-full border-2 border-zinc-600 border-t-zinc-300 animate-spin" />
             </div>
           )}
 
-          {/* Layer 1: Cached snapshot (instant) */}
-          {!mseReady && (
+          {!msePlaying && (
             <img
-              src={`${API_BASE}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?ts=${Date.now()}`}
+              src={`${API_BASE}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapshotRev}`}
               alt={cam.label}
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ zIndex: 1 }}
-              onLoad={() => setSnapshotLoaded(true)}
+              className="absolute inset-0 z-[1] h-full w-full object-cover"
+              onLoad={() => setSnapLoaded(true)}
               onError={() => setError(true)}
             />
           )}
 
-          {/* Layer 2: MSE stream (replaces snapshot) */}
-          <MSEStream
-            name={cam.name}
-            onPlaying={() => setMseReady(true)}
-          />
+          <MSEStream name={cam.name} onPlaying={() => setMsePlaying(true)} />
         </>
       )}
 
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-4 pointer-events-none z-20">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-4">
         <span className="text-xs font-medium text-white drop-shadow-sm">{cam.label}</span>
       </div>
     </div>
@@ -254,36 +306,44 @@ const CameraTile = memo(function CameraTile({
 });
 
 // ---------------------------------------------------------------------------
-// Fullscreen camera — MSE → WebRTC upgrade
+// Fullscreen — refreshing snapshot under WebRTC until WebRTC plays
 // ---------------------------------------------------------------------------
 
 function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => void }) {
+  const [snapRev, setSnapRev] = useState(0);
   const [webrtcPlaying, setWebrtcPlaying] = useState(false);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
 
+  useEffect(() => {
+    if (webrtcPlaying) return;
+    const t = window.setInterval(() => setSnapRev((n) => n + 1), 3000);
+    return () => window.clearInterval(t);
+  }, [webrtcPlaying]);
+
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+    <div className="fixed inset-0 z-50 flex flex-col bg-black">
       <div className="relative flex-1">
-        {/* MSE stream — immediate */}
         {!webrtcPlaying && (
-          <MSEStream name={cam.name} />
+          <img
+            src={`${API_BASE}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapRev}`}
+            alt={cam.label}
+            className="absolute inset-0 z-[2] h-full w-full object-contain"
+          />
         )}
 
-        {/* WebRTC upgrade — single connection, replaces MSE when ready */}
-        <WebRTCStream
-          name={cam.name}
-          onPlaying={() => setWebrtcPlaying(true)}
-        />
+        <WebRTCStream name={cam.name} onPlaying={() => setWebrtcPlaying(true)} />
 
-        {/* Top bar */}
-        <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/60 to-transparent pointer-events-none z-30">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-4 py-3">
           <span className="text-sm font-medium text-white drop-shadow-sm">{cam.label}</span>
           <button
+            type="button"
             onClick={onClose}
             className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/80 backdrop-blur-sm transition-colors hover:bg-black/60 hover:text-white"
           >
@@ -291,10 +351,9 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
           </button>
         </div>
 
-        {/* Bottom bar */}
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-4 py-3 pointer-events-none z-30">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/60 to-transparent px-4 py-3">
           <span className="text-[11px] text-white/60">
-            {webrtcPlaying ? 'Live' : 'Connecting...'}
+            {webrtcPlaying ? 'Live (WebRTC)' : 'Connecting…'}
           </span>
         </div>
       </div>
@@ -310,13 +369,11 @@ export default function CamerasPage() {
   const [cameras, setCameras] = useState<CameraInfo[]>([]);
   const [fullscreenCam, setFullscreenCam] = useState<CameraInfo | null>(null);
 
-  // Fetch camera list from backend (no longer hardcoded)
   useEffect(() => {
     fetch(`${API_BASE}/api/cameras`, { credentials: 'include' })
       .then((r) => r.json())
       .then((data: { cameras: CameraInfo[] }) => setCameras(data.cameras))
       .catch(() => {
-        // Fallback to known cameras if API fails
         setCameras([
           { name: 'back_door', label: 'Back Door' },
           { name: 'living_room', label: 'Living Room' },
@@ -334,7 +391,7 @@ export default function CamerasPage() {
   return (
     <>
       <div className="p-2 lg:p-3">
-        <div className="grid gap-1 grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-1 lg:grid-cols-3 xl:grid-cols-4">
           {cameras.map((cam) => (
             <CameraTile
               key={cam.name}

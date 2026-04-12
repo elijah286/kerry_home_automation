@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, Loader2, Save, MapPin } from 'lucide-react';
 import type { ConfigField, IntegrationEntry } from '@ha/shared';
+import { RoborockCloudConnect, filterRoborockConfigFields } from '@/components/RoborockCloudConnect';
 
 const API_BASE = typeof window !== 'undefined'
   ? `http://${window.location.hostname}:3000`
@@ -29,6 +30,9 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
   const [label, setLabel] = useState('');
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+
+  const configFields =
+    integrationId === 'roborock' ? filterRoborockConfigFields(fields, values) : fields;
 
   // Initialize form when dialog opens or entry changes
   useEffect(() => {
@@ -142,7 +146,7 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
               </button>
             )}
 
-            {fields.map((field) => (
+            {configFields.map((field) => (
               <div key={field.key} className="space-y-1">
                 {field.type === 'checkbox' ? (
                   <label className="flex items-center gap-2.5 py-1 cursor-pointer">
@@ -176,6 +180,15 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
                 )}
               </div>
             ))}
+
+            {integrationId === 'roborock' && values.local_miio !== 'true' && (
+              <RoborockCloudConnect
+                email={values.email ?? ''}
+                onSessionReady={(sessionB64) =>
+                  setValues((v) => ({ ...v, cloud_session: sessionB64, local_miio: 'false' }))
+                }
+              />
+            )}
           </div>
 
           {/* Footer */}

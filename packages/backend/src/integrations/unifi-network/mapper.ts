@@ -7,15 +7,35 @@ import type { UnifiDevice, UnifiClient } from './unifi-client.js';
 
 const DEVICE_TYPE_MAP: Record<string, NetworkDeviceState['deviceType']> = {
   uap: 'ap',
+  /** Wi‑Fi 6/7 APs */
+  uap6: 'ap',
+  uap7: 'ap',
+  uapa: 'ap',
+  ubb: 'switch',
   usw: 'switch',
+  /** Gen2 / Pro switches */
+  usw8: 'switch',
+  usw16: 'switch',
+  usw24: 'switch',
+  usw48: 'switch',
   ugw: 'gateway',
   /** Dream Machine / UXG / USG and similar */
   udm: 'gateway',
+  udmpro: 'gateway',
   uxg: 'gateway',
   usg: 'gateway',
   udw: 'gateway',
-  ubb: 'switch',
 };
+
+function mapUnifiHardwareType(t: string | undefined): NetworkDeviceState['deviceType'] {
+  if (!t) return 'switch';
+  const key = t.toLowerCase();
+  if (DEVICE_TYPE_MAP[key]) return DEVICE_TYPE_MAP[key];
+  if (key.startsWith('uap')) return 'ap';
+  if (key.startsWith('usw') || key.startsWith('usf')) return 'switch';
+  if (key.startsWith('udm') || key.startsWith('ugw') || key.startsWith('uxg') || key.startsWith('usg')) return 'gateway';
+  return 'switch';
+}
 
 export function mapDevice(entryId: string, device: UnifiDevice): NetworkDeviceState {
   const macRaw = device.mac;
@@ -23,7 +43,8 @@ export function mapDevice(entryId: string, device: UnifiDevice): NetworkDeviceSt
     throw new Error('UniFi device missing mac');
   }
   const mac = macRaw.toLowerCase().replace(/:/g, '');
-  const online = Number(device.state) === 1;
+  const st = device.state;
+  const online = st === 1 || st === '1';
   return {
     type: 'network_device',
     id: `unifi_network.${entryId}.device.${mac}`,
@@ -35,7 +56,7 @@ export function mapDevice(entryId: string, device: UnifiDevice): NetworkDeviceSt
     lastUpdated: Date.now(),
     mac: macRaw,
     ip: null,
-    deviceType: DEVICE_TYPE_MAP[device.type ?? ''] ?? 'switch',
+    deviceType: mapUnifiHardwareType(device.type),
     connected: online,
     uptime: device.uptime ?? null,
     txBytes: device.tx_bytes ?? null,

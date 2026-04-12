@@ -7,10 +7,14 @@
     "packages/frontend"
   ],
   "scripts": {
-    "dev": "concurrently --kill-others \"npm run dev -w @ha/shared\" \"npm run dev -w @ha/backend\" \"npm run dev -w @ha/frontend\" \"npm run dev:go2rtc\"",
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
+    "version:bump-agent": "node scripts/version-bump-agent.mjs --force",
+    "free-dev-ports": "node scripts/free-dev-ports.cjs",
+    "predev": "npm run free-dev-ports",
+    "dev": "concurrently --kill-others -n shared,backend,frontend,go2rtc -c dim,blue,green,magenta \"npm run dev -w @ha/shared\" \"npm run dev -w @ha/backend\" \"npm run dev -w @ha/frontend\" \"npm run dev:go2rtc\"",
     "dev:go2rtc": "bin/go2rtc -config bin/go2rtc.yaml",
-    "dev:backend": "npm run dev -w @ha/backend",
-    "dev:frontend": "npm run dev -w @ha/frontend",
+    "dev:backend": "npm run free-dev-ports && npm run dev -w @ha/backend",
+    "dev:frontend": "npm run free-dev-ports && npm run dev -w @ha/frontend",
     "build": "npm run build -w @ha/shared && npm run build -w @ha/backend && npm run build -w @ha/frontend",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down"

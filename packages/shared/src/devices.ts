@@ -7,7 +7,8 @@ export type IntegrationId =
   | 'weather' | 'xbox' | 'meross' | 'roborock' | 'rachio'
   | 'esphome' | 'wyze' | 'zwave' | 'ring' | 'speedtest' | 'unifi_network' | 'vizio' | 'samsung' | 'spotify'
   | 'ecobee' | 'sun'
-  | 'gamechanger' | 'sportsengine' | 'rainsoft' | 'sense'
+  | 'calendar' | 'rainsoft' | 'sense'
+  | 'screensaver'
   | 'helpers';
 
 export type FanSpeed = 'off' | 'low' | 'medium' | 'medium-high' | 'high';
@@ -106,16 +107,75 @@ export interface VehicleState extends DeviceBase {
   chargeState: 'disconnected' | 'stopped' | 'charging' | 'complete';
   /** Charge rate in miles/hr */
   chargeRate: number;
+  /** Charger power in kW */
+  chargerPower: number;
+  /** Charger voltage in V */
+  chargerVoltage: number | null;
+  /** Charger actual current in A */
+  chargerActualCurrent: number | null;
+  /** Energy added this session in kWh */
+  chargeEnergyAdded: number;
+  /** Estimated hours to full charge */
+  timeToFullCharge: number;
+  /** Whether the charge port door is open */
+  chargePortOpen: boolean;
+  /** Scheduled charging start time (ISO string) */
+  scheduledChargingStartTime: string | null;
+  /** Whether preconditioning is enabled for charging */
+  preconditioningEnabled: boolean;
   trunkOpen: boolean;
   frunkOpen: boolean;
   sentryMode: boolean;
+  /** Whether the user is present in the vehicle */
+  isUserPresent: boolean;
+  /** Whether any window is open */
+  windowsOpen: boolean;
   odometer: number;
   softwareVersion: string;
+  /** Current speed in mph */
+  speed: number | null;
+  /** Drive power in kW (negative = regen) */
+  power: number | null;
+  /** Compass heading in degrees */
+  heading: number | null;
+  /** D/R/P/N or null when parked */
+  shiftState: string | null;
+  /** Seat heater level 0-3 (driver) */
+  seatHeaterLeft: number;
+  /** Seat heater level 0-3 (passenger) */
+  seatHeaterRight: number;
+  /** Steering wheel heater on */
+  steeringWheelHeater: boolean;
+  /** Defrost mode */
+  defrostMode: number;
+  /** Epoch ms for last drive/GPS sample when the API provides it */
+  locationUpdatedAt?: number | null;
+  /** Tesla GUI distance units (e.g. mi/hr, km/hr) from gui_settings */
+  guiDistanceUnits?: string | null;
+  /** Tesla GUI temperature units (C or F) from gui_settings */
+  guiTempUnits?: string | null;
+  /** Usable battery % when the API reports it (may match batteryLevel otherwise) */
+  usableBatteryLevel?: number | null;
+  /**
+   * Primitive fields from each `vehicle_data` slice (charge_state, climate_state, etc.).
+   * Keys are `slice.field` — used for Locations, device detail, and diagnostics.
+   */
+  vehicleTelemetry?: Record<string, string | number | boolean | null>;
 }
 
 // -- Energy Site (Tesla Powerwall / Solar) -----------------------------------
 
 export type EnergySiteOperationMode = 'self_consumption' | 'backup' | 'autonomous';
+
+export interface WallConnectorState {
+  din: string;
+  /** Wall connector power draw in watts */
+  power: number;
+  /** 0 = disconnected, 1 = connected, 2 = charging, etc. */
+  state: number;
+  /** VIN of connected vehicle, if any */
+  vin: string | null;
+}
 
 export interface EnergySiteState extends DeviceBase {
   type: 'energy_site';
@@ -128,12 +188,28 @@ export interface EnergySiteState extends DeviceBase {
   gridPower: number;
   /** Home load in watts */
   loadPower: number;
+  /** Grid services power in watts */
+  gridServicesPower: number;
+  /** Generator power in watts */
+  generatorPower: number;
   /** Battery level 0-100 */
   batteryPercentage: number;
+  /** Total battery pack energy in Wh */
+  totalPackEnergy: number;
+  /** Remaining battery energy in Wh */
+  energyLeft: number;
   backupReservePercent: number;
   operationMode: EnergySiteOperationMode;
   stormModeEnabled: boolean;
   gridStatus: 'connected' | 'islanded';
+  /** Whether the system can provide backup */
+  backupCapable: boolean;
+  /** Whether grid services are actively running */
+  gridServicesActive: boolean;
+  /** Number of Powerwall units (from site_info) */
+  batteryCount: number;
+  /** Wall connector (EV charger) data */
+  wallConnectors: WallConnectorState[];
 }
 
 // -- Pool Body (Pentair IntelliCenter) --------------------------------------
@@ -178,8 +254,19 @@ export interface PoolChemistryState extends DeviceBase {
   ph: number | null;
   orp: number | null;
   saltPpm: number | null;
+  /** Langelier Saturation Index */
   saturationIndex: number | null;
   waterTemp: number | null;
+  /** pH target setpoint */
+  phSetpoint: number | null;
+  /** ORP target setpoint in mV */
+  orpSetpoint: number | null;
+  /** Alkalinity in ppm */
+  alkalinity: number | null;
+  /** Calcium hardness in ppm */
+  calciumHardness: number | null;
+  /** Cyanuric acid (CYA) in ppm */
+  cya: number | null;
 }
 
 // -- Camera (UniFi Protect via go2rtc) --------------------------------------
@@ -273,6 +360,8 @@ export interface VacuumState extends DeviceBase {
   areaCleaned: number | null;
   cleaningTime: number | null;
   errorMessage: string | null;
+  /** When set (Roborock cloud), client may load live map via GET /api/roborock/map?deviceId=… */
+  mapUpdatedAt?: number | null;
 }
 
 // -- Doorbell (Ring) ---------------------------------------------------------
@@ -575,6 +664,25 @@ export interface HelperSensorState extends DeviceBase {
   helperKind: HelperSensorKind;
 }
 
+// -- Screensaver -------------------------------------------------------------
+
+export type ScreensaverEffect = 'ken_burns' | 'pan' | 'zoom' | 'none';
+
+export interface ScreensaverState extends DeviceBase {
+  type: 'screensaver';
+  on: boolean;
+  /** User this screensaver instance is assigned to */
+  userId: string;
+  /** Number of photos available in the cache */
+  photoCount: number;
+  /** Index of the currently displayed photo */
+  currentPhotoIndex: number;
+  /** Rotation interval in seconds */
+  rotationIntervalSec: number;
+  /** Active pan/zoom effect */
+  effect: ScreensaverEffect;
+}
+
 // -- Hub (ESPHome board / generic parent device) ----------------------------
 
 export interface HubState extends DeviceBase {
@@ -612,6 +720,7 @@ export type DeviceState =
   | SunState
   | WaterSoftenerState
   | EnergyMonitorState
+  | ScreensaverState
   | HelperToggleState
   | HelperCounterState
   | HelperTimerState

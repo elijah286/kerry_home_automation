@@ -4,6 +4,7 @@
 
 import { logger } from './logger.js';
 import { appConfig } from './config.js';
+import { startManagedRoborockBridgeIfNeeded, stopManagedRoborockBridge } from './roborock-bridge-spawn.js';
 import { startServer } from './api/server.js';
 import { registry } from './integrations/registry.js';
 import { stateStore } from './state/store.js';
@@ -39,12 +40,13 @@ import { VizioIntegration } from './integrations/vizio/index.js';
 import { SamsungIntegration } from './integrations/samsung/index.js';
 import { SpotifyIntegration } from './integrations/spotify/index.js';
 import { SunIntegration } from './integrations/sun/index.js';
-import { GamechangerIntegration } from './integrations/gamechanger/index.js';
-import { SportsengineIntegration } from './integrations/sportsengine/index.js';
+import { CalendarIntegration } from './integrations/calendar/index.js';
 import { RainsoftIntegration } from './integrations/rainsoft/index.js';
 import { SenseIntegration } from './integrations/sense/index.js';
+import { ScreensaverIntegration } from './integrations/screensaver/index.js';
 import { HelpersIntegration } from './integrations/helpers/index.js';
 import { automationEngine } from './automations/engine.js';
+import { loadRolePermissions } from './api/role-permission-routes.js';
 
 const REDIS_STATE_KEY = 'ha4:device_state';
 
@@ -73,6 +75,9 @@ async function main() {
       logger.info('==========================================================');
     }
   }
+
+  // 2b. Load role permission overrides from DB
+  await loadRolePermissions();
 
   // 3. Connect Redis (already connected via singleton import)
   logger.info('Redis connected');
@@ -117,13 +122,16 @@ async function main() {
     }, 2000);
   });
 
-  // 6. Start HTTP + WS server
+  // 6. Roborock Python bridge (auto-start on loopback when ROBOROCK_BRIDGE_URL is unset)
+  await startManagedRoborockBridgeIfNeeded();
+
+  // 7. Start HTTP + WS server
   const server = await startServer();
 
-  // 7. Start state history writer
+  // 8. Start state history writer
   historyWriter.start();
 
-  // 8. Register and start all integrations (they no-op if no entries configured)
+  // 9. Register and start all integrations (they no-op if no entries configured)
   registry.register(new LutronIntegration());
   registry.register(new YamahaIntegration());
   registry.register(new TeslaIntegration());
@@ -147,10 +155,10 @@ async function main() {
   registry.register(new SamsungIntegration());
   registry.register(new SpotifyIntegration());
   registry.register(new SunIntegration());
-  registry.register(new GamechangerIntegration());
-  registry.register(new SportsengineIntegration());
+  registry.register(new CalendarIntegration());
   registry.register(new RainsoftIntegration());
   registry.register(new SenseIntegration());
+  registry.register(new ScreensaverIntegration());
   registry.register(new HelpersIntegration());
 
   await registry.startAll();
@@ -158,7 +166,7 @@ async function main() {
   // Validate device hierarchy after all integrations have loaded
   setTimeout(() => stateStore.validateHierarchy(), 15_000);
 
-  // 9. Start automation engine
+  // 10. Start automation engine
   await automationEngine.start();
 
   // Graceful shutdown
@@ -167,6 +175,7 @@ async function main() {
     automationEngine.stop();
     historyWriter.stop();
     await registry.stopAll();
+    await stopManagedRoborockBridge();
     if (persistTimer) clearTimeout(persistTimer);
     await redis.set(REDIS_STATE_KEY, stateStore.serialize());
     await redis.quit();

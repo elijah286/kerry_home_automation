@@ -20,6 +20,8 @@
     "@radix-ui/react-select": "^2.1.0",
     "@radix-ui/react-slider": "^1.2.0",
     "@radix-ui/react-tabs": "^1.1.0",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
     "@types/leaflet": "^1.9.21",
     "clsx": "^2.1.0",
     "codemirror": "^6.0.2",
@@ -31,6 +33,7 @@
     "react-dom": "^19.0.0",
     "react-leaflet": "^5.0.0",
     "react-markdown": "^10.1.0",
+    "three": "^0.183.2",
     "uplot": "^1.6.32"
   },
   "devDependencies": {

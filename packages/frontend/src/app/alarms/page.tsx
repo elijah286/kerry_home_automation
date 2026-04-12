@@ -25,8 +25,9 @@ import {
   duplicateAlarm,
   disableAllAlarms,
   enableAllAlarms,
+  getAutomations,
 } from '@/lib/api';
-import type { Alarm, AlarmCreate, AlarmDeviceAction, DeviceState } from '@ha/shared';
+import type { Alarm, AlarmCreate, AlarmDeviceAction, Automation, DeviceState } from '@ha/shared';
 import { Select } from '@/components/ui/Select';
 
 const API_BASE = typeof window !== 'undefined'
@@ -81,17 +82,20 @@ interface AlarmFormData {
   time: string;
   daysOfWeek: number[];
   devices: AlarmDeviceAction[];
+  automationId: string | null;
 }
 
 function AlarmForm({
   initial,
   allDevices,
+  automations,
   onSave,
   onCancel,
   saving,
 }: {
   initial: AlarmFormData;
   allDevices: DeviceState[];
+  automations: Automation[];
   onSave: (data: AlarmFormData) => void;
   onCancel: () => void;
   saving: boolean;
@@ -246,6 +250,25 @@ function AlarmForm({
         </div>
       </div>
 
+      {/* Automation */}
+      <div>
+        <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-text-muted)' }}>
+          Run Automation
+        </label>
+        <Select
+          value={form.automationId || '__none__'}
+          onValueChange={(v) => setForm((f) => ({ ...f, automationId: v === '__none__' ? null : v }))}
+          options={[
+            { value: '__none__', label: 'None' },
+            ...automations.map((a) => ({ value: a.id, label: a.name })),
+          ]}
+          size="sm"
+        />
+        <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+          Optionally trigger an automation when this alarm fires
+        </p>
+      </div>
+
       {/* Actions */}
       <div className="flex gap-2 pt-2">
         <button
@@ -275,6 +298,7 @@ function AlarmForm({
 export default function AlarmsPage() {
   const [alarms, setAlarms] = useState<Alarm[]>([]);
   const [devices, setDevices] = useState<DeviceState[]>([]);
+  const [automations, setAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -290,12 +314,14 @@ export default function AlarmsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [alarmRes, devRes] = await Promise.all([
+      const [alarmRes, devRes, autoRes] = await Promise.all([
         getAlarms(),
         fetch(`${API_BASE}/api/devices`, { credentials: 'include' }).then((r) => r.json()) as Promise<{ devices: DeviceState[] }>,
+        getAutomations(),
       ]);
       setAlarms(alarmRes.alarms);
       setDevices(devRes.devices);
+      setAutomations(autoRes.automations);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -392,7 +418,7 @@ export default function AlarmsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: 'var(--color-accent)', opacity: 0.15 }}>
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}>
             <AlarmClock className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
           </div>
           <div>
@@ -491,6 +517,14 @@ export default function AlarmsPage() {
                   </span>
                 )}
 
+                {/* Automation badge */}
+                {alarm.automationId && (
+                  <span className="shrink-0 text-xs px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: 'var(--color-accent)', color: '#fff', opacity: 0.85 }}>
+                    {automations.find((a) => a.id === alarm.automationId)?.name ?? 'Automation'}
+                  </span>
+                )}
+
                 {/* Actions */}
                 <div className="flex items-center gap-1 shrink-0">
                   <button onClick={() => openEdit(alarm)} className="p-1.5 rounded-md hover:bg-[var(--color-bg-hover)] transition-colors"
@@ -557,13 +591,16 @@ export default function AlarmsPage() {
             time: editingAlarm.time,
             daysOfWeek: editingAlarm.daysOfWeek,
             devices: editingAlarm.devices,
+            automationId: editingAlarm.automationId ?? null,
           } : {
             name: '',
             time: '07:00',
             daysOfWeek: [1, 2, 3, 4, 5],
             devices: [],
+            automationId: null,
           }}
           allDevices={devices}
+          automations={automations}
           onSave={handleSave}
           onCancel={() => { setPanelOpen(false); setEditingAlarm(null); }}
           saving={saving}

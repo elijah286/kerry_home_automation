@@ -5,6 +5,7 @@ import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type uPlotInstance = any;
 import { fetchDeviceHistoryRange } from '@/lib/api';
+import { getValueAtSegments } from '@/lib/object-path';
 import { getFieldUnit, findUnitFamily, convertToBase, bestDisplayUnit, areUnitsCompatible } from './units';
 import { Settings, Eye, EyeOff, RotateCcw } from 'lucide-react';
 
@@ -15,6 +16,8 @@ import { Settings, Eye, EyeOff, RotateCcw } from 'lucide-react';
 export interface Signal {
   deviceId: string;
   field: string;
+  /** When set, read nested values (e.g. ecobee fields); otherwise `field` is a top-level key */
+  fieldPath?: string[];
   label: string;
   color?: string;
   unit?: string;
@@ -85,7 +88,7 @@ export function TimeSeriesGraph({ signals, from, to, height = 280, className }: 
 
   // Stable signal key for memoization
   const signalKey = useMemo(
-    () => signals.map((s) => `${s.deviceId}:${s.field}`).join(','),
+    () => signals.map((s) => `${s.deviceId}:${s.field}:${s.fieldPath?.join('/') ?? ''}`).join(','),
     [signals],
   );
 
@@ -93,7 +96,8 @@ export function TimeSeriesGraph({ signals, from, to, height = 280, className }: 
   const resolved = useMemo(() => {
     let primaryUnit: string | null = null;
     return signals.map((s, i): ResolvedSignal => {
-      const resolvedUnit = getFieldUnit(s.field, s.unit);
+      const unitKey = s.fieldPath?.length ? s.fieldPath[s.fieldPath.length - 1]! : s.field;
+      const resolvedUnit = getFieldUnit(unitKey, s.unit);
       let compatible = true;
       if (resolvedUnit) {
         if (!primaryUnit) {
@@ -148,7 +152,12 @@ export function TimeSeriesGraph({ signals, from, to, height = 280, className }: 
         h.forEach((entry) => {
           const ts = Math.floor(new Date(entry.changedAt).getTime() / 1000); // uPlot uses seconds
           tsSet.add(ts);
-          const raw = entry.state[compatibleSignals[si].field];
+          const sig = compatibleSignals[si];
+          const st = entry.state as Record<string, unknown>;
+          const raw =
+            sig.fieldPath && sig.fieldPath.length > 0
+              ? getValueAtSegments(st, sig.fieldPath)
+              : st[sig.field];
           if (typeof raw === 'number') {
             let val = raw;
             const sigUnit = compatibleSignals[si].resolvedUnit;
@@ -307,6 +316,7 @@ export function TimeSeriesGraph({ signals, from, to, height = 280, className }: 
           show: !hiddenSeries.has(si),
           spanGaps: true,
           points: { show: false },
+          paths: uPlot.paths.stepped!({ align: 1 }),
         })),
       ];
 

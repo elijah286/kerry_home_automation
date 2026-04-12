@@ -16,11 +16,22 @@ import { UniFiIntegration } from '../integrations/unifi/index.js';
 import WebSocket from 'ws';
 import { registerChatRoutes } from './chat.js';
 import { registerHelperRoutes } from './helpers-routes.js';
+import { registerScreensaverRoutes } from './screensaver-routes.js';
+import { registerRoborockRoutes } from './roborock-routes.js';
 import { requireRole } from './auth.js';
+
+/** go2rtc waits for this JSON before sending fMP4 over WebSocket (see https://go2rtc.org/internal/api/ws/). */
+const GO2RTC_MSE_REQUEST = JSON.stringify({
+  type: 'mse',
+  value:
+    'avc1.640029,avc1.64002A,avc1.640033,hvc1.1.6.L153.B0,mp4a.40.2,mp4a.40.5,flac,opus',
+});
 
 export function registerRoutes(app: FastifyInstance): void {
   registerChatRoutes(app);
   registerHelperRoutes(app);
+  registerScreensaverRoutes(app);
+  registerRoborockRoutes(app);
   app.get('/api/health', async () => ({ ok: true, time: Date.now() }));
 
   // Camera snapshot — serve from backend cache (instant), fallback to live fetch from integration
@@ -51,6 +62,44 @@ export function registerRoutes(app: FastifyInstance): void {
     }
   });
 
+  // Camera live view — proxy go2rtc multipart MJPEG (updates in <img>; works without MSE/WebRTC)
+  app.get<{ Params: { name: string } }>('/api/cameras/:name/mjpeg', async (req, reply) => {
+    const unifi = registry.get('unifi') as UniFiIntegration | undefined;
+    const go2rtcUrl = unifi?.getGo2rtcUrl(req.params.name);
+    if (!go2rtcUrl) {
+      return reply.code(503).send({ error: 'UniFi Protect not configured. Add an instance in Integrations.' });
+    }
+
+    const base = go2rtcUrl.replace(/\/$/, '');
+    const url = `${base}/api/stream.mjpeg?src=${encodeURIComponent(req.params.name)}`;
+    const ac = new AbortController();
+    req.raw.once('close', () => ac.abort());
+
+    try {
+      const res = await fetch(url, { signal: ac.signal });
+      if (!res.ok) {
+        return reply.code(502).send({ error: 'MJPEG stream unavailable' });
+      }
+      const body = res.body;
+      if (!body) {
+        return reply.code(502).send({ error: 'Empty stream' });
+      }
+
+      const ct =
+        res.headers.get('content-type') ?? 'multipart/x-mixed-replace;boundary=ffmpeg';
+
+      reply.header('Content-Type', ct);
+      reply.header('Cache-Control', 'no-cache');
+      reply.header('Pragma', 'no-cache');
+
+      // Pass fetch()’s Web ReadableStream through — Fastify streams it via getReader()
+      return reply.send(body);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      return reply.code(502).send({ error: 'go2rtc not reachable' });
+    }
+  });
+
   // Camera list — returns cameras discovered by the UniFi integration
   app.get('/api/cameras', async () => {
     const unifi = registry.get('unifi') as UniFiIntegration | undefined;
@@ -69,12 +118,20 @@ export function registerRoutes(app: FastifyInstance): void {
     upstream.binaryType = 'arraybuffer';
 
     upstream.on('open', () => {
-      // go2rtc expects an empty message or codec config — send nothing, it auto-starts MP4
+      upstream.send(GO2RTC_MSE_REQUEST);
     });
 
-    upstream.on('message', (data) => {
-      if (clientSocket.readyState === clientSocket.OPEN) {
-        clientSocket.send(data as Buffer | ArrayBuffer);
+    upstream.on('message', (data, isBinary) => {
+      if (clientSocket.readyState !== WebSocket.OPEN) return;
+      if (isBinary) {
+        clientSocket.send(data as Buffer);
+      } else {
+        const text = Buffer.isBuffer(data)
+          ? data.toString('utf8')
+          : typeof data === 'string'
+            ? data
+            : new TextDecoder().decode(data as ArrayBuffer);
+        clientSocket.send(text);
       }
     });
 
@@ -86,11 +143,10 @@ export function registerRoutes(app: FastifyInstance): void {
       if (clientSocket.readyState === clientSocket.OPEN) clientSocket.close();
     });
 
-    clientSocket.on('message', (data) => {
-      // Forward any client messages to go2rtc (e.g., codec preferences)
-      if (upstream.readyState === WebSocket.OPEN) {
-        upstream.send(data as Buffer);
-      }
+    clientSocket.on('message', (data, isBinary) => {
+      if (upstream.readyState !== WebSocket.OPEN) return;
+      if (isBinary) upstream.send(data as Buffer);
+      else upstream.send(Buffer.isBuffer(data) ? data.toString('utf8') : String(data), { binary: false });
     });
 
     clientSocket.on('close', () => {
@@ -143,11 +199,20 @@ export function registerRoutes(app: FastifyInstance): void {
     '/api/devices/:id/command',
     async (req, reply) => {
       const cmd = { ...req.body, deviceId: req.params.id } as DeviceCommand;
+      const action = 'action' in cmd ? (cmd as { action?: string }).action : undefined;
+      logger.info(
+        { deviceId: cmd.deviceId, type: cmd.type, action },
+        'HTTP device command received — routing to integration',
+      );
       try {
         await registry.handleCommand(cmd);
+        logger.info(
+          { deviceId: cmd.deviceId, type: cmd.type, action },
+          'HTTP device command completed successfully',
+        );
         return { ok: true };
       } catch (err) {
-        logger.error({ err, cmd }, 'Command failed');
+        logger.error({ err, deviceId: cmd.deviceId, type: cmd.type, action }, 'HTTP device command failed');
         return reply.code(400).send({ error: (err as Error).message });
       }
     },
@@ -263,7 +328,7 @@ export function registerRoutes(app: FastifyInstance): void {
       return { ok: true, message: 'Applied' };
     }
 
-    if (id === 'gamechanger' || id === 'sportsengine') {
+    if (id === 'calendar') {
       const keys = await redis.keys(`ical:${id}:*`);
       if (keys.length > 0) await redis.del(...keys);
     }
@@ -301,7 +366,7 @@ export function registerRoutes(app: FastifyInstance): void {
       const keys = await redis.keys('paprika:*');
       if (keys.length > 0) await redis.del(...keys);
     }
-    if (id === 'gamechanger' || id === 'sportsengine') {
+    if (id === 'calendar') {
       await redis.del(`ical:${id}:${entryId}`);
     }
 
@@ -331,7 +396,7 @@ export function registerRoutes(app: FastifyInstance): void {
       const keys = await redis.keys('paprika:*');
       if (keys.length > 0) await redis.del(...keys);
     }
-    if (id === 'gamechanger' || id === 'sportsengine') {
+    if (id === 'calendar') {
       const keys = await redis.keys(`ical:${id}:*`);
       if (keys.length > 0) await redis.del(...keys);
     }

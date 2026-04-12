@@ -1,0 +1,3 @@
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS ui_preferences JSONB NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS ui_preferences_admin JSONB NOT NULL DEFAULT '{}';

@@ -22,12 +22,17 @@ export function mapVacuumState(
   entryId: string,
   name: string,
   status: RoborockStatus | null,
+  deviceDuid?: string,
 ): VacuumState {
   const statusStr = status ? stateCodeToStatus(status.state) : 'idle';
+  const id =
+    deviceDuid && deviceDuid.length > 0
+      ? `roborock.${entryId}.${deviceDuid}.vacuum`
+      : `roborock.${entryId}.vacuum`;
 
   return {
     type: 'vacuum',
-    id: `roborock.${entryId}.vacuum`,
+    id,
     name,
     integration: 'roborock',
     areaId: null,

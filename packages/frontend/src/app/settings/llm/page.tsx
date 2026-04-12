@@ -101,7 +101,7 @@ export default function LlmSettingsPage() {
         >
           <ArrowLeft className="h-4 w-4" style={{ color: 'var(--color-text-secondary)' }} />
         </button>
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: 'var(--color-accent)', opacity: 0.15 }}>
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}>
           <Bot className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
         </div>
         <h1 className="text-lg font-semibold">LLM Integration</h1>

@@ -71,6 +71,11 @@ const FIELD_UNITS: Record<string, string> = {
   // Power (watts)
   powerW: 'W', solarW: 'W', solarPower: 'W', batteryPower: 'W',
   gridPower: 'W', loadPower: 'W', watts: 'W',
+  gridServicesPower: 'W', generatorPower: 'W',
+  chargerPower: 'kW',
+  // Energy (watt-hours)
+  totalPackEnergy: 'Wh', energyLeft: 'Wh',
+  chargeEnergyAdded: 'kWh',
   // Temperature
   temperature: '\u00b0F', currentTemp: '\u00b0F', insideTemp: '\u00b0C', outsideTemp: '\u00b0C',
   // Percentage
@@ -78,13 +83,17 @@ const FIELD_UNITS: Record<string, string> = {
   batteryPercentage: '%', chargeLimitSoc: '%', humidity: '%',
   backupReservePercent: '%',
   // Speed
-  rpm: 'rpm', chargeRate: 'mi/hr',
+  rpm: 'rpm', chargeRate: 'mi/hr', speed: 'mph',
   // Distance
   batteryRange: 'mi', odometer: 'mi',
+  // Electrical
+  chargerVoltage: 'V', chargerActualCurrent: 'A',
   // Frequency
   frequencyHz: 'Hz',
   // Concentration
   saltPPM: 'ppm',
+  // Time
+  timeToFullCharge: 'hr',
 };
 
 export function getFieldUnit(field: string, explicitUnit?: string): string | null {

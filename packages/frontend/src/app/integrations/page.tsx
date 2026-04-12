@@ -1,32 +1,23 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, createElement } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { SlidePanel } from '@/components/ui/SlidePanel';
-import { AddEntryDialog } from '@/components/AddEntryDialog';
 import {
   Puzzle,
   Loader2,
-  Plus,
-  Pencil,
-  Trash2,
-  RefreshCw,
   Search,
-  ArrowUpDown,
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
 import {
   LutronIcon, YamahaIcon, PaprikaIcon, PentairIcon, TeslaIcon,
   UnifiIcon, SonyIcon, WeatherIcon, XboxIcon, MerossIcon,
-  RoborockIcon, RachioIcon, GamechangerIcon, SportsengineIcon, RainsoftIcon, SenseIcon,
+  RoborockIcon, RachioIcon, CalendarIcon, RainsoftIcon, SenseIcon,
 } from '@/components/icons/IntegrationIcons';
 import type { DeviceState, IntegrationHealth, IntegrationInfo, IntegrationEntry } from '@ha/shared';
-import type { EntrySaveDetail } from '@/components/AddEntryDialog';
-import { devicesForIntegrationEntry } from '@/lib/device-instance';
 
 const API_BASE = typeof window !== 'undefined'
   ? `http://${window.location.hostname}:3000`
@@ -45,8 +36,7 @@ const INTEGRATION_ICONS: Record<string, React.ElementType> = {
   rachio: RachioIcon,
   roborock: RoborockIcon,
   weather: WeatherIcon,
-  gamechanger: GamechangerIcon,
-  sportsengine: SportsengineIcon,
+  calendar: CalendarIcon,
   rainsoft: RainsoftIcon,
   sense: SenseIcon,
 };
@@ -129,292 +119,6 @@ function SegmentedControl({
 }
 
 // ---------------------------------------------------------------------------
-// Integration Sidebar — entry management only (no device list)
-// ---------------------------------------------------------------------------
-
-const PROVISION_TIMEOUT_MS = 60_000;
-const PROVISION_PHASE_MS = 2_800;
-
-function IntegrationSidebar({
-  data,
-  devices,
-  onRefresh,
-}: {
-  data: IntegrationData;
-  devices: DeviceState[];
-  onRefresh: () => void;
-}) {
-  const router = useRouter();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<IntegrationEntry | null>(null);
-  const [restarting, setRestarting] = useState(false);
-  const [rebuilding, setRebuilding] = useState(false);
-  /** New instance: show connect/discover until devices appear or timeout */
-  const [provisioningEntryId, setProvisioningEntryId] = useState<string | null>(null);
-  const [provisionPhase, setProvisionPhase] = useState<'connect' | 'discover'>('connect');
-  const devicesRef = useRef(devices);
-  devicesRef.current = devices;
-
-  const { info, configured } = data;
-  const entries = data.entries ?? [];
-  const { label: statusLbl, variant: statusVar } = integrationStatus(data, devices);
-
-  useEffect(() => {
-    if (!provisioningEntryId) return;
-    setProvisionPhase('connect');
-    const t = window.setTimeout(() => setProvisionPhase('discover'), PROVISION_PHASE_MS);
-    return () => window.clearTimeout(t);
-  }, [provisioningEntryId]);
-
-  useEffect(() => {
-    if (!provisioningEntryId || !info.providesDevices) return;
-    const entryId = provisioningEntryId;
-    const integId = info.id;
-
-    const tryFinish = () => {
-      const n = devicesForIntegrationEntry(devicesRef.current, integId, entryId).length;
-      if (n > 0) {
-        setProvisioningEntryId(null);
-        return true;
-      }
-      return false;
-    };
-
-    if (tryFinish()) return;
-
-    onRefresh();
-    const poll = window.setInterval(() => {
-      onRefresh();
-      tryFinish();
-    }, 1_400);
-    const timeout = window.setTimeout(() => setProvisioningEntryId(null), PROVISION_TIMEOUT_MS);
-    return () => {
-      window.clearInterval(poll);
-      window.clearTimeout(timeout);
-    };
-  }, [provisioningEntryId, info.id, info.providesDevices, onRefresh]);
-
-  useEffect(() => {
-    if (!provisioningEntryId || !info.providesDevices) return;
-    const n = devicesForIntegrationEntry(devices, info.id, provisioningEntryId).length;
-    if (n > 0) setProvisioningEntryId(null);
-  }, [devices, provisioningEntryId, info.id, info.providesDevices]);
-
-  const handleEntrySaved = useCallback(
-    (detail?: EntrySaveDetail) => {
-      onRefresh();
-      if (detail?.kind === 'created' && info.providesDevices) {
-        setProvisioningEntryId(detail.entryId);
-      }
-    },
-    [info.providesDevices, onRefresh],
-  );
-
-  const handleDeleteEntry = async (entryId: string) => {
-    await fetch(`${API_BASE}/api/integrations/${info.id}/entries/${entryId}`, { method: 'DELETE', credentials: 'include' });
-    onRefresh();
-  };
-
-  const handleRebuildEntry = async (entryId: string) => {
-    setRebuilding(true);
-    try {
-      await fetch(`${API_BASE}/api/integrations/${info.id}/entries/${entryId}/rebuild`, { method: 'POST', credentials: 'include' });
-      onRefresh();
-    } finally {
-      setRebuilding(false);
-    }
-  };
-
-  const handleRestart = async () => {
-    setRestarting(true);
-    try {
-      await fetch(`${API_BASE}/api/integrations/${info.id}/restart`, { method: 'POST', credentials: 'include' });
-      onRefresh();
-    } finally {
-      setRestarting(false);
-    }
-  };
-
-  const handleRebuild = async () => {
-    setRebuilding(true);
-    try {
-      await fetch(`${API_BASE}/api/integrations/${info.id}/rebuild`, { method: 'POST', credentials: 'include' });
-      onRefresh();
-    } finally {
-      setRebuilding(false);
-    }
-  };
-
-  return (
-    <>
-      <div className="space-y-5">
-        {/* Status */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Status</span>
-          <Badge variant={statusVar as 'success' | 'warning' | 'danger' | 'default'}>{statusLbl}</Badge>
-        </div>
-
-        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{info.description}</p>
-
-        {/* Entry list — all integrations are multi-entry */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
-              Instances
-            </h4>
-            <button
-              onClick={() => { setEditingEntry(null); setDialogOpen(true); }}
-              className="flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
-              style={{ borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }}
-            >
-              <Plus className="h-3 w-3" /> Add
-            </button>
-          </div>
-          {provisioningEntryId && !entries.some((e) => e.id === provisioningEntryId) && (
-            <div
-              className="flex items-center gap-2 rounded-lg border px-3 py-2.5 mb-2"
-              style={{ borderColor: 'var(--color-accent)', backgroundColor: 'var(--color-bg-secondary)' }}
-            >
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin" style={{ color: 'var(--color-accent)' }} />
-              <div className="min-w-0 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                {provisionPhase === 'connect'
-                  ? 'Connecting to your instance…'
-                  : 'Discovering devices…'}
-              </div>
-            </div>
-          )}
-
-          {entries.length === 0 && !provisioningEntryId ? (
-            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>No instances configured.</p>
-          ) : (
-            <div className="space-y-2">
-              {entries.map((entry) => {
-                const instanceDevices = devicesForIntegrationEntry(devices, info.id, entry.id);
-                const deviceCount = instanceDevices.length;
-                const isProvisioning = provisioningEntryId === entry.id && info.providesDevices;
-
-                const goToDevices = () => {
-                  const label = encodeURIComponent(entry.label || entry.config.host || entry.config.email || 'Instance');
-                  router.push(`/devices?integration=${info.id}&entry=${entry.id}&entryLabel=${label}`);
-                };
-
-                return (
-                  <div
-                    key={entry.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={goToDevices}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        goToDevices();
-                      }
-                    }}
-                    className="flex items-center justify-between rounded-lg border px-3 py-2.5 cursor-pointer transition-colors hover:bg-[var(--color-bg-hover)]"
-                    style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-secondary)' }}
-                  >
-                    <div className="flex-1 min-w-0 pr-2">
-                      <div className="text-sm font-medium">
-                        {entry.label || entry.config.host || entry.config.email || 'Untitled'}
-                      </div>
-                      <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                        {entry.config.host ?? entry.config.email ?? ''}
-                      </div>
-                      {isProvisioning ? (
-                        <div className="flex items-center gap-1.5 mt-1.5 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                          <Loader2 className="h-3 w-3 animate-spin shrink-0" style={{ color: 'var(--color-accent)' }} />
-                          {provisionPhase === 'connect'
-                            ? 'Connecting…'
-                            : 'Finding devices…'}
-                        </div>
-                      ) : info.providesDevices ? (
-                        <div className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                          {deviceCount === 0
-                            ? 'No devices yet'
-                            : `${deviceCount} device${deviceCount === 1 ? '' : 's'} found`}
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                      <Badge variant={entry.enabled ? 'success' : 'default'} className="text-[10px]">
-                        {entry.enabled ? 'Enabled' : 'Disabled'}
-                      </Badge>
-                      {info.providesDevices && (
-                        <button
-                          type="button"
-                          onClick={() => handleRebuildEntry(entry.id)}
-                          disabled={rebuilding}
-                          className="rounded-md p-1.5 hover:bg-[var(--color-bg-hover)] transition-colors"
-                          title="Rebuild devices for this instance"
-                        >
-                          <RefreshCw className={`h-3.5 w-3.5 ${rebuilding ? 'animate-spin' : ''}`} style={{ color: 'var(--color-warning)' }} />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => { setEditingEntry(entry); setDialogOpen(true); }}
-                        className="rounded-md p-1.5 hover:bg-[var(--color-bg-hover)] transition-colors"
-                        title="Edit"
-                      >
-                        <Pencil className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteEntry(entry.id)}
-                        className="rounded-md p-1.5 hover:bg-[var(--color-bg-hover)] transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" style={{ color: 'var(--color-danger)' }} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Restart / Rebuild buttons */}
-        {configured && (
-          <div className="space-y-2">
-            <button
-              onClick={handleRestart}
-              disabled={restarting}
-              className="flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors"
-              style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${restarting ? 'animate-spin' : ''}`} />
-              {restarting ? 'Restarting...' : 'Restart Integration'}
-            </button>
-            {info.providesDevices && (
-              <button
-                onClick={handleRebuild}
-                disabled={rebuilding}
-                className="flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors"
-                style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-warning)', border: '1px solid var(--color-border)' }}
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${rebuilding ? 'animate-spin' : ''}`} />
-                {rebuilding ? 'Rebuilding...' : 'Rebuild All Devices'}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      <AddEntryDialog
-        open={dialogOpen}
-        onClose={() => { setDialogOpen(false); setEditingEntry(null); }}
-        integrationId={info.id}
-        integrationName={info.name}
-        fields={info.configFields}
-        entry={editingEntry}
-        onSaved={handleEntrySaved}
-      />
-    </>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Integration Card
 // ---------------------------------------------------------------------------
 
@@ -450,7 +154,10 @@ function IntegrationCard({
           className="flex h-10 w-10 items-center justify-center rounded-lg"
           style={{ backgroundColor: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}
         >
-          <Icon className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
+          {createElement(Icon, {
+            className: 'h-5 w-5',
+            style: { color: 'var(--color-accent)' },
+          })}
         </div>
         <div className="min-w-0">
           <span className="text-sm font-medium leading-tight block">{info.name}</span>
@@ -557,18 +264,16 @@ function IntegrationGroups({
 
 export default function IntegrationsPage() {
   const { devices } = useWebSocket();
+  const router = useRouter();
   const [integrationData, setIntegrationData] = useState<Record<string, IntegrationData>>({});
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Auto-open integration from query param
+  // Auto-navigate from ?open= query param (legacy support)
   useEffect(() => {
     const openId = searchParams.get('open');
-    if (openId && integrationData[openId]) {
-      setSelectedId(openId);
-    }
-  }, [searchParams, integrationData]);
+    if (openId) router.replace(`/integrations/${openId}`);
+  }, [searchParams, router]);
 
   const loadIntegrations = useCallback(() => {
     fetch(`${API_BASE}/api/integrations`, { credentials: 'include' })
@@ -589,8 +294,6 @@ export default function IntegrationsPage() {
 
   const [search, setSearch] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('name');
-
-  const selectedData = selectedId ? integrationData[selectedId] : null;
 
   const STATUS_ORDER: Record<string, number> = { success: 0, warning: 1, danger: 2, default: 3 };
 
@@ -636,7 +339,7 @@ export default function IntegrationsPage() {
   return (
     <div className="max-w-5xl mx-auto p-4 lg:p-6 space-y-4">
       <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: 'var(--color-accent)', opacity: 0.15 }}>
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}>
           <Puzzle className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
         </div>
         <div className="flex-1">
@@ -685,22 +388,8 @@ export default function IntegrationsPage() {
         <IntegrationGroups
           integrations={filteredIntegrations}
           devices={devices}
-          onSelect={setSelectedId}
+          onSelect={(id) => router.push(`/integrations/${id}`)}
         />
-      )}
-
-      {selectedData && (
-        <SlidePanel
-          open={!!selectedId}
-          onClose={() => setSelectedId(null)}
-          title={selectedData.info.name}
-        >
-          <IntegrationSidebar
-            data={selectedData}
-            devices={devices}
-            onRefresh={loadIntegrations}
-          />
-        </SlidePanel>
       )}
     </div>
   );

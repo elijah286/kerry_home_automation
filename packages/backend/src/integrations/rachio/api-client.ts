@@ -24,6 +24,10 @@ export interface RachioDevice {
   zones: RachioZone[];
   scheduleModeType: string;
   on: boolean;
+  /** Epoch ms when rain delay started, null if no delay */
+  rainDelayStartDate: number | null;
+  /** Epoch ms when rain delay expires, null if no delay */
+  rainDelayExpirationDate: number | null;
 }
 
 export interface RachioCurrentSchedule {

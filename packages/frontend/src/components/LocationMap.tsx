@@ -37,15 +37,16 @@ function makeIcon(index: number) {
 
 function FitBounds({ devices }: { devices: LocatableDevice[] }) {
   const map = useMap();
-  const prevCount = useRef(0);
+  const prevSig = useRef('');
 
   useEffect(() => {
     if (devices.length === 0) return;
-    // Only auto-fit when device count changes (not every position update)
-    if (devices.length !== prevCount.current) {
+    const sig = devices.map((d) => d.id).sort().join('\0');
+    // Auto-fit when the set of mapped devices changes (not every GPS tick)
+    if (sig !== prevSig.current) {
       const bounds = L.latLngBounds(devices.map((d) => [d.latitude, d.longitude]));
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-      prevCount.current = devices.length;
+      prevSig.current = sig;
     }
   }, [devices, map]);
 

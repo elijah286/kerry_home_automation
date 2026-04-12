@@ -124,6 +124,8 @@ export function getDeviceVizConfig(device: DeviceState): VizConfig {
           { deviceId: id, field: 'batteryPower', label: 'Battery', unit: 'W' },
           { deviceId: id, field: 'gridPower', label: 'Grid', unit: 'W' },
           { deviceId: id, field: 'loadPower', label: 'Home Load', unit: 'W' },
+          { deviceId: id, field: 'gridServicesPower', label: 'Grid Services', unit: 'W' },
+          { deviceId: id, field: 'generatorPower', label: 'Generator', unit: 'W' },
         ],
         gauge: {
           field: 'batteryPercentage',
@@ -148,6 +150,8 @@ export function getDeviceVizConfig(device: DeviceState): VizConfig {
         graphSignals: [
           { deviceId: id, field: 'batteryLevel', label: 'Battery', unit: '%' },
           { deviceId: id, field: 'batteryRange', label: 'Range', unit: 'mi' },
+          { deviceId: id, field: 'chargerPower', label: 'Charger Power', unit: 'kW' },
+          { deviceId: id, field: 'speed', label: 'Speed', unit: 'mph' },
         ],
         gauge: {
           field: 'batteryLevel',
@@ -158,6 +162,7 @@ export function getDeviceVizConfig(device: DeviceState): VizConfig {
         timelineItems: [
           { deviceId: id, field: 'chargeState', label: 'Charge State' },
           { deviceId: id, field: 'sleepState', label: 'Sleep State' },
+          { deviceId: id, field: 'shiftState', label: 'Drive State' },
           { deviceId: id, field: 'locked', label: 'Lock' },
         ],
       };
@@ -192,7 +197,8 @@ export function getDeviceVizConfig(device: DeviceState): VizConfig {
         historyType: 'graph',
         graphSignals: [
           { deviceId: id, field: 'ph', label: 'pH' },
-          { deviceId: id, field: 'orp', label: 'ORP' },
+          { deviceId: id, field: 'orp', label: 'ORP', unit: 'mV' },
+          { deviceId: id, field: 'saltPpm', label: 'Salt', unit: 'ppm' },
         ],
       };
 

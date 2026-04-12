@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { fetchDeviceHistory } from '@/lib/api';
 import { ChevronLeft, ChevronRight, History } from 'lucide-react';
-import type { DeviceState, VehicleState } from '@ha/shared';
+import type { DeviceState } from '@ha/shared';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), { ssr: false });
 
@@ -17,6 +17,8 @@ export interface LocatableDevice {
   id: string;
   name: string;
   displayName?: string;
+  /** Device discriminant — any type that exposes coordinates */
+  deviceType: DeviceState['type'];
   latitude: number;
   longitude: number;
 }
@@ -36,8 +38,18 @@ const TIME_WINDOWS = [
   { label: '7d', ms: 7 * 24 * 60 * 60 * 1000 },
 ];
 
-function isLocatable(d: DeviceState): d is VehicleState & { latitude: number; longitude: number } {
-  return d.type === 'vehicle' && (d as VehicleState).latitude != null && (d as VehicleState).longitude != null;
+/** Any integration that puts numeric latitude/longitude on state (vehicles, future phone trackers, etc.). */
+function getDeviceLatLng(d: DeviceState): { lat: number; lng: number } | null {
+  const o = d as unknown as Record<string, unknown>;
+  const lat = o.latitude;
+  const lng = o.longitude;
+  if (typeof lat !== 'number' || typeof lng !== 'number') return null;
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+  return { lat, lng };
+}
+
+function isLocatable(d: DeviceState): boolean {
+  return getDeviceLatLng(d) != null;
 }
 
 // ---------------------------------------------------------------------------
@@ -48,30 +60,40 @@ export default function LocationsPage() {
   const { devices } = useWebSocket();
 
   // Devices that report location
-  const locatableDevices = useMemo<LocatableDevice[]>(
-    () =>
-      devices.filter(isLocatable).map((d) => ({
+  const locatableDevices = useMemo<LocatableDevice[]>(() => {
+    const out: LocatableDevice[] = [];
+    for (const d of devices) {
+      const pos = getDeviceLatLng(d);
+      if (!pos) continue;
+      out.push({
         id: d.id,
         name: d.name,
         displayName: d.displayName,
-        latitude: d.latitude,
-        longitude: d.longitude,
-      })),
-    [devices],
-  );
+        deviceType: d.type,
+        latitude: pos.lat,
+        longitude: pos.lng,
+      });
+    }
+    return out;
+  }, [devices]);
 
   // Visibility toggles — default all on
   const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
   useEffect(() => {
+    const currentIds = new Set(locatableDevices.map((d) => d.id));
     setVisibleIds((prev) => {
       const next = new Set(prev);
       for (const d of locatableDevices) {
-        if (!prev.has(d.id) && prev.size === 0) next.add(d.id);
-        else if (!prev.has(d.id) && !everSeen.has(d.id)) next.add(d.id);
+        if (!everSeen.has(d.id)) {
+          everSeen.add(d.id);
+          next.add(d.id);
+        }
+      }
+      for (const id of [...next]) {
+        if (!currentIds.has(id)) next.delete(id);
       }
       return next;
     });
-    for (const d of locatableDevices) everSeen.add(d.id);
   }, [locatableDevices]);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -110,13 +132,19 @@ export default function LocationsPage() {
             results[d.id] = history
               .filter((h) => {
                 const t = new Date(h.changedAt).getTime();
-                return t >= cutoff && h.state.latitude != null && h.state.longitude != null;
+                const st = h.state as Record<string, unknown>;
+                const lat = st.latitude;
+                const lng = st.longitude;
+                return t >= cutoff && typeof lat === 'number' && typeof lng === 'number';
               })
-              .map((h) => ({
-                lat: h.state.latitude as number,
-                lng: h.state.longitude as number,
-                time: new Date(h.changedAt).getTime(),
-              }))
+              .map((h) => {
+                const st = h.state as Record<string, unknown>;
+                return {
+                  lat: st.latitude as number,
+                  lng: st.longitude as number,
+                  time: new Date(h.changedAt).getTime(),
+                };
+              })
               .reverse(); // oldest first for polyline
           } catch {
             results[d.id] = [];
@@ -167,7 +195,9 @@ export default function LocationsPage() {
                 onChange={() => toggleDevice(d.id)}
                 className="accent-[var(--color-accent)] h-3.5 w-3.5"
               />
-              <span className="truncate">{d.displayName || d.name}</span>
+              <span className="truncate" title={d.deviceType}>
+                {d.displayName || d.name}
+              </span>
             </label>
           ))}
         </div>
@@ -240,5 +270,5 @@ export default function LocationsPage() {
   );
 }
 
-// Track which device IDs we've seen to avoid re-adding after user unchecks
+/** Locatable device IDs we've already defaulted to visible (user can still uncheck). */
 const everSeen = new Set<string>();

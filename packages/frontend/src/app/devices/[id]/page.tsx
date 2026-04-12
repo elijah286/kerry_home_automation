@@ -1,16 +1,22 @@
 'use client';
 
-import { use, useState, useEffect, useMemo } from 'react';
+import { use, useState, useMemo, useEffect } from 'react';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useDeviceMergedState } from '@/hooks/useDeviceMergedState';
 import { DeviceCard } from '@/components/DeviceCard';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
-import { ArrowLeft, Clock, Loader2, Settings, Pencil, Check, X, BarChart3, Activity } from 'lucide-react';
+import { ArrowLeft, Settings, Pencil, Check, X, Loader2, Braces } from 'lucide-react';
 import { Select } from '@/components/ui/Select';
 import Link from 'next/link';
-import { TimeSeriesGraph, StateTimeline, GaugeDisplay, CoverControl, WeatherCard } from '@/components/viz';
+import { CoverControl, WeatherCard } from '@/components/viz';
 import { getDeviceVizConfig } from '@/components/viz/device-viz-config';
-import type { CoverState, GarageDoorState, WeatherState } from '@ha/shared';
+import { DeviceLiveStateTree } from '@/components/DeviceLiveStateTree';
+import { DeviceRawJsonPanelBody } from '@/components/DeviceRawJsonPanel';
+import { DeviceFieldHistoryContent } from '@/components/DeviceFieldHistoryContent';
+import { SlidePanel } from '@/components/ui/SlidePanel';
+import { formatFieldPath } from '@/lib/object-path';
+import type { CoverState, DeviceState, GarageDoorState, WeatherState } from '@ha/shared';
 
 const API_BASE = typeof window !== 'undefined'
   ? `http://${window.location.hostname}:3000`
@@ -236,10 +242,19 @@ function DeviceSettings({ deviceId }: { deviceId: string }) {
   );
 }
 
+type Inspector =
+  | null
+  | { kind: 'json' }
+  | { kind: 'field'; path: string[]; value: unknown };
+
 export default function DeviceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { devices, getDevice } = useWebSocket();
   const device = getDevice(decodeURIComponent(id));
+
+  const merged = useDeviceMergedState(device?.id, device);
+
+  const [inspector, setInspector] = useState<Inspector>(null);
 
   const childDevices = useMemo(
     () => device ? devices.filter((d) => d.parentDeviceId === device.id) : [],
@@ -259,7 +274,14 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
     );
   }
 
-  const showDefaultCard = !vizConfig?.useCoverControl && !vizConfig?.useWeatherCard;
+  const display = (merged.display ?? device) as DeviceState;
+  const panelTitle =
+    inspector?.kind === 'json'
+      ? 'Raw device JSON'
+      : inspector?.kind === 'field'
+        ? formatFieldPath(inspector.path)
+        : '';
+  const panelSize = inspector?.kind === 'json' ? 'xl' : 'lg';
 
   return (
     <div className="max-w-3xl mx-auto p-4 lg:p-6 space-y-6">
@@ -274,23 +296,37 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
         </Badge>
       </div>
 
-      {/* Device info */}
+      {/* Live state — structured UI for every JSON field */}
       <Card>
-        <h2 className="text-sm font-medium mb-3" style={{ color: 'var(--color-text-secondary)' }}>Details</h2>
-        <div className="grid grid-cols-2 gap-y-2 gap-x-8 text-sm">
-          <span style={{ color: 'var(--color-text-muted)' }}>ID</span>
-          <span className="font-mono text-xs">{device.id}</span>
-          <span style={{ color: 'var(--color-text-muted)' }}>Type</span>
-          <span className="capitalize">{device.type.replace(/_/g, ' ')}</span>
-          <span style={{ color: 'var(--color-text-muted)' }}>Integration</span>
-          <span className="capitalize">{device.integration}</span>
-          <span style={{ color: 'var(--color-text-muted)' }}>Area</span>
-          <span>{device.areaId ?? '\u2014'}</span>
-          <span style={{ color: 'var(--color-text-muted)' }}>Last Changed</span>
-          <span>{device.lastChanged ? new Date(device.lastChanged).toLocaleString() : '\u2014'}</span>
-          <span style={{ color: 'var(--color-text-muted)' }}>Last Updated</span>
-          <span>{device.lastUpdated ? new Date(device.lastUpdated).toLocaleString() : '\u2014'}</span>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div>
+            <h2 className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+              Live state
+            </h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+              One control-style row per field. Select a field to open history in the sidebar. Raw JSON is available on demand.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setInspector({ kind: 'json' })}
+            className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--color-bg-hover)] shrink-0"
+            style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+          >
+            <Braces className="h-3.5 w-3.5" />
+            Raw JSON
+          </button>
         </div>
+        {merged.loading && !merged.error && (
+          <div className="flex items-center gap-2 text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Syncing with API…
+          </div>
+        )}
+        <DeviceLiveStateTree
+          data={display as unknown}
+          onFieldSelect={(path, value) => setInspector({ kind: 'field', path, value })}
+        />
       </Card>
 
       {/* Controls — specialized or default */}
@@ -301,49 +337,9 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
         ) : vizConfig?.useCoverControl ? (
           <CoverControl device={device as CoverState | GarageDoorState} />
         ) : (
-          <DeviceCard device={device} />
+          <DeviceCard device={device} variant="detail" />
         )}
       </Card>
-
-      {/* Gauge (if applicable) */}
-      {vizConfig?.gauge && (
-        <Card>
-          <div className="flex justify-center">
-            <GaugeDisplay
-              value={((device as unknown as Record<string, unknown>)[vizConfig.gauge.field] as number) ?? 0}
-              min={vizConfig.gauge.min}
-              max={vizConfig.gauge.max}
-              unit={vizConfig.gauge.unit}
-              label={vizConfig.gauge.label}
-              thresholds={vizConfig.gauge.thresholds}
-            />
-          </div>
-        </Card>
-      )}
-
-      {/* History graph */}
-      {vizConfig?.graphSignals && vizConfig.graphSignals.length > 0 && (
-        <Card>
-          <div className="flex items-center gap-2 mb-3">
-            <BarChart3 className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
-            <h2 className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>History</h2>
-          </div>
-          <TimeSeriesGraph signals={vizConfig.graphSignals} />
-        </Card>
-      )}
-
-      {/* State timeline */}
-      {vizConfig?.timelineItems && vizConfig.timelineItems.length > 0 && (
-        <Card>
-          <div className="flex items-center gap-2 mb-3">
-            <Activity className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
-            <h2 className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
-              State History
-            </h2>
-          </div>
-          <StateTimeline items={vizConfig.timelineItems} />
-        </Card>
-      )}
 
       {/* Child devices (for hub/parent devices) */}
       {childDevices.length > 0 && (
@@ -367,6 +363,29 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
         </div>
         <DeviceSettings deviceId={device.id} />
       </Card>
+
+      <SlidePanel
+        open={inspector !== null}
+        onClose={() => setInspector(null)}
+        title={panelTitle}
+        size={inspector?.kind === 'field' || inspector?.kind === 'json' ? panelSize : 'md'}
+      >
+        {inspector?.kind === 'json' && (
+          <DeviceRawJsonPanelBody
+            display={display}
+            loading={merged.loading}
+            error={merged.error}
+            onReload={merged.reload}
+          />
+        )}
+        {inspector?.kind === 'field' && (
+          <DeviceFieldHistoryContent
+            deviceId={device.id}
+            path={inspector.path}
+            liveValue={inspector.value}
+          />
+        )}
+      </SlidePanel>
     </div>
   );
 }

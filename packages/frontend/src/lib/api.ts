@@ -148,6 +148,14 @@ export async function duplicateAutomation(id: string): Promise<{ automation: Aut
   return fetchApi(`/api/automations/${encodeURIComponent(id)}/duplicate`, { method: 'POST' });
 }
 
+export async function getAutomationsYaml(): Promise<{ yaml: string }> {
+  return fetchApi('/api/automations/yaml');
+}
+
+export async function saveAutomationsYaml(yamlContent: string): Promise<{ ok: boolean; count: number }> {
+  return fetchApi('/api/automations/yaml', { method: 'PUT', body: JSON.stringify({ yaml: yamlContent }) });
+}
+
 // Devices
 import type { DeviceState } from '@ha/shared';
 

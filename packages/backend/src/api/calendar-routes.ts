@@ -7,7 +7,7 @@ import type { IcalFeedSnapshot, IntegrationId } from '@ha/shared';
 import { redis } from '../state/redis.js';
 import * as entryStore from '../db/integration-entry-store.js';
 
-const ICAL_IDS: IntegrationId[] = ['gamechanger', 'sportsengine'];
+const ICAL_IDS: IntegrationId[] = ['calendar'];
 
 export async function registerCalendarRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/calendar/feeds', async () => {

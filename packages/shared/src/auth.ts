@@ -2,7 +2,14 @@
 // Auth types — users, roles, permissions
 // ---------------------------------------------------------------------------
 
-export type UserRole = 'admin' | 'user' | 'kiosk';
+import type {
+  UiPreferences,
+  UiPreferencesAdminPatch,
+  UiPreferenceLocks,
+} from './ui-preferences.js';
+
+export const USER_ROLES = ['admin', 'user', 'kiosk', 'child'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
 
 export interface User {
   id: string;
@@ -11,6 +18,8 @@ export interface User {
   role: UserRole;
   enabled: boolean;
   createdAt: string;
+  /** Present on admin user-list responses: appearance overrides for this user */
+  uiPreferencesAdmin?: UiPreferences;
 }
 
 export interface LoginRequest {
@@ -18,9 +27,14 @@ export interface LoginRequest {
   password: string;
 }
 
-export interface LoginResponse {
+/** Returned by GET /api/auth/me and POST /api/auth/login */
+export interface AuthSessionResponse {
   user: User;
+  uiPreferences: UiPreferences;
+  uiPreferenceLocks: UiPreferenceLocks;
 }
+
+export type LoginResponse = AuthSessionResponse;
 
 export interface CreateUserRequest {
   username: string;
@@ -34,6 +48,8 @@ export interface UpdateUserRequest {
   role?: UserRole;
   enabled?: boolean;
   password?: string;
+  /** Merge into admin UI overrides; use `null` for a key to clear that override */
+  uiPreferencesAdmin?: UiPreferencesAdminPatch;
 }
 
 export enum Permission {
@@ -46,9 +62,25 @@ export enum Permission {
   ManageSettings = 'manage_settings',
   ManageUsers = 'manage_users',
   RenameDevices = 'rename_devices',
+  /** View live backend log stream in the UI (role-assignable; default admin-only) */
+  ViewSystemTerminal = 'view_system_terminal',
 }
 
-export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
+export const PERMISSION_LABELS: Record<Permission, string> = {
+  [Permission.ViewDevices]: 'View Devices',
+  [Permission.SendCommands]: 'Control Devices',
+  [Permission.ViewCameras]: 'View Cameras',
+  [Permission.ManageIntegrations]: 'Manage Integrations',
+  [Permission.ManageAutomations]: 'Manage Automations',
+  [Permission.ManageAreas]: 'Manage Areas',
+  [Permission.ManageSettings]: 'Manage Settings',
+  [Permission.ManageUsers]: 'Manage Users',
+  [Permission.RenameDevices]: 'Rename Devices',
+  [Permission.ViewSystemTerminal]: 'System Terminal',
+};
+
+/** Default permissions per role — used as fallback when no DB overrides exist */
+export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: Object.values(Permission),
   user: [
     Permission.ViewDevices,
@@ -59,4 +91,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.ViewDevices,
     Permission.SendCommands,
   ],
+  child: [
+    Permission.ViewDevices,
+  ],
 };
+
+/** Runtime role permissions — starts as defaults, can be overridden from DB */
+export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = { ...DEFAULT_ROLE_PERMISSIONS };

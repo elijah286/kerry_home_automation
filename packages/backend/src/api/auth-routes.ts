@@ -1,14 +1,25 @@
 // ---------------------------------------------------------------------------
-// Auth routes — login, logout, me
+// Auth routes — login, logout, me, UI preferences
 // ---------------------------------------------------------------------------
 
 import type { FastifyInstance } from 'fastify';
 import bcrypt from 'bcrypt';
-import type { LoginRequest, User } from '@ha/shared';
+import type { LoginRequest, UserRole, UiPreferences } from '@ha/shared';
+import { UI_PREFERENCE_KEYS } from '@ha/shared';
 import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
 import { appConfig } from '../config.js';
 import { signToken, authenticate } from './auth.js';
+import {
+  authSessionFromRow,
+  effectiveUiPreferences,
+  mergeUserPreferences,
+  sanitizeUserUiPreferencesPatch,
+  type SessionUserRow,
+} from '../lib/ui-preferences.js';
+
+const SESSION_SELECT = `SELECT id, username, display_name, password_hash, role, enabled, created_at,
+  ui_preferences, ui_preferences_admin FROM users`;
 
 export function registerAuthRoutes(app: FastifyInstance): void {
   // POST /api/auth/login
@@ -19,30 +30,23 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       return reply.code(400).send({ error: 'Username and password required' });
     }
 
-    const { rows } = await query<{
-      id: string;
-      username: string;
-      display_name: string;
-      password_hash: string;
-      role: string;
-      enabled: boolean;
-      created_at: Date;
-    }>(
-      'SELECT id, username, display_name, password_hash, role, enabled, created_at FROM users WHERE username = $1',
-      [username],
-    );
+    const { rows } = await query<SessionUserRow>(`${SESSION_SELECT} WHERE username = $1`, [username]);
 
     if (rows.length === 0) {
       return reply.code(401).send({ error: 'Invalid credentials' });
     }
 
-    const user = rows[0];
+    const userRow = rows[0];
 
-    if (!user.enabled) {
+    if (!userRow.enabled) {
       return reply.code(401).send({ error: 'Account disabled' });
     }
 
-    const valid = await bcrypt.compare(password, user.password_hash);
+    const hash = userRow.password_hash;
+    if (!hash) {
+      return reply.code(500).send({ error: 'Account data incomplete' });
+    }
+    const valid = await bcrypt.compare(password, hash);
     if (!valid) {
       return reply.code(401).send({ error: 'Invalid credentials' });
     }
@@ -51,32 +55,23 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     const expiresAt = new Date(Date.now() + appConfig.auth.sessionTtlDays * 24 * 60 * 60 * 1000);
     const { rows: sessionRows } = await query<{ id: string }>(
       'INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1, $2, $3) RETURNING id',
-      [user.id, 'pending', expiresAt],
+      [userRow.id, 'pending', expiresAt],
     );
 
     const sessionId = sessionRows[0].id;
-    const token = signToken(user.id, user.username, user.role as 'admin' | 'user' | 'kiosk', sessionId);
+    const token = signToken(userRow.id, userRow.username, userRow.role as UserRole, sessionId);
 
     // Update token_hash with actual hash
     const crypto = await import('node:crypto');
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     await query('UPDATE sessions SET token_hash = $1 WHERE id = $2', [tokenHash, sessionId]);
 
-    logger.info({ username: user.username }, 'User logged in');
+    logger.info({ username: userRow.username }, 'User logged in');
 
     // Set httpOnly cookie
     reply.header('Set-Cookie', `ha_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${appConfig.auth.sessionTtlDays * 24 * 60 * 60}`);
 
-    const responseUser: User = {
-      id: user.id,
-      username: user.username,
-      displayName: user.display_name,
-      role: user.role as 'admin' | 'user' | 'kiosk',
-      enabled: user.enabled,
-      createdAt: user.created_at.toISOString(),
-    };
-
-    return { user: responseUser };
+    return authSessionFromRow(userRow);
   });
 
   // POST /api/auth/logout
@@ -90,28 +85,49 @@ export function registerAuthRoutes(app: FastifyInstance): void {
 
   // GET /api/auth/me
   app.get('/api/auth/me', { preHandler: [authenticate] }, async (req) => {
-    const { rows } = await query<{
-      id: string;
-      username: string;
-      display_name: string;
-      role: string;
-      enabled: boolean;
-      created_at: Date;
-    }>(
-      'SELECT id, username, display_name, role, enabled, created_at FROM users WHERE id = $1',
+    const { rows } = await query<SessionUserRow>(
+      `${SESSION_SELECT} WHERE id = $1`,
       [req.user!.id],
     );
 
-    const u = rows[0];
-    const user: User = {
-      id: u.id,
-      username: u.username,
-      displayName: u.display_name,
-      role: u.role as 'admin' | 'user' | 'kiosk',
-      enabled: u.enabled,
-      createdAt: u.created_at.toISOString(),
-    };
+    return authSessionFromRow(rows[0]);
+  });
 
-    return { user };
+  // PATCH /api/auth/me/ui-preferences — update own preferences (admin-locked keys ignored)
+  app.patch<{ Body: unknown }>('/api/auth/me/ui-preferences', { preHandler: [authenticate] }, async (req, reply) => {
+    const { rows } = await query<Pick<SessionUserRow, 'ui_preferences' | 'ui_preferences_admin'>>(
+      'SELECT ui_preferences, ui_preferences_admin FROM users WHERE id = $1',
+      [req.user!.id],
+    );
+    if (rows.length === 0) {
+      return reply.code(404).send({ error: 'User not found' });
+    }
+
+    const { locks } = effectiveUiPreferences(rows[0].ui_preferences, rows[0].ui_preferences_admin);
+    const { patch, invalid } = sanitizeUserUiPreferencesPatch(req.body);
+    if (invalid.length > 0) {
+      return reply.code(400).send({ error: 'Invalid preference fields', invalid });
+    }
+
+    const filtered: Record<string, unknown> = {};
+    for (const key of UI_PREFERENCE_KEYS) {
+      const k = key;
+      if (patch[k] !== undefined && !locks[k]) {
+        filtered[k] = patch[k] as unknown;
+      }
+    }
+
+    if (Object.keys(filtered).length === 0) {
+      return reply.code(400).send({ error: 'No preferences to update' });
+    }
+
+    const merged = mergeUserPreferences(rows[0].ui_preferences, filtered as UiPreferences);
+    await query(
+      'UPDATE users SET ui_preferences = $1::jsonb, updated_at = NOW() WHERE id = $2',
+      [JSON.stringify(merged), req.user!.id],
+    );
+
+    const { rows: out } = await query<SessionUserRow>(`${SESSION_SELECT} WHERE id = $1`, [req.user!.id]);
+    return authSessionFromRow(out[0]);
   });
 }

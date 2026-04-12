@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 /* eslint-disable react-hooks/exhaustive-deps */
 import { fetchDeviceHistoryRange } from '@/lib/api';
+import { getValueAtSegments } from '@/lib/object-path';
 import { Settings } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -12,6 +13,8 @@ import { Settings } from 'lucide-react';
 export interface StateTimelineItem {
   deviceId: string;
   field: string;
+  /** When set, read nested values; otherwise `field` is a top-level key */
+  fieldPath?: string[];
   label: string;
   /** Optional explicit color map: stateValue → CSS color */
   colorMap?: Record<string, string>;
@@ -86,7 +89,7 @@ export function StateTimeline({ items, from, to, height = 40, className }: State
 
   // Stable item key
   const itemKey = useMemo(
-    () => items.map((i) => `${i.deviceId}:${i.field}`).join(','),
+    () => items.map((i) => `${i.deviceId}:${i.field}:${i.fieldPath?.join('/') ?? ''}`).join(','),
     [items],
   );
 
@@ -116,7 +119,11 @@ export function StateTimeline({ items, from, to, height = 40, className }: State
 
         for (let i = 0; i < history.length; i++) {
           const entry = history[i];
-          const rawValue = entry.state[item.field];
+          const st = entry.state as Record<string, unknown>;
+          const rawValue =
+            item.fieldPath && item.fieldPath.length > 0
+              ? getValueAtSegments(st, item.fieldPath)
+              : st[item.field];
           const value = String(rawValue ?? 'unknown');
           const ts = new Date(entry.changedAt).getTime();
           const nextTs = i < history.length - 1

@@ -191,6 +191,13 @@ export type DoorbellCommand = {
   action: 'snapshot';
 };
 
+/** UniFi Network — block/unblock Wi‑Fi/LAN client access (controller `stamgr`). */
+export type NetworkDeviceCommand = {
+  type: 'network_device';
+  deviceId: string;
+  action: 'block_network_access' | 'unblock_network_access';
+};
+
 export type MusicPlayerCommand = {
   type: 'music_player';
   deviceId: string;
@@ -199,6 +206,14 @@ export type MusicPlayerCommand = {
   shuffle?: boolean;
   repeat?: 'off' | 'track' | 'context';
   deviceId_target?: string;
+};
+
+// -- Screensaver commands -----------------------------------------------------
+
+export type ScreensaverCommand = {
+  type: 'screensaver';
+  deviceId: string;
+  action: 'turn_on' | 'turn_off';
 };
 
 // -- Helper commands ----------------------------------------------------------
@@ -274,7 +289,9 @@ export type DeviceCommand =
   | VacuumCommand
   | ThermostatCommand
   | DoorbellCommand
+  | NetworkDeviceCommand
   | MusicPlayerCommand
+  | ScreensaverCommand
   | HelperToggleCommand
   | HelperCounterCommand
   | HelperTimerCommand

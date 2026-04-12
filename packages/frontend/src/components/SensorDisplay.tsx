@@ -1,5 +1,6 @@
 'use client';
 
+import { createElement } from 'react';
 import type { SensorState } from '@ha/shared';
 import { Badge } from '@/components/ui/Badge';
 import { Activity, Thermometer, Droplets, DoorOpen } from 'lucide-react';
@@ -18,7 +19,10 @@ export function SensorDisplay({ device }: { device: SensorState }) {
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
+        {createElement(Icon, {
+          className: 'h-4 w-4',
+          style: { color: 'var(--color-accent)' },
+        })}
         <span className="text-sm font-medium">{device.name}</span>
       </div>
       {isBoolean ? (

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Calendar feed types (ICS imports — GameChanger, SportsEngine, etc.)
+// Calendar feed types (ICS calendar subscriptions)
 // ---------------------------------------------------------------------------
 
 import type { IntegrationId } from './devices.js';

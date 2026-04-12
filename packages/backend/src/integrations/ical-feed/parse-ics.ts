@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Minimal RFC 5545 ICS parser for VEVENT (GameChanger / SportsEngine feeds)
+// Minimal RFC 5545 ICS parser for VEVENT (calendar subscription feeds)
 // ---------------------------------------------------------------------------
 
 import type { IcalCalendarEvent } from '@ha/shared';

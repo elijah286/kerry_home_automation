@@ -17,6 +17,8 @@ export interface Alarm {
   daysOfWeek: number[];
   enabled: boolean;
   devices: AlarmDeviceAction[];
+  /** Optional automation to trigger when the alarm fires */
+  automationId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,6 +29,7 @@ export interface AlarmCreate {
   daysOfWeek: number[];
   enabled?: boolean;
   devices?: AlarmDeviceAction[];
+  automationId?: string | null;
 }
 
 export interface AlarmUpdate {
@@ -35,4 +38,5 @@ export interface AlarmUpdate {
   daysOfWeek?: number[];
   enabled?: boolean;
   devices?: AlarmDeviceAction[];
+  automationId?: string | null;
 }

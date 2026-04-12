@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import {
   Zap, Plus, Trash2, Copy, Play, Search, ChevronDown, ChevronRight,
-  Clock, Cpu, Sun, Hand, Loader2, Pencil, AlertTriangle,
+  Clock, Cpu, Sun, Hand, Loader2, Pencil, AlertTriangle, FileCode,
 } from 'lucide-react';
 import {
   getAutomations, deleteAutomation, toggleAutomation, triggerAutomation, duplicateAutomation,
@@ -170,7 +170,7 @@ export default function AutomationsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: 'var(--color-accent)', opacity: 0.15 }}>
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}>
             <Zap className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
           </div>
           <div>
@@ -180,14 +180,24 @@ export default function AutomationsPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => router.push('/settings/automations/new')}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-white transition-colors"
-          style={{ backgroundColor: 'var(--color-accent)' }}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          New Automation
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => router.push('/settings/automations/editor')}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors"
+            style={{ backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text)' }}
+          >
+            <FileCode className="h-3.5 w-3.5" />
+            YAML Editor
+          </button>
+          <button
+            onClick={() => router.push('/settings/automations/new')}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-white transition-colors"
+            style={{ backgroundColor: 'var(--color-accent)' }}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            New Automation
+          </button>
+        </div>
       </div>
 
       {/* Search & Sort */}

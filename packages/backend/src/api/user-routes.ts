@@ -4,20 +4,52 @@
 
 import type { FastifyInstance } from 'fastify';
 import bcrypt from 'bcrypt';
-import type { User, CreateUserRequest, UpdateUserRequest } from '@ha/shared';
+import type { User, CreateUserRequest, UpdateUserRequest, UserRole, UiPreferences } from '@ha/shared';
+import { USER_ROLES, UI_PREFERENCE_KEYS } from '@ha/shared';
 import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
 import { authenticate, requireRole } from './auth.js';
+import { applyAdminPreferencesPatch } from '../lib/ui-preferences.js';
 
-function toUser(row: { id: string; username: string; display_name: string; role: string; enabled: boolean; created_at: Date }): User {
-  return {
+function asRecord(v: unknown): Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+}
+
+function adminPrefsSubset(v: unknown): UiPreferences {
+  const o = asRecord(v);
+  const out: UiPreferences = {};
+  for (const k of UI_PREFERENCE_KEYS) {
+    if (o[k] !== undefined && o[k] !== null) {
+      (out as Record<string, unknown>)[k] = o[k];
+    }
+  }
+  return out;
+}
+
+type UserRow = {
+  id: string;
+  username: string;
+  display_name: string;
+  role: string;
+  enabled: boolean;
+  created_at: Date;
+  ui_preferences_admin?: unknown;
+};
+
+function toUser(row: UserRow): User {
+  const base: User = {
     id: row.id,
     username: row.username,
     displayName: row.display_name,
-    role: row.role as 'admin' | 'user' | 'kiosk',
+    role: row.role as UserRole,
     enabled: row.enabled,
     createdAt: row.created_at.toISOString(),
   };
+  const admin = adminPrefsSubset(row.ui_preferences_admin);
+  if (Object.keys(admin).length > 0) {
+    base.uiPreferencesAdmin = admin;
+  }
+  return base;
 }
 
 const SALT_ROUNDS = 12;
@@ -27,9 +59,9 @@ export function registerUserRoutes(app: FastifyInstance): void {
 
   // GET /api/users
   app.get('/api/users', { preHandler: adminOnly }, async () => {
-    const { rows } = await query<{
-      id: string; username: string; display_name: string; role: string; enabled: boolean; created_at: Date;
-    }>('SELECT id, username, display_name, role, enabled, created_at FROM users ORDER BY created_at');
+    const { rows } = await query<UserRow>(
+      'SELECT id, username, display_name, role, enabled, created_at, ui_preferences_admin FROM users ORDER BY created_at',
+    );
     return { users: rows.map(toUser) };
   });
 
@@ -41,14 +73,14 @@ export function registerUserRoutes(app: FastifyInstance): void {
       return reply.code(400).send({ error: 'username, displayName, and password are required' });
     }
 
-    if (!['admin', 'user', 'kiosk'].includes(role)) {
+    if (!USER_ROLES.includes(role)) {
       return reply.code(400).send({ error: 'Invalid role' });
     }
 
     const hash = await bcrypt.hash(password, SALT_ROUNDS);
 
     try {
-      const { rows } = await query<{ id: string; username: string; display_name: string; role: string; enabled: boolean; created_at: Date }>(
+      const { rows } = await query<UserRow>(
         'INSERT INTO users (username, display_name, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, display_name, role, enabled, created_at',
         [username, displayName, hash, role],
       );
@@ -65,7 +97,7 @@ export function registerUserRoutes(app: FastifyInstance): void {
   // PUT /api/users/:id
   app.put<{ Params: { id: string }; Body: UpdateUserRequest }>('/api/users/:id', { preHandler: adminOnly }, async (req, reply) => {
     const { id } = req.params;
-    const { displayName, role, enabled, password } = req.body;
+    const { displayName, role, enabled, password, uiPreferencesAdmin } = req.body;
 
     // Prevent demoting the last admin
     if (role && role !== 'admin') {
@@ -92,6 +124,19 @@ export function registerUserRoutes(app: FastifyInstance): void {
       params.push(hash);
     }
 
+    if (uiPreferencesAdmin !== undefined) {
+      const { rows: prefRows } = await query<{ ui_preferences_admin: unknown }>(
+        'SELECT ui_preferences_admin FROM users WHERE id = $1',
+        [id],
+      );
+      if (prefRows.length === 0) {
+        return reply.code(404).send({ error: 'User not found' });
+      }
+      const nextAdmin = applyAdminPreferencesPatch(prefRows[0].ui_preferences_admin, uiPreferencesAdmin);
+      sets.push(`ui_preferences_admin = $${i++}::jsonb`);
+      params.push(JSON.stringify(nextAdmin));
+    }
+
     if (sets.length === 0) {
       return reply.code(400).send({ error: 'No fields to update' });
     }
@@ -99,8 +144,8 @@ export function registerUserRoutes(app: FastifyInstance): void {
     sets.push(`updated_at = NOW()`);
     params.push(id);
 
-    const { rows } = await query<{ id: string; username: string; display_name: string; role: string; enabled: boolean; created_at: Date }>(
-      `UPDATE users SET ${sets.join(', ')} WHERE id = $${i} RETURNING id, username, display_name, role, enabled, created_at`,
+    const { rows } = await query<UserRow>(
+      `UPDATE users SET ${sets.join(', ')} WHERE id = $${i} RETURNING id, username, display_name, role, enabled, created_at, ui_preferences_admin`,
       params,
     );
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useRef, useEffect, memo } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, memo, createElement } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { Badge } from '@/components/ui/Badge';
@@ -12,9 +12,16 @@ import {
   Search, Cpu, Lightbulb, ToggleLeft, Fan, Blinds, Speaker, Camera, CookingPot,
   Battery, Car, Waves, CircuitBoard, Beaker, ChevronDown, ChevronRight, X, Zap,
   Pencil, Check, CloudSun, Settings, DoorOpen, Activity, Droplets, Bot, Gauge,
+  Braces, Loader2,
 } from 'lucide-react';
 import type { DeviceState, DeviceType } from '@ha/shared';
 import Link from 'next/link';
+import { useDeviceMergedState } from '@/hooks/useDeviceMergedState';
+import { DeviceLiveStateTree } from '@/components/DeviceLiveStateTree';
+import { DeviceRawJsonPanelBody } from '@/components/DeviceRawJsonPanel';
+import { DeviceFieldHistoryContent } from '@/components/DeviceFieldHistoryContent';
+import { formatFieldPath } from '@/lib/object-path';
+import { LCARSSection } from '@/components/lcars/LCARSSection';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -50,6 +57,7 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
   helper_datetime: Activity,
   helper_sensor: Activity,
   hub: Cpu,
+  screensaver: Camera,
 };
 
 const INTEGRATION_LABELS: Record<string, string> = {
@@ -64,11 +72,11 @@ const INTEGRATION_LABELS: Record<string, string> = {
   meross: 'Meross',
   roborock: 'Roborock',
   rachio: 'Rachio',
-  gamechanger: 'GameChanger',
-  sportsengine: 'SportsEngine',
+  calendar: 'Calendar',
   esphome: 'ESPHome',
   rainsoft: 'RainSoft Remind',
   sense: 'Sense',
+  screensaver: 'Screensaver',
   helpers: 'Helpers',
 };
 
@@ -187,7 +195,12 @@ const ALL_COLUMNS: ColumnDef[] = [
       const Icon = TYPE_ICONS[d.type];
       return (
         <span className="inline-flex items-center gap-1.5 text-xs">
-          {Icon && <Icon className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />}
+          {Icon
+            ? createElement(Icon, {
+                className: 'h-3.5 w-3.5',
+                style: { color: 'var(--color-text-muted)' },
+              })
+            : null}
           {d.type.replace(/_/g, ' ')}
         </span>
       );
@@ -560,6 +573,10 @@ export default function DevicesPage() {
   const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_VISIBLE);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string> | null>(null);
+  const [showChildren, setShowChildren] = useState(false);
+
+  type ListInspector = null | { kind: 'json' } | { kind: 'field'; path: string[]; value: unknown };
+  const [listInspector, setListInspector] = useState<ListInspector>(null);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -589,8 +606,8 @@ export default function DevicesPage() {
 
   const filtered = useMemo(() => {
     return devices.filter((d) => {
-      if (d.parentDeviceId) return false;
-      if (HIDDEN_POOL_TYPES.has(d.type)) return false;
+      if (!showChildren && d.parentDeviceId) return false;
+      if (!showChildren && HIDDEN_POOL_TYPES.has(d.type)) return false;
       if (search) {
         const q = search.toLowerCase();
         const dn = (d.displayName ?? d.name).toLowerCase();
@@ -606,11 +623,18 @@ export default function DevicesPage() {
       }
       return true;
     });
-  }, [devices, search, integrationFilter, entryFilter, areaFilter]);
+  }, [devices, search, integrationFilter, entryFilter, areaFilter, showChildren]);
 
   const groups = useMemo(() => groupDevices(filtered, groupMode), [filtered, groupMode]);
 
   const liveSelected = selectedDevice ? devices.find((d) => d.id === selectedDevice.id) ?? selectedDevice : null;
+
+  const mergedList = useDeviceMergedState(liveSelected?.id, liveSelected ?? undefined);
+  const listDisplay = (mergedList.display ?? liveSelected) as DeviceState | undefined;
+
+  useEffect(() => {
+    setListInspector(null);
+  }, [liveSelected?.id]);
 
   const sortedGroupKeys = useMemo(() => {
     const keys = [...groups.keys()];
@@ -664,7 +688,7 @@ export default function DevicesPage() {
   return (
     <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4">
       <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: 'var(--color-accent)', opacity: 0.15 }}>
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}>
           <Cpu className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
         </div>
         <div>
@@ -698,6 +722,20 @@ export default function DevicesPage() {
           value={groupMode}
           onChange={(v) => setGroupMode(v as GroupMode)}
         />
+
+        <button
+          onClick={() => setShowChildren((v) => !v)}
+          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+          style={{
+            backgroundColor: showChildren ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+            color: showChildren ? '#fff' : 'var(--color-text-secondary)',
+            border: showChildren ? 'none' : '1px solid var(--color-border)',
+          }}
+          title={showChildren ? 'Hide child devices' : 'Show child devices'}
+        >
+          <Battery className="h-3.5 w-3.5" />
+          Children
+        </button>
       </div>
 
       {/* Active filter chip */}
@@ -818,6 +856,7 @@ export default function DevicesPage() {
                     colCount={colCount}
                     onDeviceClick={setSelectedDevice}
                     router={router}
+                    showChildren={showChildren}
                   />
                 );
               })
@@ -840,87 +879,161 @@ export default function DevicesPage() {
       {/* Slide-out detail panel */}
       <SlidePanel
         open={!!liveSelected}
-        onClose={() => setSelectedDevice(null)}
-        title={liveSelected?.displayName ?? liveSelected?.name ?? 'Device'}
+        onClose={() => { setSelectedDevice(null); setListInspector(null); }}
+        title={
+          listInspector?.kind === 'json'
+            ? 'Raw device JSON'
+            : listInspector?.kind === 'field'
+              ? formatFieldPath(listInspector.path)
+              : (liveSelected?.displayName ?? liveSelected?.name ?? 'Device')
+        }
+        size={
+          listInspector?.kind === 'json' ? 'xl' : listInspector?.kind === 'field' ? 'lg' : 'md'
+        }
       >
-        {liveSelected && (
+        {liveSelected && listDisplay && (
           <div className="space-y-4">
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between items-center">
-                <span style={{ color: 'var(--color-text-muted)' }}>Name</span>
-                <InlineRename deviceId={liveSelected.id} currentName={liveSelected.displayName ?? liveSelected.name} size="sm" />
-              </div>
-              <div className="flex justify-between">
-                <span style={{ color: 'var(--color-text-muted)' }}>Type</span>
-                <span className="capitalize">{liveSelected.type.replace(/_/g, ' ')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span style={{ color: 'var(--color-text-muted)' }}>Integration</span>
-                <span className="capitalize">{liveSelected.integration}</span>
-              </div>
-              <div className="flex justify-between">
-                <span style={{ color: 'var(--color-text-muted)' }}>Status</span>
-                <Badge variant={liveSelected.available ? 'success' : 'danger'}>
-                  {liveSelected.available ? 'Online' : 'Offline'}
-                </Badge>
-              </div>
-              <div className="flex justify-between">
-                <span style={{ color: 'var(--color-text-muted)' }}>State</span>
-                <span className="text-sm font-medium">{getDeviceStateSummary(liveSelected)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span style={{ color: 'var(--color-text-muted)' }}>ID</span>
-                <span className="text-xs font-mono" style={{ color: 'var(--color-text-secondary)' }}>{liveSelected.id}</span>
-              </div>
-            </div>
+            {listInspector && (
+              <button
+                type="button"
+                onClick={() => setListInspector(null)}
+                className="text-xs font-medium hover:underline"
+                style={{ color: 'var(--color-accent)' }}
+              >
+                Back to overview
+              </button>
+            )}
 
-            <div className="border-t pt-4" style={{ borderColor: 'var(--color-border)' }}>
-              <DeviceCard device={liveSelected} />
-            </div>
-
-            {/* Show child entities for hub devices */}
-            {liveSelected.type === 'hub' && (() => {
-              const children = devices.filter((d) => d.parentDeviceId === liveSelected.id);
-              if (children.length === 0) return null;
-              return (
-                <div className="space-y-3">
-                  <h3 className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
-                    Entities ({children.length})
-                  </h3>
-                  {children.map((child) => (
-                    <div key={child.id} className="border-t pt-3" style={{ borderColor: 'var(--color-border)' }}>
-                      <DeviceCard device={child} />
+            {!listInspector && (
+              <>
+                <LCARSSection title="Device data">
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between items-center">
+                      <span style={{ color: 'var(--color-text-muted)' }}>Name</span>
+                      <InlineRename deviceId={liveSelected.id} currentName={liveSelected.displayName ?? liveSelected.name} size="sm" />
                     </div>
-                  ))}
-                </div>
-              );
-            })()}
-
-            {/* Show related pool sub-equipment inline */}
-            {liveSelected.type === 'pool_body' && (() => {
-              const entryPrefix = liveSelected.id.split('.').slice(0, 2).join('.');
-              const related = devices.filter(
-                (d) => d.id.startsWith(entryPrefix) && HIDDEN_POOL_TYPES.has(d.type),
-              );
-              if (related.length === 0) return null;
-              return (
-                <div className="space-y-3">
-                  {related.map((sub) => (
-                    <div key={sub.id} className="border-t pt-3" style={{ borderColor: 'var(--color-border)' }}>
-                      <DeviceCard device={sub} />
+                    <div className="flex justify-between">
+                      <span style={{ color: 'var(--color-text-muted)' }}>Type</span>
+                      <span className="capitalize">{liveSelected.type.replace(/_/g, ' ')}</span>
                     </div>
-                  ))}
-                </div>
-              );
-            })()}
+                    <div className="flex justify-between">
+                      <span style={{ color: 'var(--color-text-muted)' }}>Integration</span>
+                      <span className="capitalize">{liveSelected.integration}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ color: 'var(--color-text-muted)' }}>Status</span>
+                      <Badge variant={liveSelected.available ? 'success' : 'danger'}>
+                        {liveSelected.available ? 'Online' : 'Offline'}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ color: 'var(--color-text-muted)' }}>State</span>
+                      <span className="text-sm font-medium">{getDeviceStateSummary(liveSelected)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span style={{ color: 'var(--color-text-muted)' }}>ID</span>
+                      <span className="text-xs font-mono" style={{ color: 'var(--color-text-secondary)' }}>{liveSelected.id}</span>
+                    </div>
+                  </div>
+                </LCARSSection>
 
-            <Link
-              href={`/devices/${encodeURIComponent(liveSelected.id)}`}
-              className="block text-center text-sm font-medium py-2 rounded-md transition-colors"
-              style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
-            >
-              View Full Details
-            </Link>
+                <LCARSSection title="Live state">
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setListInspector({ kind: 'json' })}
+                        className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
+                        style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+                      >
+                        <Braces className="h-3 w-3" />
+                        Raw JSON
+                      </button>
+                    </div>
+                    {mergedList.loading && !mergedList.error && (
+                      <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Syncing…
+                      </div>
+                    )}
+                    <DeviceLiveStateTree
+                      data={listDisplay as unknown}
+                      onFieldSelect={(path, value) => setListInspector({ kind: 'field', path, value })}
+                    />
+                  </div>
+                </LCARSSection>
+
+                <LCARSSection title="Controls">
+                  <DeviceCard device={liveSelected} />
+                </LCARSSection>
+
+                {/* Show child entities for hub devices */}
+                {liveSelected.type === 'hub' && (() => {
+                  const children = devices.filter((d) => d.parentDeviceId === liveSelected.id);
+                  if (children.length === 0) return null;
+                  return (
+                    <LCARSSection title={`Entities (${children.length})`}>
+                      <div className="space-y-3">
+                        {children.map((child) => (
+                          <div key={child.id} className="border-t pt-3 first:border-t-0 first:pt-0" style={{ borderColor: 'var(--color-border)' }}>
+                            <DeviceCard device={child} />
+                          </div>
+                        ))}
+                      </div>
+                    </LCARSSection>
+                  );
+                })()}
+
+                {/* Show related pool sub-equipment inline */}
+                {liveSelected.type === 'pool_body' && (() => {
+                  const entryPrefix = liveSelected.id.split('.').slice(0, 2).join('.');
+                  const related = devices.filter(
+                    (d) => d.id.startsWith(entryPrefix) && HIDDEN_POOL_TYPES.has(d.type),
+                  );
+                  if (related.length === 0) return null;
+                  return (
+                    <LCARSSection title="Related equipment">
+                      <div className="space-y-3">
+                        {related.map((sub) => (
+                          <div key={sub.id} className="border-t pt-3 first:border-t-0 first:pt-0" style={{ borderColor: 'var(--color-border)' }}>
+                            <DeviceCard device={sub} />
+                          </div>
+                        ))}
+                      </div>
+                    </LCARSSection>
+                  );
+                })()}
+
+                <Link
+                  href={`/devices/${encodeURIComponent(liveSelected.id)}`}
+                  className="block text-center text-sm font-medium py-2 rounded-md transition-colors"
+                  style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
+                >
+                  View Full Details
+                </Link>
+              </>
+            )}
+
+            {listInspector?.kind === 'json' && (
+              <LCARSSection title="Raw exchange">
+                <DeviceRawJsonPanelBody
+                  display={listDisplay}
+                  loading={mergedList.loading}
+                  error={mergedList.error}
+                  onReload={mergedList.reload}
+                />
+              </LCARSSection>
+            )}
+
+            {listInspector?.kind === 'field' && (
+              <LCARSSection title={formatFieldPath(listInspector.path)}>
+                <DeviceFieldHistoryContent
+                  deviceId={liveSelected.id}
+                  path={listInspector.path}
+                  liveValue={listInspector.value}
+                />
+              </LCARSSection>
+            )}
           </div>
         )}
       </SlidePanel>
@@ -947,6 +1060,7 @@ const GroupRows = memo(function GroupRows({
   colCount,
   onDeviceClick,
   router,
+  showChildren,
 }: {
   groupKey: string;
   mode: GroupMode;
@@ -962,7 +1076,50 @@ const GroupRows = memo(function GroupRows({
   colCount: number;
   onDeviceClick: (d: DeviceState) => void;
   router: ReturnType<typeof useRouter>;
+  showChildren: boolean;
 }) {
+  // Build parent→children map when showChildren is on
+  const orderedDevices = useMemo(() => {
+    if (!showChildren) return devices.map((d) => ({ device: d, isChild: false }));
+
+    const childrenOf = new Map<string, DeviceState[]>();
+    const parentIds = new Set<string>();
+    for (const d of devices) {
+      if (d.parentDeviceId) {
+        const list = childrenOf.get(d.parentDeviceId) ?? [];
+        list.push(d);
+        childrenOf.set(d.parentDeviceId, list);
+        parentIds.add(d.parentDeviceId);
+      }
+    }
+    // Sort children alphabetically
+    for (const list of childrenOf.values()) {
+      list.sort((a, b) => (a.displayName ?? a.name).localeCompare(b.displayName ?? b.name));
+    }
+
+    const result: { device: DeviceState; isChild: boolean }[] = [];
+    for (const d of devices) {
+      if (d.parentDeviceId) continue; // will be placed after parent
+      result.push({ device: d, isChild: false });
+      const children = childrenOf.get(d.id);
+      if (children) {
+        for (const child of children) {
+          result.push({ device: child, isChild: true });
+        }
+      }
+    }
+    // Orphan children whose parent is in a different group
+    for (const d of devices) {
+      if (d.parentDeviceId && !parentIds.has(d.parentDeviceId)) {
+        // parent not in this group — already skipped above, add as child
+      }
+      if (d.parentDeviceId && !devices.some((p) => p.id === d.parentDeviceId)) {
+        result.push({ device: d, isChild: true });
+      }
+    }
+    return result;
+  }, [devices, showChildren]);
+
   return (
     <>
       {/* Group header row */}
@@ -986,7 +1143,12 @@ const GroupRows = memo(function GroupRows({
             {expanded
               ? <ChevronDown className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
               : <ChevronRight className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />}
-            {GIcon && <GIcon className="h-3.5 w-3.5" style={{ color: 'var(--color-accent)' }} />}
+            {GIcon
+              ? createElement(GIcon, {
+                  className: 'h-3.5 w-3.5',
+                  style: { color: 'var(--color-accent)' },
+                })
+              : null}
             <span className="text-sm font-medium">{label}</span>
             <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
               {deviceCount} device{deviceCount !== 1 ? 's' : ''}
@@ -1009,19 +1171,27 @@ const GroupRows = memo(function GroupRows({
         </td>
       </tr>
       {/* Device rows */}
-      {expanded && devices.map((d) => (
+      {expanded && orderedDevices.map(({ device: d, isChild }) => (
         <tr
           key={d.id}
           className="cursor-pointer transition-colors hover:bg-[var(--color-table-row-hover)]"
+          style={isChild ? { opacity: 0.75 } : undefined}
           onClick={() => onDeviceClick(d)}
         >
           {columns.map((col) => (
             <td
               key={col.key}
               className="px-3 py-2"
-              style={col.key === 'name' ? { paddingLeft: '2rem' } : undefined}
+              style={col.key === 'name' ? { paddingLeft: isChild ? '3.5rem' : '2rem' } : undefined}
             >
-              {col.render(d)}
+              {col.key === 'name' && isChild ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>&#x2514;</span>
+                  {col.render(d)}
+                </span>
+              ) : (
+                col.render(d)
+              )}
             </td>
           ))}
         </tr>
