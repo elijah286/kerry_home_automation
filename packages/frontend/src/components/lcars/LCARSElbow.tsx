@@ -6,9 +6,9 @@
  * **Top** inner corner: **additive** quarter circle — center in the black void SE of the
  * joint so chrome bulges into that space (classic LCARS header join).
  *
- * **Bottom** inner corner: **subtractive** fillet — center *inside* the colored L (SW of the
- * joint) so the boundary curves inward with a gentle slope into the footer; no convex
- * “bubble” of color protruding into the main viewport.
+ * **Bottom** inner corner: **same additive geometry as the top**, mirrored — center
+ * `(barW+fr, or−fr)` (void NE of the joint); arc runs from `(barW, or−fr)` on the stem to
+ * `(barW+fr, or)` on the footer so chrome swoops down and right to meet the sidebar.
  *
  * barWidth = full width of the sidebar/vertical bar (the wide left part)
  */
@@ -59,8 +59,10 @@ export function LCARSElbow({
     svgH = barHeight + or;
 
     if (fr <= 0) {
+      // Include (0,0)→(0,or) so the outer quarter-arc does not leave a curved wedge over the rail (mirrors bottom-left closure).
       path = [
-        `M 0,${or}`,
+        `M 0,0`,
+        `L 0,${or}`,
         `A ${or},${or} 0 0,1 ${or},0`,
         `L ${svgW},0`,
         `L ${svgW},${barHeight}`,
@@ -72,7 +74,8 @@ export function LCARSElbow({
     } else {
       // Center (barW+fr, barH+fr): arc from (barW+fr, barH) on header to (barW, barH+fr) on stem — adds into void SE of (barW, barH)
       path = [
-        `M 0,${or}`,
+        `M 0,0`,
+        `L 0,${or}`,
         `A ${or},${or} 0 0,1 ${or},0`,
         `L ${svgW},0`,
         `L ${svgW},${barHeight}`,
@@ -98,13 +101,12 @@ export function LCARSElbow({
         `Z`,
       ].join(' ');
     } else {
-      // Subtractive fillet: center (barW−fr, or−fr) inside the L; arc (barW, or−fr)→(barW−fr, or)
-      // rounds the re-entrant corner so black meets chrome with a smooth concave scoop, not a bulge.
+      // Mirror of top additive join: center (barW+fr, or−fr); same sweep flag as top (0).
       path = [
         `M 0,0`,
         `L ${barWidth},0`,
         `L ${barWidth},${or - fr}`,
-        `A ${fr},${fr} 0 0,1 ${barWidth - fr},${or}`,
+        `A ${fr},${fr} 0 0,0 ${barWidth + fr},${or}`,
         `L ${svgW},${or}`,
         `L ${svgW},${svgH}`,
         `L ${or},${svgH}`,

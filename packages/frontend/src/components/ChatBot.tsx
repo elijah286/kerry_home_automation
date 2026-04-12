@@ -127,18 +127,37 @@ export function AssistantHeaderButton({
       aria-label={open ? 'Close AI assistant' : 'Open AI assistant'}
       aria-expanded={open}
       className={clsx(
-        'flex shrink-0 items-center justify-center rounded-full shadow-sm transition-transform hover:scale-105 active:scale-95',
-        variant === 'default' && 'h-9 w-9',
-        variant === 'lcars' && 'h-[22px] w-[22px]',
+        'flex shrink-0 items-center justify-center shadow-sm',
+        variant === 'default' &&
+          'h-9 w-9 rounded-full transition-transform hover:scale-105 active:scale-95',
+        variant === 'lcars' &&
+          'lcars-chrome-item h-full min-h-0 min-w-[min(160px,28vw)] touch-manipulation gap-1.5 rounded-none px-3 shadow-none transition-[filter] hover:brightness-110 active:brightness-95',
         className,
       )}
       style={{
         backgroundColor: 'var(--color-accent)',
         color: '#fff',
+        ...(variant === 'lcars'
+          ? {
+              fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
+              fontWeight: 700,
+              fontSize: 10,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
+            }
+          : {}),
         ...style,
       }}
     >
-      <MessageSquare className={variant === 'lcars' ? 'h-3 w-3' : 'h-[18px] w-[18px]'} strokeWidth={2} />
+      {variant === 'lcars' ? (
+        <>
+          <MessageSquare className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
+          <span>Assistant</span>
+        </>
+      ) : (
+        <MessageSquare className="h-[18px] w-[18px]" strokeWidth={2} />
+      )}
     </button>
   );
 }

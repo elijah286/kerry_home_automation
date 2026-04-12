@@ -1,9 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import * as Dialog from '@radix-ui/react-dialog';
-import { Box, Link2, X } from 'lucide-react';
 import { LCARS_COLORS } from '@/components/lcars/colors';
 
 /** HaughtyGrayAlien — USS Enterprise D (Sketchfab); embed works without a direct GLB URL. */
@@ -16,6 +14,30 @@ const GlbOrbitViewer = dynamic(
   () => import('@/components/lcars/GlbOrbitViewer').then((m) => m.GlbOrbitViewer),
   { ssr: false, loading: () => <ViewerChrome message="Initializing ODN relay…" /> },
 );
+
+/** Sketchfab embed: mouse orbit/zoom still work with ui_controls=0. */
+function sketchfabEmbedSrc(modelId: string): string {
+  const q = new URLSearchParams({
+    autostart: '1',
+    autospin: '0.28',
+    preload: '1',
+    ui_controls: '0',
+    ui_infos: '0',
+    ui_hint: '0',
+    ui_watermark: '0',
+    ui_inspector: '0',
+    ui_stop: '0',
+    ui_watermark_link: '0',
+    ui_annotations: '0',
+    ui_help: '0',
+    ui_fullscreen: '0',
+    ui_vr: '0',
+    ui_ar: '0',
+    ui_settings: '0',
+    ui_color: '000000',
+  });
+  return `https://sketchfab.com/models/${modelId}/embed?${q.toString()}`;
+}
 
 function parseSketchfabModelId(input: string): string | null {
   const raw = input.trim();
@@ -61,8 +83,6 @@ function validateModelUrl(url: string): { ok: true } | { ok: false; reason: stri
 
 export function Engineering3DPanel() {
   const [modelUrl, setModelUrl] = useState(DEFAULT_ENGINEERING_MODEL_URL);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [draftUrl, setDraftUrl] = useState(DEFAULT_ENGINEERING_MODEL_URL);
   const [glbError, setGlbError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -77,23 +97,6 @@ export function Engineering3DPanel() {
   const sketchfabId = useMemo(() => parseSketchfabModelId(modelUrl), [modelUrl]);
   const useGlb = !sketchfabId && looksLikeDirectGltfUrl(modelUrl);
 
-  const applyDraft = useCallback(() => {
-    const v = validateModelUrl(draftUrl);
-    if (!v.ok) return;
-    setModelUrl(draftUrl.trim());
-    try {
-      localStorage.setItem(STORAGE_KEY, draftUrl.trim());
-    } catch {
-      /* ignore */
-    }
-    setGlbError(null);
-    setDialogOpen(false);
-  }, [draftUrl]);
-
-  useEffect(() => {
-    if (dialogOpen) setDraftUrl(modelUrl);
-  }, [dialogOpen, modelUrl]);
-
   useEffect(() => {
     setGlbError(null);
   }, [modelUrl]);
@@ -101,61 +104,18 @@ export function Engineering3DPanel() {
   return (
     <div
       style={{
-        fontFamily: "'Antonio', 'Helvetica Neue', sans-serif",
-        textTransform: 'uppercase',
-        letterSpacing: '0.08em',
-        color: LCARS_COLORS.gold,
         display: 'flex',
         flexDirection: 'column',
-        gap: 16,
-        minHeight: 'min(72vh, 640px)',
+        flex: 1,
+        minHeight: 0,
+        height: '100%',
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '12px 20px',
-          background: LCARS_COLORS.limaBean,
-          borderRadius: 999,
-          color: '#000',
-          flexWrap: 'wrap',
-        }}
-      >
-        <Box size={20} aria-hidden />
-        <span style={{ fontWeight: 700, fontSize: 16 }}>Structural imaging — main viewer</span>
-        <button
-          type="button"
-          onClick={() => setDialogOpen(true)}
-          style={{
-            marginLeft: 'auto',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '8px 16px',
-            borderRadius: 999,
-            border: '2px solid #000',
-            background: LCARS_COLORS.butterscotch,
-            color: '#000',
-            fontWeight: 700,
-            fontSize: 12,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            textTransform: 'inherit',
-            letterSpacing: 'inherit',
-          }}
-        >
-          <Link2 size={16} aria-hidden />
-          Model link
-        </button>
-      </div>
-
       <div
         className="lcars-scan-container"
         style={{
           flex: 1,
-          minHeight: 360,
+          minHeight: 0,
           borderRadius: 12,
           overflow: 'hidden',
           border: `2px solid ${LCARS_COLORS.gray}`,
@@ -167,13 +127,20 @@ export function Engineering3DPanel() {
           <iframe
             key={sketchfabId}
             title="LCARS structural scan"
-            src={`https://sketchfab.com/models/${sketchfabId}/embed?autostart=1&autospin=0.28&preload=1&ui_controls=1&ui_infos=0&ui_hint=0&ui_watermark=0`}
-            style={{ width: '100%', height: '100%', minHeight: 360, border: 'none', display: 'block' }}
+            src={sketchfabEmbedSrc(sketchfabId)}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              border: 'none',
+              display: 'block',
+            }}
             allow="autoplay; fullscreen; xr-spatial-tracking"
             referrerPolicy="strict-origin-when-cross-origin"
           />
         ) : useGlb ? (
-          <div style={{ width: '100%', height: '100%', minHeight: 360, position: 'relative' }}>
+          <div style={{ position: 'absolute', inset: 0, minHeight: 0 }}>
             {glbError ? (
               <ViewerChrome message={glbError} />
             ) : (
@@ -185,121 +152,8 @@ export function Engineering3DPanel() {
             )}
           </div>
         ) : (
-          <ViewerChrome message="Invalid model URL. Open Model link and enter a Sketchfab page or .glb URL." />
+          <ViewerChrome message="Invalid model URL. Use a Sketchfab model page or a direct .glb / .gltf link (see lcars-engineering-model-url in localStorage)." />
         )}
-      </div>
-
-      <p style={{ fontSize: 10, color: LCARS_COLORS.gray, margin: 0, lineHeight: 1.5 }}>
-        Default: Sketchfab Enterprise‑D (CC BY — credit the author on the model page). Direct GLB links
-        require CORS headers from the host. Drag to pan orbit · scroll to zoom.
-      </p>
-
-      <Dialog.Root open={dialogOpen} onOpenChange={(v) => !v && setDialogOpen(false)}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-40 bg-black/70" />
-          <Dialog.Content
-            className="fixed left-1/2 top-1/2 z-50 w-[min(92vw,480px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 p-0 shadow-xl"
-            style={{
-              background: '#0a0a14',
-              borderColor: LCARS_COLORS.butterscotch,
-              color: LCARS_COLORS.sunflower,
-            }}
-          >
-            <div
-              className="flex items-center justify-between px-4 py-3"
-              style={{
-                background: LCARS_COLORS.limaBean,
-                color: '#000',
-                borderBottom: `2px solid ${LCARS_COLORS.butterscotch}`,
-              }}
-            >
-              <Dialog.Title className="text-sm font-bold tracking-wide">Model source URL</Dialog.Title>
-              <Dialog.Close asChild>
-                <button
-                  type="button"
-                  className="rounded p-1 hover:opacity-80"
-                  style={{ color: '#000' }}
-                  aria-label="Close"
-                >
-                  <X size={18} />
-                </button>
-              </Dialog.Close>
-            </div>
-            <div className="space-y-3 px-4 py-4">
-              <label className="block text-[10px] font-bold" style={{ color: LCARS_COLORS.ice }}>
-                Sketchfab model page or direct .glb / .gltf
-              </label>
-              <textarea
-                value={draftUrl}
-                onChange={(e) => setDraftUrl(e.target.value)}
-                rows={4}
-                className="w-full resize-y rounded border px-2 py-2 text-[11px] normal-case tracking-normal"
-                style={{
-                  background: '#050508',
-                  borderColor: LCARS_COLORS.gray,
-                  color: LCARS_COLORS.sunflower,
-                  fontFamily: 'ui-monospace, monospace',
-                }}
-                spellCheck={false}
-              />
-              <ModelLinkDialogActions draftUrl={draftUrl} onApply={applyDraft} onCancel={() => setDialogOpen(false)} />
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-    </div>
-  );
-}
-
-function ModelLinkDialogActions({
-  draftUrl,
-  onApply,
-  onCancel,
-}: {
-  draftUrl: string;
-  onApply: () => void;
-  onCancel: () => void;
-}) {
-  const v = validateModelUrl(draftUrl);
-  return (
-    <div className="flex flex-col gap-2">
-      {!v.ok && (
-        <p className="text-[10px] normal-case tracking-normal" style={{ color: LCARS_COLORS.tomato }}>
-          {v.reason}
-        </p>
-      )}
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-full px-4 py-2 text-[11px] font-bold"
-          style={{
-            background: 'transparent',
-            border: `2px solid ${LCARS_COLORS.gray}`,
-            color: LCARS_COLORS.sunflower,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            textTransform: 'inherit',
-          }}
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          disabled={!v.ok}
-          onClick={onApply}
-          className="rounded-full px-4 py-2 text-[11px] font-bold disabled:opacity-40"
-          style={{
-            background: LCARS_COLORS.butterscotch,
-            border: '2px solid #000',
-            color: '#000',
-            cursor: v.ok ? 'pointer' : 'not-allowed',
-            fontFamily: 'inherit',
-            textTransform: 'inherit',
-          }}
-        >
-          Apply
-        </button>
       </div>
     </div>
   );
@@ -319,6 +173,9 @@ function ViewerChrome({ message }: { message: string }) {
         fontSize: 12,
         color: LCARS_COLORS.sunflower,
         background: '#030308',
+        fontFamily: "'Antonio', 'Helvetica Neue', sans-serif",
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
       }}
     >
       {message}

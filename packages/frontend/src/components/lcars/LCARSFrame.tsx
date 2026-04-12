@@ -113,6 +113,8 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
               background: colors.verticalSegments[0] ?? colors.elbowTop,
               boxSizing: 'border-box',
               borderBottom: '3px solid #000',
+              borderTopLeftRadius: or,
+              overflow: 'hidden',
               transition: 'height 0.2s ease-out, width 0.2s ease-in-out, background 0.3s ease',
               pointerEvents: 'none',
             }}
@@ -235,31 +237,51 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         <div
           style={{
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'stretch',
             alignSelf: 'stretch',
-            justifyContent: 'flex-end',
-            gap: 10,
-            paddingRight: 10,
-            paddingLeft: 6,
             flexShrink: 0,
             minHeight: HEADER_H,
             background: colors.headerBar,
-            borderLeft: '3px solid #000',
             transition: 'background 0.3s ease',
           }}
         >
+          <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
           <div
-            className="lcars-chrome-item"
             style={{
-              width: 7,
-              height: 7,
-              borderRadius: 0,
-              background: connected ? '#99cc66' : '#cc4444',
+              display: 'flex',
+              alignItems: 'center',
+              alignSelf: 'stretch',
+              paddingLeft: 8,
+              paddingRight: 8,
+              flexShrink: 0,
             }}
-            title={connected ? 'Connected' : 'Disconnected'}
-          />
-          <AssistantHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: '#fff' }} />
-          <AppVersionLabel variant="lcars" lcarsTextColor={colors.text} />
+          >
+            <div
+              className="lcars-chrome-item"
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: 0,
+                background: connected ? '#99cc66' : '#cc4444',
+              }}
+              title={connected ? 'Connected' : 'Disconnected'}
+            />
+          </div>
+          <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+          <AssistantHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} />
+          <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              alignSelf: 'stretch',
+              paddingLeft: 8,
+              paddingRight: 10,
+              flexShrink: 0,
+            }}
+          >
+            <AppVersionLabel variant="lcars" lcarsTextColor={colors.text} />
+          </div>
         </div>
         <div
           className="lcars-chrome-item"
@@ -287,6 +309,8 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
           paddingLeft: 0,
           paddingRight: 0,
           background: lcarsVerticalRailGradient(colors),
+          /* Top only: bottom outer curve is the elbow SVG — bottomLeft radius here cut a notch above it */
+          borderTopLeftRadius: or,
           /* Heavy inset shadow made the nav column read narrower than the elbow stem */
           boxShadow: 'inset -2px 0 8px rgba(0,0,0,0.28)',
           transition: 'top 0.2s ease-out, width 0.2s ease-in-out, background 0.3s ease, box-shadow 0.3s ease',

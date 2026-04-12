@@ -77,7 +77,8 @@ export function LCARSSidebar({
   const fillMid = fillerColor(colors, 1);
   const fillLow = fillerColor(colors, 2);
   const fillCap = fillerColor(colors, 3);
-  const topCapColor = colors.verticalSegments[0] ?? colors.elbowTop;
+  /** Match top elbow fill — never verticalSegments[0] or it reads as a separate orange slab under the outer curve. */
+  const topCapColor = colors.elbowTop;
 
   return (
     <div

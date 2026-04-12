@@ -13,9 +13,10 @@ export function LCARSPanelCorner({
 }) {
   const h = 36;
   const w = 14;
+  /** Bottom: rounds bottom-left of the strip; top: same geometry mirrored over X (horizontal axis in viewBox). */
   const d =
     variant === 'top'
-      ? `M ${w} 0 L ${w} ${h} L 0 ${h} L 0 10 Q 0 0 10 0 Z`
+      ? `M ${w} ${h} L ${w} 0 L 11 0 Q 0 0 0 11 L 0 ${h} Z`
       : `M ${w} 0 L ${w} ${h} L 11 ${h} Q 0 ${h} 0 ${h - 11} L 0 0 Z`;
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: 'block', flexShrink: 0 }} aria-hidden>
