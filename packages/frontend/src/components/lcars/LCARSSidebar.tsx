@@ -178,7 +178,7 @@ export function LCARSSidebar({
       {user && (
         <Link
           href="/settings/account"
-          title={collapsed ? user.displayName : undefined}
+          aria-label={collapsed ? user.displayName : undefined}
           className="lcars-nav-block lcars-chrome-item"
           style={{
             ...blockBase(collapsed),
@@ -247,7 +247,7 @@ export function LCARSSidebar({
           boxSizing: 'border-box',
           boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)',
         }}
-        title={collapsed ? 'Expand' : 'Collapse'}
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
         {collapsed ? '▸' : '◂ Collapse'}
       </button>
@@ -305,7 +305,7 @@ function NavBlock({
   return (
     <Link
       href={href}
-      title={collapsed ? label : undefined}
+      aria-label={collapsed ? label : undefined}
       className="lcars-nav-block lcars-chrome-item"
       style={{
         ...blockBase(collapsed),

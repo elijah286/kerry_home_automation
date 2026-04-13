@@ -185,14 +185,14 @@ export default function AreasPage() {
                         <button
                           onClick={() => { setEditingId(area.id); setEditName(area.name); }}
                           className="rounded-md p-1.5 hover:bg-[var(--color-bg-hover)] transition-colors"
-                          title="Edit"
+                          aria-label="Edit area"
                         >
                           <Pencil className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
                         </button>
                         <button
                           onClick={() => deleteArea(area.id)}
                           className="rounded-md p-1.5 hover:bg-[var(--color-bg-hover)] transition-colors"
-                          title="Delete"
+                          aria-label="Delete area"
                         >
                           <Trash2 className="h-3.5 w-3.5" style={{ color: 'var(--color-danger)' }} />
                         </button>

@@ -14,10 +14,14 @@ import { useAuth } from '@/providers/AuthProvider';
 import { SystemTerminalDock } from '@/components/layout/SystemTerminalDock';
 
 const STORAGE_SHOW_NAV = 'ha-ui-show-terminal-nav';
+const STORAGE_LOG_DETAIL = 'ha-ui-terminal-log-detail';
 
 export const TERMINAL_PANEL_HEIGHT = 200;
 
 export type TerminalLogFilter = 'all' | 'info' | 'warn' | 'error';
+
+/** `terminal` = multiline pino-style (timestamps + context); `digest` = one short line per entry. */
+export type TerminalLogDetailStyle = 'terminal' | 'digest';
 
 export type SystemTerminalDockPlacement = 'bottom' | 'top';
 
@@ -30,8 +34,14 @@ interface SystemTerminalContextValue {
   /** Shared with LCARS status strip filter buttons */
   logFilter: TerminalLogFilter;
   setLogFilter: (f: TerminalLogFilter) => void;
+  /** Multiline backend-style logs vs condensed digest lines */
+  logDetailStyle: TerminalLogDetailStyle;
+  setLogDetailStyle: (s: TerminalLogDetailStyle) => void;
   /** LCARS: terminal is anchored in `LCARSFrame` at the top; provider skips its own dock. */
   terminalDockPlacement: SystemTerminalDockPlacement;
+  /** When true, new log lines scroll the view to the tail. */
+  logAutoScroll: boolean;
+  setLogAutoScroll: (v: boolean) => void;
 }
 
 const SystemTerminalContext = createContext<SystemTerminalContextValue | null>(null);
@@ -52,6 +62,8 @@ export function SystemTerminalProvider({
   const [showNavButton, setShowNavButtonState] = useState(true);
   const [open, setOpen] = useState(false);
   const [logFilter, setLogFilter] = useState<TerminalLogFilter>('all');
+  const [logDetailStyle, setLogDetailStyleState] = useState<TerminalLogDetailStyle>('terminal');
+  const [logAutoScroll, setLogAutoScroll] = useState(true);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_SHOW_NAV);
@@ -59,9 +71,19 @@ export function SystemTerminalProvider({
     if (raw === 'true') setShowNavButtonState(true);
   }, []);
 
+  useEffect(() => {
+    const raw = localStorage.getItem(STORAGE_LOG_DETAIL);
+    if (raw === 'digest' || raw === 'terminal') setLogDetailStyleState(raw);
+  }, []);
+
   const setShowNavButton = useCallback((v: boolean) => {
     setShowNavButtonState(v);
     localStorage.setItem(STORAGE_SHOW_NAV, String(v));
+  }, []);
+
+  const setLogDetailStyle = useCallback((s: TerminalLogDetailStyle) => {
+    setLogDetailStyleState(s);
+    localStorage.setItem(STORAGE_LOG_DETAIL, s);
   }, []);
 
   const value = useMemo(
@@ -73,9 +95,23 @@ export function SystemTerminalProvider({
       setOpen,
       logFilter,
       setLogFilter,
+      logDetailStyle,
+      setLogDetailStyle,
       terminalDockPlacement,
+      logAutoScroll,
+      setLogAutoScroll,
     }),
-    [canUse, showNavButton, setShowNavButton, open, logFilter, terminalDockPlacement],
+    [
+      canUse,
+      showNavButton,
+      setShowNavButton,
+      open,
+      logFilter,
+      logDetailStyle,
+      setLogDetailStyle,
+      terminalDockPlacement,
+      logAutoScroll,
+    ],
   );
 
   return (

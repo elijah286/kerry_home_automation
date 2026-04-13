@@ -13,19 +13,52 @@ const WS_BASE = typeof window !== 'undefined'
 
 // ---------------------------------------------------------------------------
 // MSE stream — fMP4 over WebSocket (invisible until frames actually play)
+// Fault-tolerance:
+//   • Unlimited retries with exponential backoff (capped at 60 s)
+//   • Video-progress watchdog: reconnects if currentTime freezes for >12 s
+//   • Page-visibility reconnect: wakes up when tab becomes active again
+//   • 30 s data-silence timeout on the WebSocket itself
 // ---------------------------------------------------------------------------
+
+const MSE_BASE_DELAY    = 2_000;
+const MSE_MAX_BACKOFF   = 60_000;
+const MSE_DATA_TIMEOUT  = 30_000;
+const PROGRESS_CHECK_MS = 5_000;
+const PROGRESS_STALL_MS = 12_000;
 
 function MSEStream({
   name,
   onPlaying,
+  onOffline,
 }: {
   name: string;
   onPlaying?: () => void;
+  onOffline?: () => void;
 }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef     = useRef<HTMLVideoElement>(null);
   const onPlayingRef = useRef(onPlaying);
   onPlayingRef.current = onPlaying;
-  const [visible, setVisible] = useState(false);
+  const onOfflineRef = useRef(onOffline);
+  onOfflineRef.current = onOffline;
+
+  const [visible,  setVisible]  = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const retriesRef = useRef(0);
+  /** Stays true while video is actively playing — readable from other effects. */
+  const playingRef = useRef(false);
+
+  // Page-visibility reconnect: if the stream died while the tab was hidden,
+  // kick a fresh attempt as soon as the user comes back.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && !playingRef.current) {
+        retriesRef.current = 0;
+        setRetryKey((k) => k + 1);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -38,6 +71,20 @@ function MSEStream({
     let ws: WebSocket | null = null;
     let queue: ArrayBuffer[] = [];
     let disposed = false;
+    let dataTimeout: ReturnType<typeof setTimeout>   | null = null;
+    let progressInterval: ReturnType<typeof setInterval> | null = null;
+    let lastCurrentTime = -1;
+    let lastProgressTime = 0;
+
+    const clearDataTimeout = () => {
+      if (dataTimeout) { clearTimeout(dataTimeout); dataTimeout = null; }
+    };
+    const resetDataTimeout = () => {
+      clearDataTimeout();
+      dataTimeout = setTimeout(() => {
+        if (!disposed && ws?.readyState === WebSocket.OPEN) ws.close();
+      }, MSE_DATA_TIMEOUT);
+    };
 
     const flushQueue = () => {
       if (disposed || !sourceBuffer || sourceBuffer.updating || queue.length === 0) return;
@@ -55,11 +102,7 @@ function MSEStream({
       if (sourceBuffer.buffered.length > 0) {
         const end = sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1);
         if (end > 10) {
-          try {
-            sourceBuffer.remove(0, end - 5);
-          } catch {
-            /* ignore */
-          }
+          try { sourceBuffer.remove(0, end - 5); } catch { /* ignore */ }
         }
       }
     };
@@ -99,15 +142,26 @@ function MSEStream({
       void video.play().catch(() => {});
     };
 
+    /** Always retry — exponential backoff capped at MSE_MAX_BACKOFF. */
+    const scheduleRetry = () => {
+      if (disposed) return;
+      const attempt = retriesRef.current;
+      retriesRef.current = attempt + 1;
+      const delay = Math.min(MSE_BASE_DELAY * 2 ** Math.min(attempt, 5), MSE_MAX_BACKOFF);
+      setTimeout(() => { if (!disposed) setRetryKey((k) => k + 1); }, delay);
+    };
+
     ms.addEventListener('sourceopen', () => {
       if (disposed) return;
 
       ws = new WebSocket(`${WS_BASE}/api/cameras/${encodeURIComponent(name)}/stream`);
       ws.binaryType = 'arraybuffer';
 
+      ws.onopen = () => resetDataTimeout();
+
       ws.onmessage = (ev) => {
         if (disposed) return;
-
+        resetDataTimeout();
         if (typeof ev.data === 'string') {
           try {
             const msg = JSON.parse(ev.data) as { type?: string; value?: unknown };
@@ -116,43 +170,79 @@ function MSEStream({
             } else if (msg.type === 'error') {
               console.warn('go2rtc:', msg.value);
             }
-          } catch {
-            /* ignore non-JSON text */
-          }
+          } catch { /* ignore non-JSON text */ }
           return;
         }
-
         appendBinary(ev.data as ArrayBuffer);
       };
 
       ws.onerror = () => ws?.close();
+
+      ws.onclose = () => {
+        clearDataTimeout();
+        if (disposed) return;
+        playingRef.current = false;
+        setVisible(false);
+        onOfflineRef.current?.();
+        scheduleRetry();
+      };
     });
 
+    // Once playing: reset retry counter, show video, start frozen-frame watchdog.
     const onPlayingHandler = () => {
+      playingRef.current = true;
       setVisible(true);
+      retriesRef.current = 0;
       onPlayingRef.current?.();
+
+      lastCurrentTime  = video.currentTime;
+      lastProgressTime = Date.now();
+
+      progressInterval = setInterval(() => {
+        if (disposed) return;
+
+        // Re-kick play() if the browser suspended it (e.g. background tab policy).
+        if (video.paused) {
+          void video.play().catch(() => {});
+          // Reset the stall clock so an autoplay resume doesn't look like a freeze.
+          lastProgressTime = Date.now();
+          return;
+        }
+
+        const ct  = video.currentTime;
+        const now = Date.now();
+        if (ct > lastCurrentTime) {
+          lastCurrentTime  = ct;
+          lastProgressTime = now;
+        } else if (now - lastProgressTime > PROGRESS_STALL_MS) {
+          // currentTime hasn't advanced — stream is frozen; force reconnect.
+          ws?.close();
+        }
+      }, PROGRESS_CHECK_MS);
     };
+
     video.addEventListener('playing', onPlayingHandler, { once: true });
 
     return () => {
       disposed = true;
+      playingRef.current = false;
       setVisible(false);
+      // Let the tile show snapshot/MJPEG again during reconnect or name change — otherwise
+      // msePlaying stays true while the new <video> is still at opacity 0 → black tiles.
+      onOfflineRef.current?.();
+      clearDataTimeout();
+      if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
       ws?.close();
       queue = [];
+      video.removeEventListener('playing', onPlayingHandler);
       if (ms.readyState === 'open') {
-        try {
-          ms.endOfStream();
-        } catch {
-          /* ignore */
-        }
+        try { ms.endOfStream(); } catch { /* ignore */ }
       }
       URL.revokeObjectURL(video.src);
     };
-  }, [name]);
+  }, [name, retryKey]);
 
-  if (typeof window !== 'undefined' && !window.MediaSource) {
-    return null;
-  }
+  if (typeof window !== 'undefined' && !window.MediaSource) return null;
 
   return (
     <video
@@ -167,24 +257,49 @@ function MSEStream({
 }
 
 // ---------------------------------------------------------------------------
-// WebRTC — hidden until video actually plays (avoids black overlay)
+// WebRTC — hidden until video actually plays; retries on failure / ICE drop
 // ---------------------------------------------------------------------------
+
+const WEBRTC_BASE_DELAY  = 2_000;
+const WEBRTC_MAX_BACKOFF = 45_000;
 
 function WebRTCStream({
   name,
   onPlaying,
+  onOffline,
 }: {
   name: string;
   onPlaying?: () => void;
+  onOffline?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const onPlayingRef = useRef(onPlaying);
   onPlayingRef.current = onPlaying;
-  const [visible, setVisible] = useState(false);
+  const onOfflineRef = useRef(onOffline);
+  onOfflineRef.current = onOffline;
+  const [visible,  setVisible]  = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const playingRef = useRef(false);
+  const retriesRef = useRef(0);
+  const iceDisconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Page-visibility reconnect
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && !playingRef.current) {
+        retriesRef.current = 0;
+        setRetryKey((k) => k + 1);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    let disposed = false;
 
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -197,10 +312,19 @@ function WebRTCStream({
       if (ev.streams[0]) video.srcObject = ev.streams[0];
     };
 
+    const scheduleRetry = () => {
+      if (disposed) return;
+      const attempt = retriesRef.current;
+      retriesRef.current = attempt + 1;
+      const delay = Math.min(WEBRTC_BASE_DELAY * 2 ** Math.min(attempt, 5), WEBRTC_MAX_BACKOFF);
+      setTimeout(() => { if (!disposed) setRetryKey((k) => k + 1); }, delay);
+    };
+
     pc.createOffer()
       .then((offer) => pc.setLocalDescription(offer))
       .then(() =>
-        fetch(`${API_BASE}/api/cameras/${encodeURIComponent(name)}/webrtc`, { credentials: 'include',
+        fetch(`${API_BASE}/api/cameras/${encodeURIComponent(name)}/webrtc`, {
+          credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/sdp' },
           body: pc.localDescription!.sdp,
@@ -216,20 +340,80 @@ function WebRTCStream({
       })
       .then((sdp) => pc.setRemoteDescription({ type: 'answer', sdp }))
       .catch((err) => {
-        console.warn('Camera WebRTC negotiation failed:', err);
+        if (!disposed) {
+          console.warn('Camera WebRTC negotiation failed:', err);
+          scheduleRetry();
+        }
       });
 
+    pc.onconnectionstatechange = () => {
+      if (disposed) return;
+      const s = pc.connectionState;
+      if (s === 'connected' || s === 'connecting') {
+        retriesRef.current = 0;
+      }
+      if (s === 'failed') {
+        playingRef.current = false;
+        setVisible(false);
+        onOfflineRef.current?.();
+        scheduleRetry();
+      }
+    };
+
+    // `disconnected` is often brief; only retry if it doesn't recover quickly.
+    pc.oniceconnectionstatechange = () => {
+      if (disposed) return;
+      const ice = pc.iceConnectionState;
+      if (ice === 'connected' || ice === 'completed') {
+        if (iceDisconnectTimerRef.current) {
+          clearTimeout(iceDisconnectTimerRef.current);
+          iceDisconnectTimerRef.current = null;
+        }
+        return;
+      }
+      if (ice === 'disconnected' && !iceDisconnectTimerRef.current) {
+        iceDisconnectTimerRef.current = setTimeout(() => {
+          iceDisconnectTimerRef.current = null;
+          if (disposed || pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') return;
+          playingRef.current = false;
+          setVisible(false);
+          onOfflineRef.current?.();
+          try { pc.close(); } catch { /* ignore */ }
+          scheduleRetry();
+        }, 8_000);
+      }
+      if (ice === 'failed') {
+        playingRef.current = false;
+        setVisible(false);
+        onOfflineRef.current?.();
+        scheduleRetry();
+      }
+    };
+
     const onPlayingHandler = () => {
-      setVisible(true);
-      onPlayingRef.current?.();
+      if (!disposed) {
+        playingRef.current = true;
+        retriesRef.current = 0;
+        setVisible(true);
+        onPlayingRef.current?.();
+      }
     };
     video.addEventListener('playing', onPlayingHandler, { once: true });
 
     return () => {
+      disposed = true;
+      playingRef.current = false;
       setVisible(false);
+      onOfflineRef.current?.();
+      if (iceDisconnectTimerRef.current) {
+        clearTimeout(iceDisconnectTimerRef.current);
+        iceDisconnectTimerRef.current = null;
+      }
+      video.removeEventListener('playing', onPlayingHandler);
+      try { video.srcObject = null; } catch { /* ignore */ }
       pc.close();
     };
-  }, [name]);
+  }, [name, retryKey]);
 
   return (
     <video
@@ -241,7 +425,6 @@ function WebRTCStream({
       style={{
         zIndex: 3,
         opacity: visible ? 1 : 0,
-        // Empty <video> can still composite as black above lower layers in some browsers.
         visibility: visible ? 'visible' : 'hidden',
       }}
     />
@@ -258,7 +441,7 @@ interface CameraInfo {
 }
 
 // ---------------------------------------------------------------------------
-// Camera tile — snapshot (always first) + MSE when it works
+// Camera tile — snapshot fallback (always polling) + MSE when it works
 // ---------------------------------------------------------------------------
 
 const CameraTile = memo(function CameraTile({
@@ -269,12 +452,38 @@ const CameraTile = memo(function CameraTile({
   onSelect: () => void;
 }) {
   const [snapshotRev, setSnapshotRev] = useState(0);
-  const [snapLoaded, setSnapLoaded] = useState(false);
-  const [msePlaying, setMsePlaying] = useState(false);
-  const [error, setError] = useState(false);
+  const [snapLoaded,  setSnapLoaded]  = useState(false);
+  const [msePlaying,  setMsePlaying]  = useState(false);
+  const [error,       setError]       = useState(false);
 
   const hideSpinner = snapLoaded || msePlaying;
 
+  // Periodic recovery when snapshot hard-errors — reduced to 10 s.
+  useEffect(() => {
+    if (!error) return;
+    const t = window.setInterval(() => {
+      setError(false);
+      setSnapLoaded(false);
+      setMsePlaying(false);
+      setSnapshotRev((n) => n + 1);
+    }, 10_000);
+    return () => window.clearInterval(t);
+  }, [error]);
+
+  // Page-visibility: reset error + bump snapshot when tab becomes active.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && error) {
+        setError(false);
+        setSnapLoaded(false);
+        setSnapshotRev((n) => n + 1);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [error]);
+
+  // Snapshot polling (fallback while MSE is not playing).
   useEffect(() => {
     if (msePlaying) return;
     const t = window.setInterval(() => setSnapshotRev((n) => n + 1), 3000);
@@ -308,7 +517,11 @@ const CameraTile = memo(function CameraTile({
             />
           )}
 
-          <MSEStream name={cam.name} onPlaying={() => setMsePlaying(true)} />
+          <MSEStream
+            name={cam.name}
+            onPlaying={() => setMsePlaying(true)}
+            onOffline={() => setMsePlaying(false)}
+          />
         </>
       )}
 
@@ -324,15 +537,13 @@ const CameraTile = memo(function CameraTile({
 // ---------------------------------------------------------------------------
 
 function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => void }) {
-  const [snapRev, setSnapRev] = useState(0);
+  const [snapRev,       setSnapRev]       = useState(0);
   const [webrtcPlaying, setWebrtcPlaying] = useState(false);
-  const [snapError, setSnapError] = useState(false);
-  const [mjpegError, setMjpegError] = useState(false);
+  const [snapError,     setSnapError]     = useState(false);
+  const [mjpegError,    setMjpegError]    = useState(false);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
@@ -362,7 +573,6 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
               className="absolute inset-0 z-[1] h-full w-full object-contain"
               onError={() => setSnapError(true)}
             />
-            {/* MJPEG works without WebRTC (e.g. non-secure HTTP LAN UI where RTCPeerConnection may fail). */}
             <img
               src={`${API_BASE}/api/cameras/${encodeURIComponent(cam.name)}/mjpeg`}
               alt=""
@@ -372,7 +582,11 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
           </>
         )}
 
-        <WebRTCStream name={cam.name} onPlaying={() => setWebrtcPlaying(true)} />
+        <WebRTCStream
+          name={cam.name}
+          onPlaying={() => setWebrtcPlaying(true)}
+          onOffline={() => setWebrtcPlaying(false)}
+        />
 
         <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-4 py-3">
           <span className="text-sm font-medium text-white drop-shadow-sm">{cam.label}</span>
@@ -404,7 +618,7 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
 // ---------------------------------------------------------------------------
 
 export default function CamerasPage() {
-  const [cameras, setCameras] = useState<CameraInfo[]>([]);
+  const [cameras,      setCameras]      = useState<CameraInfo[]>([]);
   const [fullscreenCam, setFullscreenCam] = useState<CameraInfo | null>(null);
 
   useEffect(() => {
@@ -413,14 +627,14 @@ export default function CamerasPage() {
       .then((data: { cameras: CameraInfo[] }) => setCameras(data.cameras))
       .catch(() => {
         setCameras([
-          { name: 'back_door', label: 'Back Door' },
+          { name: 'back_door',   label: 'Back Door' },
           { name: 'living_room', label: 'Living Room' },
-          { name: 'garage', label: 'Garage' },
-          { name: 'backyard', label: 'Backyard' },
-          { name: 'street', label: 'Street' },
-          { name: 'driveway', label: 'Driveway' },
-          { name: 'game_room', label: 'Game Room' },
-          { name: 'pool', label: 'Pool' },
+          { name: 'garage',      label: 'Garage' },
+          { name: 'backyard',    label: 'Backyard' },
+          { name: 'street',      label: 'Street' },
+          { name: 'driveway',    label: 'Driveway' },
+          { name: 'game_room',   label: 'Game Room' },
+          { name: 'pool',        label: 'Pool' },
           { name: 'front_porch', label: 'Front Porch' },
         ]);
       });

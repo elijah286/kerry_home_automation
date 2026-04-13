@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Sidebar } from './Sidebar';
 import { BottomNav } from './BottomNav';
 import { AssistantProvider } from '../ChatBot';
+import { CookingTimersProvider } from '@/providers/CookingTimersProvider';
 import { useConnected } from '@/hooks/useWebSocket';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useTheme } from '@/providers/ThemeProvider';
@@ -82,6 +83,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const terminalLeftOffset = isMdUp ? (isLCARS ? lcarsContentLeft : sidebarWidth) : 0;
 
   return (
+    <CookingTimersProvider>
     <AssistantProvider>
       {isLCARS ? (
         <SystemTerminalProvider
@@ -104,5 +106,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </SystemTerminalProvider>
       )}
     </AssistantProvider>
+    </CookingTimersProvider>
   );
 }

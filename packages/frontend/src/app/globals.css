@@ -204,6 +204,23 @@
 /* Active / selected state */
 .lcars-btn--active { box-shadow: inset 0 1px 0 rgba(255,255,255,0.35); }
 
+@keyframes lcars-auto-scroll-nudge {
+  0%, 100% {
+    filter: brightness(1);
+    box-shadow: 0 0 0 transparent;
+  }
+  50% {
+    filter: brightness(1.4);
+    box-shadow: 0 0 14px rgba(255, 153, 0, 0.45);
+  }
+}
+
+.lcars-auto-scroll-nudge {
+  animation-name: lcars-auto-scroll-nudge;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
 /* --- LCARS inputs --- */
 [data-active-theme="lcars"] input,
 [data-active-theme="lcars"] textarea,
@@ -313,6 +330,17 @@
 [data-active-theme="lcars"] td {
   border: none !important;
   border-bottom: 1px solid #1a1a2e !important;
+}
+
+/* Scroll still works; bars hidden (non-LCARS recipe columns, etc.) */
+.ha-hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.ha-hide-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 /* --- LCARS scrollbar (hidden to prevent layout jump) --- */

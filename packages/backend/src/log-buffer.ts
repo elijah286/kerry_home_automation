@@ -9,6 +9,8 @@ export interface LogEntry {
   level: LogLevelLabel;
   msg: string;
   context?: Record<string, unknown>;
+  /** Process id when captured from pino JSON (matches dev terminal pretty output). */
+  pid?: number;
 }
 
 const MAX_ENTRIES = 800;

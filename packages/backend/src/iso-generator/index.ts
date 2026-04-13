@@ -5,6 +5,7 @@
 import { mkdir, writeFile, readFile, rm, rename, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { spawn, execFile } from 'node:child_process';
+import type { ClientRequest, IncomingMessage } from 'node:http';
 import { join } from 'node:path';
 import { createWriteStream } from 'node:fs';
 import { get as httpsGet } from 'node:https';
@@ -13,7 +14,15 @@ import { appConfig } from '../config.js';
 import { generateAutoinstallYaml, hashPasswordForAutoinstall } from './autoinstall.js';
 import { logger } from '../logger.js';
 
-export type JobStatus = 'pending' | 'running' | 'complete' | 'failed';
+export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
+
+/** Thrown when the user or server aborts an in-flight ISO build. */
+export class BuildCancelledError extends Error {
+  override readonly name = 'BuildCancelledError';
+  constructor(message = 'Build cancelled') {
+    super(message);
+  }
+}
 
 export interface InstallerJobConfig {
   hostname: string;
@@ -39,20 +48,47 @@ function progress(cb: ProgressCallback, percent: number, message: string, status
   cb({ percent, message, status });
 }
 
+function throwIfCancelled(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new BuildCancelledError();
+}
+
 /** Run a shell command and resolve when it exits successfully. */
-function run(cmd: string, args: string[], onStderr?: (line: string) => void): Promise<void> {
+function runCancellable(
+  cmd: string,
+  args: string[],
+  options: { onStderr?: (line: string) => void; signal?: AbortSignal },
+): Promise<void> {
+  const { onStderr, signal } = options;
   return new Promise((resolve, reject) => {
+    throwIfCancelled(signal);
     const proc = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const onAbort = (): void => {
+      proc.kill('SIGTERM');
+      setTimeout(() => {
+        if (proc.exitCode === null && proc.signalCode === null) proc.kill('SIGKILL');
+      }, 5_000).unref?.();
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+
     proc.stdout?.on('data', () => { /* discard */ });
     proc.stderr?.on('data', (chunk: Buffer) => {
       const line = chunk.toString().trim();
       if (line && onStderr) onStderr(line);
     });
     proc.on('close', (code) => {
+      signal?.removeEventListener('abort', onAbort);
+      if (signal?.aborted) {
+        reject(new BuildCancelledError());
+        return;
+      }
       if (code === 0) resolve();
       else reject(new Error(`${cmd} exited with code ${code}`));
     });
-    proc.on('error', reject);
+    proc.on('error', (err) => {
+      signal?.removeEventListener('abort', onAbort);
+      if (signal?.aborted) reject(new BuildCancelledError());
+      else reject(err);
+    });
   });
 }
 
@@ -60,8 +96,13 @@ function run(cmd: string, args: string[], onStderr?: (line: string) => void): Pr
 async function requireTool(name: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     execFile('which', [name], (err) => {
-      if (err) reject(new Error(`Required tool '${name}' not found in $PATH. Install it with: apt install ${name}`));
-      else resolve();
+      if (err) {
+        const hint =
+          name === 'xorriso'
+            ? ' Debian/Ubuntu: sudo apt install xorriso · macOS: brew install xorriso · Alpine: apk add xorriso'
+            : ' Debian/Ubuntu: sudo apt install ' + name;
+        reject(new Error(`Required tool '${name}' not found in PATH.${hint}`));
+      } else resolve();
     });
   });
 }
@@ -71,25 +112,64 @@ async function downloadFile(
   url: string,
   destPath: string,
   onProgress: (downloaded: number, total: number) => void,
+  signal?: AbortSignal,
 ): Promise<string> {
+  throwIfCancelled(signal);
   const get = url.startsWith('https') ? httpsGet : httpGet;
   const hash = createHash('sha256');
 
   return new Promise((resolve, reject) => {
-    get(url, (res) => {
+    let req: ClientRequest | undefined;
+    let out: ReturnType<typeof createWriteStream> | undefined;
+    let resStream: IncomingMessage | undefined;
+    let settled = false;
+
+    const cleanup = (): void => {
+      try { resStream?.destroy(); } catch { /* ignore */ }
+      try { out?.destroy(); } catch { /* ignore */ }
+      try { req?.destroy(); } catch { /* ignore */ }
+    };
+
+    const settle = (fn: () => void): void => {
+      if (settled) return;
+      settled = true;
+      fn();
+    };
+
+    const fail = (err: Error): void => {
+      settle(() => {
+        cleanup();
+        reject(err);
+      });
+    };
+
+    const onAbort = (): void => {
+      settle(() => {
+        cleanup();
+        reject(new BuildCancelledError());
+      });
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+
+    req = get(url, (res) => {
+      resStream = res;
       // Follow redirects
       if (res.statusCode === 301 || res.statusCode === 302) {
         const location = res.headers.location;
-        if (!location) return reject(new Error('Redirect with no Location header'));
-        return downloadFile(location, destPath, onProgress).then(resolve).catch(reject);
+        if (!location) return fail(new Error('Redirect with no Location header'));
+        signal?.removeEventListener('abort', onAbort);
+        return downloadFile(location, destPath, onProgress, signal).then(
+          (v) => settle(() => resolve(v)),
+          (e) => settle(() => reject(e)),
+        );
       }
       if (res.statusCode !== 200) {
-        return reject(new Error(`HTTP ${res.statusCode} downloading ${url}`));
+        return fail(new Error(`HTTP ${res.statusCode} downloading ${url}`));
       }
 
       const total = parseInt(res.headers['content-length'] ?? '0', 10);
       let downloaded = 0;
-      const out = createWriteStream(destPath);
+      out = createWriteStream(destPath);
 
       res.on('data', (chunk: Buffer) => {
         downloaded += chunk.length;
@@ -97,10 +177,20 @@ async function downloadFile(
         onProgress(downloaded, total);
       });
       res.pipe(out);
-      out.on('finish', () => resolve(hash.digest('hex')));
-      out.on('error', reject);
-      res.on('error', reject);
-    }).on('error', reject);
+      out.on('finish', () => {
+        signal?.removeEventListener('abort', onAbort);
+        settle(() => resolve(hash.digest('hex')));
+      });
+      out.on('error', (err) => fail(err));
+      res.on('error', (err) => fail(err));
+    });
+    req.on('error', (err) => {
+      signal?.removeEventListener('abort', onAbort);
+      settle(() => {
+        if (signal?.aborted) reject(new BuildCancelledError());
+        else reject(err);
+      });
+    });
   });
 }
 
@@ -120,11 +210,18 @@ async function fileSha256(path: string): Promise<string> {
 // Main pipeline
 // ---------------------------------------------------------------------------
 
+export interface BuildInstallerIsoOptions {
+  /** When aborted, stops download and terminates xorriso child processes. */
+  signal?: AbortSignal;
+}
+
 export async function buildInstallerIso(
   jobId: string,
   config: InstallerJobConfig,
   onProgress: ProgressCallback,
+  options?: BuildInstallerIsoOptions,
 ): Promise<string> {
+  const signal = options?.signal;
   const { isoCacheDir, workDir, ubuntuIsoUrl, ubuntuIsoSha256, appRepoUrl, envFilePath } = appConfig.serverInstaller;
 
   // Validate required config
@@ -141,6 +238,7 @@ export async function buildInstallerIso(
 
   await mkdir(jobWorkDir, { recursive: true });
   await mkdir(isoCacheDir, { recursive: true });
+  throwIfCancelled(signal);
 
   // -------------------------------------------------------------------------
   // Step 1: Ensure base Ubuntu ISO is cached (0–30%)
@@ -151,6 +249,7 @@ export async function buildInstallerIso(
   try {
     await stat(cachedIso);
     progress(onProgress, 5, 'Found cached ISO, verifying SHA-256...');
+    throwIfCancelled(signal);
     const existingHash = await fileSha256(cachedIso);
     if (existingHash === ubuntuIsoSha256) {
       progress(onProgress, 30, 'Cached ISO verified.');
@@ -177,7 +276,7 @@ export async function buildInstallerIso(
           progress(onProgress, pct, `Downloading Ubuntu ISO... ${mb} / ${totalMb} MB`);
         }
       }
-    });
+    }, signal);
 
     progress(onProgress, 29, 'Verifying download SHA-256...');
     if (actualHash !== ubuntuIsoSha256) {
@@ -194,12 +293,13 @@ export async function buildInstallerIso(
   // -------------------------------------------------------------------------
   progress(onProgress, 31, 'Extracting ISO contents...');
   await mkdir(isoTree, { recursive: true });
+  throwIfCancelled(signal);
 
-  await run('xorriso', [
+  await runCancellable('xorriso', [
     '-osirrox', 'on',
     '-indev', cachedIso,
     '-extract', '/', isoTree,
-  ], (line) => logger.debug({ line }, 'xorriso extract'));
+  ], { onStderr: (line) => logger.debug({ line }, 'xorriso extract'), signal });
 
   progress(onProgress, 50, 'ISO extracted.');
 
@@ -281,8 +381,9 @@ export async function buildInstallerIso(
   // Step 5: Repack ISO with BIOS + UEFI hybrid boot (56–90%)
   // -------------------------------------------------------------------------
   progress(onProgress, 57, 'Repacking bootable ISO (this may take a minute)...');
+  throwIfCancelled(signal);
 
-  await run('xorriso', [
+  await runCancellable('xorriso', [
     '-as', 'mkisofs',
     '-r',
     '-V', 'Ubuntu 24.04 HA Installer',
@@ -305,14 +406,16 @@ export async function buildInstallerIso(
     '-boot-load-size', '7336',
     isoTree,
     '-o', outputIso,
-  ], (line) => {
-    // xorriso prints progress lines — parse % from them
-    const match = line.match(/(\d+)\s*%/);
-    if (match) {
-      const xorPct = parseInt(match[1], 10);
-      const overallPct = 57 + Math.floor((xorPct / 100) * 33); // 57–90%
-      progress(onProgress, overallPct, 'Repacking bootable ISO...');
-    }
+  ], {
+    onStderr: (line) => {
+      const match = line.match(/(\d+)\s*%/);
+      if (match) {
+        const xorPct = parseInt(match[1], 10);
+        const overallPct = 57 + Math.floor((xorPct / 100) * 33); // 57–90%
+        progress(onProgress, overallPct, 'Repacking bootable ISO...');
+      }
+    },
+    signal,
   });
 
   // -------------------------------------------------------------------------

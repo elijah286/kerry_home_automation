@@ -16,7 +16,8 @@ RUN npm run build -w @ha/shared && npm run build -w @ha/backend
 
 # ---------------------------------------------------------------------------
 FROM node:22-alpine
-RUN apk add --no-cache curl
+# xorriso: server installer ISO extract/repack (see iso-generator)
+RUN apk add --no-cache curl xorriso
 
 WORKDIR /app
 

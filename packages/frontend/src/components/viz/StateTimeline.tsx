@@ -175,7 +175,7 @@ export function StateTimeline({ items, from, to, height = 40, className }: State
           backgroundColor: showControls ? 'var(--color-bg-hover)' : 'transparent',
           color: 'var(--color-text-muted)',
         }}
-        title="Timeline controls"
+        aria-label="Timeline controls"
       >
         <Settings className="h-3.5 w-3.5" />
       </button>

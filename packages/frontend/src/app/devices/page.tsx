@@ -428,7 +428,7 @@ function InlineRename({
         onClick={(e) => { e.stopPropagation(); setEditing(true); }}
         className="shrink-0"
         style={{ color: 'var(--color-text-muted)' }}
-        title="Rename"
+        aria-label="Rename"
       >
         <Pencil className={size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
       </button>
@@ -756,7 +756,7 @@ export default function DevicesPage() {
             color: showChildren ? '#fff' : 'var(--color-text-secondary)',
             border: showChildren ? 'none' : '1px solid var(--color-border)',
           }}
-          title={showChildren ? 'Hide child devices' : 'Show child devices'}
+          aria-label={showChildren ? 'Hide child devices' : 'Show child devices'}
         >
           <Battery className="h-3.5 w-3.5" />
           Children

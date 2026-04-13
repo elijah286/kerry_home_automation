@@ -228,7 +228,7 @@ export default function HistorySettingsPage() {
                   <button
                     onClick={() => void updateDeviceSetting(device.id, { history_enabled: !enabled })}
                     className="flex items-center justify-center rounded-md p-1.5 transition-colors border"
-                    title={enabled ? 'Disable history recording' : 'Enable history recording'}
+                    aria-label={enabled ? 'Disable history recording' : 'Enable history recording'}
                     style={{
                       backgroundColor: enabled ? 'var(--color-bg-secondary)' : 'var(--color-danger-bg, #fef2f2)',
                       borderColor: enabled ? 'var(--color-border)' : 'var(--color-danger, #ef4444)',

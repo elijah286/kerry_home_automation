@@ -20,6 +20,10 @@ import { registerScreensaverRoutes } from './screensaver-routes.js';
 import { registerRoborockRoutes } from './roborock-routes.js';
 import { requireRole } from './auth.js';
 
+/** Prevent hung Node fetch() calls when go2rtc or Protect is slow or wedged. */
+const GO2RTC_FETCH_INIT_MS = 12_000;
+const GO2RTC_WEBRTC_MS = 20_000;
+
 /** go2rtc waits for this JSON before sending fMP4 over WebSocket (see https://go2rtc.org/internal/api/ws/). */
 const GO2RTC_MSE_REQUEST = JSON.stringify({
   type: 'mse',
@@ -51,7 +55,9 @@ export function registerRoutes(app: FastifyInstance): void {
     if (!go2rtcUrl) return reply.code(503).send({ error: 'UniFi Protect not configured. Add an instance in Integrations.' });
 
     try {
-      const res = await fetch(`${go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(req.params.name)}`);
+      const res = await fetch(`${go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(req.params.name)}`, {
+        signal: AbortSignal.timeout(GO2RTC_FETCH_INIT_MS),
+      });
       if (!res.ok) return reply.code(502).send({ error: 'Snapshot unavailable' });
       reply.header('Content-Type', 'image/jpeg');
       reply.header('Cache-Control', 'public, max-age=5');
@@ -76,6 +82,8 @@ export function registerRoutes(app: FastifyInstance): void {
     req.raw.once('close', () => ac.abort());
 
     try {
+      // No blanket fetch timeout: MJPEG is long-lived — a global AbortSignal.timeout would
+      // kill healthy streams after N seconds. Client abort (`ac`) still ends the proxy.
       const res = await fetch(url, { signal: ac.signal });
       if (!res.ok) {
         return reply.code(502).send({ error: 'MJPEG stream unavailable' });
@@ -108,6 +116,7 @@ export function registerRoutes(app: FastifyInstance): void {
   });
 
   // Camera MSE WebSocket proxy — pipes go2rtc MP4 fragments to browser
+  // Includes keepalive ping (30s) and data timeout (30s) to detect stale connections.
   app.get<{ Params: { name: string } }>('/api/cameras/:name/stream', { websocket: true }, (clientSocket, req) => {
     const unifi = registry.get('unifi') as UniFiIntegration | undefined;
     const go2rtcUrl = unifi?.getGo2rtcUrl(req.params.name);
@@ -117,11 +126,33 @@ export function registerRoutes(app: FastifyInstance): void {
 
     upstream.binaryType = 'arraybuffer';
 
+    let dataTimeout: ReturnType<typeof setTimeout> | null = null;
+    let pingInterval: ReturnType<typeof setInterval> | null = null;
+
+    const cleanup = () => {
+      if (dataTimeout) { clearTimeout(dataTimeout); dataTimeout = null; }
+      if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
+    };
+
+    const resetDataTimeout = () => {
+      if (dataTimeout) clearTimeout(dataTimeout);
+      dataTimeout = setTimeout(() => {
+        if (upstream.readyState === WebSocket.OPEN) upstream.close();
+      }, 30_000);
+    };
+
     upstream.on('open', () => {
       upstream.send(GO2RTC_MSE_REQUEST);
+      resetDataTimeout();
+      pingInterval = setInterval(() => {
+        if (upstream.readyState === WebSocket.OPEN) {
+          try { upstream.ping(); } catch { /* ignore */ }
+        }
+      }, 30_000);
     });
 
     upstream.on('message', (data, isBinary) => {
+      resetDataTimeout();
       if (clientSocket.readyState !== WebSocket.OPEN) return;
       if (isBinary) {
         clientSocket.send(data as Buffer);
@@ -136,10 +167,12 @@ export function registerRoutes(app: FastifyInstance): void {
     });
 
     upstream.on('close', () => {
+      cleanup();
       if (clientSocket.readyState === clientSocket.OPEN) clientSocket.close();
     });
 
     upstream.on('error', () => {
+      cleanup();
       if (clientSocket.readyState === clientSocket.OPEN) clientSocket.close();
     });
 
@@ -150,10 +183,12 @@ export function registerRoutes(app: FastifyInstance): void {
     });
 
     clientSocket.on('close', () => {
+      cleanup();
       upstream.close();
     });
 
     clientSocket.on('error', () => {
+      cleanup();
       upstream.close();
     });
   });
@@ -169,6 +204,7 @@ export function registerRoutes(app: FastifyInstance): void {
         method: 'POST',
         headers: { 'Content-Type': 'application/sdp' },
         body: req.body as string,
+        signal: AbortSignal.timeout(GO2RTC_WEBRTC_MS),
       });
       if (!res.ok) return reply.code(502).send({ error: 'WebRTC negotiation failed' });
       const sdp = await res.text();

@@ -489,7 +489,7 @@ export default function UsersPage() {
                       onClick={() => handleToggleEnabled(u)}
                       disabled={isSelf}
                       className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors disabled:opacity-30"
-                      title={u.enabled ? 'Disable' : 'Enable'}
+                      aria-label={u.enabled ? 'Disable user' : 'Enable user'}
                     >
                       <div
                         className="h-2 w-2 rounded-full"
@@ -499,7 +499,7 @@ export default function UsersPage() {
                     <button
                       onClick={() => startEdit(u)}
                       className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors"
-                      title="Edit"
+                      aria-label="Edit user"
                     >
                       <Pencil className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
                     </button>
@@ -507,7 +507,7 @@ export default function UsersPage() {
                       onClick={() => handleDelete(u.id)}
                       disabled={isSelf}
                       className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors disabled:opacity-30"
-                      title="Delete"
+                      aria-label="Delete user"
                     >
                       <Trash2 className="h-3.5 w-3.5" style={{ color: 'var(--color-danger)' }} />
                     </button>
@@ -588,7 +588,7 @@ export default function UsersPage() {
                                 border: `1px solid ${has ? 'var(--color-success)' : 'var(--color-border)'}`,
                                 opacity: isSaving ? 0.5 : 1,
                               }}
-                              title={has ? 'Remove permission' : 'Grant permission'}
+                              aria-label={has ? 'Remove permission' : 'Grant permission'}
                             >
                               {has ? (
                                 <Check className="h-3 w-3" style={{ color: 'var(--color-success)' }} />

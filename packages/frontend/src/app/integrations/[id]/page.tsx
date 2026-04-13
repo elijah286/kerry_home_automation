@@ -376,7 +376,7 @@ function InstanceCard({
               onClick={(e) => { e.stopPropagation(); onRebuild(entry.id); }}
               disabled={rebuilding}
               className="rounded-md p-1.5 transition-colors hover:bg-[var(--color-bg-hover)]"
-              title="Rebuild devices"
+              aria-label="Rebuild devices"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${rebuilding ? 'animate-spin' : ''}`} style={{ color: 'var(--color-warning)' }} />
             </button>
@@ -385,7 +385,7 @@ function InstanceCard({
             type="button"
             onClick={(e) => { e.stopPropagation(); onEdit(entry); }}
             className="rounded-md p-1.5 transition-colors hover:bg-[var(--color-bg-hover)]"
-            title="Edit"
+            aria-label="Edit integration"
           >
             <Pencil className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
           </button>
@@ -393,7 +393,7 @@ function InstanceCard({
             type="button"
             onClick={(e) => { e.stopPropagation(); onDelete(entry.id); }}
             className="rounded-md p-1.5 transition-colors hover:bg-[var(--color-bg-hover)]"
-            title="Delete"
+            aria-label="Delete integration"
           >
             <Trash2 className="h-3.5 w-3.5" style={{ color: 'var(--color-danger)' }} />
           </button>

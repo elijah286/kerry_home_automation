@@ -162,7 +162,7 @@ export function VacuumControl({ device }: { device: VacuumState }) {
           disabled={isPending('find')}
           className="rounded-md px-2 py-1.5 text-xs transition-colors"
           style={{ backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)', opacity: isPending('find') ? 0.7 : 1 }}
-          title="Find vacuum"
+          aria-label="Find vacuum"
         >
           {isPending('find') ? <ButtonSpinner /> : <Volume2 className="h-3 w-3" />}
         </button>

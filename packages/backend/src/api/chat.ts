@@ -13,6 +13,11 @@ import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
 import { authenticate } from './auth.js';
 import * as entryStore from '../db/integration-entry-store.js';
+import {
+  getPaprikaRecipesFromStore,
+  isPaprikaConfigured,
+  searchPaprikaRecipes,
+} from '../lib/paprika-recipe-search.js';
 
 // ---------------------------------------------------------------------------
 // Tool definitions for OpenAI function calling

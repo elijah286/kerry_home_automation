@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { LCARS_COLORS } from '@/components/lcars/colors';
+import { FederationEmblem } from '@/components/lcars/FederationEmblem';
 import { useFooterSlot } from './LCARSFooterSlotContext';
 import { ShipGalleryPanel } from './ShipGalleryPanel';
 
@@ -131,6 +132,8 @@ export function Engineering3DPanel() {
   const [modelUrl, setModelUrl] = useState(DEFAULT_ENGINEERING_MODEL_URL);
   const [glbError, setGlbError] = useState<string | null>(null);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [modelLoading, setModelLoading] = useState(true);
+  const loadStartRef = useRef(Date.now());
   const { setFooterFirstExtra } = useFooterSlot();
 
   useEffect(() => {
@@ -186,6 +189,8 @@ export function Engineering3DPanel() {
 
   useEffect(() => {
     setGlbError(null);
+    setModelLoading(true);
+    loadStartRef.current = Date.now();
   }, [modelUrl]);
 
   return (
@@ -228,6 +233,12 @@ export function Engineering3DPanel() {
             }}
             allow="autoplay; fullscreen; xr-spatial-tracking"
             referrerPolicy="strict-origin-when-cross-origin"
+            onLoad={() => {
+              const elapsed = Date.now() - loadStartRef.current;
+              const MIN_DISPLAY = 2200;
+              const remaining = Math.max(0, MIN_DISPLAY - elapsed);
+              setTimeout(() => setModelLoading(false), remaining);
+            }}
           />
         ) : useGlb ? (
           <div style={{ position: 'absolute', inset: 0, minHeight: 0 }}>
@@ -244,6 +255,9 @@ export function Engineering3DPanel() {
         ) : (
           <ViewerChrome message="Invalid model URL. Use a Sketchfab model page or a direct .glb / .gltf link (see lcars-engineering-model-url in localStorage)." />
         )}
+
+        {/* Federation emblem loading overlay */}
+        {modelLoading && !glbError && <ModelLoadingOverlay />}
       </div>
 
       <ShipGalleryPanel
@@ -276,6 +290,73 @@ function ViewerChrome({ message }: { message: string }) {
       }}
     >
       {message}
+    </div>
+  );
+}
+
+/** Full-panel loading overlay with Federation emblem + indeterminate progress bar. */
+function ModelLoadingOverlay() {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 10,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#030308',
+        fontFamily: "var(--font-antonio), 'Helvetica Neue', sans-serif",
+        textTransform: 'uppercase',
+        letterSpacing: '0.12em',
+      }}
+    >
+      <div style={{ opacity: 0, animation: 'lcars-fade-in 0.5s 0.1s forwards' }}>
+        <FederationEmblem size={110} />
+      </div>
+
+      <div
+        style={{
+          marginTop: 10,
+          color: '#a0c4f0',
+          fontSize: 12,
+          fontWeight: 700,
+          letterSpacing: '0.2em',
+          opacity: 0,
+          animation: 'lcars-fade-in 0.4s 0.25s forwards',
+        }}
+      >
+        United Federation of Planets
+      </div>
+
+      {/* Indeterminate progress bar */}
+      <div
+        style={{
+          width: 220,
+          maxWidth: '60%',
+          height: 4,
+          background: '#0a1428',
+          borderRadius: 999,
+          marginTop: 22,
+          overflow: 'hidden',
+          border: '1px solid #1a3060',
+        }}
+      >
+        <div className="loading-bar-indeterminate" />
+      </div>
+
+      <div
+        style={{
+          marginTop: 10,
+          color: LCARS_COLORS.sunflower,
+          fontSize: 10,
+          letterSpacing: '0.15em',
+          animation: 'loading-text-pulse 2s ease-in-out infinite',
+        }}
+      >
+        {'Initializing structural scan\u2026'}
+      </div>
     </div>
   );
 }

@@ -16,15 +16,18 @@ const BOOT_LINES = [
 
 /** Mini chrome frame so boot matches main LCARS shell. */
 function BootChrome() {
-  const barW = 100;
+  /** Match `LCARSFrame` shell metrics so boot chrome lines up with the real sidebar. */
+  const barW = 150;
   const headerH = 28;
-  const footerH = 22;
-  const or = 40;
-  const ir = 18;
+  const footerH = 28;
+  const or = Math.min(50, barW);
+  const ir = 28;
   const elbowW = barW + ir;
   const gold = LCARS_COLORS.gold;
   const lilac = LCARS_COLORS.lilac;
   const mag = LCARS_COLORS.magenta;
+  /** Breathing room between placeholder and elbow curves (matches stem width `barW`). */
+  const navChromeGap = 5;
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[10000]" aria-hidden>
@@ -46,14 +49,15 @@ function BootChrome() {
         <div className="w-[14%] min-w-[48px]" style={{ background: mag }} />
         <div className="w-10 rounded-r-full" style={{ background: gold }} />
       </div>
+      {/* Nav column placeholder: neutral panel same width as sidebar buttons, inset from elbows */}
       <div
-        className="absolute z-[10001] border-l-[3px]"
+        className="pointer-events-none absolute z-[10000]"
         style={{
-          left: barW,
-          top: headerH + or,
-          bottom: footerH + or,
-          borderColor: lilac,
-          opacity: 0.85,
+          left: 0,
+          width: barW,
+          top: headerH + or + navChromeGap,
+          bottom: footerH + or + navChromeGap,
+          background: '#4a4a52',
         }}
       />
       <div className="absolute bottom-0 left-0 z-[10001]" style={{ lineHeight: 0 }}>

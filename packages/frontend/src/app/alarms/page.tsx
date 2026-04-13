@@ -528,15 +528,15 @@ export default function AlarmsPage() {
                 {/* Actions */}
                 <div className="flex items-center gap-1 shrink-0">
                   <button onClick={() => openEdit(alarm)} className="p-1.5 rounded-md hover:bg-[var(--color-bg-hover)] transition-colors"
-                    title="Edit">
+                    aria-label="Edit alarm">
                     <Pencil className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
                   </button>
                   <button onClick={() => handleDuplicate(alarm)} className="p-1.5 rounded-md hover:bg-[var(--color-bg-hover)] transition-colors"
-                    title="Duplicate">
+                    aria-label="Duplicate alarm">
                     <Copy className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
                   </button>
                   <button onClick={() => setDeleteId(alarm.id)} className="p-1.5 rounded-md hover:bg-[var(--color-bg-hover)] transition-colors"
-                    title="Delete">
+                    aria-label="Delete alarm">
                     <Trash2 className="h-3.5 w-3.5" style={{ color: 'var(--color-danger)' }} />
                   </button>
                 </div>

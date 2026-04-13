@@ -7,6 +7,50 @@ export interface LogPrimaryFields {
   context?: Record<string, unknown>;
 }
 
+/** Fields needed for pino-style multiline rendering (system terminal). */
+export interface LogTerminalFields extends LogPrimaryFields {
+  ts: number;
+  level: string;
+  pid?: number;
+}
+
+export function formatTerminalTimestamp(ts: number): string {
+  const d = new Date(ts);
+  const pad = (n: number, w = 2) => String(n).padStart(w, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
+}
+
+function formatContextValueForTerminal(v: unknown): string {
+  if (v === undefined) return 'undefined';
+  if (v === null) return 'null';
+  if (typeof v === 'string') return JSON.stringify(v);
+  if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint') return String(v);
+  if (typeof v === 'symbol') return v.toString();
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
+}
+
+/**
+ * Lines matching dev `pino-pretty` layout: `[HH:mm:ss.SSS] LEVEL (pid): msg` then `    key: value` per context field.
+ */
+export function formatTerminalLogLines(entry: LogTerminalFields): string[] {
+  const t = formatTerminalTimestamp(entry.ts);
+  const lv = (entry.level || 'info').toUpperCase();
+  const pid = entry.pid != null ? ` (${entry.pid})` : '';
+  const msg = entry.msg ?? '';
+  const lines: string[] = [`[${t}] ${lv}${pid}: ${msg}`];
+  const ctx = entry.context;
+  if (ctx && typeof ctx === 'object') {
+    for (const key of Object.keys(ctx)) {
+      lines.push(`    ${key}: ${formatContextValueForTerminal(ctx[key])}`);
+    }
+  }
+  return lines;
+}
+
 function msgReferencesIntegration(msg: string, integration: string): boolean {
   const m = msg.toLowerCase();
   const slug = integration.toLowerCase().replace(/_/g, ' ');
@@ -211,7 +255,7 @@ function summarizeHttpPath(method: string, pathname: string): string {
   mm = /^\/api\/paprika\/recipes\/([^/]+)$/.exec(p);
   if (mm) return `Paprika recipe · ${tailLabel(mm[1]!)}`;
 
-  mm = /^\/api\/installer\/(start|progress\/[^/]+|status\/[^/]+|download\/[^/]+)$/.exec(p);
+  mm = /^\/api\/installer\/(start|active|artifacts|cancel\/[^/]+|progress\/[^/]+|status\/[^/]+|download\/[^/]+)$/.exec(p);
   if (mm) return `Installer · ${mm[1]?.replace(/\//g, ' · ')}`;
 
   if (p === '/api/chat' || p.startsWith('/api/chat?')) return 'Chat message';

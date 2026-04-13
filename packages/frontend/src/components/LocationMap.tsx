@@ -95,13 +95,13 @@ function MapControls({ devices }: { devices: LocatableDevice[] }) {
           marginRight: 10,
         }}
       >
-        <button onClick={() => map.zoomIn()} style={{ ...btnStyle, borderBottom: 'none', borderRadius: '8px 8px 0 0' }} title="Zoom in">
+        <button onClick={() => map.zoomIn()} style={{ ...btnStyle, borderBottom: 'none', borderRadius: '8px 8px 0 0' }} aria-label="Zoom in">
           <Plus className="h-4 w-4" />
         </button>
-        <button onClick={() => map.zoomOut()} style={{ ...btnStyle, borderBottom: 'none' }} title="Zoom out">
+        <button onClick={() => map.zoomOut()} style={{ ...btnStyle, borderBottom: 'none' }} aria-label="Zoom out">
           <Minus className="h-4 w-4" />
         </button>
-        <button onClick={recenter} style={{ ...btnStyle, borderRadius: '0 0 8px 8px' }} title="Re-center on devices">
+        <button onClick={recenter} style={{ ...btnStyle, borderRadius: '0 0 8px 8px' }} aria-label="Re-center on devices">
           <Crosshair className="h-4 w-4" />
         </button>
       </div>

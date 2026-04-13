@@ -297,7 +297,7 @@ export default function AutomationsPage() {
                       <span
                         className="flex items-center gap-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
                         style={{ backgroundColor: 'var(--color-danger)', color: '#fff' }}
-                        title="One or more device IDs not found"
+                        aria-label="One or more device IDs not found"
                       >
                         <AlertTriangle className="h-2.5 w-2.5" />
                         Problem!
@@ -308,7 +308,7 @@ export default function AutomationsPage() {
                       {[...new Set(a.triggers.map(t => t.type))].map(type => {
                         const Icon = triggerIcon(type);
                         return (
-                          <span key={type} title={triggerLabel(type)}>
+                          <span key={type} aria-hidden>
                             <Icon className="h-3 w-3" style={{ color: 'var(--color-text-muted)' }} />
                           </span>
                         );
@@ -330,28 +330,28 @@ export default function AutomationsPage() {
                   <button
                     onClick={() => handleTrigger(a.id)}
                     className="p-1.5 rounded-md transition-colors hover:bg-[var(--color-bg-hover)]"
-                    title="Run now"
+                    aria-label="Run automation now"
                   >
                     <Play className="h-3.5 w-3.5" style={{ color: 'var(--color-accent)' }} />
                   </button>
                   <button
                     onClick={() => router.push(`/settings/automations/${a.id}`)}
                     className="p-1.5 rounded-md transition-colors hover:bg-[var(--color-bg-hover)]"
-                    title="Edit"
+                    aria-label="Edit automation"
                   >
                     <Pencil className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
                   </button>
                   <button
                     onClick={() => handleDuplicate(a.id)}
                     className="p-1.5 rounded-md transition-colors hover:bg-[var(--color-bg-hover)]"
-                    title="Duplicate"
+                    aria-label="Duplicate automation"
                   >
                     <Copy className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
                   </button>
                   <button
                     onClick={() => handleDelete(a.id)}
                     className="p-1.5 rounded-md transition-colors hover:bg-[var(--color-bg-hover)]"
-                    title="Delete"
+                    aria-label="Delete automation"
                   >
                     <Trash2 className="h-3.5 w-3.5" style={{ color: 'var(--color-danger)' }} />
                   </button>

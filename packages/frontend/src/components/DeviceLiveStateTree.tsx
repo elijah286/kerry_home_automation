@@ -38,7 +38,7 @@ function PrimitiveDisplay({ value }: { value: string | number | boolean | null }
     const d = Date.parse(s);
     if (!Number.isNaN(d)) {
       return (
-        <span className="text-sm" title={s}>
+        <span className="text-sm">
           {new Date(d).toLocaleString()}
         </span>
       );
@@ -46,7 +46,7 @@ function PrimitiveDisplay({ value }: { value: string | number | boolean | null }
   }
   const show = s.length > 120 ? `${s.slice(0, 120)}…` : s;
   return (
-    <span className="text-sm break-all" style={{ color: 'var(--color-text-secondary)' }} title={s}>
+    <span className="text-sm break-all" style={{ color: 'var(--color-text-secondary)' }}>
       {show}
     </span>
   );
@@ -73,7 +73,7 @@ function LeafRow({
         <div className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
           {label}
         </div>
-        <div className="mt-0.5 font-mono text-[10px] opacity-60 truncate" title={formatFieldPath(path)}>
+        <div className="mt-0.5 font-mono text-[10px] opacity-60 truncate">
           {formatFieldPath(path)}
         </div>
       </div>

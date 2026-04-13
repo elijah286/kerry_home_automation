@@ -127,7 +127,7 @@ export default function AutomationsEditorPage() {
           <button
             onClick={() => router.push('/settings/automations')}
             className="p-1.5 rounded-md transition-colors hover:bg-[var(--color-bg-hover)]"
-            title="Back to automations"
+            aria-label="Back to automations"
           >
             <ArrowLeft className="h-4 w-4" style={{ color: 'var(--color-text-muted)' }} />
           </button>

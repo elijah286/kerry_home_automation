@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { fetchDeviceHistory } from '@/lib/api';
-import { ChevronLeft, ChevronRight, History } from 'lucide-react';
+import { ChevronLeft, ChevronRight, History, MapPinned } from 'lucide-react';
 import type { DeviceState } from '@ha/shared';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), { ssr: false });
@@ -28,6 +28,9 @@ export interface HistoryPoint {
   lng: number;
   time: number;
 }
+
+const LS_HIDDEN_IDS = 'ha-locations-map-hidden-ids';
+const LS_PANEL_OPEN = 'ha-locations-map-devices-panel-open';
 
 const TIME_WINDOWS = [
   { label: '1h', ms: 1 * 60 * 60 * 1000 },
@@ -77,34 +80,65 @@ export default function LocationsPage() {
     return out;
   }, [devices]);
 
-  // Visibility toggles — default all on
-  const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    const currentIds = new Set(locatableDevices.map((d) => d.id));
-    setVisibleIds((prev) => {
-      const next = new Set(prev);
-      for (const d of locatableDevices) {
-        if (!everSeen.has(d.id)) {
-          everSeen.add(d.id);
-          next.add(d.id);
-        }
-      }
-      for (const id of [...next]) {
-        if (!currentIds.has(id)) next.delete(id);
-      }
-      return next;
-    });
-  }, [locatableDevices]);
+  /** Device IDs hidden from the map (persisted). New locators default to visible. */
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
+  const [devicesPanelOpen, setDevicesPanelOpen] = useState(true);
+  const [prefsHydrated, setPrefsHydrated] = useState(false);
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  useEffect(() => {
+    try {
+      const rawHidden = localStorage.getItem(LS_HIDDEN_IDS);
+      if (rawHidden) setHiddenIds(new Set(JSON.parse(rawHidden) as string[]));
+      const rawOpen = localStorage.getItem(LS_PANEL_OPEN);
+      if (rawOpen != null) setDevicesPanelOpen(rawOpen === '1');
+    } catch {
+      /* ignore */
+    }
+    setPrefsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!prefsHydrated) return;
+    try {
+      localStorage.setItem(LS_HIDDEN_IDS, JSON.stringify([...hiddenIds]));
+    } catch {
+      /* ignore */
+    }
+  }, [hiddenIds, prefsHydrated]);
+
+  const currentLocatableIds = useMemo(
+    () => new Set(locatableDevices.map((d) => d.id)),
+    [locatableDevices],
+  );
+
+  useEffect(() => {
+    setHiddenIds((prev) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (currentLocatableIds.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [currentLocatableIds]);
+
+  useEffect(() => {
+    if (!prefsHydrated) return;
+    try {
+      localStorage.setItem(LS_PANEL_OPEN, devicesPanelOpen ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [devicesPanelOpen, prefsHydrated]);
 
   // History
   const [showHistory, setShowHistory] = useState(false);
   const [timeWindowIdx, setTimeWindowIdx] = useState(0); // index into TIME_WINDOWS
   const [historyPaths, setHistoryPaths] = useState<Record<string, HistoryPoint[]>>({});
 
-  const toggleDevice = useCallback((id: string) => {
-    setVisibleIds((prev) => {
+  const toggleDeviceOnMap = useCallback((id: string) => {
+    setHiddenIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -124,7 +158,7 @@ export default function LocationsPage() {
 
     async function load() {
       const results: Record<string, HistoryPoint[]> = {};
-      const visible = locatableDevices.filter((d) => visibleIds.has(d.id));
+      const visible = locatableDevices.filter((d) => !hiddenIds.has(d.id));
       await Promise.all(
         visible.map(async (d) => {
           try {
@@ -156,67 +190,15 @@ export default function LocationsPage() {
 
     load();
     return () => { cancelled = true; };
-  }, [showHistory, timeWindowIdx, locatableDevices, visibleIds]);
+  }, [showHistory, timeWindowIdx, locatableDevices, hiddenIds]);
 
   const visibleDevices = useMemo(
-    () => locatableDevices.filter((d) => visibleIds.has(d.id)),
-    [locatableDevices, visibleIds],
+    () => locatableDevices.filter((d) => !hiddenIds.has(d.id)),
+    [locatableDevices, hiddenIds],
   );
 
   return (
     <div className="w-full flex" style={{ height: '100vh' }}>
-      {/* ---- Left sidebar: device list ---- */}
-      <div
-        className="flex flex-col border-r transition-all duration-200 overflow-hidden shrink-0"
-        style={{
-          width: sidebarOpen ? 220 : 0,
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-card-bg)',
-        }}
-      >
-        <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
-          Devices
-        </div>
-        <div className="flex-1 overflow-y-auto px-2 space-y-0.5">
-          {locatableDevices.length === 0 && (
-            <p className="text-xs px-2 py-4" style={{ color: 'var(--color-text-secondary)' }}>
-              No devices reporting location
-            </p>
-          )}
-          {locatableDevices.map((d) => (
-            <label
-              key={d.id}
-              className="flex items-center gap-2 rounded px-2 py-1.5 cursor-pointer text-sm hover:opacity-80"
-              style={{ color: 'var(--color-text)' }}
-            >
-              <input
-                type="checkbox"
-                checked={visibleIds.has(d.id)}
-                onChange={() => toggleDevice(d.id)}
-                className="accent-[var(--color-accent)] h-3.5 w-3.5"
-              />
-              <span className="truncate" title={d.deviceType}>
-                {d.displayName || d.name}
-              </span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* ---- Sidebar toggle tab ---- */}
-      <button
-        onClick={() => setSidebarOpen((v) => !v)}
-        className="shrink-0 flex items-center justify-center border-r"
-        style={{
-          width: 20,
-          backgroundColor: 'var(--color-card-bg)',
-          borderColor: 'var(--color-border)',
-          color: 'var(--color-text-secondary)',
-        }}
-      >
-        {sidebarOpen ? <ChevronLeft className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-      </button>
-
       {/* ---- Map + bottom bar ---- */}
       <div className="flex-1 flex flex-col relative min-w-0">
         <div className="flex-1 relative">
@@ -224,6 +206,22 @@ export default function LocationsPage() {
             devices={visibleDevices}
             historyPaths={showHistory ? historyPaths : {}}
           />
+          {!devicesPanelOpen && (
+            <button
+              type="button"
+              onClick={() => setDevicesPanelOpen(true)}
+              className="absolute top-3 right-3 z-[1000] flex items-center gap-2 rounded-md border px-3 py-2 text-sm shadow-md"
+              style={{
+                backgroundColor: 'var(--color-card-bg)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)',
+              }}
+              aria-label="Open map devices panel"
+            >
+              <MapPinned className="h-4 w-4 shrink-0" style={{ color: 'var(--color-accent)' }} />
+              Map devices
+            </button>
+          )}
         </div>
 
         {/* ---- Bottom bar ---- */}
@@ -266,9 +264,63 @@ export default function LocationsPage() {
           )}
         </div>
       </div>
+
+      {/* ---- Right panel: toggle tab ---- */}
+      <button
+        type="button"
+        onClick={() => setDevicesPanelOpen((v) => !v)}
+        className="shrink-0 flex items-center justify-center border-l"
+        style={{
+          width: 20,
+          backgroundColor: 'var(--color-card-bg)',
+          borderColor: 'var(--color-border)',
+          color: 'var(--color-text-secondary)',
+        }}
+        aria-label={devicesPanelOpen ? 'Collapse map devices panel' : 'Expand map devices panel'}
+      >
+        {devicesPanelOpen ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
+      </button>
+
+      {/* ---- Right sidebar: devices on map ---- */}
+      <div
+        className="flex flex-col border-l transition-all duration-200 overflow-hidden shrink-0"
+        style={{
+          width: devicesPanelOpen ? 240 : 0,
+          borderColor: 'var(--color-border)',
+          backgroundColor: 'var(--color-card-bg)',
+        }}
+      >
+        <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
+          Map devices
+        </div>
+        <p className="px-3 pb-2 text-[11px] leading-snug" style={{ color: 'var(--color-text-secondary)' }}>
+          Choose which locators appear on the map. Your choices are saved in this browser.
+        </p>
+        <div className="flex-1 overflow-y-auto px-2 space-y-0.5 pb-2">
+          {locatableDevices.length === 0 && (
+            <p className="text-xs px-2 py-4" style={{ color: 'var(--color-text-secondary)' }}>
+              No devices reporting location
+            </p>
+          )}
+          {locatableDevices.map((d) => (
+            <label
+              key={d.id}
+              className="flex items-center gap-2 rounded px-2 py-1.5 cursor-pointer text-sm hover:opacity-80"
+              style={{ color: 'var(--color-text)' }}
+            >
+              <input
+                type="checkbox"
+                checked={!hiddenIds.has(d.id)}
+                onChange={() => toggleDeviceOnMap(d.id)}
+                className="accent-[var(--color-accent)] h-3.5 w-3.5"
+              />
+              <span className="truncate">
+                {d.displayName || d.name}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
-
-/** Locatable device IDs we've already defaulted to visible (user can still uncheck). */
-const everSeen = new Set<string>();

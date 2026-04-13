@@ -2,7 +2,7 @@
 
 import { useTheme } from '@/providers/ThemeProvider';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import { LCARSSidebar } from './LCARSSidebar';
 import { LCARSStartup } from './LCARSStartup';
 import { LCARSElbow } from './LCARSElbow';
@@ -21,7 +21,7 @@ import { lcarsVerticalRailGradient } from './lcarsRailGradient';
 import { LCARSBreadcrumbBlocks } from './LCARSBreadcrumbBlocks';
 import { getBreadcrumbItems } from '@/lib/appBreadcrumbs';
 import { AppVersionLabel } from '../layout/AppVersionLabel';
-import { AssistantHeaderButton } from '../ChatBot';
+import { AssistantHeaderButton, LCARSAssistantInsetSync } from '../ChatBot';
 import { LCARSFrameProvider } from './LCARSFrameContext';
 import { FooterSlotProvider, useFooterSlot } from './LCARSFooterSlotContext';
 import { useLCARSSounds } from './LCARSSounds';
@@ -133,7 +133,19 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
   const { colors } = useLCARSVariant();
   const { alertLevel } = useAlert();
   const terminalInset = useSystemTerminalBottomInset();
-  const { open: terminalOpen, setOpen: setTerminalOpen, canUse: canUseTerminal, logFilter, setLogFilter } = useSystemTerminal();
+  const {
+    open: terminalOpen,
+    setOpen: setTerminalOpen,
+    canUse: canUseTerminal,
+    logFilter,
+    setLogFilter,
+    logDetailStyle,
+    setLogDetailStyle,
+  } = useSystemTerminal();
+
+  const toggleLogDetailStyle = useCallback(() => {
+    setLogDetailStyle(logDetailStyle === 'terminal' ? 'digest' : 'terminal');
+  }, [logDetailStyle, setLogDetailStyle]);
   const { devices, integrations } = useWebSocket();
   const { play: playSound } = useLCARSSounds();
   const [showStartup, setShowStartup] = useState(true);
@@ -207,7 +219,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
     { id: 'error', label: 'Err' },
   ];
 
-  /** Filter pill buttons — 4 buttons in 2×2 grid. */
+  /** Rows: All|Warn, Info|Err, Full under left column — same pill size throughout. */
   const statusFilterButtons = showTopTerminal ? (
     <div
       style={{
@@ -224,43 +236,64 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         pointerEvents: 'auto',
       }}
     >
-      {/* Inner column — rounded on both sides */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {STATUS_FILTERS.slice(0, 2).map(({ id, label }) => (
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 4 }}>
+          {[STATUS_FILTERS[0], STATUS_FILTERS[2]].map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              className={`lcars-btn lcars-btn--pill${logFilter === id ? ' lcars-btn--active' : ''}`}
+              style={{
+                background: logFilter === id ? colors.navActive : colors.muted,
+                minWidth: 88,
+                minHeight: 36,
+                fontSize: 12,
+              }}
+              onClick={() => setLogFilter(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 4 }}>
+          {[STATUS_FILTERS[1], STATUS_FILTERS[3]].map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              className={`lcars-btn lcars-btn--pill${logFilter === id ? ' lcars-btn--active' : ''}`}
+              style={{
+                background: logFilter === id ? colors.navActive : colors.muted,
+                minWidth: 88,
+                minHeight: 36,
+                fontSize: 12,
+              }}
+              onClick={() => setLogFilter(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 4 }}>
           <button
-            key={id}
             type="button"
-            className={`lcars-btn lcars-btn--pill${logFilter === id ? ' lcars-btn--active' : ''}`}
+            className={`lcars-btn lcars-btn--pill${logDetailStyle === 'terminal' ? ' lcars-btn--active' : ''}`}
             style={{
-              background: logFilter === id ? colors.navActive : colors.muted,
+              background: logDetailStyle === 'terminal' ? colors.navActive : colors.muted,
               minWidth: 88,
               minHeight: 36,
               fontSize: 12,
             }}
-            onClick={() => setLogFilter(id)}
+            aria-label={
+              logDetailStyle === 'terminal'
+                ? 'Switch to one-line log summaries'
+                : 'Show full terminal-style log lines'
+            }
+            onClick={toggleLogDetailStyle}
           >
-            {label}
+            {logDetailStyle === 'terminal' ? 'Short' : 'Full'}
           </button>
-        ))}
-      </div>
-      {/* Outer column — pill-left (rounded left, flat right touching edge) */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {STATUS_FILTERS.slice(2, 4).map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            className={`lcars-btn lcars-btn--pill-left${logFilter === id ? ' lcars-btn--active' : ''}`}
-            style={{
-              background: logFilter === id ? colors.navActive : colors.muted,
-              minWidth: 88,
-              minHeight: 36,
-              fontSize: 12,
-            }}
-            onClick={() => setLogFilter(id as TerminalLogFilter)}
-          >
-            {label}
-          </button>
-        ))}
+          <div style={{ minWidth: 88, flexShrink: 0 }} aria-hidden />
+        </div>
       </div>
     </div>
   ) : null;
@@ -373,7 +406,8 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
             borderRadius: 0,
             background: connected ? '#99cc66' : '#cc4444',
           }}
-          title={connected ? 'Connected' : 'Disconnected'}
+          aria-label={connected ? 'Connected' : 'Disconnected'}
+          role="img"
         />
       </div>
       <div style={{ width: FOOTER_BAR_GAP_PX, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
@@ -424,19 +458,31 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
 
   const alertClass = alertLevel === 'red' ? 'lcars-alert-red' : alertLevel === 'yellow' ? 'lcars-alert-yellow' : '';
 
-  const frameGeometry = {
-    contentTop,
-    contentBottom,
-    contentLeft,
-    contentRight: CONTENT_EDGE,
-    barW,
-    elbowW,
-    headerH: HEADER_H,
-    footerH: FOOTER_H,
-    showTopTerminal: !!showTopTerminal,
-    topChromeH,
-    mainChromeTop,
-  };
+  const frameGeometry = useMemo(
+    () => ({
+      contentTop,
+      contentBottom,
+      contentLeft,
+      contentRight: CONTENT_EDGE,
+      barW,
+      elbowW,
+      headerH: HEADER_H,
+      footerH: FOOTER_H,
+      showTopTerminal: !!showTopTerminal,
+      topChromeH,
+      mainChromeTop,
+    }),
+    [
+      contentTop,
+      contentBottom,
+      contentLeft,
+      barW,
+      elbowW,
+      showTopTerminal,
+      topChromeH,
+      mainChromeTop,
+    ],
+  );
 
   const handleFrameClick = useCallback((e: React.MouseEvent) => {
     const el = e.target as HTMLElement;
@@ -450,7 +496,15 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
   return (
     <FooterSlotProvider>
     <LCARSFrameProvider value={frameGeometry}>
-    <div className={`lcars-frame ${alertClass}`} style={{ minHeight: '100vh', background: '#000' }} onClick={handleFrameClick}>
+    <div
+      className={`lcars-frame ${alertClass}`}
+      style={{
+        minHeight: '100vh',
+        background: '#000',
+      }}
+      onClick={handleFrameClick}
+    >
+      <LCARSAssistantInsetSync geometry={frameGeometry} framePin={framePin} />
 
       {showTopTerminal && (
         <>
@@ -721,7 +775,8 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
                     borderRadius: 0,
                     background: connected ? '#99cc66' : '#cc4444',
                   }}
-                  title={connected ? 'Connected' : 'Disconnected'}
+                  aria-label={connected ? 'Connected' : 'Disconnected'}
+                  role="img"
                 />
               </div>
               <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
@@ -850,8 +905,11 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         bottom: contentBottom,
         padding: `12px ${CONTENT_EDGE + 6}px 16px ${FRAME_STRIPE_W + 14}px`,
         background: '#000',
+        overflowX: 'hidden',
         overflowY: 'auto',
         zIndex: 1,
+        /* `absolute inset-0` recipe detail fills this box; min-height 0 helps nested flex scroll regions */
+        minHeight: 0,
         transition: 'top 0.2s ease-out, left 0.2s ease-in-out, bottom 0.2s ease-out, border-color 0.3s ease, background 0.3s ease',
       }}>
         {children}

@@ -399,7 +399,7 @@ export function TimeSeriesGraph({ signals, from, to, height = 280, className }: 
           backgroundColor: showControls ? 'var(--color-bg-hover)' : 'transparent',
           color: 'var(--color-text-muted)',
         }}
-        title="Graph controls"
+        aria-label="Graph controls"
       >
         <Settings className="h-3.5 w-3.5" />
       </button>

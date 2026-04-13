@@ -49,7 +49,7 @@ function NavLink({
   return (
     <Link
       href={href}
-      title={collapsed ? label : undefined}
+      aria-label={collapsed ? label : undefined}
       className={clsx(
         'flex items-center rounded-lg py-2 text-sm font-medium transition-colors',
         collapsed ? 'justify-center px-2' : 'gap-3 px-3',
@@ -111,7 +111,7 @@ export function Sidebar({
           onClick={onToggle}
           className="rounded-lg p-1.5 transition-colors hover:bg-white/10"
           style={{ color: 'var(--color-sidebar-text)' }}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? (
             <PanelLeftOpen className="h-5 w-5" />

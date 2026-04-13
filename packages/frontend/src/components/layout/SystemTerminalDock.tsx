@@ -3,11 +3,15 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clsx } from 'clsx';
-import { X, AlertTriangle, Info, AlertOctagon, ListTree, Braces, ExternalLink } from 'lucide-react';
+import { X, AlertTriangle, Info, AlertOctagon, ListTree, Braces } from 'lucide-react';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { TERMINAL_PANEL_HEIGHT, useSystemTerminal, type TerminalLogFilter } from '@/providers/SystemTerminalProvider';
-import { formatLogPrimaryLine } from '@/lib/logDisplay';
+import {
+  formatLogPrimaryLine,
+  formatTerminalLogLines,
+  formatTerminalTimestamp,
+} from '@/lib/logDisplay';
 import { getLogInvestigationLinks } from '@/lib/logInvestigation';
 
 const API_BASE = typeof window !== 'undefined'
@@ -21,6 +25,7 @@ interface LogEntry {
   level: LogLevelLabel;
   msg: string;
   context?: Record<string, unknown>;
+  pid?: number;
 }
 
 function matchesFilter(level: LogLevelLabel, filter: TerminalLogFilter): boolean {
@@ -81,11 +86,16 @@ export function SystemTerminalDock({
 }) {
   const { activeTheme } = useTheme();
   const isMdUp = useMediaQuery('(min-width: 768px)');
-  const { logFilter: filter, setLogFilter: setFilter } = useSystemTerminal();
+  const {
+    logFilter: filter,
+    setLogFilter: setFilter,
+    logDetailStyle,
+    setLogDetailStyle,
+    logAutoScroll,
+    setLogAutoScroll,
+  } = useSystemTerminal();
   const [entries, setEntries] = useState<LogEntry[]>([]);
-  /** When false (default), hide structured context JSON — only level + message stay prominent. */
-  const [showDetails, setShowDetails] = useState(false);
-  /** Row expanded by click — same detail as global "Details" for that line only */
+  /** Row expanded by click — full JSON + deep links */
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -266,12 +276,12 @@ export function SystemTerminalDock({
           </span>
           <button
             type="button"
-            onClick={() => setShowDetails((v) => !v)}
-            aria-pressed={showDetails}
-            title={
-              showDetails
-                ? 'Hide extra fields (stack traces, raw context)'
-                : 'Show full log context (JSON, errors, stacks)'
+            onClick={() => setLogDetailStyle(logDetailStyle === 'terminal' ? 'digest' : 'terminal')}
+            aria-pressed={logDetailStyle === 'terminal'}
+            aria-label={
+              logDetailStyle === 'terminal'
+                ? 'Switch to one-line log summaries'
+                : 'Show full terminal-style log lines'
             }
             className={clsx(
               'shrink-0 transition-colors',
@@ -282,13 +292,14 @@ export function SystemTerminalDock({
                 : 'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium',
             )}
             style={{
-              backgroundColor: showDetails ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-              color: showDetails ? '#fff' : 'var(--color-text-secondary)',
+              backgroundColor:
+                logDetailStyle === 'terminal' ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+              color: logDetailStyle === 'terminal' ? '#fff' : 'var(--color-text-secondary)',
             }}
           >
             {!isLCARS && <Braces className="h-3.5 w-3.5 opacity-90" />}
             <span className={clsx(!isLCARS && 'hidden sm:inline')}>
-              {showDetails ? 'Hide details' : 'Details'}
+              {logDetailStyle === 'terminal' ? 'Short' : 'Full'}
             </span>
           </button>
           <button
@@ -303,7 +314,7 @@ export function SystemTerminalDock({
                 : 'rounded-md p-1.5',
             )}
             style={{ color: 'var(--color-text-secondary)' }}
-            title="Close"
+            aria-label="Close system terminal"
           >
             {isLCARS ? '×' : <X className="h-4 w-4" />}
           </button>
@@ -354,10 +365,19 @@ export function SystemTerminalDock({
             const rowKey = `${e.ts}:${i}:${e.level}:${e.msg.slice(0, 64)}`;
             const expanded = expandedRowKey === rowKey;
             const investigationLinks = getLogInvestigationLinks(e);
-            const showLineMeta = showDetails && !expanded;
             const contextKeys = e.context ? Object.keys(e.context).length : 0;
             const contextJson =
               e.context && contextKeys > 0 ? JSON.stringify(e.context, null, 2) : null;
+            const terminalLines =
+              logDetailStyle === 'terminal'
+                ? formatTerminalLogLines({
+                    ts: e.ts,
+                    level: e.level,
+                    msg: e.msg,
+                    context: e.context,
+                    pid: e.pid,
+                  })
+                : null;
 
             const activateLine = () => {
               stickBottomRef.current = false;
@@ -372,67 +392,43 @@ export function SystemTerminalDock({
                   expanded && (isLCARS ? 'rounded-sm bg-white/[0.06]' : 'rounded-md bg-[var(--color-bg-secondary)]/80'),
                 )}
               >
-                <div className="flex items-start gap-1">
-                  <button
-                    type="button"
-                    onClick={activateLine}
-                    aria-expanded={expanded}
-                    title={
-                      expanded
-                        ? 'Collapse details (resume auto-scroll when you scroll to the bottom)'
-                        : 'Show timestamp, level, message, and full context; pause auto-scroll'
-                    }
-                    className={clsx(
-                      'min-w-0 flex-1 rounded-sm text-left transition-colors',
-                      isLCARS ? 'hover:bg-white/10' : 'hover:bg-[var(--color-bg-hover)]/50',
-                    )}
-                  >
-                    {showLineMeta && (
-                      <>
-                        <span style={{ color: 'var(--color-text-muted)' }}>
-                          {new Date(e.ts).toLocaleTimeString()}
-                        </span>{' '}
-                        <span
-                          className={clsx('inline-block w-4 shrink-0 text-center font-bold', levelStyle(e.level))}
-                          title={e.level}
-                        >
-                          {LEVEL_BADGE[e.level]}
-                        </span>{' '}
-                      </>
-                    )}
-                    <span className={clsx('text-[var(--color-text)]', levelStyle(e.level))}>
-                      {formatLogPrimaryLine(e)}
-                    </span>
-                    {showLineMeta && e.context && contextKeys > 0 && (
-                      <span style={{ color: 'var(--color-text-muted)' }}>
-                        {' '}
-                        {JSON.stringify(e.context)}
-                      </span>
-                    )}
-                  </button>
-                  {investigationLinks.length > 0 && (
-                    <div className="flex shrink-0 items-start gap-0.5 pt-0.5">
-                      {investigationLinks.map((link) => (
-                        <Link
-                          key={link.href}
-                          href={link.href}
-                          title={`Open: ${link.label}`}
-                          className={clsx(
-                            'inline-flex shrink-0 rounded-sm transition-opacity hover:opacity-100',
-                            isLCARS ? 'p-0.5 opacity-90' : 'p-1 opacity-80 hover:bg-[var(--color-bg-hover)]',
-                          )}
-                          style={{ color: 'var(--color-accent)' }}
-                          onClick={() => {
-                            stickBottomRef.current = false;
-                          }}
-                        >
-                          <ExternalLink className={isLCARS ? 'h-2.5 w-2.5' : 'h-3.5 w-3.5'} aria-hidden />
-                          <span className="sr-only">{link.label}</span>
-                        </Link>
-                      ))}
-                    </div>
+                <button
+                  type="button"
+                  onClick={activateLine}
+                  aria-expanded={expanded}
+                  aria-label={expanded ? 'Collapse log line details' : 'Expand log line details'}
+                  className={clsx(
+                    'min-w-0 w-full rounded-sm text-left transition-colors',
+                    isLCARS ? 'hover:bg-white/10' : 'hover:bg-[var(--color-bg-hover)]/50',
                   )}
-                </div>
+                >
+                  {logDetailStyle === 'terminal' && terminalLines ? (
+                    terminalLines.map((line, li) => (
+                      <div
+                        key={li}
+                        className={clsx(li > 0 && 'opacity-[0.9]')}
+                        style={li > 0 ? { color: 'var(--color-text-muted)' } : undefined}
+                      >
+                        <span className={li === 0 ? clsx(levelStyle(e.level)) : undefined}>{line}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <>
+                      <span style={{ color: 'var(--color-text-muted)' }}>
+                        [{formatTerminalTimestamp(e.ts)}]
+                      </span>{' '}
+                      <span
+                        className={clsx('inline-block w-4 shrink-0 text-center font-bold', levelStyle(e.level))}
+                        aria-hidden
+                      >
+                        {LEVEL_BADGE[e.level]}
+                      </span>{' '}
+                      <span className={clsx('text-[var(--color-text)]', levelStyle(e.level))}>
+                        {formatLogPrimaryLine(e)}
+                      </span>
+                    </>
+                  )}
+                </button>
                 {expanded && (
                   <div
                     className={clsx(

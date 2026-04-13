@@ -8,19 +8,18 @@ import {
   CookingPot,
   Search,
   RefreshCw,
-  X,
   Star,
   Clock,
   Loader2,
   Timer,
-  Play,
-  Pause,
-  RotateCcw,
   ChevronLeft,
   ChevronUp,
   ChevronDown,
-  Plus,
 } from 'lucide-react';
+import { useAssistant } from '@/components/ChatBot';
+import { useLCARSFrame } from '@/components/lcars/LCARSFrameContext';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useSystemTerminalBottomInset } from '@/providers/SystemTerminalProvider';
 import {
   getPaprikaRecipesFull,
   getPaprikaCategories,
@@ -29,157 +28,6 @@ import {
   refreshPaprika,
 } from '@/lib/api';
 import type { PaprikaRecipe, PaprikaCategory, PaprikaGroceryItem, PaprikaMeal } from '@ha/shared';
-
-// ---------------------------------------------------------------------------
-// Timer system
-// ---------------------------------------------------------------------------
-
-interface CookingTimer {
-  id: string;
-  label: string;
-  totalSeconds: number;
-  remainingSeconds: number;
-  running: boolean;
-}
-
-function formatTimer(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-const QUICK_TIMERS = [
-  { label: '1 min', seconds: 60 },
-  { label: '3 min', seconds: 180 },
-  { label: '5 min', seconds: 300 },
-  { label: '10 min', seconds: 600 },
-  { label: '15 min', seconds: 900 },
-  { label: '20 min', seconds: 1200 },
-  { label: '30 min', seconds: 1800 },
-  { label: '45 min', seconds: 2700 },
-  { label: '1 hr', seconds: 3600 },
-];
-
-function TimerBar({
-  timers,
-  onToggle,
-  onReset,
-  onRemove,
-  onAdd,
-}: {
-  timers: CookingTimer[];
-  onToggle: (id: string) => void;
-  onReset: (id: string) => void;
-  onRemove: (id: string) => void;
-  onAdd: (label: string, seconds: number) => void;
-}) {
-  const [showAdd, setShowAdd] = useState(false);
-
-  return (
-    <div
-      className="flex items-center gap-3 px-4 py-3 border-t overflow-x-auto"
-      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-secondary)' }}
-    >
-      <Timer className="h-5 w-5 shrink-0" style={{ color: 'var(--color-text-muted)' }} />
-
-      {timers.map((t) => (
-        <div
-          key={t.id}
-          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm shrink-0"
-          style={{
-            backgroundColor: t.remainingSeconds === 0
-              ? 'var(--color-danger)'
-              : t.running ? 'var(--color-success)' : 'var(--color-bg-hover)',
-            color: (t.remainingSeconds === 0 || t.running) ? '#fff' : 'var(--color-text)',
-          }}
-        >
-          <span className="font-mono font-semibold text-base">{formatTimer(t.remainingSeconds)}</span>
-          <span className="opacity-75">{t.label}</span>
-          <button onClick={() => onToggle(t.id)} className="p-1.5 opacity-75 hover:opacity-100">
-            {t.running ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-          </button>
-          <button onClick={() => onReset(t.id)} className="p-1.5 opacity-75 hover:opacity-100">
-            <RotateCcw className="h-5 w-5" />
-          </button>
-          <button onClick={() => onRemove(t.id)} className="p-1.5 opacity-50 hover:opacity-100">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      ))}
-
-      {showAdd ? (
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          {QUICK_TIMERS.map((qt) => (
-            <button
-              key={qt.seconds}
-              onClick={() => { onAdd(qt.label, qt.seconds); setShowAdd(false); }}
-              className="rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-colors hover:bg-[var(--color-bg-hover)]"
-              style={{ color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}
-            >
-              {qt.label}
-            </button>
-          ))}
-          <button onClick={() => setShowAdd(false)} className="p-2">
-            <X className="h-5 w-5" style={{ color: 'var(--color-text-muted)' }} />
-          </button>
-        </div>
-      ) : (
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm shrink-0 transition-colors hover:bg-[var(--color-bg-hover)]"
-          style={{ color: 'var(--color-text-muted)', border: '1px dashed var(--color-border)' }}
-        >
-          <Plus className="h-5 w-5" /> Timer
-        </button>
-      )}
-    </div>
-  );
-}
-
-function useTimers() {
-  const [timers, setTimers] = useState<CookingTimer[]>([]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimers((prev) => {
-        let changed = false;
-        const next = prev.map((t) => {
-          if (t.running && t.remainingSeconds > 0) {
-            changed = true;
-            return { ...t, remainingSeconds: t.remainingSeconds - 1 };
-          }
-          return t;
-        });
-        return changed ? next : prev;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const addTimer = useCallback((label: string, seconds: number) => {
-    setTimers((prev) => [...prev, {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      label,
-      totalSeconds: seconds,
-      remainingSeconds: seconds,
-      running: true,
-    }]);
-  }, []);
-
-  const toggleTimer = useCallback((id: string) => {
-    setTimers((prev) => prev.map((t) => t.id === id ? { ...t, running: !t.running } : t));
-  }, []);
-
-  const resetTimer = useCallback((id: string) => {
-    setTimers((prev) => prev.map((t) => t.id === id ? { ...t, remainingSeconds: t.totalSeconds, running: false } : t));
-  }, []);
-
-  const removeTimer = useCallback((id: string) => {
-    setTimers((prev) => prev.filter((t) => t.id !== id));
-  }, []);
-
-  return { timers, addTimer, toggleTimer, resetTimer, removeTimer };
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -235,25 +83,42 @@ function todayStr(): string {
 function RecipeDetail({
   recipe,
   onBack,
-  timerBar,
+  onOpenTimers,
 }: {
   recipe: PaprikaRecipe;
   onBack: () => void;
-  timerBar: React.ReactNode;
+  onOpenTimers: () => void;
 }) {
   const [photoExpanded, setPhotoExpanded] = useState(true);
   const imgSrc = recipeImageSrc(recipe);
+  const isMdUp = useMediaQuery('(min-width: 768px)');
+  const terminalBottom = useSystemTerminalBottomInset();
+  const lcarsFrame = useLCARSFrame();
+  /** LCARS: content lives in `main.lcars-content` (fixed + overflow-y auto); fill that rect — do not use 100dvh or the whole main scrolls. */
+  const inLcarsContent = lcarsFrame !== null;
+  const shellHeight = useMemo(() => {
+    const headerPx = 48;
+    const bottomNavPx = isMdUp ? 0 : 64;
+    return `calc(100dvh - ${headerPx + bottomNavPx + terminalBottom}px)`;
+  }, [isMdUp, terminalBottom]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)] md:h-screen">
+    <div
+      className={
+        inLcarsContent
+          ? 'absolute inset-0 z-[1] flex min-h-0 flex-col overflow-hidden'
+          : 'flex min-h-0 flex-col overflow-hidden'
+      }
+      style={inLcarsContent ? undefined : { height: shellHeight, maxHeight: shellHeight }}
+    >
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b shrink-0" style={{ borderColor: 'var(--color-border)' }}>
-        <button onClick={onBack} className="p-1 rounded-md hover:bg-[var(--color-bg-hover)]">
+      <div className="flex shrink-0 items-center gap-3 border-b px-4 py-2" style={{ borderColor: 'var(--color-border)' }}>
+        <button type="button" onClick={onBack} className="rounded-md p-1 hover:bg-[var(--color-bg-hover)]" aria-label="Back to recipes">
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-base font-semibold truncate">{recipe.name}</h1>
-          <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-base font-semibold">{recipe.name}</h1>
+          <div className="flex flex-wrap items-center gap-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>
             {recipe.rating > 0 && <StarsDisplay rating={recipe.rating} />}
             {recipe.total_time && (
               <span className="flex items-center gap-1">
@@ -264,61 +129,72 @@ function RecipeDetail({
             {recipe.source && <span>{recipe.source}</span>}
           </div>
         </div>
+        <button
+          type="button"
+          onClick={onOpenTimers}
+          className="flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
+          style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+          aria-label="Open kitchen timers"
+        >
+          <Timer className="h-4 w-4" />
+          Timers
+        </button>
       </div>
 
-      {/* Two-column layout: ingredients left, directions right */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Ingredients panel */}
+      {/* Two columns: left (ingredients + notes) and right (directions) each scroll independently */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <div
-          className="w-72 shrink-0 border-r overflow-y-auto p-4"
+          className="flex w-72 min-w-0 shrink-0 flex-col overflow-hidden border-r"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-secondary)' }}
         >
-          <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--color-text-muted)' }}>
-            Ingredients
-          </h2>
-          {recipe.ingredients ? (
-            <div className="space-y-1">
-              {recipe.ingredients.split('\n').filter(Boolean).map((line, i) => (
-                <label key={i} className="flex items-start gap-2 text-sm cursor-pointer group">
-                  <input type="checkbox" className="mt-1 h-3.5 w-3.5 shrink-0" />
-                  <span className="group-has-[:checked]:line-through group-has-[:checked]:opacity-50">
-                    {line}
-                  </span>
-                </label>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No ingredients listed</p>
-          )}
+          <div className="ha-hide-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
+              Ingredients
+            </h2>
+            {recipe.ingredients ? (
+              <div className="space-y-1 pr-1">
+                {recipe.ingredients.split('\n').filter(Boolean).map((line, i) => (
+                  <label key={i} className="group flex cursor-pointer items-start gap-2 text-sm">
+                    <input type="checkbox" className="mt-1 h-3.5 w-3.5 shrink-0" />
+                    <span className="group-has-[:checked]:line-through group-has-[:checked]:opacity-50">
+                      {line}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No ingredients listed</p>
+            )}
 
-          {recipe.notes && (
-            <div className="mt-6">
-              <h2 className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-text-muted)' }}>
-                Notes
-              </h2>
-              <p className="text-sm whitespace-pre-line" style={{ color: 'var(--color-text-secondary)' }}>
-                {recipe.notes}
-              </p>
-            </div>
-          )}
+            {recipe.notes ? (
+              <>
+                <h2 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
+                  Notes
+                </h2>
+                <p className="whitespace-pre-line pr-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                  {recipe.notes}
+                </p>
+              </>
+            ) : null}
+          </div>
         </div>
 
-        {/* Directions panel */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {/* Photo above directions */}
+        {/* Directions: photo fixed; steps scroll */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {imgSrc && (
-            <div className="relative mb-4">
+            <div className="shrink-0 px-4 pt-4">
               {photoExpanded ? (
                 <div className="relative">
                   <img
                     src={imgSrc}
                     alt={recipe.name}
-                    className="w-full max-h-64 object-cover rounded-lg"
+                    className="max-h-64 w-full rounded-lg object-cover"
                     onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }}
                   />
                   <button
+                    type="button"
                     onClick={() => setPhotoExpanded(false)}
-                    className="absolute top-2 right-2 flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium backdrop-blur-sm"
+                    className="absolute right-2 top-2 flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium backdrop-blur-sm"
                     style={{ backgroundColor: 'rgba(0,0,0,0.5)', color: '#fff' }}
                   >
                     <ChevronUp className="h-3.5 w-3.5" /> Hide
@@ -326,6 +202,7 @@ function RecipeDetail({
                 </div>
               ) : (
                 <button
+                  type="button"
                   onClick={() => setPhotoExpanded(true)}
                   className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors hover:bg-[var(--color-bg-hover)]"
                   style={{ color: 'var(--color-text-muted)' }}
@@ -336,33 +213,32 @@ function RecipeDetail({
             </div>
           )}
 
-          <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--color-text-muted)' }}>
+          <h2 className="shrink-0 px-4 pt-4 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
             Directions
           </h2>
-          {recipe.directions ? (
-            <div className="space-y-4">
-              {recipe.directions.split('\n').filter(Boolean).map((step, i) => (
-                <div key={i} className="flex gap-3">
-                  <span
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium shrink-0"
-                    style={{ backgroundColor: 'var(--color-accent)', color: '#fff', opacity: 0.85 }}
-                  >
-                    {i + 1}
-                  </span>
-                  <p className="text-sm leading-relaxed pt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
-                    {step}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No directions listed</p>
-          )}
+          <div className="ha-hide-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
+            {recipe.directions ? (
+              <div className="space-y-4">
+                {recipe.directions.split('\n').filter(Boolean).map((step, i) => (
+                  <div key={i} className="flex gap-3">
+                    <span
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-medium"
+                      style={{ backgroundColor: 'var(--color-accent)', color: '#fff', opacity: 0.85 }}
+                    >
+                      {i + 1}
+                    </span>
+                    <p className="pt-0.5 text-sm leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+                      {step}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No directions listed</p>
+            )}
+          </div>
         </div>
       </div>
-
-      {/* Timer bar at bottom */}
-      {timerBar}
     </div>
   );
 }
@@ -385,7 +261,7 @@ export default function RecipesPage() {
   const [selectedRecipe, setSelectedRecipe] = useState<PaprikaRecipe | null>(null);
   const todayRef = useRef<HTMLDivElement>(null);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
-  const { timers, addTimer, toggleTimer, resetTimer, removeTimer } = useTimers();
+  const { openTimersPanel } = useAssistant();
 
   // Close category dropdown on outside click
   useEffect(() => {
@@ -495,23 +371,13 @@ export default function RecipesPage() {
     return [...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [groceries]);
 
-  const timerBar = (
-    <TimerBar
-      timers={timers}
-      onToggle={toggleTimer}
-      onReset={resetTimer}
-      onRemove={removeTimer}
-      onAdd={addTimer}
-    />
-  );
-
   // Full-screen recipe detail view
   if (selectedRecipe) {
     return (
       <RecipeDetail
         recipe={selectedRecipe}
         onBack={() => setSelectedRecipe(null)}
-        timerBar={timerBar}
+        onOpenTimers={openTimersPanel}
       />
     );
   }
@@ -756,13 +622,6 @@ export default function RecipesPage() {
           )}
         </Tabs.Content>
       </Tabs.Root>
-
-      {/* Floating timer bar when timers active but not in recipe detail */}
-      {timers.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 md:left-56 z-40">
-          {timerBar}
-        </div>
-      )}
     </div>
   );
 }

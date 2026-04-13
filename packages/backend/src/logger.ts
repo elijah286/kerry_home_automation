@@ -30,13 +30,14 @@ function captureSerializedLine(s: string): void {
       const p = Date.parse(o.time);
       if (!Number.isNaN(p)) ts = p;
     }
-    const { time: _t, level: _l, msg: _m, pid: _p, hostname: _h, v: _v, ...rest } = o;
+    const { time: _t, level: _l, msg: _m, pid, hostname: _h, v: _v, ...rest } = o;
     const keys = Object.keys(rest);
     appendLogEntry({
       level: lv,
       msg,
       context: keys.length ? (rest as Record<string, unknown>) : undefined,
       ts,
+      pid: typeof pid === 'number' ? pid : undefined,
     });
   } catch {
     /* ignore non-JSON */

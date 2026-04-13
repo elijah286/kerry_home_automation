@@ -4,6 +4,7 @@ import {
   useState,
   useRef,
   useEffect,
+  useLayoutEffect,
   useCallback,
   memo,
   createContext,
@@ -12,11 +13,27 @@ import {
   type ReactNode,
   type CSSProperties,
 } from 'react';
+import type { LCARSFrameGeometry } from '@/components/lcars/LCARSFrameContext';
 import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
-import { MessageSquare, X, Send, Loader2, Bot, User, Maximize2, Minimize2 } from 'lucide-react';
+import {
+  MessageSquare,
+  X,
+  Send,
+  Loader2,
+  Bot,
+  User,
+  Maximize2,
+  Minimize2,
+  Timer,
+  Play,
+  Pause,
+  RotateCcw,
+  Plus,
+  Pencil,
+} from 'lucide-react';
+import { useCookingTimers, formatCookingTimer } from '@/providers/CookingTimersProvider';
 import { clsx } from 'clsx';
-import { useTheme } from '@/providers/ThemeProvider';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 const API_BASE =
@@ -97,10 +114,22 @@ const ChatBubble = memo(function ChatBubble({ msg }: { msg: Message }) {
   );
 });
 
+/** LCARS main content rect + frame accent for docking the assistant (same box as SlidePanel). */
+export type LcarsAssistantDockInset = LCARSFrameGeometry & { framePin: string };
+
+export type RightPanelMode = 'assistant' | 'timers';
+
 interface AssistantContextValue {
   open: boolean;
   setOpen: (v: boolean) => void;
   toggle: () => void;
+  /** Set while LCARS frame is mounted; used because the assistant panel renders outside `.lcars-frame`. */
+  lcarsDockInset: LcarsAssistantDockInset | null;
+  setLcarsDockInset: (v: LcarsAssistantDockInset | null) => void;
+  rightPanelMode: RightPanelMode;
+  setRightPanelMode: (m: RightPanelMode) => void;
+  /** Opens the right panel on the kitchen timers view (used from recipe detail). */
+  openTimersPanel: () => void;
 }
 
 const AssistantContext = createContext<AssistantContextValue | null>(null);
@@ -109,6 +138,22 @@ export function useAssistant(): AssistantContextValue {
   const ctx = useContext(AssistantContext);
   if (!ctx) throw new Error('useAssistant must be used within AssistantProvider');
   return ctx;
+}
+
+/** Pushes LCARS content insets into AssistantProvider so the assistant can match SlidePanel geometry. */
+export function LCARSAssistantInsetSync({
+  geometry,
+  framePin,
+}: {
+  geometry: LCARSFrameGeometry;
+  framePin: string;
+}) {
+  const { setLcarsDockInset } = useAssistant();
+  useLayoutEffect(() => {
+    setLcarsDockInset({ ...geometry, framePin });
+    return () => setLcarsDockInset(null);
+  }, [geometry, framePin, setLcarsDockInset]);
+  return null;
 }
 
 export function AssistantHeaderButton({
@@ -120,13 +165,32 @@ export function AssistantHeaderButton({
   className?: string;
   style?: CSSProperties;
 }) {
-  const { open, toggle } = useAssistant();
+  const { open, setOpen, rightPanelMode, setRightPanelMode } = useAssistant();
+
+  const onClick = () => {
+    if (open && rightPanelMode === 'timers') {
+      setRightPanelMode('assistant');
+      return;
+    }
+    if (open) {
+      setOpen(false);
+    } else {
+      setRightPanelMode('assistant');
+      setOpen(true);
+    }
+  };
 
   return (
     <button
       type="button"
-      onClick={toggle}
-      aria-label={open ? 'Close AI assistant' : 'Open AI assistant'}
+      onClick={onClick}
+      aria-label={
+        open
+          ? rightPanelMode === 'timers'
+            ? 'Switch to AI assistant'
+            : 'Close AI assistant'
+          : 'Open AI assistant'
+      }
       aria-expanded={open}
       className={clsx(
         'flex shrink-0 items-center justify-center shadow-sm',
@@ -164,19 +228,266 @@ export function AssistantHeaderButton({
   );
 }
 
+const QUICK_TIMER_PRESETS = [
+  { label: '1 min', seconds: 60 },
+  { label: '3 min', seconds: 180 },
+  { label: '5 min', seconds: 300 },
+  { label: '10 min', seconds: 600 },
+  { label: '15 min', seconds: 900 },
+  { label: '20 min', seconds: 1200 },
+  { label: '30 min', seconds: 1800 },
+  { label: '45 min', seconds: 2700 },
+  { label: '1 hr', seconds: 3600 },
+];
+
+function KitchenTimersSidebarBody() {
+  const { timers, addTimer, toggleTimer, resetTimer, removeTimer, updateTimerLabel, stopTimer } =
+    useCookingTimers();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [customMinutes, setCustomMinutes] = useState('5');
+  const [customLabel, setCustomLabel] = useState('');
+  const [showPresets, setShowPresets] = useState(false);
+
+  const commitEdit = (id: string) => {
+    updateTimerLabel(id, editDraft);
+    setEditingId(null);
+  };
+
+  const addCustom = () => {
+    const parsed = parseInt(customMinutes, 10);
+    const m = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    const label = customLabel.trim() || `${m} min`;
+    addTimer(label, m * 60);
+    setCustomLabel('');
+  };
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+        {timers.length === 0 && (
+          <p className="text-center text-sm" style={{ color: 'var(--color-text-muted)' }}>
+            No active timers. Add one below or pick a preset.
+          </p>
+        )}
+        {timers.map((t) => (
+          <div
+            key={t.id}
+            className="rounded-lg border p-3 text-sm"
+            style={{
+              borderColor: 'var(--color-border)',
+              backgroundColor:
+                t.remainingSeconds === 0
+                  ? 'color-mix(in srgb, var(--color-danger) 12%, var(--color-bg-secondary))'
+                  : t.running
+                    ? 'color-mix(in srgb, var(--color-success) 10%, var(--color-bg-secondary))'
+                    : 'var(--color-bg-secondary)',
+            }}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div
+                  className="font-mono text-xl font-semibold tabular-nums"
+                  style={{
+                    color:
+                      t.remainingSeconds === 0
+                        ? 'var(--color-danger)'
+                        : t.running
+                          ? 'var(--color-success)'
+                          : 'var(--color-text)',
+                  }}
+                >
+                  {formatCookingTimer(t.remainingSeconds)}
+                </div>
+                {editingId === t.id ? (
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      value={editDraft}
+                      onChange={(e) => setEditDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitEdit(t.id);
+                        if (e.key === 'Escape') setEditingId(null);
+                      }}
+                      className="min-w-0 flex-1 rounded-md border px-2 py-1 text-sm"
+                      style={{
+                        backgroundColor: 'var(--color-bg)',
+                        borderColor: 'var(--color-border)',
+                        color: 'var(--color-text)',
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => commitEdit(t.id)}
+                      className="shrink-0 rounded-md px-2 py-1 text-xs font-medium"
+                      style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
+                    >
+                      Save
+                    </button>
+                  </div>
+                ) : (
+                  <p className="mt-1 truncate" style={{ color: 'var(--color-text-secondary)' }}>
+                    {t.label}
+                  </p>
+                )}
+              </div>
+              <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                {editingId !== t.id && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingId(t.id);
+                      setEditDraft(t.label);
+                    }}
+                    className="rounded-md p-1.5 transition-colors hover:bg-[var(--color-bg-hover)]"
+                    aria-label="Edit label"
+                  >
+                    <Pencil className="h-4 w-4" style={{ color: 'var(--color-text-muted)' }} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => stopTimer(t.id)}
+                  disabled={!t.running}
+                  className="rounded-md px-2 py-1 text-xs font-medium transition-colors disabled:opacity-40 hover:bg-[var(--color-bg-hover)]"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
+                  Stop
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleTimer(t.id)}
+                  className="rounded-md p-1.5 transition-colors hover:bg-[var(--color-bg-hover)]"
+                  aria-label={t.running ? 'Pause' : 'Resume'}
+                >
+                  {t.running ? (
+                    <Pause className="h-4 w-4" style={{ color: 'var(--color-text)' }} />
+                  ) : (
+                    <Play className="h-4 w-4" style={{ color: 'var(--color-text)' }} />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => resetTimer(t.id)}
+                  className="rounded-md p-1.5 transition-colors hover:bg-[var(--color-bg-hover)]"
+                  aria-label="Reset"
+                >
+                  <RotateCcw className="h-4 w-4" style={{ color: 'var(--color-text-muted)' }} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    removeTimer(t.id);
+                    if (editingId === t.id) setEditingId(null);
+                  }}
+                  className="rounded-md p-1.5 transition-colors hover:bg-[var(--color-bg-hover)]"
+                  aria-label="Remove timer"
+                >
+                  <X className="h-4 w-4" style={{ color: 'var(--color-text-muted)' }} />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="shrink-0 border-t p-3" style={{ borderColor: 'var(--color-border)' }}>
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--color-text-muted)' }}>
+          Add timer
+        </p>
+        {showPresets ? (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {QUICK_TIMER_PRESETS.map((qt) => (
+              <button
+                key={qt.seconds}
+                type="button"
+                onClick={() => {
+                  addTimer(qt.label, qt.seconds);
+                  setShowPresets(false);
+                }}
+                className="rounded-md border px-2.5 py-1.5 text-xs transition-colors hover:bg-[var(--color-bg-hover)]"
+                style={{ color: 'var(--color-text-secondary)', borderColor: 'var(--color-border)' }}
+              >
+                {qt.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setShowPresets(false)}
+              className="rounded-md px-2 py-1.5 text-xs"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowPresets(true)}
+            className="mb-3 flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed py-2 text-sm transition-colors hover:bg-[var(--color-bg-hover)]"
+            style={{ color: 'var(--color-text-muted)', borderColor: 'var(--color-border)' }}
+          >
+            <Plus className="h-4 w-4" /> Presets
+          </button>
+        )}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className="flex flex-1 flex-col gap-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            Minutes
+            <input
+              type="number"
+              min={1}
+              value={customMinutes}
+              onChange={(e) => setCustomMinutes(e.target.value)}
+              className="rounded-md border px-2 py-1.5 text-sm"
+              style={{
+                backgroundColor: 'var(--color-bg-secondary)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)',
+              }}
+            />
+          </label>
+          <label className="flex flex-[2] flex-col gap-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            Label (optional)
+            <input
+              type="text"
+              value={customLabel}
+              onChange={(e) => setCustomLabel(e.target.value)}
+              placeholder="e.g. Rice"
+              className="rounded-md border px-2 py-1.5 text-sm"
+              style={{
+                backgroundColor: 'var(--color-bg-secondary)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)',
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={addCustom}
+            className="shrink-0 rounded-md px-3 py-2 text-sm font-medium"
+            style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
+          >
+            Add
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AssistantRightPanel() {
   const router = useRouter();
-  const { activeTheme } = useTheme();
   const isMdUp = useMediaQuery('(min-width: 768px)');
-  const { open, setOpen } = useAssistant();
+  const { open, setOpen, lcarsDockInset, rightPanelMode } = useAssistant();
   const [fullscreen, setFullscreen] = useState(false);
-  const dockInFrame = activeTheme === 'lcars' && isMdUp && !fullscreen;
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const dockInFrame = lcarsDockInset !== null && isMdUp && !fullscreen;
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -185,10 +496,10 @@ function AssistantRightPanel() {
   }, [messages, loading]);
 
   useEffect(() => {
-    if (open && inputRef.current) {
+    if (open && rightPanelMode === 'assistant' && inputRef.current) {
       inputRef.current.focus();
     }
-  }, [open]);
+  }, [open, rightPanelMode]);
 
   useEffect(() => {
     if (!open) return;
@@ -250,6 +561,22 @@ function AssistantRightPanel() {
     setFullscreen(false);
   }, [setOpen]);
 
+  /** Docked panels use `right: contentRight`; `translateX(100%)` alone leaves that inset visible. */
+  const dockedSlideOffPx =
+    dockInFrame && lcarsDockInset
+      ? lcarsDockInset.contentRight + 24
+      : 0;
+
+  const panelTransform = open
+    ? fullscreen
+      ? undefined
+      : 'translateX(0)'
+    : fullscreen
+      ? 'translateX(100%)'
+      : dockInFrame && lcarsDockInset
+        ? `translateX(calc(100% + ${dockedSlideOffPx}px))`
+        : 'translateX(100%)';
+
   return (
     <>
       {/* Backdrop: tap outside to close on narrow screens */}
@@ -264,37 +591,59 @@ function AssistantRightPanel() {
 
       <div
         className={clsx(
-          'fixed z-[50] flex flex-col overflow-hidden shadow-2xl transition-[transform,top,bottom] duration-200 ease-out',
-          fullscreen && 'inset-0 rounded-none border-0',
-          dockInFrame && 'right-0 w-full max-w-[min(420px,100vw)] rounded-none',
-          !fullscreen && !dockInFrame && 'top-0 bottom-0 right-0 w-full max-w-[min(420px,100vw)] rounded-none border-l',
-          open ? 'translate-x-0' : 'translate-x-full pointer-events-none',
+          'fixed z-[50] flex flex-col overflow-hidden transition-[transform,top,bottom,right] duration-200 ease-out',
+          fullscreen && 'inset-0 rounded-none border-0 shadow-2xl',
+          dockInFrame && 'rounded-none border-l-[4px]',
+          !fullscreen && !dockInFrame && 'top-0 bottom-0 right-0 w-full max-w-[min(420px,100vw)] rounded-none border-l shadow-2xl',
+          !open && 'pointer-events-none',
         )}
         style={{
           backgroundColor: 'var(--color-bg)',
           borderColor: 'var(--color-border)',
-          ...(dockInFrame
-            ? {
-                top: 'var(--lcars-assistant-inset-top, 0px)',
-                bottom: 'var(--lcars-assistant-inset-bottom, 0px)',
-                borderLeft: `4px solid var(--lcars-frame-pin, var(--color-border))`,
-                borderTopLeftRadius: 10,
-                borderBottomLeftRadius: 10,
-                boxShadow: '-6px 0 18px -8px rgba(0,0,0,0.5)',
-              }
-            : {}),
+          ...(panelTransform !== undefined ? { transform: panelTransform } : {}),
+          ...(fullscreen
+            ? {}
+            : dockInFrame && lcarsDockInset
+              ? {
+                  top: lcarsDockInset.contentTop,
+                  bottom: lcarsDockInset.contentBottom,
+                  right: lcarsDockInset.contentRight,
+                  width: 'auto',
+                  maxWidth: 'min(420px, 40vw)',
+                  borderLeftColor: lcarsDockInset.framePin,
+                  borderTopLeftRadius: 10,
+                  borderBottomLeftRadius: 10,
+                  filter: 'drop-shadow(-8px 0 24px rgba(0,0,0,0.5))',
+                }
+              : {
+                  top: 0,
+                  bottom: 0,
+                  right: 0,
+                  width: 'auto',
+                  maxWidth: 'min(420px, 100vw)',
+                  borderLeftColor: 'var(--color-border)',
+                  borderTopLeftRadius: 0,
+                  borderBottomLeftRadius: 0,
+                  boxShadow: undefined,
+                }),
         }}
         role="dialog"
         aria-modal={open}
-        aria-label="AI assistant"
+        aria-label={rightPanelMode === 'timers' ? 'Kitchen timers' : 'AI assistant'}
         aria-hidden={!open}
       >
         <div
           className="flex shrink-0 items-center gap-2 px-4 py-3"
           style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
         >
-          <Bot className="h-4 w-4 shrink-0" />
-          <span className="flex-1 text-sm font-medium">AI Assistant</span>
+          {rightPanelMode === 'timers' ? (
+            <Timer className="h-4 w-4 shrink-0" />
+          ) : (
+            <Bot className="h-4 w-4 shrink-0" />
+          )}
+          <span className="flex-1 text-sm font-medium">
+            {rightPanelMode === 'timers' ? 'Kitchen timers' : 'AI Assistant'}
+          </span>
           <button
             type="button"
             onClick={() => setFullscreen(!fullscreen)}
@@ -307,101 +656,107 @@ function AssistantRightPanel() {
             type="button"
             onClick={close}
             className="rounded-md p-1 transition-colors hover:bg-white/20"
-            aria-label="Close assistant"
+            aria-label={rightPanelMode === 'timers' ? 'Close timers' : 'Close assistant'}
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
-          {messages.length === 0 && !loading && (
-            <div className="flex h-full flex-col items-center justify-center px-4 text-center">
-              <Bot className="mb-2 h-8 w-8" style={{ color: 'var(--color-text-muted)' }} />
-              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                Ask me about your devices, or tell me what to do.
-              </p>
-              <div className="mt-3 space-y-1">
-                {['What lights are on?', 'Show me the cameras', 'Help me set up an integration'].map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setInput(s)}
-                    className="block w-full rounded-md px-3 py-1.5 text-left text-xs transition-colors"
-                    style={{
-                      backgroundColor: 'var(--color-bg-secondary)',
-                      color: 'var(--color-text-secondary)',
-                    }}
+        {rightPanelMode === 'timers' ? (
+          <KitchenTimersSidebarBody />
+        ) : (
+          <>
+            <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+              {messages.length === 0 && !loading && (
+                <div className="flex h-full flex-col items-center justify-center px-4 text-center">
+                  <Bot className="mb-2 h-8 w-8" style={{ color: 'var(--color-text-muted)' }} />
+                  <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                    Ask me about your devices, or tell me what to do.
+                  </p>
+                  <div className="mt-3 space-y-1">
+                    {['What lights are on?', 'Show me the cameras', 'Help me set up an integration'].map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setInput(s)}
+                        className="block w-full rounded-md px-3 py-1.5 text-left text-xs transition-colors"
+                        style={{
+                          backgroundColor: 'var(--color-bg-secondary)',
+                          color: 'var(--color-text-secondary)',
+                        }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {messages.map((msg, i) => (
+                <ChatBubble key={i} msg={msg} />
+              ))}
+
+              {loading && (
+                <div className="flex items-start gap-2">
+                  <div
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+                    style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
                   >
-                    {s}
-                  </button>
-                ))}
+                    <Bot className="h-3 w-3" />
+                  </div>
+                  <div className="rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+                    <Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--color-text-muted)' }} />
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div
+                  className="rounded-lg px-3 py-2 text-xs"
+                  style={{
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    color: 'var(--color-danger, #ef4444)',
+                  }}
+                >
+                  {error}
+                </div>
+              )}
+            </div>
+
+            <div className="shrink-0 border-t p-3" style={{ borderColor: 'var(--color-border)' }}>
+              <div className="flex gap-2">
+                <input
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
+                  placeholder="Ask something..."
+                  className="flex-1 rounded-md border px-3 py-2 text-sm transition-colors"
+                  style={{
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-text)',
+                  }}
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={sendMessage}
+                  disabled={loading || !input.trim()}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
+                >
+                  <Send className="h-4 w-4" />
+                </button>
               </div>
             </div>
-          )}
-
-          {messages.map((msg, i) => (
-            <ChatBubble key={i} msg={msg} />
-          ))}
-
-          {loading && (
-            <div className="flex items-start gap-2">
-              <div
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
-                style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
-              >
-                <Bot className="h-3 w-3" />
-              </div>
-              <div className="rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                <Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--color-text-muted)' }} />
-              </div>
-            </div>
-          )}
-
-          {error && (
-            <div
-              className="rounded-lg px-3 py-2 text-xs"
-              style={{
-                backgroundColor: 'var(--color-bg-secondary)',
-                color: 'var(--color-danger, #ef4444)',
-              }}
-            >
-              {error}
-            </div>
-          )}
-        </div>
-
-        <div className="shrink-0 border-t p-3" style={{ borderColor: 'var(--color-border)' }}>
-          <div className="flex gap-2">
-            <input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  sendMessage();
-                }
-              }}
-              placeholder="Ask something..."
-              className="flex-1 rounded-md border px-3 py-2 text-sm transition-colors"
-              style={{
-                backgroundColor: 'var(--color-bg-secondary)',
-                borderColor: 'var(--color-border)',
-                color: 'var(--color-text)',
-              }}
-              disabled={loading}
-            />
-            <button
-              type="button"
-              onClick={sendMessage}
-              disabled={loading || !input.trim()}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-50"
-              style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </>
   );
@@ -409,13 +764,33 @@ function AssistantRightPanel() {
 
 export function AssistantProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>('assistant');
+  const [lcarsDockInset, setLcarsDockInset] = useState<LcarsAssistantDockInset | null>(null);
+
+  const openTimersPanel = useCallback(() => {
+    setRightPanelMode('timers');
+    setOpen(true);
+  }, []);
+
+  const toggle = useCallback(() => {
+    setOpen((o) => {
+      if (!o) setRightPanelMode('assistant');
+      return !o;
+    });
+  }, []);
+
   const value = useMemo(
     () => ({
       open,
       setOpen,
-      toggle: () => setOpen((o) => !o),
+      toggle,
+      lcarsDockInset,
+      setLcarsDockInset,
+      rightPanelMode,
+      setRightPanelMode,
+      openTimersPanel,
     }),
-    [open],
+    [open, toggle, lcarsDockInset, rightPanelMode, openTimersPanel],
   );
 
   return (
