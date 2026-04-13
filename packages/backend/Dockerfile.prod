@@ -38,4 +38,5 @@ COPY --from=builder /app/package.json ./package.json
 
 WORKDIR /app/packages/backend
 EXPOSE 3000
-CMD ["node", "dist/index.js"]
+# Entry is src/main.ts → dist/main.js (there is no dist/index.js)
+CMD ["node", "dist/main.js"]
