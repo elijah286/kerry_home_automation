@@ -1,18 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { APP_VERSION_LABEL } from '@/lib/appVersion';
 import { LCARS_COLORS } from './colors';
 import { FederationEmblem } from './FederationEmblem';
 import { LCARSElbow } from './LCARSElbow';
 
-const BOOT_LINES = [
-  'LCARS INTERFACE v47.3.1',
+const BOOT_LINES_TAIL = [
   'INITIALIZING SUBSPACE PROTOCOLS…',
   'SCANNING LOCAL SENSOR GRID…',
   'DEVICE MANIFEST LOADED',
   'FEDERATION NETWORK ONLINE',
   'ALL SYSTEMS OPERATIONAL',
-];
+] as const;
+
+const BOOT_LINES = [`LCARS INTERFACE ${APP_VERSION_LABEL}`, ...BOOT_LINES_TAIL];
 
 /** Mini chrome frame so boot matches main LCARS shell. */
 function BootChrome() {

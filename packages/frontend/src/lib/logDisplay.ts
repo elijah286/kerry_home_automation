@@ -305,6 +305,17 @@ export function formatLogPrimaryLine(entry: LogPrimaryFields): string {
     return `Automation finished · ${c.automation}${st}`;
   }
 
+  // Subsystem logs (pino child `module`, e.g. tesla-streaming) — surface payload, not only generic msg.
+  if (msg && c && typeof c.module === 'string' && c.module.trim()) {
+    const title = formatIntegrationTitle(c.module.replace(/-/g, '_'));
+    if (typeof c.value === 'string' && c.value.trim()) {
+      const v = c.value.trim().replace(/\s+/g, ' ');
+      const excerpt = v.length > 140 ? `${v.slice(0, 138)}…` : v;
+      return `${title} · ${msg} · ${excerpt}`;
+    }
+    return `${title}: ${msg}`;
+  }
+
   if (msg && c && typeof c.integration === 'string') {
     if (!msgReferencesIntegration(msg, c.integration)) {
       return `${formatIntegrationTitle(c.integration)}: ${msg}`;

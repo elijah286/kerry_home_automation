@@ -106,6 +106,15 @@ export function registerInstallerRoutes(app: FastifyInstance): void {
 
       logger.info({ jobId, hostname, username }, 'ISO build job started');
 
+      const kickMsg = 'Starting ISO build…';
+      emitToClients(jobId, { percent: 1, message: kickMsg, status: 'running' });
+      void query(
+        `UPDATE installer_jobs
+         SET status = 'running', progress = 1, message = $1, updated_at = NOW()
+         WHERE id = $2`,
+        [kickMsg, jobId],
+      ).catch((err) => logger.error({ err }, 'Failed to set initial installer progress'));
+
       const ac = new AbortController();
       installerBuildAbort.set(jobId, ac);
 

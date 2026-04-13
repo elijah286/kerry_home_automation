@@ -14,6 +14,9 @@ import { appConfig } from '../config.js';
 import { generateAutoinstallYaml, hashPasswordForAutoinstall } from './autoinstall.js';
 import { logger } from '../logger.js';
 
+/** Used when HTTP has no Content-Length so the bar still moves (~Ubuntu 24.04 server ISO size). */
+const ESTIMATED_UBUNTU_ISO_BYTES = 1_750_000_000;
+
 export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
 
 /** Thrown when the user or server aborts an in-flight ISO build. */
@@ -90,6 +93,22 @@ function runCancellable(
       else reject(err);
     });
   });
+}
+
+/**
+ * Node started from the macOS GUI or some IDEs inherits a minimal PATH without Homebrew.
+ * xorriso from `brew install` lives under /opt/homebrew (Apple Silicon) or /usr/local (Intel).
+ */
+function ensureHomebrewOnPath(): void {
+  if (process.platform !== 'darwin') return;
+  const existing = process.env.PATH ?? '';
+  const segments = new Set(existing.split(':').filter(Boolean));
+  const prepend: string[] = [];
+  for (const dir of ['/opt/homebrew/bin', '/usr/local/bin']) {
+    if (!segments.has(dir)) prepend.push(dir);
+  }
+  if (prepend.length === 0) return;
+  process.env.PATH = [...prepend, existing].filter(Boolean).join(':');
 }
 
 /** Check that a required CLI tool is available in $PATH. */
@@ -200,14 +219,45 @@ async function downloadFile(
 }
 
 /** Check existing file SHA-256 without loading it all into memory. */
-async function fileSha256(path: string): Promise<string> {
+async function fileSha256(
+  path: string,
+  options?: { signal?: AbortSignal; onProgress?: (read: number, total: number) => void },
+): Promise<string> {
   const { createReadStream } = await import('node:fs');
+  const st = await stat(path);
+  const total = st.size;
   const hash = createHash('sha256');
+  let read = 0;
+  let lastReportedPct = -1;
+
   return new Promise((resolve, reject) => {
     const stream = createReadStream(path);
-    stream.on('data', (chunk) => hash.update(chunk));
-    stream.on('end', () => resolve(hash.digest('hex')));
-    stream.on('error', reject);
+    const onAbort = (): void => {
+      stream.destroy();
+      reject(new BuildCancelledError());
+    };
+    options?.signal?.addEventListener('abort', onAbort, { once: true });
+
+    stream.on('data', (chunk: string | Buffer) => {
+      const buf = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+      read += buf.length;
+      hash.update(buf);
+      if (options?.onProgress && total > 0) {
+        const pct = Math.floor((read / total) * 100);
+        if (pct > lastReportedPct) {
+          lastReportedPct = pct;
+          options.onProgress(read, total);
+        }
+      }
+    });
+    stream.on('end', () => {
+      options?.signal?.removeEventListener('abort', onAbort);
+      resolve(hash.digest('hex'));
+    });
+    stream.on('error', (err) => {
+      options?.signal?.removeEventListener('abort', onAbort);
+      reject(err);
+    });
   });
 }
 
@@ -234,6 +284,7 @@ export async function buildInstallerIso(
     throw new Error('APP_REPO_URL is not configured. Set it in your .env file.');
   }
 
+  ensureHomebrewOnPath();
   await requireTool('xorriso');
 
   const jobWorkDir = join(workDir, jobId);
@@ -255,7 +306,19 @@ export async function buildInstallerIso(
     await stat(cachedIso);
     progress(onProgress, 5, 'Found cached ISO, verifying SHA-256...');
     throwIfCancelled(signal);
-    const existingHash = await fileSha256(cachedIso);
+    let lastVerifyPct = 5;
+    const existingHash = await fileSha256(cachedIso, {
+      signal,
+      onProgress: (read, total) => {
+        const pct = 5 + Math.min(24, Math.floor((read / total) * 24));
+        if (pct > lastVerifyPct) {
+          lastVerifyPct = pct;
+          const mb = Math.floor(read / 1_048_576);
+          const totalMb = Math.floor(total / 1_048_576);
+          progress(onProgress, pct, `Verifying cached ISO... ${mb} / ${totalMb} MB`);
+        }
+      },
+    });
     if (existingHash === ubuntuIsoSha256) {
       progress(onProgress, 30, 'Cached ISO verified.');
       needsDownload = false;
@@ -272,14 +335,18 @@ export async function buildInstallerIso(
 
     let lastReportedPct = 5;
     const actualHash = await downloadFile(ubuntuIsoUrl, tmpDest, (downloaded, total) => {
-      if (total > 0) {
-        const pct = 5 + Math.floor((downloaded / total) * 23); // 5–28%
-        if (pct > lastReportedPct) {
-          lastReportedPct = pct;
-          const mb = Math.floor(downloaded / 1_048_576);
-          const totalMb = Math.floor(total / 1_048_576);
-          progress(onProgress, pct, `Downloading Ubuntu ISO... ${mb} / ${totalMb} MB`);
-        }
+      const denom = total > 0 ? total : ESTIMATED_UBUNTU_ISO_BYTES;
+      const rawPct = 5 + Math.floor((downloaded / denom) * 23);
+      const pct = Math.min(rawPct, 28);
+      if (pct > lastReportedPct) {
+        lastReportedPct = pct;
+        const mb = Math.floor(downloaded / 1_048_576);
+        const totalMb = Math.floor(denom / 1_048_576);
+        const detail =
+          total > 0
+            ? `Downloading Ubuntu ISO... ${mb} / ${totalMb} MB`
+            : `Downloading Ubuntu ISO... ${mb} MB (~${totalMb} MB expected)`;
+        progress(onProgress, pct, detail);
       }
     }, signal);
 
