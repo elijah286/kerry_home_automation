@@ -1,3 +1,7 @@
+# Stable project name — avoids duplicate prefixed names (e.g. ec0868360669_...) when
+# compose is invoked from different cwd or with varying COMPOSE_PROJECT_NAME.
+name: home-automation
+
 services:
   postgres:
     image: postgres:16-alpine
