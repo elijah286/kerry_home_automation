@@ -5,10 +5,11 @@
 # ⚠️  This DESTROYS the current contents of database "home_automation" on the
 #     Postgres instance used by the compose file (typically production).
 #
-# Production server (lcars), example:
+# Production server (lcars), example (use YOUR file name — ls backups/):
 #   cd /opt/home-automation
 #   git pull
-#   ./scripts/db-restore.sh ./backups/ha-postgres-YYYYMMDD-HHMMSS.dump
+#   ls backups/
+#   ./scripts/db-restore.sh ./backups/ha-postgres-20260413-203045.dump
 #
 # Usage (after scp of the dump to the server):
 #   ./scripts/db-restore.sh ./backups/ha-postgres-....dump
