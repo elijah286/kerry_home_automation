@@ -59,11 +59,11 @@ export function filterCalendarEventsInRange(
   for (const f of feeds) {
     if (needle && !f.label.toLowerCase().includes(needle)) continue;
     const events = (f.events ?? [])
-      .filter((e) => {
+      .filter((e: IcalCalendarEvent) => {
         const t = eventStartAsTime(e);
         return t >= fromMs && t < toMs;
       })
-      .sort((a, b) => eventStartAsTime(a) - eventStartAsTime(b));
+      .sort((a: IcalCalendarEvent, b: IcalCalendarEvent) => eventStartAsTime(a) - eventStartAsTime(b));
     out.push({
       label: f.label,
       entryId: f.entryId,
