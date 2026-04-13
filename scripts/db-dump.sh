@@ -4,6 +4,13 @@
 # Run on the machine that has the data you want to KEEP (usually your dev box
 # with `docker compose` running, or any host that can reach Postgres).
 #
+# This Mac (Cursor workspace), example:
+#   cd /Users/elijahkerry/home_automation_3.0
+#   git pull
+#   docker compose up -d postgres   # if not already running
+#   ./scripts/db-dump.sh
+#   # -> backups/ha-postgres-<timestamp>.dump
+#
 # Usage:
 #   ./scripts/db-dump.sh [output.dump]
 #   COMPOSE_FILE=docker-compose.yml ./scripts/db-dump.sh

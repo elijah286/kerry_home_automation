@@ -5,8 +5,13 @@
 # ⚠️  This DESTROYS the current contents of database "home_automation" on the
 #     Postgres instance used by the compose file (typically production).
 #
-# Usage (on production, after scp of the dump):
-#   ./scripts/db-restore.sh /path/to/ha-postgres-....dump
+# Production server (lcars), example:
+#   cd /opt/home-automation
+#   git pull
+#   ./scripts/db-restore.sh ./backups/ha-postgres-YYYYMMDD-HHMMSS.dump
+#
+# Usage (after scp of the dump to the server):
+#   ./scripts/db-restore.sh ./backups/ha-postgres-....dump
 #   COMPOSE_FILE=docker-compose.prod.yml ./scripts/db-restore.sh ./backups/ha-postgres-....dump
 #
 # Default COMPOSE_FILE is docker-compose.prod.yml so a copy-paste on lcars works.
