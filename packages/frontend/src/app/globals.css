@@ -157,12 +157,52 @@
 
 /* --- LCARS buttons (only in main content, not the LCARS sidebar/frame) --- */
 [data-active-theme="lcars"] .lcars-content button {
+  border-radius: 0 999px 999px 0;
+  font-family: var(--font-antonio), 'Helvetica Neue', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   transition: filter 0.15s ease, background-color 0.15s ease;
 }
 
 [data-active-theme="lcars"] .lcars-content button:hover {
   filter: brightness(1.25);
 }
+
+/* --- LCARS pill / block button system --- */
+.lcars-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border: none;
+  background: #cc99cc;
+  color: #000;
+  font-family: var(--font-antonio), 'Helvetica Neue', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: filter 0.15s ease, background-color 0.15s ease;
+  white-space: nowrap;
+}
+.lcars-btn:hover { filter: brightness(1.15); }
+.lcars-btn:active { filter: brightness(0.92); }
+
+/* Pill variants */
+.lcars-btn--pill-right { border-radius: 0 999px 999px 0; }
+.lcars-btn--pill-left  { border-radius: 999px 0 0 999px; }
+.lcars-btn--pill       { border-radius: 999px; }
+.lcars-btn--square     { border-radius: 0; }
+
+/* Size variants */
+.lcars-btn--sm { padding: 3px 10px; font-size: 9px; }
+.lcars-btn--lg { padding: 8px 20px; font-size: 13px; }
+.lcars-btn--xs { padding: 2px 8px; font-size: 7px; letter-spacing: 0.08em; }
+
+/* Active / selected state */
+.lcars-btn--active { box-shadow: inset 0 1px 0 rgba(255,255,255,0.35); }
 
 /* --- LCARS inputs --- */
 [data-active-theme="lcars"] input,
@@ -275,23 +315,15 @@
   border-bottom: 1px solid #1a1a2e !important;
 }
 
-/* --- LCARS scrollbar --- */
+/* --- LCARS scrollbar (hidden to prevent layout jump) --- */
 [data-active-theme="lcars"] ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  display: none;
+  width: 0;
+  height: 0;
 }
-
-[data-active-theme="lcars"] ::-webkit-scrollbar-track {
-  background: #000;
-}
-
-[data-active-theme="lcars"] ::-webkit-scrollbar-thumb {
-  background: #cc6699;
-  border-radius: 999px;
-}
-
-[data-active-theme="lcars"] ::-webkit-scrollbar-thumb:hover {
-  background: #ff9900;
+[data-active-theme="lcars"] {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 /* --- LCARS links --- */
@@ -305,12 +337,15 @@
 }
 
 /* --- LCARS dialog/modal --- */
-[data-active-theme="lcars"] [role="dialog"],
-[data-active-theme="lcars"] [class*="SlidePanel"],
 [data-active-theme="lcars"] [class*="modal"] {
   background: #000 !important;
   border: 2px solid #cc6699 !important;
   border-top: 4px solid #ff9900 !important;
+}
+/* SlidePanel and role=dialog use LCARS chrome framing — no border needed */
+[data-active-theme="lcars"] [role="dialog"] {
+  background: #000 !important;
+  border: none !important;
 }
 
 /* ------------------------------------------------------------------ */
@@ -475,20 +510,32 @@
  * Red alert visual reference (white frame, flashing red belt segments):
  * https://d700mbxo45lbr.cloudfront.net/lcars/odn/redalert3.gif
  */
-/* White elbows: subtle red rim pulse — fill stays structural white */
-.lcars-alert-red .lcars-elbow-top svg,
-.lcars-alert-red .lcars-elbow-bottom svg {
-  filter: drop-shadow(0 0 4px rgba(255, 0, 0, 0.35));
-  animation: lcars-red-elbow-rim 3.4s ease-in-out infinite;
+/* Elbow fills: same red / dark-red belt blink as horizontal bars (SVG path — filter only) */
+@keyframes lcars-red-alert-blink-svg {
+  0%,
+  38% {
+    filter: brightness(1.12) saturate(1.25);
+  }
+  50%,
+  88% {
+    filter: brightness(0.38) saturate(0.75);
+  }
+  100% {
+    filter: brightness(1.12) saturate(1.25);
+  }
 }
 
-@keyframes lcars-red-elbow-rim {
-  0%, 100% {
-    filter: drop-shadow(0 0 3px rgba(255, 40, 40, 0.22));
-  }
-  50% {
-    filter: drop-shadow(0 0 18px rgba(255, 0, 0, 0.5));
-  }
+.lcars-alert-red .lcars-elbow-top svg > path:first-of-type,
+.lcars-alert-red .lcars-elbow-bottom svg > path:first-of-type {
+  animation: lcars-red-alert-blink-svg 1.15s ease-in-out infinite;
+}
+
+.lcars-alert-red .lcars-elbow-top svg.lcars-cascade-0 > path:first-of-type {
+  animation-delay: 0s;
+}
+
+.lcars-alert-red .lcars-elbow-bottom svg.lcars-cascade-7 > path:first-of-type {
+  animation-delay: 0.32s;
 }
 
 /* Follows the elbow path around inner + outer curves (image 5) */
@@ -638,6 +685,8 @@
 .lcars-alert-red .lcars-panel-title,
 .lcars-alert-red .lcars-panel-footer,
 .lcars-alert-red .lcars-sidebar-cap,
+.lcars-alert-red .lcars-sidebar-collapse,
+.lcars-alert-red .lcars-rail-chrome,
 .lcars-alert-red .lcars-status-strip .lcars-chrome-item {
   animation: lcars-red-alert-blink 1.15s ease-in-out infinite;
 }
@@ -662,7 +711,35 @@
   animation-delay: 0.2s;
 }
 
-.lcars-alert-red .lcars-header-bar .lcars-chrome-item {
+/* Status strip separator bar — colored segments are 1,3,5,7 (gutters are even children) */
+.lcars-alert-red .lcars-status-footer-bar > .lcars-chrome-item:nth-child(1) {
+  animation-delay: 0.04s;
+}
+.lcars-alert-red .lcars-status-footer-bar > .lcars-chrome-item:nth-child(3) {
+  animation-delay: 0.08s;
+}
+.lcars-alert-red .lcars-status-footer-bar > .lcars-chrome-item:nth-child(5) {
+  animation-delay: 0.12s;
+}
+.lcars-alert-red .lcars-status-footer-bar > .lcars-chrome-item:nth-child(7) {
+  animation-delay: 0.16s;
+}
+
+/* Vertical rail + in-rail fillers: belt blink (gradient background on rail) */
+.lcars-alert-red .lcars-vertical-rail.lcars-chrome-item {
+  animation: lcars-red-alert-blink 1.15s ease-in-out infinite;
+  animation-delay: 0.1s;
+}
+
+
+.lcars-alert-red .lcars-rail-filler-upper {
+  animation-delay: 0.14s;
+}
+.lcars-alert-red .lcars-rail-filler-lower {
+  animation-delay: 0.2s;
+}
+
+.lcars-alert-red .lcars-header-bar .lcars-chrome-item:not(.lcars-status-led) {
   animation: lcars-red-alert-blink 1.2s ease-in-out infinite;
 }
 
@@ -674,8 +751,9 @@
 @media (prefers-reduced-motion: reduce) {
   .lcars-alert-vignette,
   .lcars-alert-red .lcars-elbow-stroke,
-  .lcars-alert-red .lcars-elbow-top svg,
-  .lcars-alert-red .lcars-elbow-bottom svg,
+  .lcars-alert-red .lcars-elbow-top svg > path:first-of-type,
+  .lcars-alert-red .lcars-elbow-bottom svg > path:first-of-type,
+  .lcars-alert-red .lcars-vertical-rail.lcars-chrome-item,
   .lcars-alert-red .lcars-nav-block,
   .lcars-alert-red .lcars-breadcrumb-segment,
   .lcars-alert-red .lcars-footer-segment,
@@ -683,12 +761,39 @@
   .lcars-alert-red .lcars-panel-title,
   .lcars-alert-red .lcars-panel-footer,
   .lcars-alert-red .lcars-sidebar-cap,
+  .lcars-alert-red .lcars-sidebar-collapse,
+  .lcars-alert-red .lcars-rail-chrome,
   .lcars-alert-red .lcars-status-strip .lcars-chrome-item,
-  .lcars-alert-red .lcars-header-bar .lcars-chrome-item,
+  .lcars-alert-red .lcars-header-bar .lcars-chrome-item:not(.lcars-status-led),
   .lcars-alert-red .lcars-header-filler,
   .lcars-alert-red .lcars-status-line--red-alert,
   .lcars-alert-banner--red,
   .lcars-alert-banner--yellow {
     animation: none !important;
   }
+}
+
+/* ── Route loading indicator ── */
+
+@keyframes loading-bar-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+@keyframes loading-text-pulse {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 1; }
+}
+
+.loading-bar-indeterminate {
+  width: 30%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2060b0, #60a0e0, #a0c8f0);
+  animation: loading-bar-sweep 1.6s ease-in-out infinite;
+}
+
+.loading-bar-indeterminate.loading-bar-accent {
+  background: linear-gradient(90deg, var(--color-accent), var(--color-accent));
+  opacity: 0.8;
 }

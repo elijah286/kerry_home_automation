@@ -21,9 +21,9 @@ const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' |
 };
 
 export function VacuumControl({ device }: { device: VacuumState }) {
-  const { send, isPending } = useCommand(device.id);
+  const { send, isPending, lastError, clearError } = useCommand(device.id);
   const cmd = (action: string, fanSpeed?: string) => {
-    send(action, { type: 'vacuum', action, fanSpeed });
+    void send(action, { type: 'vacuum', action, fanSpeed });
   };
 
   const [mapObjectUrl, setMapObjectUrl] = useState<string | null>(null);
@@ -94,6 +94,20 @@ export function VacuumControl({ device }: { device: VacuumState }) {
 
       {device.errorMessage && (
         <p className="text-xs" style={{ color: 'var(--color-danger)' }}>{device.errorMessage}</p>
+      )}
+
+      {lastError && (
+        <p className="text-xs rounded-md border px-2 py-2" style={{ color: 'var(--color-danger)', borderColor: 'var(--color-border)' }}>
+          {lastError}
+          <button
+            type="button"
+            className="ml-2 underline"
+            onClick={() => clearError()}
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            Dismiss
+          </button>
+        </p>
       )}
 
       {device.integration === 'roborock' && device.mapUpdatedAt != null && (

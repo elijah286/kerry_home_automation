@@ -389,6 +389,21 @@ export interface NetworkDeviceState extends DeviceBase {
   rxBytes: number | null;
   clients: number | null;
   model: string | null;
+  /**
+   * Other HomeOS devices that appear to be the same physical device (shared MAC,
+   * or same LAN IP as another entity’s `host`, e.g. Xbox / Yamaha).
+   */
+  linkedDeviceIds?: string[];
+  /** Populated for UniFi clients when the controller supplies extra fields. */
+  unifiClientInfo?: {
+    wired: boolean;
+    ssid: string | null;
+    vlan: number | null;
+    /** Manufacturer string from the controller (OUI / fingerprint), when present */
+    vendor: string | null;
+    /** User note from UniFi (device properties), when present */
+    note: string | null;
+  };
 }
 
 // -- Speedtest ---------------------------------------------------------------

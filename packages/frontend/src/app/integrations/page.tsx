@@ -96,6 +96,26 @@ function SegmentedControl({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const isLcars = document.documentElement.getAttribute('data-active-theme') === 'lcars';
+  if (isLcars) {
+    return (
+      <div className="inline-flex flex-wrap gap-2">
+        {options.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => onChange(opt.value)}
+            className={`lcars-btn lcars-btn--pill lcars-btn--sm${value === opt.value ? ' lcars-btn--active' : ''}`}
+            style={{
+              background: value === opt.value ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+              color: value === opt.value ? '#000' : 'var(--color-text-secondary)',
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    );
+  }
   return (
     <div
       className="inline-flex rounded-lg p-0.5"

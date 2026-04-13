@@ -3,14 +3,22 @@
 // Each entry = one UniFi controller instance
 // ---------------------------------------------------------------------------
 
-import type { DeviceCommand, IntegrationHealth, ConnectionState, NetworkDeviceCommand } from '@ha/shared';
+import type {
+  DeviceCommand,
+  DeviceState,
+  IntegrationHealth,
+  ConnectionState,
+  NetworkDeviceCommand,
+  NetworkDeviceState,
+} from '@ha/shared';
 import type { Integration } from '../registry.js';
 import { stateStore } from '../../state/store.js';
 import { logger } from '../../logger.js';
 import { eventBus } from '../../state/event-bus.js';
 import * as entryStore from '../../db/integration-entry-store.js';
-import { UnifiNetworkClient } from './unifi-client.js';
+import { UnifiNetworkClient, type UnifiClient, type UnifiDevice } from './unifi-client.js';
 import { mapDevice, mapClient } from './mapper.js';
+import { computeUnifiClientLinks } from './link-devices.js';
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -137,6 +145,38 @@ export class UnifiNetworkIntegration implements Integration {
     };
   }
 
+  private upsertPollResults(ctx: ControllerCtx, devices: UnifiDevice[], clients: UnifiClient[]): void {
+    const infraStates: NetworkDeviceState[] = [];
+    for (const device of devices) {
+      if (!device.mac) continue;
+      infraStates.push(mapDevice(ctx.entryId, device));
+    }
+    const clientStates: NetworkDeviceState[] = [];
+    for (const client of clients) {
+      if (!client.mac) continue;
+      clientStates.push(mapClient(ctx.entryId, client));
+    }
+    const entryPrefix = `unifi_network.${ctx.entryId}.`;
+    const merged: DeviceState[] = [
+      ...stateStore.getAll().filter((d) => !d.id.startsWith(entryPrefix)),
+      ...infraStates,
+      ...clientStates,
+    ];
+    const linkMap = computeUnifiClientLinks(ctx.entryId, merged);
+
+    for (const s of infraStates) {
+      stateStore.update(s);
+    }
+    for (const s of clientStates) {
+      const links = linkMap.get(s.id);
+      const next: NetworkDeviceState = {
+        ...s,
+        linkedDeviceIds: links && links.length > 0 ? links : undefined,
+      };
+      stateStore.update(next);
+    }
+  }
+
   private async poll(ctx: ControllerCtx): Promise<void> {
     try {
       const [devices, clients] = await Promise.all([
@@ -144,14 +184,7 @@ export class UnifiNetworkIntegration implements Integration {
         ctx.client.getClients(),
       ]);
 
-      for (const device of devices) {
-        if (!device.mac) continue;
-        stateStore.update(mapDevice(ctx.entryId, device));
-      }
-      for (const client of clients) {
-        if (!client.mac) continue;
-        stateStore.update(mapClient(ctx.entryId, client));
-      }
+      this.upsertPollResults(ctx, devices, clients);
 
       this.lastConnected = Date.now();
 
@@ -177,14 +210,7 @@ export class UnifiNetworkIntegration implements Integration {
             ctx.client.getDevices(),
             ctx.client.getClients(),
           ]);
-          for (const device of devices) {
-            if (!device.mac) continue;
-            stateStore.update(mapDevice(ctx.entryId, device));
-          }
-          for (const client of clients) {
-            if (!client.mac) continue;
-            stateStore.update(mapClient(ctx.entryId, client));
-          }
+          this.upsertPollResults(ctx, devices, clients);
           this.lastConnected = Date.now();
           logger.info(
             { entryId: ctx.entryId, site: ctx.client.getSiteKey(), devices: devices.length, clients: clients.length },

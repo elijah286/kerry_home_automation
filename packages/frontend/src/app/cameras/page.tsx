@@ -206,9 +206,18 @@ function WebRTCStream({
           body: pc.localDescription!.sdp,
         }),
       )
-      .then((res) => res.text())
+      .then(async (res) => {
+        const text = await res.text();
+        if (!res.ok) {
+          console.warn('Camera WebRTC:', res.status, text.slice(0, 200));
+          throw new Error(`webrtc ${res.status}`);
+        }
+        return text;
+      })
       .then((sdp) => pc.setRemoteDescription({ type: 'answer', sdp }))
-      .catch(() => {});
+      .catch((err) => {
+        console.warn('Camera WebRTC negotiation failed:', err);
+      });
 
     const onPlayingHandler = () => {
       setVisible(true);
@@ -229,7 +238,12 @@ function WebRTCStream({
       muted
       playsInline
       className="pointer-events-none absolute inset-0 h-full w-full object-contain transition-opacity duration-300"
-      style={{ zIndex: 3, opacity: visible ? 1 : 0 }}
+      style={{
+        zIndex: 3,
+        opacity: visible ? 1 : 0,
+        // Empty <video> can still composite as black above lower layers in some browsers.
+        visibility: visible ? 'visible' : 'hidden',
+      }}
     />
   );
 }
@@ -312,6 +326,8 @@ const CameraTile = memo(function CameraTile({
 function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => void }) {
   const [snapRev, setSnapRev] = useState(0);
   const [webrtcPlaying, setWebrtcPlaying] = useState(false);
+  const [snapError, setSnapError] = useState(false);
+  const [mjpegError, setMjpegError] = useState(false);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -327,15 +343,33 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
     return () => window.clearInterval(t);
   }, [webrtcPlaying]);
 
+  useEffect(() => {
+    setSnapError(false);
+    setMjpegError(false);
+    setWebrtcPlaying(false);
+  }, [cam.name]);
+
+  const showFallbackHint = snapError && mjpegError;
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
       <div className="relative flex-1">
         {!webrtcPlaying && (
-          <img
-            src={`${API_BASE}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapRev}`}
-            alt={cam.label}
-            className="absolute inset-0 z-[2] h-full w-full object-contain"
-          />
+          <>
+            <img
+              src={`${API_BASE}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapRev}`}
+              alt={cam.label}
+              className="absolute inset-0 z-[1] h-full w-full object-contain"
+              onError={() => setSnapError(true)}
+            />
+            {/* MJPEG works without WebRTC (e.g. non-secure HTTP LAN UI where RTCPeerConnection may fail). */}
+            <img
+              src={`${API_BASE}/api/cameras/${encodeURIComponent(cam.name)}/mjpeg`}
+              alt=""
+              className="absolute inset-0 z-[2] h-full w-full object-contain"
+              onError={() => setMjpegError(true)}
+            />
+          </>
         )}
 
         <WebRTCStream name={cam.name} onPlaying={() => setWebrtcPlaying(true)} />
@@ -353,7 +387,11 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/60 to-transparent px-4 py-3">
           <span className="text-[11px] text-white/60">
-            {webrtcPlaying ? 'Live (WebRTC)' : 'Connecting…'}
+            {webrtcPlaying
+              ? 'Live (WebRTC)'
+              : showFallbackHint
+                ? 'No stream — check UniFi / go2rtc and backend logs'
+                : 'Live (MJPEG) · upgrading to WebRTC if available…'}
           </span>
         </div>
       </div>

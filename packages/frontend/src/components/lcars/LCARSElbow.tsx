@@ -46,10 +46,13 @@ export function LCARSElbow({
   const or = Math.min(outerRadius, barWidth);
 
   const frRaw = innerFilletRadius === 0 ? 0 : (innerFilletRadius ?? DEFAULT_ADDITIVE_FILLET);
-  /** Stay inside layout width (barW + fr ≤ svgW) and leave room for stem / outer radius */
+  /** Stay inside layout width (barW + fr ≤ svgW) and leave room for stem / outer radius.
+   *  For top-left the fillet must fit within barHeight; for bottom-left it extends into
+   *  the void at y=or so only needs to fit within outerRadius. */
+  const frBarLimit = position === 'top-left' ? barHeight - 1 : or - 1;
   const fr = Math.max(
     0,
-    Math.min(frRaw, barWidth - 1, barHeight - 1, or - 1, layoutExtension - 1, 28),
+    Math.min(frRaw, barWidth - 1, frBarLimit, layoutExtension - 1, 28),
   );
 
   let svgH: number;

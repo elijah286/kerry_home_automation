@@ -44,12 +44,7 @@ export function LCARSBreadcrumbBlocks({
               fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
               borderRadius: 0,
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
-              ...(alertLevel === 'red'
-                ? {
-                    animationDelay: `${i * 0.05}s`,
-                    ...(i === 0 ? { animation: 'none' } : {}),
-                  }
-                : {}),
+              ...(alertLevel === 'red' ? { animationDelay: `${i * 0.05}s` } : {}),
             }}
           >
             <span className="max-w-full truncate text-right">{item.label}</span>

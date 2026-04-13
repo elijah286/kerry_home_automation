@@ -37,6 +37,64 @@ function mapUnifiHardwareType(t: string | undefined): NetworkDeviceState['device
   return 'switch';
 }
 
+function stripLocalHost(s: string): string {
+  return s
+    .trim()
+    .replace(/\.local\.?$/i, '')
+    .replace(/\.lan$/i, '')
+    .replace(/\.home\.?$/i, '');
+}
+
+function truthyWire(v: UnifiClient['is_wired']): boolean {
+  return v === true || v === 1 || v === '1';
+}
+
+function looksLikeMacLabel(s: string): boolean {
+  return /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i.test(s);
+}
+
+function buildClientDisplayName(macRaw: string, client: UnifiClient): string {
+  const nameRaw = typeof client.name === 'string' ? client.name.trim() : '';
+  const hostRaw = typeof client.hostname === 'string' ? client.hostname.trim() : '';
+  const devNameRaw = typeof client.dev_name === 'string' ? client.dev_name.trim() : '';
+  const noted = typeof client.noted === 'string' ? client.noted.trim() : '';
+  const oui = typeof client.oui === 'string' ? client.oui.trim() : '';
+  const osName = typeof client.os_name === 'string' ? client.os_name.trim() : '';
+
+  const host = stripLocalHost(hostRaw || devNameRaw);
+  const friendly = stripLocalHost(nameRaw);
+
+  const isEmptyFriendly = !friendly || looksLikeMacLabel(friendly);
+
+  let base: string;
+  if (noted) {
+    base = noted;
+  } else if (!isEmptyFriendly && friendly) {
+    base =
+      host && host.toLowerCase() !== friendly.toLowerCase()
+        ? `${friendly} (${host})`
+        : friendly;
+  } else if (host) {
+    base = host;
+  } else if (osName) {
+    base = osName;
+  } else if (oui) {
+    base = `${macRaw} (${oui})`;
+  } else {
+    base = macRaw;
+  }
+
+  if (
+    oui &&
+    (base === host || base === macRaw) &&
+    /^(android|iphone|ipad|unknown|espressif|linux|windows|galaxy-|desktop-|host)$/i.test(host)
+  ) {
+    base = host ? `${host} · ${oui}` : `${macRaw} · ${oui}`;
+  }
+
+  return base;
+}
+
 export function mapDevice(entryId: string, device: UnifiDevice): NetworkDeviceState {
   const macRaw = device.mac;
   if (!macRaw) {
@@ -45,17 +103,22 @@ export function mapDevice(entryId: string, device: UnifiDevice): NetworkDeviceSt
   const mac = macRaw.toLowerCase().replace(/:/g, '');
   const st = device.state;
   const online = st === 1 || st === '1';
+  const label = device.name?.trim() || device.model || macRaw;
+  const name =
+    device.name?.trim() && device.model && device.model !== device.name
+      ? `${device.name.trim()} (${device.model})`
+      : label;
   return {
     type: 'network_device',
     id: `unifi_network.${entryId}.device.${mac}`,
-    name: device.name || device.model || macRaw,
+    name,
     integration: 'unifi_network',
     areaId: null,
     available: online,
     lastChanged: Date.now(),
     lastUpdated: Date.now(),
     mac: macRaw,
-    ip: null,
+    ip: device.ip ?? null,
     deviceType: mapUnifiHardwareType(device.type),
     connected: online,
     uptime: device.uptime ?? null,
@@ -72,10 +135,17 @@ export function mapClient(entryId: string, client: UnifiClient): NetworkDeviceSt
     throw new Error('UniFi client missing mac');
   }
   const mac = macRaw.toLowerCase().replace(/:/g, '');
+  const name = buildClientDisplayName(macRaw, client);
+  const oui = typeof client.oui === 'string' ? client.oui.trim() : '';
+  const noted = typeof client.noted === 'string' ? client.noted.trim() : '';
+  const wired = truthyWire(client.is_wired);
+  const essid = typeof client.essid === 'string' && client.essid.trim() ? client.essid.trim() : null;
+  const vlan = typeof client.vlan === 'number' && Number.isFinite(client.vlan) ? client.vlan : null;
+
   return {
     type: 'network_device',
     id: `unifi_network.${entryId}.client.${mac}`,
-    name: client.name || client.hostname || macRaw,
+    name,
     integration: 'unifi_network',
     areaId: null,
     available: true,
@@ -90,5 +160,12 @@ export function mapClient(entryId: string, client: UnifiClient): NetworkDeviceSt
     rxBytes: client.rx_bytes ?? null,
     clients: null,
     model: null,
+    unifiClientInfo: {
+      wired,
+      ssid: wired ? null : essid,
+      vlan,
+      vendor: oui || null,
+      note: noted || null,
+    },
   };
 }

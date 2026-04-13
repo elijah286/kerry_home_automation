@@ -16,6 +16,8 @@ import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import { MessageSquare, X, Send, Loader2, Bot, User, Maximize2, Minimize2 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useTheme } from '@/providers/ThemeProvider';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 const API_BASE =
   typeof window !== 'undefined'
@@ -164,8 +166,11 @@ export function AssistantHeaderButton({
 
 function AssistantRightPanel() {
   const router = useRouter();
+  const { activeTheme } = useTheme();
+  const isMdUp = useMediaQuery('(min-width: 768px)');
   const { open, setOpen } = useAssistant();
   const [fullscreen, setFullscreen] = useState(false);
+  const dockInFrame = activeTheme === 'lcars' && isMdUp && !fullscreen;
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -259,13 +264,25 @@ function AssistantRightPanel() {
 
       <div
         className={clsx(
-          'fixed z-[50] flex flex-col overflow-hidden border-l shadow-2xl transition-transform duration-200 ease-out',
-          fullscreen ? 'inset-0 rounded-none border-0' : 'top-0 bottom-0 right-0 w-full max-w-[min(420px,100vw)] rounded-none',
+          'fixed z-[50] flex flex-col overflow-hidden shadow-2xl transition-[transform,top,bottom] duration-200 ease-out',
+          fullscreen && 'inset-0 rounded-none border-0',
+          dockInFrame && 'right-0 w-full max-w-[min(420px,100vw)] rounded-none',
+          !fullscreen && !dockInFrame && 'top-0 bottom-0 right-0 w-full max-w-[min(420px,100vw)] rounded-none border-l',
           open ? 'translate-x-0' : 'translate-x-full pointer-events-none',
         )}
         style={{
           backgroundColor: 'var(--color-bg)',
           borderColor: 'var(--color-border)',
+          ...(dockInFrame
+            ? {
+                top: 'var(--lcars-assistant-inset-top, 0px)',
+                bottom: 'var(--lcars-assistant-inset-bottom, 0px)',
+                borderLeft: `4px solid var(--lcars-frame-pin, var(--color-border))`,
+                borderTopLeftRadius: 10,
+                borderBottomLeftRadius: 10,
+                boxShadow: '-6px 0 18px -8px rgba(0,0,0,0.5)',
+              }
+            : {}),
         }}
         role="dialog"
         aria-modal={open}

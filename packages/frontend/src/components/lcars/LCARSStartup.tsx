@@ -14,7 +14,7 @@ const BOOT_LINES = [
   'ALL SYSTEMS OPERATIONAL',
 ];
 
-/** Mini chrome frame so boot matches main LCARS shell (reference image 5). */
+/** Mini chrome frame so boot matches main LCARS shell. */
 function BootChrome() {
   const barW = 100;
   const headerH = 28;
@@ -22,8 +22,6 @@ function BootChrome() {
   const or = 40;
   const ir = 18;
   const elbowW = barW + ir;
-  const topElbowH = headerH + or;
-  const bottomElbowH = footerH + or;
   const gold = LCARS_COLORS.gold;
   const lilac = LCARS_COLORS.lilac;
   const mag = LCARS_COLORS.magenta;
@@ -52,8 +50,8 @@ function BootChrome() {
         className="absolute z-[10001] border-l-[3px]"
         style={{
           left: barW,
-          top: topElbowH,
-          bottom: bottomElbowH,
+          top: headerH + or,
+          bottom: footerH + or,
           borderColor: lilac,
           opacity: 0.85,
         }}
@@ -88,7 +86,7 @@ export function LCARSStartup({ onDismiss }: { onDismiss?: () => void }) {
     const lineTimers: NodeJS.Timeout[] = [];
     BOOT_LINES.forEach((_, i) => {
       lineTimers.push(
-        setTimeout(() => setVisibleLines(i + 1), 240 + i * 300),
+        setTimeout(() => setVisibleLines(i + 1), 400 + i * 300),
       );
     });
 
@@ -98,9 +96,9 @@ export function LCARSStartup({ onDismiss }: { onDismiss?: () => void }) {
           clearInterval(barTimer);
           return 100;
         }
-        return prev + 2;
+        return prev + 1.5;
       });
-    }, 45);
+    }, 50);
 
     return () => {
       lineTimers.forEach(clearTimeout);
@@ -133,41 +131,62 @@ export function LCARSStartup({ onDismiss }: { onDismiss?: () => void }) {
     >
       <BootChrome />
 
+      {/* Emblem + Title */}
       <div className="relative z-[10002] flex flex-col items-center px-6">
-        <FederationEmblem size={128} />
+        <div style={{ opacity: 0, animation: 'lcars-fade-in 0.6s 0.1s forwards' }}>
+          <FederationEmblem size={180} />
+        </div>
         <div
           style={{
-            marginTop: 8,
-            color: LCARS_COLORS.gold,
-            fontSize: 15,
+            marginTop: 12,
+            color: '#a0c4f0',
+            fontSize: 18,
             fontWeight: 700,
-            letterSpacing: '0.24em',
+            letterSpacing: '0.22em',
+            opacity: 0,
+            animation: 'lcars-fade-in 0.5s 0.3s forwards',
           }}
         >
           United Federation of Planets
         </div>
-        <div
-          style={{
-            marginTop: 4,
-            color: LCARS_COLORS.butterscotch,
-            fontSize: 11,
-            letterSpacing: '0.18em',
-            opacity: 0.9,
-          }}
-        >
-          Home automation • LCARS access
-        </div>
       </div>
 
-      <div style={{ width: 400, maxWidth: '80vw', marginTop: 28 }} className="relative z-[10002]">
+      {/* Progress bar */}
+      <div
+        style={{
+          width: 360,
+          maxWidth: '70vw',
+          height: 6,
+          background: '#0a1428',
+          borderRadius: 999,
+          marginTop: 32,
+          overflow: 'hidden',
+          border: '1px solid #1a3060',
+        }}
+        className="relative z-[10002]"
+      >
+        <div
+          style={{
+            width: `${barWidth}%`,
+            height: '100%',
+            background: 'linear-gradient(90deg, #2060b0, #60a0e0, #a0c8f0)',
+            borderRadius: 999,
+            transition: 'width 0.08s linear',
+            boxShadow: '0 0 8px rgba(96, 160, 224, 0.5)',
+          }}
+        />
+      </div>
+
+      {/* Boot text */}
+      <div style={{ width: 360, maxWidth: '70vw', marginTop: 24 }} className="relative z-[10002]">
         {BOOT_LINES.slice(0, visibleLines).map((line, i) => (
           <div
             key={i}
             style={{
               color: i === 0 ? LCARS_COLORS.gold : LCARS_COLORS.butterscotch,
-              fontSize: i === 0 ? 18 : 12,
+              fontSize: i === 0 ? 16 : 11,
               fontWeight: i === 0 ? 700 : 500,
-              marginBottom: i === 0 ? 14 : 5,
+              marginBottom: i === 0 ? 10 : 4,
               opacity: 0,
               animation: 'lcars-fade-in 0.35s forwards',
             }}
@@ -182,32 +201,9 @@ export function LCARSStartup({ onDismiss }: { onDismiss?: () => void }) {
 
       <div
         style={{
-          width: 400,
-          maxWidth: '80vw',
-          height: 8,
-          background: '#1a1a2e',
-          borderRadius: 999,
-          marginTop: 22,
-          overflow: 'hidden',
-        }}
-        className="relative z-[10002]"
-      >
-        <div
-          style={{
-            width: `${barWidth}%`,
-            height: '100%',
-            background: `linear-gradient(90deg, ${LCARS_COLORS.gold}, ${LCARS_COLORS.butterscotch})`,
-            borderRadius: 999,
-            transition: 'width 0.1s linear',
-          }}
-        />
-      </div>
-
-      <div
-        style={{
           color: LCARS_COLORS.lilac,
           fontSize: 10,
-          marginTop: 14,
+          marginTop: 18,
         }}
         className="relative z-[10002]"
       >

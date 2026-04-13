@@ -21,6 +21,8 @@ export interface UnifiDevice {
   'rx_bytes-r'?: number;
   tx_bytes?: number;
   rx_bytes?: number;
+  /** Management IP when the controller provides it */
+  ip?: string;
 }
 
 export interface UnifiClient {
@@ -33,6 +35,22 @@ export interface UnifiClient {
   tx_bytes?: number;
   rx_bytes?: number;
   network?: string;
+  /** DHCP / mDNS hostname */
+  dev_name?: string;
+  /** Manufacturer / OUI text from UniFi */
+  oui?: string;
+  is_wired?: boolean | number | string;
+  is_guest?: boolean | number | string;
+  /** Wireless SSID */
+  essid?: string;
+  vlan?: number;
+  /** User-edited note in UniFi */
+  noted?: string;
+  /** OS / device class hints (strings vary by controller version) */
+  os_name?: string;
+  os_class?: string;
+  dev_cat?: number;
+  dev_family?: number;
 }
 
 function decodeJwtPayload(jwt: string): Record<string, unknown> | null {
@@ -360,5 +378,6 @@ function normalizeUnifiDevice(d: UnifiDevice): UnifiDevice {
 
 function normalizeUnifiClient(c: UnifiClient): UnifiClient {
   const mac = c.mac ?? c.mac_address;
-  return { ...c, mac };
+  const hostname = (c.hostname?.trim() || c.dev_name?.trim() || undefined) ?? c.hostname;
+  return { ...c, mac, hostname };
 }

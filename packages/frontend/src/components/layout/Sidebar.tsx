@@ -130,24 +130,7 @@ export function Sidebar({
 
       {/* Footer */}
       <div className="px-2 pb-4 space-y-1">
-        {canUseTerminal && showNavButton && (
-          <button
-            type="button"
-            onClick={() => setTerminalOpen(!terminalOpen)}
-            title={collapsed ? (terminalOpen ? 'Hide status' : 'Status') : undefined}
-            className={clsx(
-              'flex w-full items-center rounded-lg py-2 text-sm font-medium transition-colors',
-              collapsed ? 'justify-center px-2' : 'gap-3 px-3',
-            )}
-            style={{
-              color: terminalOpen ? 'var(--color-sidebar-text-active)' : 'var(--color-sidebar-text)',
-              backgroundColor: terminalOpen ? 'var(--color-sidebar-active-bg)' : 'transparent',
-            }}
-          >
-            <Terminal className="h-5 w-5 shrink-0" />
-            {!collapsed && (terminalOpen ? 'Hide status' : 'Status')}
-          </button>
-        )}
+        {/* System log button moved to header bar */}
 
         {isAdmin && <NavLink {...settingsItem} active={isActive(settingsItem.href)} collapsed={collapsed} />}
 

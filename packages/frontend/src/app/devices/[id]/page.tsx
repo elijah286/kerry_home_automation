@@ -16,7 +16,7 @@ import { DeviceRawJsonPanelBody } from '@/components/DeviceRawJsonPanel';
 import { DeviceFieldHistoryContent } from '@/components/DeviceFieldHistoryContent';
 import { SlidePanel } from '@/components/ui/SlidePanel';
 import { formatFieldPath } from '@/lib/object-path';
-import type { CoverState, DeviceState, GarageDoorState, WeatherState } from '@ha/shared';
+import type { CoverState, DeviceState, GarageDoorState, NetworkDeviceState, WeatherState } from '@ha/shared';
 
 const API_BASE = typeof window !== 'undefined'
   ? `http://${window.location.hostname}:3000`
@@ -275,6 +275,10 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
   }
 
   const display = (merged.display ?? device) as DeviceState;
+  const networkLinked =
+    display.type === 'network_device'
+      ? (display as NetworkDeviceState).linkedDeviceIds?.filter(Boolean) ?? []
+      : [];
   const panelTitle =
     inspector?.kind === 'json'
       ? 'Raw device JSON'
@@ -328,6 +332,39 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
           onFieldSelect={(path, value) => setInspector({ kind: 'field', path, value })}
         />
       </Card>
+
+      {networkLinked.length > 0 && (
+          <Card>
+            <h2 className="text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+              Same device elsewhere in HomeOS
+            </h2>
+            <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
+              Matched by MAC address or by LAN IP (e.g. media players that report the same IP as this client).
+            </p>
+            <ul className="space-y-1.5 text-sm">
+              {networkLinked.map((lid) => {
+                const linked = getDevice(lid);
+                const lab = linked?.displayName ?? linked?.name ?? lid;
+                return (
+                  <li key={lid}>
+                    <Link
+                      href={`/devices/${encodeURIComponent(lid)}`}
+                      className="hover:underline"
+                      style={{ color: 'var(--color-accent)' }}
+                    >
+                      {lab}
+                    </Link>
+                    {linked ? (
+                      <span className="text-xs ml-1.5" style={{ color: 'var(--color-text-muted)' }}>
+                        ({linked.integration})
+                      </span>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        )}
 
       {/* Controls — specialized or default */}
       <Card>

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import logging
 import os
 import pickle
@@ -15,6 +16,7 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Header
 from pydantic import BaseModel, Field
 
 from roborock import RoborockException
+from roborock.exceptions import CommandVacuumError
 from roborock.api import RoborockApiClient
 from roborock.cloud_api import RoborockMqttClient
 from roborock.containers import DeviceData, HomeDataDevice, LoginData
@@ -22,6 +24,9 @@ from roborock.local_api import RoborockLocalClient
 from roborock.roborock_typing import RoborockCommand
 
 logging.basicConfig(level=logging.INFO)
+# Polling opens short-lived MQTT clients; python-roborock logs routine failures at WARNING/ERROR (very noisy).
+logging.getLogger("roborock.cloud_api").setLevel(logging.CRITICAL)
+logging.getLogger("roborock.api").setLevel(logging.ERROR)
 _LOGGER = logging.getLogger("roborock-bridge")
 
 BRIDGE_SECRET = os.environ.get("ROBOROCK_BRIDGE_SECRET", "")
@@ -122,6 +127,215 @@ def _status_to_plain(st: Any) -> dict[str, Any]:
         "error_code": int(err) if err is not None else 0,
         "msg_ver": getattr(st, "msg_ver", None) or 1,
     }
+
+
+def _coerce_int(v: Any, default: int = 0) -> int:
+    if v is None:
+        return default
+    try:
+        if isinstance(v, bool):
+            return int(v)
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def _maybe_json_value(val: Any) -> Any:
+    if isinstance(val, (bytes, bytearray)):
+        try:
+            val = val.decode("utf-8")
+        except Exception:
+            return val
+    if isinstance(val, str):
+        s = val.strip()
+        if s.startswith(("{", "[")):
+            try:
+                return json.loads(s)
+            except json.JSONDecodeError:
+                pass
+    return val
+
+
+def _norm_field_key(k: Any) -> str:
+    if isinstance(k, str):
+        return k.replace("_", "").lower()
+    return str(k).lower()
+
+
+def _dict_looks_like_vacuum_status(d: dict) -> bool:
+    if not d:
+        return False
+    nk = {_norm_field_key(k) for k in d.keys()}
+    if any(x in nk for x in ("battery", "bat", "state", "fanpower", "cleanarea", "cleantime")):
+        return True
+    if any(x in nk for x in ("batpercent", "batterylevel", "robotstate", "vacuumstate", "msgver")):
+        return True
+    if "state" in nk and len(nk) >= 2:
+        return True
+    return any("bat" in x for x in nk) and len(nk) >= 2
+
+
+def _deep_find_status_dict(obj: Any, depth: int = 0) -> Optional[dict]:
+    if depth > 14:
+        return None
+    obj = _maybe_json_value(obj)
+    if isinstance(obj, dict):
+        if _dict_looks_like_vacuum_status(obj):
+            return obj
+        for v in obj.values():
+            got = _deep_find_status_dict(v, depth + 1)
+            if got is not None:
+                return got
+    elif isinstance(obj, list):
+        for it in obj:
+            got = _deep_find_status_dict(it, depth + 1)
+            if got is not None:
+                return got
+    return None
+
+
+def _unwrap_miio_payload(raw: Any) -> Optional[dict]:
+    """Normalize get_status wire payloads (list-wrapped, result-wrapped, or flat dict)."""
+    raw = _maybe_json_value(raw)
+    if raw is None:
+        return None
+    if isinstance(raw, list) and len(raw) > 0 and isinstance(raw[0], dict):
+        return raw[0]
+    if isinstance(raw, dict):
+        if "result" in raw:
+            r = raw["result"]
+            if isinstance(r, list) and len(r) > 0 and isinstance(r[0], dict):
+                return r[0]
+            if isinstance(r, dict):
+                return r
+        if any(k in raw for k in ("state", "battery", "bat", "fan_power", "fanPower", "bat_percent")):
+            return raw
+        for w in ("data", "status", "payload", "props", "statuses", "info"):
+            if w in raw:
+                inner = raw[w]
+                inner = _maybe_json_value(inner)
+                u = _unwrap_miio_payload(inner) if isinstance(inner, (dict, list)) else None
+                if u:
+                    return u
+                if isinstance(inner, dict) and _dict_looks_like_vacuum_status(inner):
+                    return inner
+    return None
+
+
+def _extract_status_dict_from_raw(raw: Any) -> Optional[dict]:
+    raw = _maybe_json_value(raw)
+    d = _unwrap_miio_payload(raw)
+    if d is not None:
+        return d
+    return _deep_find_status_dict(raw)
+
+
+def _merge_status_plains(*plains: dict[str, Any]) -> Optional[dict[str, Any]]:
+    parts = [p for p in plains if p]
+    if not parts:
+        return None
+    out = dict(parts[0])
+    for p in parts[1:]:
+        if _coerce_int(p.get("battery"), 0) > _coerce_int(out.get("battery"), 0):
+            out["battery"] = _coerce_int(p["battery"], 0)
+        if _coerce_int(out.get("state"), 3) == 3 and _coerce_int(p.get("state"), 3) != 3:
+            out["state"] = _coerce_int(p["state"], 3)
+        if _coerce_int(p.get("fan_power"), 0) not in (0, 102) and _coerce_int(out.get("fan_power"), 102) == 102:
+            out["fan_power"] = _coerce_int(p["fan_power"], 102)
+        for k in ("clean_area", "clean_time", "error_code", "msg_ver"):
+            if _coerce_int(p.get(k), 0) and not _coerce_int(out.get(k), 0):
+                out[k] = _coerce_int(p[k], 0)
+    return out
+
+
+def _dict_to_status_plain(d: dict) -> dict[str, Any]:
+    """Newer firmware (e.g. SAROS) may use different keys than dacite Status models."""
+    bat = 0
+    for key in (
+        "battery",
+        "bat",
+        "bat_percent",
+        "batteryPercent",
+        "battery_percentage",
+        "batPct",
+        "batLife",
+        "bat_life",
+        "remainPower",
+        "remain_power",
+        "batt_percent",
+        "battPercent",
+    ):
+        if key in d and d[key] is not None:
+            bat = _coerce_int(d[key], 0)
+            break
+    state = _coerce_int(d.get("state") if d.get("state") is not None else d.get("State"), 3)
+    fan = _coerce_int(d.get("fan_power") if d.get("fan_power") is not None else d.get("fanPower"), 102)
+    clean_area = _coerce_int(d.get("clean_area") if d.get("clean_area") is not None else d.get("cleanArea"), 0)
+    clean_time = _coerce_int(d.get("clean_time") if d.get("clean_time") is not None else d.get("cleanTime"), 0)
+    err = _coerce_int(d.get("error_code") if d.get("error_code") is not None else d.get("errorCode"), 0)
+    msg_ver = _coerce_int(d.get("msg_ver") if d.get("msg_ver") is not None else d.get("msgVer"), 1)
+    return {
+        "battery": bat,
+        "state": state,
+        "fan_power": fan,
+        "clean_area": clean_area,
+        "clean_time": clean_time,
+        "error_code": err,
+        "msg_ver": msg_ver,
+    }
+
+
+async def _read_vacuum_status_plain(client: Any, timeout: float) -> Optional[dict[str, Any]]:
+    """Raw get_status + app_get_init_status (newer SAROS / Qrevo firmware), then typed Status."""
+    t = min(float(timeout), 30.0)
+    per_cmd = min(t, 22.0)
+    plains: list[dict[str, Any]] = []
+
+    for cmd, params, label in (
+        (RoborockCommand.GET_STATUS, None, "GET_STATUS"),
+        (RoborockCommand.APP_GET_INIT_STATUS, [], "APP_GET_INIT_STATUS"),
+    ):
+        try:
+            if params is None:
+                raw = await asyncio.wait_for(
+                    client.send_command(cmd, return_type=None),
+                    timeout=per_cmd,
+                )
+            else:
+                raw = await asyncio.wait_for(
+                    client.send_command(cmd, params, return_type=None),
+                    timeout=per_cmd,
+                )
+            d = _extract_status_dict_from_raw(raw)
+            if d:
+                plains.append(_dict_to_status_plain(d))
+        except Exception as e:
+            _LOGGER.debug("Roborock: raw %s failed: %s", label, e)
+
+    merged = _merge_status_plains(*plains) if plains else None
+    if merged is not None:
+        if merged.get("battery", 0) == 0:
+            try:
+                st = await asyncio.wait_for(client.get_status(), timeout=min(12.0, timeout))
+                if st is not None:
+                    tb = getattr(st, "battery", None)
+                    if tb is not None and int(tb) > 0:
+                        merged["battery"] = int(tb)
+            except Exception:
+                pass
+        return merged
+
+    try:
+        st = await asyncio.wait_for(client.get_status(), timeout=min(18.0, timeout))
+        if st is not None:
+            return _status_to_plain(st)
+    except Exception as e:
+        _LOGGER.debug("Roborock: typed get_status failed: %s", e)
+    _LOGGER.warning(
+        "Roborock: could not parse vacuum status (tried get_status + app_get_init_status); "
+        "check python-roborock version / device firmware",
+    )
+    return None
 
 
 async def _try_open_local(device: HomeDataDevice, model: str, host: str) -> Optional[RoborockLocalClient]:
@@ -280,11 +494,10 @@ async def vacuum_status(body: SessionDuidBody):
     )
     try:
         async with _hybrid_client(login, body.duid, body.cached_host) as (client, transport, local_ip):
-            st = await asyncio.wait_for(client.get_status(), timeout=25.0)
-            if st is None:
-                _LOGGER.warning("Roborock: get_status returned None (duid=%s… transport=%s)", body.duid[:12], transport)
+            plain = await _read_vacuum_status_plain(client, 25.0)
+            if plain is None:
+                _LOGGER.warning("Roborock: no status (duid=%s… transport=%s)", body.duid[:12], transport)
                 return {"transport": transport, "local_ip": local_ip, "status": None}
-            plain = _status_to_plain(st)
             _LOGGER.debug(
                 "GET status ok duid=%s… transport=%s battery=%s state=%s",
                 body.duid[:12],
@@ -312,7 +525,6 @@ async def vacuum_command(body: CommandBody):
     try:
         async with _hybrid_client(login, body.duid, body.cached_host) as (client, transport, local_ip):
             cmd_map = {
-                "start": RoborockCommand.APP_START,
                 "stop": RoborockCommand.APP_STOP,
                 "pause": RoborockCommand.APP_PAUSE,
                 "return_dock": RoborockCommand.APP_CHARGE,
@@ -321,6 +533,12 @@ async def vacuum_command(body: CommandBody):
             if action == "set_fan_speed":
                 speed = body.fan_speed if body.fan_speed is not None else 102
                 await client.send_command(RoborockCommand.SET_CUSTOM_MODE, [speed])
+            elif action == "start":
+                try:
+                    await client.send_command(RoborockCommand.APP_START)
+                except (CommandVacuumError, RoborockException) as e:
+                    _LOGGER.info("Roborock: app_start default failed, retry with use_new_map (%s)", e)
+                    await client.send_command(RoborockCommand.APP_START, [{"use_new_map": 1}])
             elif action in cmd_map:
                 await client.send_command(cmd_map[action])
             else:

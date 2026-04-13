@@ -23,7 +23,7 @@ const readTools: ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'get_devices',
-      description: 'List devices in the home automation system. Can filter by type, area, or integration. Returns device ID, name, aliases (alternative names), type, state summary, and availability. Match user requests against name, displayName, AND aliases.',
+      description: 'List devices in the home automation system. Returns device ID, name, aliases, type, area, integration, state summary, and availability. Use this to get device IDs and current state after identifying devices from the inventory in the system prompt. Can filter by type, area, or integration for efficiency.',
       parameters: {
         type: 'object',
         properties: {
@@ -271,15 +271,15 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
 
   switch (name) {
     case 'get_devices': {
+      const areaMap = await getAreaMap();
       let devices = stateStore.getAll();
       if (args.type) devices = devices.filter((d) => d.type === args.type);
       if (args.integration) devices = devices.filter((d) => d.integration === args.integration);
       if (args.area) {
         const areaLower = String(args.area).toLowerCase();
-        const { rows: areaRows } = await query<{ id: string; name: string }>('SELECT id, name FROM areas');
-        const matchingAreaIds = areaRows
-          .filter((a) => a.name.toLowerCase().includes(areaLower))
-          .map((a) => a.id);
+        const matchingAreaIds = [...areaMap.entries()]
+          .filter(([, name]) => name.toLowerCase().includes(areaLower))
+          .map(([id]) => id);
         devices = devices.filter((d) => d.userAreaId && matchingAreaIds.includes(d.userAreaId));
       }
       return devices.map((d) => {
@@ -290,6 +290,7 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
           integration: d.integration,
           available: d.available,
         };
+        if (d.userAreaId) { const area = areaMap.get(d.userAreaId); if (area) summary.area = area; }
         if (d.aliases?.length) summary.aliases = d.aliases;
         if (d.type === 'light') { summary.on = d.on; summary.brightness = d.brightness; }
         else if (d.type === 'switch') { summary.on = d.on; }
@@ -722,11 +723,67 @@ IMPORTANT: Do NOT tell the user to install ring-client-api — it is already ava
 }
 
 // ---------------------------------------------------------------------------
+// Area lookup cache (small table, rarely changes)
+// ---------------------------------------------------------------------------
+
+let areaCache: Map<string, string> | null = null;
+let areaCacheTime = 0;
+const AREA_CACHE_TTL = 60_000; // 1 minute
+
+async function getAreaMap(): Promise<Map<string, string>> {
+  if (areaCache && Date.now() - areaCacheTime < AREA_CACHE_TTL) return areaCache;
+  const { rows } = await query<{ id: string; name: string }>('SELECT id, name FROM areas');
+  areaCache = new Map(rows.map((r) => [r.id, r.name]));
+  areaCacheTime = Date.now();
+  return areaCache;
+}
+
+// ---------------------------------------------------------------------------
+// Build compact device inventory for the system prompt
+// ---------------------------------------------------------------------------
+
+const EXCLUDED_DEVICE_TYPES = new Set([
+  'sun', 'weather', 'speedtest', 'screensaver', 'energy_monitor', 'energy_site',
+  'water_softener', 'pool_chemistry', 'recipe_library', 'network_device', 'hub',
+  'helper_sensor', 'helper_counter', 'helper_timer', 'helper_button',
+  'helper_number', 'helper_text', 'helper_datetime', 'helper_select',
+]);
+
+function buildDeviceInventory(devices: ReturnType<typeof stateStore.getAll>, areaMap: Map<string, string>): string {
+  const grouped = new Map<string, string[]>();
+
+  for (const d of devices) {
+    if (EXCLUDED_DEVICE_TYPES.has(d.type)) continue;
+    const areaName = d.userAreaId ? areaMap.get(d.userAreaId) ?? 'Unassigned' : 'Unassigned';
+    if (!grouped.has(areaName)) grouped.set(areaName, []);
+    const name = d.displayName || d.name;
+    const aliases = d.aliases?.length ? ` [${d.aliases.join(', ')}]` : '';
+    grouped.get(areaName)!.push(`- ${name} (${d.type})${aliases}`);
+  }
+
+  const sections: string[] = [];
+  // Sort areas alphabetically, but put Unassigned last
+  const sortedAreas = [...grouped.keys()].sort((a, b) => {
+    if (a === 'Unassigned') return 1;
+    if (b === 'Unassigned') return -1;
+    return a.localeCompare(b);
+  });
+
+  for (const area of sortedAreas) {
+    const lines = grouped.get(area)!;
+    sections.push(`### ${area}\n${lines.join('\n')}`);
+  }
+
+  return sections.join('\n\n');
+}
+
+// ---------------------------------------------------------------------------
 // Build dynamic system prompt
 // ---------------------------------------------------------------------------
 
-function buildSystemPrompt(user: { username: string; role: UserRole }): string {
+async function buildSystemPrompt(user: { username: string; role: UserRole }): Promise<string> {
   const devices = stateStore.getAll();
+  const areaMap = await getAreaMap();
   const health = registry.getHealthAll();
 
   const deviceCounts: Record<string, number> = {};
@@ -769,13 +826,20 @@ ${roleDesc}
 - Device types: ${Object.entries(deviceCounts).map(([t, c]) => `${t} (${c})`).join(', ')}
 - Active integrations: ${activeIntegrations.join(', ') || 'none'}
 
+## Device inventory
+This is the complete list of controllable devices in the system, grouped by area. Use this to identify devices when the user refers to them by name.
+${buildDeviceInventory(devices, areaMap)}
+
 ## DEVICE RESOLUTION RULES — follow these strictly
-1. Match user references against device name, displayName, AND aliases. Use case-insensitive partial/fuzzy matching.
-2. Exactly one match → act immediately, no confirmation needed.
-3. Multiple matches → list them briefly and ask which one.
-4. On confirmation ("yes", "go ahead", etc.) → execute immediately, no follow-up questions.
-5. Command fails → retry once, then report the error concisely.
-6. Confirm AFTER acting, not before. Be concise: "Done — turned on Patio Flood."
+1. Use the Device Inventory above to identify which devices match the user's request. Match against device name AND aliases using case-insensitive partial matching.
+2. The inventory does NOT contain device IDs or current state. Once you identify the target device(s), call get_devices (with type and/or area filters when possible) to get device IDs and current state before acting.
+3. Exactly one match → call get_devices to get the ID, then act immediately. No confirmation needed.
+4. Multiple matches → list them briefly and ask which one.
+5. Zero matches in the inventory → tell the user the device was not found. Do NOT guess or fabricate. Suggest similar device names from the inventory if possible.
+6. For bulk operations ("turn off all kitchen lights"), call get_devices with the appropriate type and/or area filter, then send_command for each matching device.
+7. On confirmation ("yes", "go ahead", etc.) → execute immediately, no follow-up questions.
+8. Command fails → retry once, then report the error concisely.
+9. Confirm AFTER acting, not before. Be concise: "Done — turned on Patio Flood."
 
 ## Navigation
 When the user asks to "show" or "go to" something, use navigate_ui. Valid paths: /devices, /cameras, /settings, /integrations, /areas, /alarms, /recipes.
@@ -824,7 +888,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
       const toolCtx: ToolContext = { userRole: user.role };
 
       const messages: ChatCompletionMessageParam[] = [
-        { role: 'system', content: buildSystemPrompt(user) },
+        { role: 'system', content: await buildSystemPrompt(user) },
         ...req.body.messages.map((m) => ({
           role: m.role as 'user' | 'assistant',
           content: m.content,

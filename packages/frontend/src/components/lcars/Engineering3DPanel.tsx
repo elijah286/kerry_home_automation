@@ -1,12 +1,52 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { LCARS_COLORS } from '@/components/lcars/colors';
+import { useFooterSlot } from './LCARSFooterSlotContext';
+import { ShipGalleryPanel } from './ShipGalleryPanel';
+
+export interface ShipEntry {
+  id: string;
+  name: string;
+  shortName: string;
+  class: string;
+  modelUrl: string;
+}
+
+export const SHIP_REGISTRY: ShipEntry[] = [
+  {
+    id: 'enterprise-d',
+    name: 'USS Enterprise NCC-1701-D',
+    shortName: 'Enterprise-D',
+    class: 'Galaxy Class',
+    modelUrl: 'https://sketchfab.com/3d-models/uss-enterprise-d-star-trek-tng-e3118c97914342b3ad7dd957c4b4ce4e',
+  },
+  {
+    id: 'enterprise-e',
+    name: 'USS Enterprise NCC-1701-E',
+    shortName: 'Enterprise-E',
+    class: 'Sovereign Class',
+    modelUrl: 'https://sketchfab.com/3d-models/uss-enterprise-ncc-1701-e-afb303fa7a4649668a1eae43d03cd339',
+  },
+  {
+    id: 'voyager',
+    name: 'USS Voyager NCC-74656',
+    shortName: 'Voyager',
+    class: 'Intrepid Class',
+    modelUrl: 'https://sketchfab.com/3d-models/uss-voyager-4k-textures-star-trek-intrepid-3a8cb1eb461a48ea8eac9a2dff9fab18',
+  },
+  {
+    id: 'defiant',
+    name: 'USS Defiant NX-74205',
+    shortName: 'Defiant',
+    class: 'Defiant Class',
+    modelUrl: 'https://sketchfab.com/3d-models/uss-defiant-star-trek-zeo-56e09b38c122468a8b0553ba7766025e',
+  },
+];
 
 /** HaughtyGrayAlien — USS Enterprise D (Sketchfab); embed works without a direct GLB URL. */
-export const DEFAULT_ENGINEERING_MODEL_URL =
-  'https://sketchfab.com/3d-models/uss-enterprise-d-star-trek-tng-e3118c97914342b3ad7dd957c4b4ce4e';
+export const DEFAULT_ENGINEERING_MODEL_URL = SHIP_REGISTRY[0].modelUrl;
 
 const STORAGE_KEY = 'lcars-engineering-model-url';
 
@@ -61,6 +101,12 @@ function looksLikeDirectGltfUrl(url: string): boolean {
   return path.endsWith('.glb') || path.endsWith('.gltf');
 }
 
+function resolveCurrentShip(modelUrl: string): ShipEntry | null {
+  const id = parseSketchfabModelId(modelUrl);
+  if (!id) return null;
+  return SHIP_REGISTRY.find((s) => parseSketchfabModelId(s.modelUrl) === id) ?? null;
+}
+
 function validateModelUrl(url: string): { ok: true } | { ok: false; reason: string } {
   const t = url.trim();
   if (!t) return { ok: false, reason: 'URL is empty.' };
@@ -84,6 +130,8 @@ function validateModelUrl(url: string): { ok: true } | { ok: false; reason: stri
 export function Engineering3DPanel() {
   const [modelUrl, setModelUrl] = useState(DEFAULT_ENGINEERING_MODEL_URL);
   const [glbError, setGlbError] = useState<string | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const { setFooterFirstExtra } = useFooterSlot();
 
   useEffect(() => {
     try {
@@ -96,6 +144,45 @@ export function Engineering3DPanel() {
 
   const sketchfabId = useMemo(() => parseSketchfabModelId(modelUrl), [modelUrl]);
   const useGlb = !sketchfabId && looksLikeDirectGltfUrl(modelUrl);
+  const currentShip = useMemo(() => resolveCurrentShip(modelUrl), [modelUrl]);
+
+  const selectShip = useCallback((ship: ShipEntry) => {
+    setModelUrl(ship.modelUrl);
+    try {
+      localStorage.setItem(STORAGE_KEY, ship.modelUrl);
+    } catch { /* ignore */ }
+    setGalleryOpen(false);
+  }, []);
+
+  /* Inject ship name button into footer bar's first segment */
+  useEffect(() => {
+    setFooterFirstExtra(
+      <button
+        type="button"
+        onClick={() => setGalleryOpen(true)}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          paddingLeft: 10,
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          color: '#000',
+          fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
+          fontWeight: 700,
+          fontSize: 11,
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+          zIndex: 1,
+        }}
+      >
+        {currentShip?.shortName ?? 'Select Vessel'}
+      </button>,
+    );
+    return () => setFooterFirstExtra(null);
+  }, [currentShip, setFooterFirstExtra]);
 
   useEffect(() => {
     setGlbError(null);
@@ -130,9 +217,12 @@ export function Engineering3DPanel() {
             src={sketchfabEmbedSrc(sketchfabId)}
             style={{
               position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
+              top: -60,
+              left: -30,
+              right: -30,
+              bottom: -50,
+              width: 'calc(100% + 60px)',
+              height: 'calc(100% + 110px)',
               border: 'none',
               display: 'block',
             }}
@@ -155,6 +245,13 @@ export function Engineering3DPanel() {
           <ViewerChrome message="Invalid model URL. Use a Sketchfab model page or a direct .glb / .gltf link (see lcars-engineering-model-url in localStorage)." />
         )}
       </div>
+
+      <ShipGalleryPanel
+        open={galleryOpen}
+        onClose={() => setGalleryOpen(false)}
+        currentShip={currentShip}
+        onSelectShip={selectShip}
+      />
     </div>
   );
 }

@@ -1,12 +1,14 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clsx } from 'clsx';
-import { X, AlertTriangle, Info, AlertOctagon, ListTree, Braces } from 'lucide-react';
+import { X, AlertTriangle, Info, AlertOctagon, ListTree, Braces, ExternalLink } from 'lucide-react';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { TERMINAL_PANEL_HEIGHT, useSystemTerminal, type TerminalLogFilter } from '@/providers/SystemTerminalProvider';
 import { formatLogPrimaryLine } from '@/lib/logDisplay';
+import { getLogInvestigationLinks } from '@/lib/logInvestigation';
 
 const API_BASE = typeof window !== 'undefined'
   ? `http://${window.location.hostname}:3000`
@@ -60,6 +62,9 @@ export function SystemTerminalDock({
   onClose,
   placement = 'bottom',
   panelHeightPx = TERMINAL_PANEL_HEIGHT,
+  lcarsTopStackedChrome = false,
+  lcarsFrameHandlesControls = false,
+  topOffsetPx = 0,
 }: {
   sidebarOffsetPx: number;
   onClose: () => void;
@@ -67,6 +72,12 @@ export function SystemTerminalDock({
   placement?: 'bottom' | 'top';
   /** LCARS top dock: match frame status band (e.g. ~20vh) */
   panelHeightPx?: number;
+  /** LCARS: frame draws black gap + footer strip below log band — omit dock bottom border */
+  lcarsTopStackedChrome?: boolean;
+  /** LCARS: frame bar has filter / close controls — hide dock header entirely */
+  lcarsFrameHandlesControls?: boolean;
+  /** Additional top offset when placement='top' (e.g. below a LCARS top bar) */
+  topOffsetPx?: number;
 }) {
   const { activeTheme } = useTheme();
   const isMdUp = useMediaQuery('(min-width: 768px)');
@@ -74,6 +85,8 @@ export function SystemTerminalDock({
   const [entries, setEntries] = useState<LogEntry[]>([]);
   /** When false (default), hide structured context JSON — only level + message stay prominent. */
   const [showDetails, setShowDetails] = useState(false);
+  /** Row expanded by click — same detail as global "Details" for that line only */
+  const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const stickBottomRef = useRef(true);
@@ -120,6 +133,10 @@ export function SystemTerminalDock({
   );
 
   useEffect(() => {
+    setExpandedRowKey(null);
+  }, [filter]);
+
+  useEffect(() => {
     if (!stickBottomRef.current || !scrollerRef.current) return;
     scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
   }, [filtered]);
@@ -142,132 +159,183 @@ export function SystemTerminalDock({
 
   const isLCARS = activeTheme === 'lcars';
 
+  const lcarsTop = isLCARS && placement === 'top';
+
   return (
     <div
       className={clsx(
         'fixed z-[45] flex flex-col shadow-2xl',
-        placement === 'top' ? 'border-b' : 'right-0 border-t',
+        placement === 'top'
+          ? lcarsTopStackedChrome
+            ? ''
+            : 'border-b'
+          : 'right-0 border-t',
       )}
       style={{
         left: sidebarOffsetPx,
         right: 0,
         height: panelHeightPx,
         ...(placement === 'top'
-          ? { top: 0, bottom: 'auto' }
+          ? { top: topOffsetPx, bottom: 'auto' }
           : { bottom: bottomPx ?? 0, top: 'auto' }),
-        backgroundColor: 'var(--color-bg-card)',
+        backgroundColor: isLCARS ? '#000' : 'var(--color-bg-card)',
         borderColor: 'var(--color-border)',
       }}
     >
-      {/* Header — filters */}
+      {/* Header — filters (hidden when LCARS frame handles controls) */}
+      {!lcarsFrameHandlesControls && (
       <div
         className={clsx(
-          'flex shrink-0 items-center border-b',
-          isLCARS ? 'gap-1 px-2 py-1' : 'gap-2 px-3 py-2',
+          'flex shrink-0 border-b',
+          lcarsTop ? 'flex-col gap-1.5 px-2 py-2' : 'items-center gap-2 px-3 py-2',
+          isLCARS && !lcarsTop ? 'gap-1 px-2 py-1' : '',
         )}
         style={{ borderColor: 'var(--color-border)' }}
       >
-        {!isLCARS && <ListTree className="h-4 w-4 shrink-0" style={{ color: 'var(--color-accent)' }} />}
-        <span
-          className={clsx(
-            'shrink-0 font-semibold uppercase tracking-wide',
-            isLCARS ? 'font-mono text-[8px] leading-none' : 'text-xs',
-          )}
-          style={{ color: 'var(--color-text-secondary)' }}
-        >
-          System terminal
-        </span>
         <div
           className={clsx(
-            'flex flex-1 flex-wrap items-center justify-center sm:justify-start',
-            isLCARS ? 'gap-1' : 'gap-1.5',
+            'flex min-w-0 items-center',
+            lcarsTop ? 'w-full justify-between gap-2' : 'contents',
           )}
         >
-          {FILTER_OPTIONS.map((opt) => {
-            const active = filter === opt.id;
-            return (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => setFilter(opt.id)}
-                className={clsx(
-                  'font-medium transition-colors',
-                  isLCARS
-                    ? 'rounded-none px-2 py-0.5 font-mono text-[7px] font-bold uppercase tracking-tight'
-                    : 'rounded-md px-2.5 py-1 text-xs',
-                )}
-                style={{
-                  backgroundColor: active ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                  color: active ? '#fff' : 'var(--color-text-secondary)',
-                }}
-              >
-                {!isLCARS && opt.id === 'info' && (
-                  <Info className="mr-1 inline h-3 w-3 align-text-bottom opacity-80" />
-                )}
-                {!isLCARS && opt.id === 'warn' && (
-                  <AlertTriangle className="mr-1 inline h-3 w-3 align-text-bottom opacity-80" />
-                )}
-                {!isLCARS && opt.id === 'error' && (
-                  <AlertOctagon className="mr-1 inline h-3 w-3 align-text-bottom opacity-80" />
-                )}
-                {isLCARS
-                  ? opt.id === 'error'
-                    ? 'Err'
-                    : opt.id === 'warn'
-                      ? 'Warn'
-                      : opt.label
-                  : opt.label}
-              </button>
-            );
-          })}
-        </div>
-        <span
-          className={clsx(
-            'hidden uppercase sm:inline',
-            isLCARS ? 'font-mono text-[7px]' : 'text-[10px]',
-          )}
-          style={{ color: connected ? 'var(--color-success)' : 'var(--color-text-muted)' }}
-        >
-          {connected ? 'Live' : '…'}
-        </span>
-        <button
-          type="button"
-          onClick={() => setShowDetails((v) => !v)}
-          aria-pressed={showDetails}
-          title={
-            showDetails
-              ? 'Hide extra fields (stack traces, raw context)'
-              : 'Show full log context (JSON, errors, stacks)'
-          }
-          className={clsx(
-            'shrink-0 transition-colors',
-            isLCARS
-              ? 'rounded-none px-2 py-0.5 font-mono text-[7px] font-bold uppercase'
-              : 'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium',
-          )}
-          style={{
-            backgroundColor: showDetails ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-            color: showDetails ? '#fff' : 'var(--color-text-secondary)',
-          }}
-        >
-          {!isLCARS && <Braces className="h-3.5 w-3.5 opacity-90" />}
-          <span className={clsx(!isLCARS && 'hidden sm:inline')}>
-            {showDetails ? 'Hide details' : 'Details'}
+          {!isLCARS && <ListTree className="h-4 w-4 shrink-0" style={{ color: 'var(--color-accent)' }} />}
+          <span
+            className={clsx(
+              'shrink-0 font-semibold uppercase tracking-wide',
+              isLCARS ? 'font-mono text-[8px] leading-none' : 'text-xs',
+            )}
+            style={{ color: 'var(--color-text-secondary)' }}
+          >
+            System terminal
           </span>
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className={clsx(
-            'shrink-0 transition-colors hover:bg-white/10',
-            isLCARS ? 'px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase' : 'rounded-md p-1.5',
+          {!lcarsTop && (
+            <div
+              className={clsx(
+                'flex flex-1 flex-wrap items-center justify-center sm:justify-start',
+                isLCARS ? 'gap-1' : 'gap-1.5',
+              )}
+            >
+              {FILTER_OPTIONS.map((opt) => {
+                const active = filter === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setFilter(opt.id)}
+                    className={clsx(
+                      'font-medium transition-colors',
+                      isLCARS
+                        ? 'rounded-none px-2 py-0.5 font-mono text-[7px] font-bold uppercase tracking-tight'
+                        : 'rounded-md px-2.5 py-1 text-xs',
+                    )}
+                    style={{
+                      backgroundColor: active ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                      color: active ? '#fff' : 'var(--color-text-secondary)',
+                    }}
+                  >
+                    {!isLCARS && opt.id === 'info' && (
+                      <Info className="mr-1 inline h-3 w-3 align-text-bottom opacity-80" />
+                    )}
+                    {!isLCARS && opt.id === 'warn' && (
+                      <AlertTriangle className="mr-1 inline h-3 w-3 align-text-bottom opacity-80" />
+                    )}
+                    {!isLCARS && opt.id === 'error' && (
+                      <AlertOctagon className="mr-1 inline h-3 w-3 align-text-bottom opacity-80" />
+                    )}
+                    {isLCARS
+                      ? opt.id === 'error'
+                        ? 'Err'
+                        : opt.id === 'warn'
+                          ? 'Warn'
+                          : opt.label
+                      : opt.label}
+                  </button>
+                );
+              })}
+            </div>
           )}
-          style={{ color: 'var(--color-text-secondary)' }}
-          title="Close"
-        >
-          {isLCARS ? '×' : <X className="h-4 w-4" />}
-        </button>
+          <span
+            className={clsx(
+              'shrink-0 uppercase',
+              lcarsTop ? 'inline font-mono text-[8px]' : 'hidden sm:inline',
+              !lcarsTop && isLCARS ? 'font-mono text-[7px]' : !lcarsTop ? 'text-[10px]' : '',
+            )}
+            style={{ color: connected ? 'var(--color-success)' : 'var(--color-text-muted)' }}
+          >
+            {connected ? 'Live' : '…'}
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowDetails((v) => !v)}
+            aria-pressed={showDetails}
+            title={
+              showDetails
+                ? 'Hide extra fields (stack traces, raw context)'
+                : 'Show full log context (JSON, errors, stacks)'
+            }
+            className={clsx(
+              'shrink-0 transition-colors',
+              isLCARS
+                ? lcarsTop
+                  ? 'rounded-none px-2.5 py-1 font-mono text-[8px] font-bold uppercase'
+                  : 'rounded-none px-2 py-0.5 font-mono text-[7px] font-bold uppercase'
+                : 'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium',
+            )}
+            style={{
+              backgroundColor: showDetails ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+              color: showDetails ? '#fff' : 'var(--color-text-secondary)',
+            }}
+          >
+            {!isLCARS && <Braces className="h-3.5 w-3.5 opacity-90" />}
+            <span className={clsx(!isLCARS && 'hidden sm:inline')}>
+              {showDetails ? 'Hide details' : 'Details'}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className={clsx(
+              'shrink-0 transition-colors hover:bg-white/10',
+              isLCARS
+                ? lcarsTop
+                  ? 'px-2 py-1 font-mono text-[9px] font-bold uppercase'
+                  : 'px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase'
+                : 'rounded-md p-1.5',
+            )}
+            style={{ color: 'var(--color-text-secondary)' }}
+            title="Close"
+          >
+            {isLCARS ? '×' : <X className="h-4 w-4" />}
+          </button>
+        </div>
+        {lcarsTop && (
+          <div
+            className="grid w-full grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:justify-end"
+            role="group"
+            aria-label="Log level filter"
+          >
+            {FILTER_OPTIONS.map((opt) => {
+              const active = filter === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setFilter(opt.id)}
+                  className="rounded-none px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-wide transition-colors sm:min-w-[5.5rem]"
+                  style={{
+                    backgroundColor: active ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                    color: active ? '#fff' : 'var(--color-text-secondary)',
+                    border: '2px solid #000',
+                  }}
+                >
+                  {opt.id === 'error' ? 'Errors' : opt.id === 'warn' ? 'Warnings' : opt.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
+      )}
 
       {/* Log body */}
       <div
@@ -275,39 +343,154 @@ export function SystemTerminalDock({
         onScroll={onScroll}
         className={clsx(
           'min-h-0 flex-1 overflow-auto font-mono leading-relaxed',
-          isLCARS ? 'px-2 py-1.5 text-[8px] leading-tight' : 'px-3 py-2 text-[11px]',
+          isLCARS ? 'px-2 py-0.5 text-[8px] leading-tight' : 'px-3 py-2 text-[11px]',
         )}
         style={{ color: 'var(--color-text)' }}
       >
         {filtered.length === 0 ? (
           <span style={{ color: 'var(--color-text-muted)' }}>No log lines for this filter.</span>
         ) : (
-          filtered.map((e, i) => (
-            <div key={`${e.ts}-${i}-${e.msg.slice(0, 24)}`} className="whitespace-pre-wrap break-all py-0.5">
-              {showDetails && (
-                <>
-                  <span style={{ color: 'var(--color-text-muted)' }}>
-                    {new Date(e.ts).toLocaleTimeString()}
-                  </span>{' '}
-                  <span
-                    className={clsx('inline-block w-4 shrink-0 text-center font-bold', levelStyle(e.level))}
-                    title={e.level}
+          filtered.map((e, i) => {
+            const rowKey = `${e.ts}:${i}:${e.level}:${e.msg.slice(0, 64)}`;
+            const expanded = expandedRowKey === rowKey;
+            const investigationLinks = getLogInvestigationLinks(e);
+            const showLineMeta = showDetails && !expanded;
+            const contextKeys = e.context ? Object.keys(e.context).length : 0;
+            const contextJson =
+              e.context && contextKeys > 0 ? JSON.stringify(e.context, null, 2) : null;
+
+            const activateLine = () => {
+              stickBottomRef.current = false;
+              setExpandedRowKey((k) => (k === rowKey ? null : rowKey));
+            };
+
+            return (
+              <div
+                key={rowKey}
+                className={clsx(
+                  'whitespace-pre-wrap break-all py-0.5',
+                  expanded && (isLCARS ? 'rounded-sm bg-white/[0.06]' : 'rounded-md bg-[var(--color-bg-secondary)]/80'),
+                )}
+              >
+                <div className="flex items-start gap-1">
+                  <button
+                    type="button"
+                    onClick={activateLine}
+                    aria-expanded={expanded}
+                    title={
+                      expanded
+                        ? 'Collapse details (resume auto-scroll when you scroll to the bottom)'
+                        : 'Show timestamp, level, message, and full context; pause auto-scroll'
+                    }
+                    className={clsx(
+                      'min-w-0 flex-1 rounded-sm text-left transition-colors',
+                      isLCARS ? 'hover:bg-white/10' : 'hover:bg-[var(--color-bg-hover)]/50',
+                    )}
                   >
-                    {LEVEL_BADGE[e.level]}
-                  </span>{' '}
-                </>
-              )}
-              <span className={clsx('text-[var(--color-text)]', levelStyle(e.level))}>
-                {formatLogPrimaryLine(e)}
-              </span>
-              {showDetails && e.context && Object.keys(e.context).length > 0 && (
-                <span style={{ color: 'var(--color-text-muted)' }}>
-                  {' '}
-                  {JSON.stringify(e.context)}
-                </span>
-              )}
-            </div>
-          ))
+                    {showLineMeta && (
+                      <>
+                        <span style={{ color: 'var(--color-text-muted)' }}>
+                          {new Date(e.ts).toLocaleTimeString()}
+                        </span>{' '}
+                        <span
+                          className={clsx('inline-block w-4 shrink-0 text-center font-bold', levelStyle(e.level))}
+                          title={e.level}
+                        >
+                          {LEVEL_BADGE[e.level]}
+                        </span>{' '}
+                      </>
+                    )}
+                    <span className={clsx('text-[var(--color-text)]', levelStyle(e.level))}>
+                      {formatLogPrimaryLine(e)}
+                    </span>
+                    {showLineMeta && e.context && contextKeys > 0 && (
+                      <span style={{ color: 'var(--color-text-muted)' }}>
+                        {' '}
+                        {JSON.stringify(e.context)}
+                      </span>
+                    )}
+                  </button>
+                  {investigationLinks.length > 0 && (
+                    <div className="flex shrink-0 items-start gap-0.5 pt-0.5">
+                      {investigationLinks.map((link) => (
+                        <Link
+                          key={link.href}
+                          href={link.href}
+                          title={`Open: ${link.label}`}
+                          className={clsx(
+                            'inline-flex shrink-0 rounded-sm transition-opacity hover:opacity-100',
+                            isLCARS ? 'p-0.5 opacity-90' : 'p-1 opacity-80 hover:bg-[var(--color-bg-hover)]',
+                          )}
+                          style={{ color: 'var(--color-accent)' }}
+                          onClick={() => {
+                            stickBottomRef.current = false;
+                          }}
+                        >
+                          <ExternalLink className={isLCARS ? 'h-2.5 w-2.5' : 'h-3.5 w-3.5'} aria-hidden />
+                          <span className="sr-only">{link.label}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {expanded && (
+                  <div
+                    className={clsx(
+                      'mt-1 border-l-2 pl-2 font-mono',
+                      isLCARS ? 'text-[7px] leading-snug' : 'text-[10px] leading-relaxed',
+                    )}
+                    style={{
+                      borderColor: 'var(--color-accent)',
+                      color: 'var(--color-text-secondary)',
+                    }}
+                  >
+                    <div style={{ color: 'var(--color-text-muted)' }}>
+                      {new Date(e.ts).toLocaleString()} ·{' '}
+                      <span className={clsx('font-bold', levelStyle(e.level))}>{e.level}</span>
+                    </div>
+                    {e.msg ? (
+                      <div className="mt-0.5 break-all">
+                        <span style={{ color: 'var(--color-text-muted)' }}>Message: </span>
+                        <span style={{ color: 'var(--color-text)' }}>{e.msg}</span>
+                      </div>
+                    ) : null}
+                    {contextJson ? (
+                      <pre
+                        className={clsx(
+                          'mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all',
+                          isLCARS ? 'text-[6px]' : 'text-[10px]',
+                        )}
+                        style={{ color: 'var(--color-text-muted)' }}
+                      >
+                        {contextJson}
+                      </pre>
+                    ) : (
+                      <div className="mt-0.5 italic" style={{ color: 'var(--color-text-muted)' }}>
+                        No structured context on this line.
+                      </div>
+                    )}
+                    {investigationLinks.length > 0 && (
+                      <div className={clsx('mt-1 flex flex-wrap gap-x-2 gap-y-0.5', isLCARS ? 'text-[7px]' : 'text-[10px]')}>
+                        {investigationLinks.map((link) => (
+                          <Link
+                            key={`${link.href}-inline`}
+                            href={link.href}
+                            className="font-semibold underline underline-offset-2"
+                            style={{ color: 'var(--color-accent)' }}
+                            onClick={() => {
+                              stickBottomRef.current = false;
+                            }}
+                          >
+                            {link.label}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
     </div>

@@ -3,6 +3,10 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useAuth } from '@/providers/AuthProvider';
+import { useAlert } from './LCARSAlertOverlay';
+
+/** TNG red alert / klaxon — https://www.trekcore.com/audio/redalertandklaxons/tng_red_alert1.mp3 (mirrored in public/audio). */
+const RED_ALERT_KLAXON_SRC = '/audio/tng_red_alert1.mp3';
 
 type SoundType = 'beep' | 'chirp' | 'deny' | 'alert' | 'hail' | 'scan' | 'process';
 
@@ -87,9 +91,11 @@ const SOUND_DEFS: Record<SoundType, (ctx: AudioContext) => void> = {
 
 export function LCARSSoundsProvider({ children }: { children: ReactNode }) {
   const { activeTheme } = useTheme();
+  const { alertLevel } = useAlert();
   const { user, uiPreferences, uiPreferenceLocks, patchUiPreferences } = useAuth();
   const [enabled, setEnabledState] = useState(false);
   const ctxRef = useRef<AudioContext | null>(null);
+  const redKlaxonRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -108,6 +114,34 @@ export function LCARSSoundsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem('lcars-sounds', String(enabled));
   }, [enabled]);
+
+  useEffect(() => {
+    const reduce =
+      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const stop = () => {
+      const a = redKlaxonRef.current;
+      if (a) {
+        a.pause();
+        a.currentTime = 0;
+      }
+    };
+
+    if (alertLevel !== 'red' || !enabled || activeTheme !== 'lcars' || reduce) {
+      stop();
+      return;
+    }
+
+    let a = redKlaxonRef.current;
+    if (!a) {
+      a = new Audio(RED_ALERT_KLAXON_SRC);
+      a.loop = true;
+      a.volume = 0.32;
+      redKlaxonRef.current = a;
+    }
+    void a.play().catch(() => {});
+
+    return stop;
+  }, [alertLevel, enabled, activeTheme]);
 
   const setEnabled = useCallback(
     (v: boolean) => {

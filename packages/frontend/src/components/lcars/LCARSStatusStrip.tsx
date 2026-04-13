@@ -19,7 +19,7 @@ function hashSeed(n: number): number {
 }
 
 /** Dense multi-column readout (reference: long-range scan header). */
-function DenseReadout({
+export function DenseReadout({
   deviceCount,
   integrationCount,
   connectedCount,
@@ -169,13 +169,9 @@ export function LCARSStatusStrip({
                 key={id}
                 type="button"
                 onClick={() => setLogFilter(id)}
-                className="lcars-filter-pill lcars-chrome-item border-0 px-2 py-0.5 text-[7px] font-bold uppercase tracking-wider transition-[filter,transform] hover:brightness-110 active:scale-[0.98]"
+                className={`lcars-btn lcars-btn--pill-right lcars-btn--xs${active ? ' lcars-btn--active' : ''}`}
                 style={{
                   background: active ? colors.navActive : colors.muted,
-                  color: '#000',
-                  fontFamily: 'var(--font-antonio), sans-serif',
-                  borderRadius: '0 999px 999px 0',
-                  boxShadow: active ? 'inset 0 1px 0 rgba(255,255,255,0.35)' : 'none',
                 }}
               >
                 {label}
@@ -186,12 +182,9 @@ export function LCARSStatusStrip({
             <button
               type="button"
               onClick={() => setOpen(!open)}
-              className="lcars-chrome-item border-0 px-2 py-0.5 text-[7px] font-bold uppercase tracking-wider hover:brightness-110"
+              className="lcars-btn lcars-btn--pill-right lcars-btn--xs"
               style={{
                 background: open ? colors.navColors[2] ?? colors.accent : colors.navColors[4] ?? colors.muted,
-                color: '#000',
-                fontFamily: 'var(--font-antonio), sans-serif',
-                borderRadius: '0 999px 999px 0',
               }}
             >
               {open ? 'Hide log' : 'Log'}

@@ -2,17 +2,19 @@
 
 import { useTheme } from '@/providers/ThemeProvider';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { LCARSSidebar } from './LCARSSidebar';
 import { LCARSStartup } from './LCARSStartup';
 import { LCARSElbow } from './LCARSElbow';
-import { useConnected } from '@/hooks/useWebSocket';
-import { useLCARSVariant } from './LCARSVariantProvider';
+import { useConnected, useWebSocket } from '@/hooks/useWebSocket';
+import { useLCARSVariant, type ResolvedColors } from './LCARSVariantProvider';
+import { DenseReadout } from './LCARSStatusStrip';
 import { useAlert } from './LCARSAlertOverlay';
 import {
   TERMINAL_PANEL_HEIGHT,
   useSystemTerminal,
   useSystemTerminalBottomInset,
+  type TerminalLogFilter,
 } from '@/providers/SystemTerminalProvider';
 import { SystemTerminalDock } from '@/components/layout/SystemTerminalDock';
 import { lcarsVerticalRailGradient } from './lcarsRailGradient';
@@ -20,18 +22,103 @@ import { LCARSBreadcrumbBlocks } from './LCARSBreadcrumbBlocks';
 import { getBreadcrumbItems } from '@/lib/appBreadcrumbs';
 import { AppVersionLabel } from '../layout/AppVersionLabel';
 import { AssistantHeaderButton } from '../ChatBot';
+import { LCARSFrameProvider } from './LCARSFrameContext';
+import { FooterSlotProvider, useFooterSlot } from './LCARSFooterSlotContext';
+import { useLCARSSounds } from './LCARSSounds';
 
-const BAR_W = 150;
-const BAR_W_COLLAPSED = 56;
-const HEADER_H = 28;
-const FOOTER_H = 28;
-const OUTER_R = 50;
+export const BAR_W = 150;
+export const BAR_W_COLLAPSED = 56;
+export const HEADER_H = 28;
+export const FOOTER_H = 28;
+export const OUTER_R = 50;
 /** Horizontal extension east of sidebar (svg width, content `left` margin) */
-const INNER_R = 28;
+export const INNER_R = 28;
 const FRAME_STRIPE_W = 4;
-const CONTENT_EDGE = 10;
+export const CONTENT_EDGE = 10;
 /** Pull rail under elbows by 1px and paint elbows above — removes anti-alias gaps at seams */
 const RAIL_SEAM_OVERLAP = 2;
+/** Black band between upper (log) footer strip and main header when status viewer is stacked */
+const MAIN_HEADER_JOIN_GAP = 2;
+const FOOTER_BAR_GAP_PX = 3;
+
+/** Same flex columns / gaps as the page footer so stacked chrome lines up across the join gap. */
+function LcarsFooterStyleBarRow({
+  colors,
+  height,
+  firstExtra,
+  rightLabel,
+  showScan = true,
+}: {
+  colors: ResolvedColors;
+  height: number;
+  firstExtra?: ReactNode;
+  rightLabel: ReactNode;
+  showScan?: boolean;
+}) {
+  const segs = colors.footerSegments;
+  const first = segs[0] || colors.footerBar;
+  const last = segs[segs.length - 1] || colors.accent;
+  const mid = segs.slice(1, -1);
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'stretch',
+        gap: FOOTER_BAR_GAP_PX,
+        height,
+        width: '100%',
+        boxSizing: 'border-box',
+      }}
+    >
+      <div
+        className="lcars-footer-segment lcars-chrome-item lcars-scan-container"
+        style={{
+          flex: 2,
+          minWidth: 0,
+          background: first,
+          position: 'relative',
+          overflow: 'hidden',
+          transition: 'background 0.3s ease',
+        }}
+      >
+        {showScan ? <div className="lcars-scan-bar" /> : null}
+        {firstExtra}
+      </div>
+      {mid.map((c, i) => (
+        <div
+          key={i}
+          className="lcars-footer-segment lcars-chrome-item"
+          style={{ flex: 1, background: c, transition: 'background 0.3s ease' }}
+        />
+      ))}
+      <div
+        className="lcars-footer-segment lcars-chrome-item"
+        style={{
+          flex: 2,
+          minWidth: 0,
+          background: last,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          paddingRight: 14,
+          transition: 'background 0.3s ease',
+        }}
+      >
+        {rightLabel}
+      </div>
+      <div
+        className="lcars-footer-segment lcars-chrome-item"
+        style={{
+          width: 20,
+          flexShrink: 0,
+          background: last,
+          borderRadius: '0 999px 999px 0',
+          transition: 'background 0.3s ease',
+        }}
+      />
+    </div>
+  );
+}
 
 interface LCARSFrameProps {
   children: ReactNode;
@@ -46,8 +133,10 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
   const { colors } = useLCARSVariant();
   const { alertLevel } = useAlert();
   const terminalInset = useSystemTerminalBottomInset();
-  const { open: terminalOpen, setOpen: setTerminalOpen, canUse: canUseTerminal } = useSystemTerminal();
-  const [showStartup, setShowStartup] = useState(false);
+  const { open: terminalOpen, setOpen: setTerminalOpen, canUse: canUseTerminal, logFilter, setLogFilter } = useSystemTerminal();
+  const { devices, integrations } = useWebSocket();
+  const { play: playSound } = useLCARSSounds();
+  const [showStartup, setShowStartup] = useState(true);
   /** Status viewer band when terminal open: ~20% viewport, clamped for usability */
   const [statusViewerBandH, setStatusViewerBandH] = useState(TERMINAL_PANEL_HEIGHT);
 
@@ -55,7 +144,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
     const syncBand = () => {
       if (typeof window === 'undefined') return;
       const h = window.innerHeight;
-      setStatusViewerBandH(Math.max(160, Math.min(320, Math.round(h * 0.2))));
+      setStatusViewerBandH(Math.max(200, Math.min(360, Math.round(h * 0.22))));
     };
     syncBand();
     window.addEventListener('resize', syncBand);
@@ -63,18 +152,11 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
   }, []);
 
   useEffect(() => {
-    if (sessionStorage.getItem('lcars-booted')) return;
-    const raf = requestAnimationFrame(() => {
-      if (sessionStorage.getItem('lcars-booted')) return;
-      sessionStorage.setItem('lcars-booted', '1');
-      setShowStartup(true);
-      setTimeout(() => setShowStartup(false), 3800);
-    });
-    return () => cancelAnimationFrame(raf);
+    const timer = setTimeout(() => setShowStartup(false), 3800);
+    return () => clearTimeout(timer);
   }, []);
 
   if (activeTheme !== 'lcars') return <>{children}</>;
-  if (showStartup) return <LCARSStartup onDismiss={() => setShowStartup(false)} />;
 
   const breadcrumbItems = getBreadcrumbItems(pathname ?? '/');
   const barW = collapsed ? BAR_W_COLLAPSED : BAR_W;
@@ -86,67 +168,430 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
   /** Top band only when status viewer (system terminal) is open; default = header + elbow flush to viewport top. */
   const showTopTerminal = canUseTerminal && terminalOpen;
   const topChromeH = showTopTerminal ? statusViewerBandH : 0;
-  /** Rail starts at `topChromeH` when terminal open; cap fills stem under top elbow only */
+  /** When terminal open: optional strip above main header (footer geometry + gap) so logs sit in upper band only. */
+  const STATUS_STACK_GAP = 2;
+  /** Skinny separator bar height — ~20% of the normal header bar. */
+  const STATUS_SEPARATOR_H = 6;
+  /** Separator elbow outer radius — mirrors the main header elbow exactly. */
+  const STATUS_SEP_OR = or;
+  /** Chrome taken by the separator (skinny elbow + gap) at the bottom of the status section. */
+  const statusSepElbowH = STATUS_SEPARATOR_H + STATUS_SEP_OR;
+  const upperStatusChromeH = statusSepElbowH + STATUS_STACK_GAP;
+  /** Stacked chrome needs room for log scroller. */
+  const MIN_LOG_BAND_PX = 80;
+  const useStackedStatusChrome =
+    showTopTerminal && topChromeH >= upperStatusChromeH + MIN_LOG_BAND_PX;
+  /** Height of the log/status body area (from top of viewport to above separator). */
+  const logBandH = useStackedStatusChrome ? topChromeH - upperStatusChromeH : topChromeH;
+  const stackedStatusTop = useStackedStatusChrome ? topChromeH - statusSepElbowH : 0;
+  /** Status body: content area from viewport top to just above the skinny separator bar. */
+  const statusBodyTop = 0;
+  const statusBodyH = useStackedStatusChrome ? topChromeH - STATUS_SEPARATOR_H - STATUS_STACK_GAP : logBandH;
+  /** Main header + elbow + rail: flush under log dock, or one gap below upper footer when stacked */
+  const mainChromeTop =
+    !showTopTerminal ? 0 : useStackedStatusChrome ? topChromeH + MAIN_HEADER_JOIN_GAP : topChromeH;
+  /** Rail starts below main top elbow when terminal open */
   const navStackOffsetPx = topElbowH - RAIL_SEAM_OVERLAP;
-  const contentTop = topChromeH + Math.max(topElbowH, HEADER_H) + 4;
+  const contentTop = mainChromeTop + HEADER_H + 2;
   const contentLeft = elbowW;
   const contentBottom = FOOTER_H + 2 + terminalInset;
   const framePin = colors.verticalSegments[1] ?? colors.navColors[1] ?? '#cc99cc';
 
+  const integList = Object.values(integrations);
+  const connectedCount = integList.filter((h) => h.state === 'connected').length;
+
+  const STATUS_FILTERS: { id: TerminalLogFilter; label: string }[] = [
+    { id: 'all', label: 'All' },
+    { id: 'info', label: 'Info' },
+    { id: 'warn', label: 'Warn' },
+    { id: 'error', label: 'Err' },
+  ];
+
+  /** Filter pill buttons — 4 buttons in 2×2 grid. */
+  const statusFilterButtons = showTopTerminal ? (
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        right: CONTENT_EDGE,
+        height: logBandH,
+        zIndex: 46,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: 4,
+        padding: '8px 0',
+        pointerEvents: 'auto',
+      }}
+    >
+      {/* Inner column — rounded on both sides */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {STATUS_FILTERS.slice(0, 2).map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            className={`lcars-btn lcars-btn--pill${logFilter === id ? ' lcars-btn--active' : ''}`}
+            style={{
+              background: logFilter === id ? colors.navActive : colors.muted,
+              minWidth: 88,
+              minHeight: 36,
+              fontSize: 12,
+            }}
+            onClick={() => setLogFilter(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {/* Outer column — pill-left (rounded left, flat right touching edge) */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {STATUS_FILTERS.slice(2, 4).map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            className={`lcars-btn lcars-btn--pill-left${logFilter === id ? ' lcars-btn--active' : ''}`}
+            style={{
+              background: logFilter === id ? colors.navActive : colors.muted,
+              minWidth: 88,
+              minHeight: 36,
+              fontSize: 12,
+            }}
+            onClick={() => setLogFilter(id as TerminalLogFilter)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
+  const footerBarCaption = (
+    <span
+      style={{
+        color: colors.text,
+        fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
+        fontWeight: 700,
+        fontSize: 11,
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase',
+      }}
+    >
+      USS Kerry NCC-2024
+    </span>
+  );
+
+  const stackedHeaderFirstExtra = useStackedStatusChrome ? (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        alignItems: 'center',
+        zIndex: 1,
+        gap: 6,
+        paddingLeft: 8,
+        paddingRight: 4,
+        pointerEvents: 'none',
+      }}
+    >
+      <div style={{ display: 'flex', gap: 3, alignItems: 'center', pointerEvents: 'auto' }}>
+        <span
+          className="lcars-blink-1 lcars-chrome-item"
+          style={{ width: 4, height: 14, borderRadius: 0, background: colors.navColors[1] || colors.accent }}
+        />
+        <span
+          className="lcars-blink-2 lcars-chrome-item"
+          style={{ width: 4, height: 14, borderRadius: 0, background: colors.navColors[3] || colors.accent }}
+        />
+        <span
+          className="lcars-blink-3 lcars-chrome-item"
+          style={{ width: 4, height: 14, borderRadius: 0, background: colors.navColors[5] || colors.muted }}
+        />
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          flex: 1,
+          minWidth: 0,
+          alignItems: 'stretch',
+          alignSelf: 'stretch',
+          height: '100%',
+          background: '#000',
+          gap: FOOTER_BAR_GAP_PX,
+          pointerEvents: 'auto',
+        }}
+      >
+        <div style={{ width: FOOTER_BAR_GAP_PX, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+        <LCARSBreadcrumbBlocks
+          items={breadcrumbItems}
+          navColors={colors.navColors.length ? colors.navColors : [colors.accent, colors.muted]}
+          textColor={colors.text}
+          barHeight={HEADER_H}
+        />
+        <div
+          className="lcars-chrome-item lcars-header-filler"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            alignSelf: 'stretch',
+            minHeight: HEADER_H,
+            background: colors.headerBar,
+          }}
+          aria-hidden
+        />
+      </div>
+    </div>
+  ) : null;
+
+  const stackedHeaderRight = useStackedStatusChrome ? (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        width: '100%',
+        height: '100%',
+        minWidth: 0,
+      }}
+    >
+      <div style={{ width: FOOTER_BAR_GAP_PX, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          alignSelf: 'stretch',
+          paddingLeft: 8,
+          paddingRight: 8,
+          flexShrink: 0,
+        }}
+      >
+        <div
+          className="lcars-status-led"
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: 0,
+            background: connected ? '#99cc66' : '#cc4444',
+          }}
+          title={connected ? 'Connected' : 'Disconnected'}
+        />
+      </div>
+      <div style={{ width: FOOTER_BAR_GAP_PX, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+      {canUseTerminal && (
+        <button
+          type="button"
+          onClick={() => setTerminalOpen(!terminalOpen)}
+          className="lcars-chrome-item"
+          style={{
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            alignSelf: 'stretch',
+            paddingLeft: 12,
+            paddingRight: 12,
+            flexShrink: 0,
+            background: terminalOpen ? colors.navActive : colors.headerBar,
+            color: colors.text,
+            fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
+            fontWeight: 700,
+            fontSize: 10,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            transition: 'background 0.3s ease',
+          }}
+        >
+          Status
+        </button>
+      )}
+      <div style={{ width: FOOTER_BAR_GAP_PX, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+      <AssistantHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} />
+      <div style={{ width: FOOTER_BAR_GAP_PX, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          alignSelf: 'stretch',
+          paddingLeft: 8,
+          paddingRight: 10,
+          flexShrink: 0,
+        }}
+      >
+        <AppVersionLabel variant="lcars" lcarsTextColor={colors.text} />
+      </div>
+    </div>
+  ) : null;
+
   const alertClass = alertLevel === 'red' ? 'lcars-alert-red' : alertLevel === 'yellow' ? 'lcars-alert-yellow' : '';
 
+  const frameGeometry = {
+    contentTop,
+    contentBottom,
+    contentLeft,
+    contentRight: CONTENT_EDGE,
+    barW,
+    elbowW,
+    headerH: HEADER_H,
+    footerH: FOOTER_H,
+    showTopTerminal: !!showTopTerminal,
+    topChromeH,
+    mainChromeTop,
+  };
+
+  const handleFrameClick = useCallback((e: React.MouseEvent) => {
+    const el = e.target as HTMLElement;
+    if (el.closest('button, a, .lcars-nav-block, .lcars-btn')) {
+      playSound('beep');
+    }
+  }, [playSound]);
+
+  if (showStartup) return <LCARSStartup onDismiss={() => setShowStartup(false)} />;
+
   return (
-    <div className={`lcars-frame ${alertClass}`} style={{ minHeight: '100vh', background: '#000' }}>
+    <FooterSlotProvider>
+    <LCARSFrameProvider value={frameGeometry}>
+    <div className={`lcars-frame ${alertClass}`} style={{ minHeight: '100vh', background: '#000' }} onClick={handleFrameClick}>
 
       {showTopTerminal && (
         <>
+          {/* ===== SIDEBAR — "STATUS" label block, then gap, then elbow curves into separator ===== */}
           <div
             aria-hidden
-            className="lcars-status-sidebar-cap"
+            className="lcars-status-sidebar-cap lcars-sidebar-cap lcars-chrome-item"
             style={{
               position: 'fixed',
               top: 0,
               left: 0,
               width: barW,
-              height: topChromeH,
+              height: useStackedStatusChrome ? Math.max(0, stackedStatusTop - 2) : logBandH,
               zIndex: 43,
               background: colors.verticalSegments[0] ?? colors.elbowTop,
-              boxSizing: 'border-box',
-              borderBottom: '3px solid #000',
-              borderTopLeftRadius: or,
+              boxShadow: 'inset -2px 0 8px rgba(0,0,0,0.28)',
               overflow: 'hidden',
               transition: 'height 0.2s ease-out, width 0.2s ease-in-out, background 0.3s ease',
-              pointerEvents: 'none',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'flex-end',
+              padding: '7px 6px 6px',
+              boxSizing: 'border-box',
             }}
           >
             <span
               style={{
-                position: 'absolute',
-                bottom: 10,
-                right: 8,
                 color: colors.text,
                 fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
                 fontWeight: 700,
-                fontSize: 9,
-                letterSpacing: '0.12em',
+                fontSize: collapsed ? 10 : 11,
+                letterSpacing: '0.1em',
                 textTransform: 'uppercase',
-                opacity: 0.92,
+                textAlign: 'right',
               }}
             >
-              01-LOG
+              {collapsed ? 'STA' : 'Status'}
             </span>
           </div>
+
+          {/* ===== STATUS BODY — log scroller + filter buttons overlay ===== */}
           <SystemTerminalDock
             sidebarOffsetPx={elbowW}
             onClose={() => setTerminalOpen(false)}
             placement="top"
-            panelHeightPx={topChromeH}
+            panelHeightPx={statusBodyH}
+            topOffsetPx={statusBodyTop}
+            lcarsTopStackedChrome={useStackedStatusChrome}
+            lcarsFrameHandlesControls={useStackedStatusChrome}
           />
+          {/* Filter buttons — right-aligned in the status body area */}
+          {statusFilterButtons}
+
+          {/* ===== SEPARATOR CHROME — skinny bar + elbow between status and main ===== */}
+          {useStackedStatusChrome && (
+            <>
+              {/* Black gap between sidebar and separator */}
+              <div
+                aria-hidden
+                style={{
+                  position: 'fixed',
+                  top: logBandH,
+                  left: 0,
+                  right: 0,
+                  height: STATUS_STACK_GAP,
+                  zIndex: 42,
+                  background: '#000',
+                  pointerEvents: 'none',
+                  transition: 'top 0.2s ease-out',
+                }}
+              />
+              {/* Separator bottom-left elbow (skinny) — color matches sidebar cap for visual continuity */}
+              <div
+                className="lcars-elbow-status-separator"
+                style={{
+                  position: 'fixed',
+                  top: stackedStatusTop,
+                  left: 0,
+                  zIndex: 44,
+                  lineHeight: 0,
+                  transition: 'top 0.2s ease-out, left 0.2s ease-in-out',
+                }}
+              >
+                <LCARSElbow
+                  position="bottom-left"
+                  barWidth={barW}
+                  barHeight={STATUS_SEPARATOR_H}
+                  outerRadius={STATUS_SEP_OR}
+                  innerRadius={INNER_R}
+                  color={colors.verticalSegments[0] ?? colors.elbowTop}
+                  className="lcars-cascade-0"
+                  alertOutline={alertLevel === 'red'}
+                />
+              </div>
+              {/* Skinny separator bar */}
+              <div
+                className="lcars-status-footer-bar lcars-cascade-1"
+                style={{
+                  position: 'fixed',
+                  top: topChromeH - STATUS_SEPARATOR_H,
+                  right: 0,
+                  left: barW + INNER_R,
+                  height: STATUS_SEPARATOR_H,
+                  zIndex: 41,
+                  display: 'flex',
+                  transition: 'top 0.2s ease-out, left 0.2s ease-in-out',
+                }}
+              >
+                <div className="lcars-chrome-item" style={{ flex: 1, background: colors.footerSegments[0] || colors.footerBar, transition: 'background 0.3s ease' }} />
+                <div style={{ width: 3, background: '#000', flexShrink: 0 }} />
+                <div className="lcars-chrome-item" style={{ flex: 0.6, background: colors.footerSegments[1] || colors.muted, transition: 'background 0.3s ease' }} />
+                <div style={{ width: 3, background: '#000', flexShrink: 0 }} />
+                <div className="lcars-chrome-item" style={{ flex: 0.4, background: colors.footerSegments[2] || colors.accent, transition: 'background 0.3s ease' }} />
+                <div style={{ width: 3, background: '#000', flexShrink: 0 }} />
+                <div className="lcars-chrome-item" style={{ width: 14, flexShrink: 0, background: colors.accent, borderRadius: '0 999px 999px 0', transition: 'background 0.3s ease' }} />
+              </div>
+            </>
+          )}
+
+          {/* ===== JOIN GAP — black strip between status section and main header ===== */}
+          {useStackedStatusChrome && (
+            <div
+              aria-hidden
+              style={{
+                position: 'fixed',
+                top: topChromeH,
+                left: 0,
+                right: 0,
+                height: MAIN_HEADER_JOIN_GAP,
+                zIndex: 45,
+                background: '#000',
+                pointerEvents: 'none',
+                transition: 'top 0.2s ease-out',
+              }}
+            />
+          )}
         </>
       )}
 
       <div className="lcars-elbow-top" style={{
-        position: 'fixed', top: topChromeH, left: 0, zIndex: 44, lineHeight: 0,
+        position: 'fixed', top: mainChromeTop, left: 0, zIndex: 44, lineHeight: 0,
         transition: 'top 0.2s ease-out, left 0.2s ease-in-out',
       }}>
         <LCARSElbow
@@ -164,7 +609,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
       <div
         className="lcars-header-bar lcars-cascade-1"
         style={{
-          position: 'fixed', top: topChromeH, right: 0,
+          position: 'fixed', top: mainChromeTop, right: 0,
           left: elbowW,
           height: HEADER_H,
           zIndex: 41,
@@ -174,134 +619,176 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
           transition: 'top 0.2s ease-out, left 0.2s ease-in-out',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            alignSelf: 'stretch',
-            gap: 8,
-            paddingLeft: 10,
-            paddingRight: 6,
-            flexShrink: 0,
-            minHeight: HEADER_H,
-            background: colors.headerBar,
-            transition: 'background 0.3s ease',
-          }}
-        >
-          <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-            <span className="lcars-blink-1 lcars-chrome-item" style={{ width: 4, height: 14, borderRadius: 0, background: colors.navColors[1] || colors.accent }} />
-            <span className="lcars-blink-2 lcars-chrome-item" style={{ width: 4, height: 14, borderRadius: 0, background: colors.navColors[3] || colors.accent }} />
-            <span className="lcars-blink-3 lcars-chrome-item" style={{ width: 4, height: 14, borderRadius: 0, background: colors.navColors[5] || colors.muted }} />
-          </div>
-        </div>
-        {/* Black only between crumb segments; filler keeps headerBar continuous to the right */}
-        <div
-          style={{
-            flex: 1,
-            minWidth: 0,
-            minHeight: HEADER_H,
-            display: 'flex',
-            alignItems: 'stretch',
-            alignSelf: 'stretch',
-            background: colors.headerBar,
-            transition: 'background 0.3s ease',
-          }}
-        >
-          <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'stretch',
-              alignSelf: 'stretch',
-              gap: 3,
-              flexShrink: 0,
-              minHeight: HEADER_H,
-              height: '100%',
-              background: '#000',
-              boxSizing: 'border-box',
-            }}
-          >
-            <LCARSBreadcrumbBlocks
-              items={breadcrumbItems}
-              navColors={colors.navColors.length ? colors.navColors : [colors.accent, colors.muted]}
-              textColor={colors.text}
-              barHeight={HEADER_H}
-            />
-          </div>
-          <div
-            className="lcars-chrome-item lcars-header-filler"
-            style={{ flex: 1, minWidth: 0, alignSelf: 'stretch', minHeight: HEADER_H, background: colors.headerBar }}
-            aria-hidden
+        {useStackedStatusChrome ? (
+          <LcarsFooterStyleBarRow
+            colors={colors}
+            height={HEADER_H}
+            firstExtra={stackedHeaderFirstExtra!}
+            rightLabel={stackedHeaderRight!}
           />
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'stretch',
-            alignSelf: 'stretch',
-            flexShrink: 0,
-            minHeight: HEADER_H,
-            background: colors.headerBar,
-            transition: 'background 0.3s ease',
-          }}
-        >
-          <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              alignSelf: 'stretch',
-              paddingLeft: 8,
-              paddingRight: 8,
-              flexShrink: 0,
-            }}
-          >
+        ) : (
+          <>
             <div
               className="lcars-chrome-item"
               style={{
-                width: 7,
-                height: 7,
-                borderRadius: 0,
-                background: connected ? '#99cc66' : '#cc4444',
+                display: 'flex',
+                alignItems: 'center',
+                alignSelf: 'stretch',
+                gap: 8,
+                paddingLeft: 10,
+                paddingRight: 6,
+                flexShrink: 0,
+                minHeight: HEADER_H,
+                background: colors.headerBar,
+                transition: 'background 0.3s ease',
               }}
-              title={connected ? 'Connected' : 'Disconnected'}
+            >
+              <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                <span className="lcars-blink-1 lcars-chrome-item" style={{ width: 4, height: 14, borderRadius: 0, background: colors.navColors[1] || colors.accent }} />
+                <span className="lcars-blink-2 lcars-chrome-item" style={{ width: 4, height: 14, borderRadius: 0, background: colors.navColors[3] || colors.accent }} />
+                <span className="lcars-blink-3 lcars-chrome-item" style={{ width: 4, height: 14, borderRadius: 0, background: colors.navColors[5] || colors.muted }} />
+              </div>
+            </div>
+            {/* Black only between crumb segments; filler keeps headerBar continuous to the right */}
+            <div
+              className="lcars-chrome-item"
+              style={{
+                flex: 1,
+                minWidth: 0,
+                minHeight: HEADER_H,
+                display: 'flex',
+                alignItems: 'stretch',
+                alignSelf: 'stretch',
+                background: colors.headerBar,
+                transition: 'background 0.3s ease',
+              }}
+            >
+              <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'stretch',
+                  alignSelf: 'stretch',
+                  gap: 3,
+                  flexShrink: 0,
+                  minHeight: HEADER_H,
+                  height: '100%',
+                  background: '#000',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <LCARSBreadcrumbBlocks
+                  items={breadcrumbItems}
+                  navColors={colors.navColors.length ? colors.navColors : [colors.accent, colors.muted]}
+                  textColor={colors.text}
+                  barHeight={HEADER_H}
+                />
+              </div>
+              <div
+                className="lcars-chrome-item lcars-header-filler"
+                style={{ flex: 1, minWidth: 0, alignSelf: 'stretch', minHeight: HEADER_H, background: colors.headerBar }}
+                aria-hidden
+              />
+            </div>
+            <div
+              className="lcars-chrome-item"
+              style={{
+                display: 'flex',
+                alignItems: 'stretch',
+                alignSelf: 'stretch',
+                flexShrink: 0,
+                minHeight: HEADER_H,
+                background: colors.headerBar,
+                transition: 'background 0.3s ease',
+              }}
+            >
+              <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  alignSelf: 'stretch',
+                  paddingLeft: 8,
+                  paddingRight: 8,
+                  flexShrink: 0,
+                }}
+              >
+                <div
+                  className="lcars-status-led"
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: 0,
+                    background: connected ? '#99cc66' : '#cc4444',
+                  }}
+                  title={connected ? 'Connected' : 'Disconnected'}
+                />
+              </div>
+              <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+              {canUseTerminal && (
+                <button
+                  type="button"
+                  onClick={() => setTerminalOpen(!terminalOpen)}
+                  className="lcars-chrome-item"
+                  style={{
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    alignSelf: 'stretch',
+                    paddingLeft: 12,
+                    paddingRight: 12,
+                    flexShrink: 0,
+                    background: terminalOpen ? colors.navActive : colors.headerBar,
+                    color: colors.text,
+                    fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
+                    fontWeight: 700,
+                    fontSize: 10,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    transition: 'background 0.3s ease',
+                  }}
+                >
+                  Status
+                </button>
+              )}
+              <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+              <AssistantHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} />
+              <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  alignSelf: 'stretch',
+                  paddingLeft: 8,
+                  paddingRight: 10,
+                  flexShrink: 0,
+                }}
+              >
+                <AppVersionLabel variant="lcars" lcarsTextColor={colors.text} />
+              </div>
+            </div>
+            <div
+              className="lcars-chrome-item"
+              style={{
+                width: 12,
+                alignSelf: 'stretch',
+                minHeight: HEADER_H,
+                background: colors.headerBar,
+                borderRadius: 0,
+                flexShrink: 0,
+                transition: 'background 0.3s ease',
+              }}
             />
-          </div>
-          <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
-          <AssistantHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} />
-          <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              alignSelf: 'stretch',
-              paddingLeft: 8,
-              paddingRight: 10,
-              flexShrink: 0,
-            }}
-          >
-            <AppVersionLabel variant="lcars" lcarsTextColor={colors.text} />
-          </div>
-        </div>
-        <div
-          className="lcars-chrome-item"
-          style={{
-            width: 12,
-            alignSelf: 'stretch',
-            minHeight: HEADER_H,
-            background: colors.headerBar,
-            borderRadius: 0,
-            flexShrink: 0,
-            transition: 'background 0.3s ease',
-          }}
-        />
+          </>
+        )}
       </div>
 
       <div
-        className="lcars-vertical-rail"
+        className="lcars-vertical-rail lcars-chrome-item lcars-cascade-4"
         style={{
           position: 'fixed',
-          top: showTopTerminal ? topChromeH : 0,
+          top: showTopTerminal ? mainChromeTop : 0,
           bottom: bottomElbowH - RAIL_SEAM_OVERLAP,
           left: 0,
           width: barW,
@@ -350,50 +837,22 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         position: 'fixed', bottom: 0, right: 0,
         left: elbowW,
         height: FOOTER_H, zIndex: 41,
-        display: 'flex', alignItems: 'stretch', gap: 3,
         transition: 'left 0.2s ease-in-out',
       }}>
-        <div className="lcars-footer-segment lcars-chrome-item lcars-scan-container" style={{
-          flex: 2, background: colors.footerSegments[0] || colors.footerBar,
-          position: 'relative', overflow: 'hidden',
-          transition: 'background 0.3s ease',
-        }}>
-          <div className="lcars-scan-bar" />
-        </div>
-        {colors.footerSegments.slice(1, -1).map((color, i) => (
-          <div key={i} className="lcars-footer-segment lcars-chrome-item" style={{ flex: 1, background: color, transition: 'background 0.3s ease' }} />
-        ))}
-        <div className="lcars-footer-segment lcars-chrome-item" style={{
-          flex: 2, background: colors.footerSegments[colors.footerSegments.length - 1] || colors.accent,
-          display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 14,
-          transition: 'background 0.3s ease',
-        }}>
-          <span style={{
-            color: colors.text, fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
-            fontWeight: 700, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase',
-          }}>
-            USS Kerry NCC-2024
-          </span>
-        </div>
-        <div className="lcars-footer-segment lcars-chrome-item" style={{
-          width: 20, background: colors.footerSegments[colors.footerSegments.length - 1] || colors.accent,
-          borderRadius: '0 999px 999px 0', flexShrink: 0,
-          transition: 'background 0.3s ease',
-        }} />
+        <LcarsFooterStyleBarRow colors={colors} height={FOOTER_H} rightLabel={footerBarCaption} firstExtra={<FooterFirstExtraSlot />} />
       </div>
 
       <main className="lcars-content" style={{
-        marginLeft: contentLeft,
-        marginTop: contentTop,
-        marginBottom: contentBottom,
-        marginRight: CONTENT_EDGE,
-        minHeight: `calc(100vh - ${contentTop + contentBottom}px)`,
+        position: 'fixed',
+        top: contentTop,
+        left: contentLeft,
+        right: CONTENT_EDGE,
+        bottom: contentBottom,
         padding: `12px ${CONTENT_EDGE + 6}px 16px ${FRAME_STRIPE_W + 14}px`,
-        borderLeft: `${FRAME_STRIPE_W}px solid ${framePin}`,
-        background: `linear-gradient(90deg, color-mix(in srgb, ${colors.elbowTop} 18%, #000) 0%, color-mix(in srgb, ${colors.elbowTop} 6%, #0a0a12) 12%, var(--color-bg) 38%)`,
-        boxShadow: 'inset 6px 0 14px -6px rgba(0,0,0,0.55)',
+        background: '#000',
         overflowY: 'auto',
-        transition: 'margin-top 0.2s ease-out, margin-left 0.2s ease-in-out, border-color 0.3s ease, background 0.3s ease',
+        zIndex: 1,
+        transition: 'top 0.2s ease-out, left 0.2s ease-in-out, bottom 0.2s ease-out, border-color 0.3s ease, background 0.3s ease',
       }}>
         {children}
       </main>
@@ -409,5 +868,13 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         />
       )}
     </div>
+    </LCARSFrameProvider>
+    </FooterSlotProvider>
   );
+}
+
+/** Reads footer slot content from context — rendered inside FooterSlotProvider subtree. */
+function FooterFirstExtraSlot() {
+  const { footerFirstExtra } = useFooterSlot();
+  return <>{footerFirstExtra}</>;
 }

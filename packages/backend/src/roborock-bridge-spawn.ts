@@ -17,6 +17,48 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 let managedChild: ChildProcess | null = null;
 let managedByServer = false;
 
+/**
+ * python-roborock logs MQTT connect/disconnect/protocol noise at WARNING/ERROR on stderr.
+ * The backend previously forwarded every stderr line as an app warning — floods the UI during polling.
+ */
+function logBridgeStderrLine(raw: string): void {
+  const t = raw.trim().slice(0, 900);
+  if (!t) return;
+  const upper = t.toUpperCase();
+
+  if (
+    upper.includes('TRACEBACK') ||
+    upper.includes('MODULENOTFOUND') ||
+    upper.includes('SYNTAXERROR') ||
+    upper.includes('EXCEPTION:')
+  ) {
+    logger.warn({ bridge: 'stderr', line: t }, 'roborock-bridge');
+    return;
+  }
+
+  const mqttOrBrokerChurn =
+    upper.includes('ROBOROCK') &&
+    (upper.includes('BROKER') ||
+      upper.includes('MQTT') ||
+      upper.includes('DISCONNECTED') ||
+      upper.includes('FAILED TO CONNECT') ||
+      upper.includes('PROTOCOL ERROR') ||
+      upper.includes('UNKNOWN ERROR') ||
+      upper.includes('CLOUD_API'));
+
+  if (mqttOrBrokerChurn || /^INFO:/i.test(t) || /^DEBUG:/i.test(t)) {
+    logger.debug({ bridge: 'stderr', line: t.slice(0, 500) }, 'roborock-bridge');
+    return;
+  }
+
+  if (/^WARNING:/i.test(t) || /^ERROR:/i.test(t)) {
+    logger.info({ bridge: 'stderr', line: t.slice(0, 500) }, 'roborock-bridge');
+    return;
+  }
+
+  logger.debug({ bridge: 'stderr', line: t.slice(0, 500) }, 'roborock-bridge');
+}
+
 function repoRootFromDist(): string {
   // dist/ -> packages/backend/dist -> repo root
   return resolve(__dirname, '../../..');
@@ -115,8 +157,7 @@ export async function startManagedRoborockBridgeIfNeeded(): Promise<void> {
   });
   proc.stderr?.on('data', (buf: Buffer) => {
     for (const line of buf.toString().split('\n')) {
-      const t = line.trim();
-      if (t) logger.warn({ bridge: 'stderr', line: t.slice(0, 500) }, 'roborock-bridge');
+      if (line.trim()) logBridgeStderrLine(line);
     }
   });
 

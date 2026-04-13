@@ -14,7 +14,7 @@ import {
   Pencil, Check, CloudSun, Settings, DoorOpen, Activity, Droplets, Bot, Gauge,
   Braces, Loader2,
 } from 'lucide-react';
-import type { DeviceState, DeviceType } from '@ha/shared';
+import type { DeviceState, DeviceType, NetworkDeviceState } from '@ha/shared';
 import Link from 'next/link';
 import { useDeviceMergedState } from '@/hooks/useDeviceMergedState';
 import { DeviceLiveStateTree } from '@/components/DeviceLiveStateTree';
@@ -143,8 +143,13 @@ function getDeviceStateSummary(device: DeviceState): string {
       return device.status.charAt(0).toUpperCase() + device.status.slice(1) + ` · ${device.battery}%`;
     case 'doorbell':
       return device.online ? 'Online' : 'Offline';
-    case 'network_device':
-      return device.connected ? `Up${device.clients != null ? ` · ${device.clients} clients` : ''}` : 'Down';
+    case 'network_device': {
+      const nd = device as NetworkDeviceState;
+      const linkHint = nd.linkedDeviceIds?.length ? ` · ${nd.linkedDeviceIds.length} linked` : '';
+      return device.connected
+        ? `Up${device.clients != null ? ` · ${device.clients} clients` : ''}${linkHint}`
+        : 'Down';
+    }
     case 'speedtest':
       return device.downloadMbps != null ? `${Math.round(device.downloadMbps)} / ${Math.round(device.uploadMbps ?? 0)} Mbps` : '—';
     case 'thermostat': {
@@ -444,6 +449,26 @@ function SegmentedControl({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const isLcars = document.documentElement.getAttribute('data-active-theme') === 'lcars';
+  if (isLcars) {
+    return (
+      <div className="inline-flex flex-wrap gap-2">
+        {options.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => onChange(opt.value)}
+            className={`lcars-btn lcars-btn--pill lcars-btn--sm${value === opt.value ? ' lcars-btn--active' : ''}`}
+            style={{
+              background: value === opt.value ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+              color: value === opt.value ? '#000' : 'var(--color-text-secondary)',
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    );
+  }
   return (
     <div
       className="inline-flex rounded-lg p-0.5"

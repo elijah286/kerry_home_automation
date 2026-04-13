@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { useTheme } from '@/providers/ThemeProvider';
 import { LCARSPanelCorner } from '@/components/lcars/LCARSPanelFrame';
 import { useLCARSVariant } from '@/components/lcars/LCARSVariantProvider';
+import { useLCARSFrame } from '@/components/lcars/LCARSFrameContext';
 
 const SIZE_CLASS = {
   md: 'max-w-md',
@@ -29,6 +30,7 @@ export function SlidePanel({
 }) {
   const { activeTheme } = useTheme();
   const { colors } = useLCARSVariant();
+  const frame = useLCARSFrame();
   const footerCode = useMemo(() => {
     const h = title.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
     return `${(h % 800) + 200}-${(h % 900) + 100}`;
@@ -46,74 +48,90 @@ export function SlidePanel({
         />
         {isLcars ? (
           <Dialog.Content
-            className={`fixed right-0 top-0 z-50 flex h-full min-h-0 flex-col border-l border-black/80 shadow-xl outline-none ${SIZE_CLASS[size]}`}
+            className={`fixed z-50 flex min-h-0 flex-row outline-none ${SIZE_CLASS[size]}`}
             style={{
+              top: frame ? frame.contentTop : 0,
+              right: frame ? frame.contentRight : 0,
+              bottom: frame ? frame.contentBottom : 0,
               backgroundColor: '#000',
               filter: 'drop-shadow(-8px 0 24px rgba(0,0,0,0.5))',
             }}
           >
             <Dialog.Title className="sr-only">{title}</Dialog.Title>
-            <div className="lcars-chrome-row flex w-full min-w-0 shrink-0 items-stretch">
-              <LCARSPanelCorner fill={accent} variant="top" />
+            <Dialog.Description className="sr-only">{title} panel</Dialog.Description>
+
+            {/* Left skinny rail */}
+            <div
+              style={{
+                width: 8,
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 0,
+              }}
+            >
+              {/* Rail top cap — connects to header bar */}
+              <div style={{ height: 36, background: accent, borderTopLeftRadius: 14 }} />
+              {/* Rail body */}
+              <div style={{ flex: 1, background: endCap, marginTop: 2 }} />
+              {/* Rail bottom cap — connects to footer bar */}
+              <div style={{ height: 32, background: accent, borderBottomLeftRadius: 14, marginTop: 2 }} />
+            </div>
+
+            {/* Main panel column */}
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', marginLeft: 2 }}>
+              {/* Header bar */}
               <div
-                className="lcars-panel-title lcars-chrome-item flex min-h-9 min-w-0 flex-1 items-center px-3 text-[11px] font-bold uppercase tracking-[0.2em]"
+                className="lcars-chrome-item flex min-h-9 min-w-0 shrink-0 items-center px-3 text-[11px] font-bold uppercase tracking-[0.2em]"
                 style={{
                   background: accent,
                   color: '#000',
                   fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
                   boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
                 }}
               >
-                <span className="truncate">{title}</span>
-              </div>
-              <div
-                className="lcars-chrome-item flex min-h-9 w-14 shrink-0 items-center justify-center rounded-tr-[18px]"
-                style={{ background: endCap, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)' }}
-              >
+                <span className="truncate" style={{ flex: 1, minWidth: 0 }}>{title}</span>
                 <Dialog.Close asChild>
                   <button
                     type="button"
                     className="rounded p-1 transition-opacity hover:opacity-80"
-                    style={{ color: '#000' }}
+                    style={{ color: '#000', flexShrink: 0, marginLeft: 8 }}
                     aria-label="Close panel"
                   >
                     <X className="h-4 w-4" strokeWidth={2.5} />
                   </button>
                 </Dialog.Close>
               </div>
-            </div>
 
-            <div
-              className="lcars-panel-body min-h-0 flex-1 overflow-y-auto border-x border-black/50 px-3.5 py-3.5"
-              style={{
-                backgroundColor: 'var(--color-bg-card)',
-                borderColor: 'rgba(0,0,0,0.55)',
-                boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.04)',
-              }}
-            >
-              {children}
-            </div>
-
-            <div className="lcars-chrome-row flex w-full min-w-0 shrink-0 items-stretch">
-              <LCARSPanelCorner fill={accent} variant="bottom" />
+              {/* Body */}
               <div
-                className="lcars-panel-footer lcars-chrome-item flex min-h-8 min-w-0 flex-1 items-center justify-between px-3 text-[9px] font-bold uppercase tracking-[0.18em]"
+                className="lcars-panel-body min-h-0 flex-1 overflow-y-auto px-3.5 py-3.5"
+                style={{
+                  backgroundColor: 'var(--color-bg-card)',
+                  marginTop: 2,
+                  boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.04)',
+                }}
+              >
+                {children}
+              </div>
+
+              {/* Footer bar */}
+              <div
+                className="lcars-chrome-item flex min-h-8 min-w-0 shrink-0 items-center justify-between px-3 text-[9px] font-bold uppercase tracking-[0.18em]"
                 style={{
                   background: accent,
                   color: '#000',
                   fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
                   opacity: 0.92,
                   boxShadow: 'inset 0 -1px 0 rgba(0,0,0,0.15)',
+                  marginTop: 2,
                 }}
               >
                 <span className="opacity-70">Inspector active</span>
                 <span className="tabular-nums">{footerCode}</span>
               </div>
-              <div
-                className="lcars-chrome-item min-h-8 w-14 shrink-0 rounded-br-[18px]"
-                style={{ background: endCap }}
-                aria-hidden
-              />
             </div>
           </Dialog.Content>
         ) : (
@@ -132,6 +150,7 @@ export function SlidePanel({
               }}
             >
               <Dialog.Title className="text-sm font-semibold">{title}</Dialog.Title>
+              <Dialog.Description className="sr-only">{title} panel</Dialog.Description>
               <Dialog.Close asChild>
                 <button className="rounded-md p-1 hover:bg-[var(--color-bg-hover)] transition-colors">
                   <X className="h-4 w-4" style={{ color: 'var(--color-text-muted)' }} />

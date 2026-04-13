@@ -12,7 +12,8 @@
       "runtimeExecutable": "/bin/zsh",
       "runtimeArgs": ["-l", "-c", "npm run dev -w @ha/frontend"],
       "port": 3001,
-      "dependsOn": ["backend"]
+      "dependsOn": ["backend"],
+      "autoPort": true
     }
   ]
 }

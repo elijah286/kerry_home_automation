@@ -10,7 +10,6 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useTheme } from '@/providers/ThemeProvider';
 import { SystemTerminalProvider, useSystemTerminalBottomInset } from '@/providers/SystemTerminalProvider';
 import { LCARSFrame } from '../lcars/LCARSFrame';
-import { LCARSAlertBanner } from '../lcars/LCARSAlertOverlay';
 import { AppHeaderBar } from './AppHeaderBar';
 
 const STORAGE_KEY = 'sidebar-collapsed';
@@ -89,7 +88,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           sidebarOffsetPx={terminalLeftOffset}
           terminalDockPlacement="top"
         >
-          <LCARSAlertBanner />
           <LCARSFrame collapsed={collapsed} onToggle={handleToggle}>
             {children}
           </LCARSFrame>

@@ -96,7 +96,7 @@ export function LCARSSidebar({
     >
       <div
         aria-hidden
-        className="lcars-sidebar-top-cap"
+        className="lcars-sidebar-top-cap lcars-sidebar-cap lcars-chrome-item"
         style={{
           flexShrink: 0,
           height: navStackOffsetPx,
@@ -155,34 +155,12 @@ export function LCARSSidebar({
       ))}
 
       <div
-        className="lcars-rail-filler"
+        className="lcars-rail-filler lcars-rail-chrome lcars-rail-filler-upper lcars-chrome-item"
         aria-hidden
         style={{ flex: '1 1 12px', minHeight: 8, minWidth: 0, background: fillMid }}
       />
 
-      {canUseTerminal && showNavButton && (
-        <button
-          type="button"
-          onClick={() => setTerminalOpen(!terminalOpen)}
-          title={collapsed ? (terminalOpen ? 'Hide log' : 'Log') : undefined}
-          className="lcars-nav-block lcars-chrome-item"
-          style={{
-            ...blockBase(collapsed),
-            background: terminalOpen ? colors.navActive : colors.muted,
-            border: 'none',
-            cursor: 'pointer',
-            color: '#000',
-            fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
-            fontWeight: 600,
-            fontSize: collapsed ? 10 : 11,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            ...redAlertStagger(alertLevel, stagger++),
-          }}
-        >
-          {collapsed ? (terminalOpen ? 'Hide' : 'Log') : terminalOpen ? 'Hide log' : 'System log'}
-        </button>
-      )}
+      {/* System log button moved to header bar */}
 
       {isAdmin && (
         <NavBlock
@@ -241,7 +219,7 @@ export function LCARSSidebar({
       )}
 
       <div
-        className="lcars-rail-filler"
+        className="lcars-rail-filler lcars-rail-chrome lcars-rail-filler-lower lcars-chrome-item"
         aria-hidden
         style={{ flex: '1 1 8px', minHeight: 4, minWidth: 0, background: fillLow }}
       />
@@ -249,7 +227,7 @@ export function LCARSSidebar({
       <button
         type="button"
         onClick={onToggle}
-        className="lcars-sidebar-collapse"
+        className="lcars-sidebar-collapse lcars-chrome-item"
         style={{
           flexShrink: 0,
           cursor: 'pointer',
