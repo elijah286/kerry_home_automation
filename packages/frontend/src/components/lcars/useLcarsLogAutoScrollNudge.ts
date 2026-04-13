@@ -20,11 +20,22 @@ export function useLcarsLogAutoScrollNudge(enabled: boolean) {
   const { logAutoScroll, setLogAutoScroll } = useSystemTerminal();
   const lastInteractionRef = useRef(Date.now());
   const suppressUntilRef = useRef(0);
+  /** After a 30s suppress, restart the idle → flash cycle from when suppress lifts (not from the original tap). */
+  const wasSuppressingRef = useRef(false);
+  const prevEnabledRef = useRef(false);
   const [flashPeriodMs, setFlashPeriodMs] = useState<number | null>(null);
 
   const bumpStatusInteraction = useCallback(() => {
     lastInteractionRef.current = Date.now();
   }, []);
+
+  useEffect(() => {
+    if (enabled && !prevEnabledRef.current) {
+      lastInteractionRef.current = Date.now();
+      wasSuppressingRef.current = false;
+    }
+    prevEnabledRef.current = enabled;
+  }, [enabled]);
 
   useEffect(() => {
     if (logAutoScroll) {
@@ -35,6 +46,7 @@ export function useLcarsLogAutoScrollNudge(enabled: boolean) {
   useEffect(() => {
     if (!enabled) {
       setFlashPeriodMs(null);
+      wasSuppressingRef.current = false;
       return;
     }
     if (logAutoScroll) return;
@@ -42,6 +54,13 @@ export function useLcarsLogAutoScrollNudge(enabled: boolean) {
     const tick = () => {
       const now = Date.now();
       if (now < suppressUntilRef.current) {
+        wasSuppressingRef.current = true;
+        setFlashPeriodMs(null);
+        return;
+      }
+      if (wasSuppressingRef.current) {
+        wasSuppressingRef.current = false;
+        lastInteractionRef.current = now;
         setFlashPeriodMs(null);
         return;
       }

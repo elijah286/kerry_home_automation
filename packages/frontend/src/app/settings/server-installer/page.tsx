@@ -610,17 +610,12 @@ export default function ServerInstallerPage() {
             <h2 className="text-sm font-medium">Build failed</h2>
           </div>
 
-          <p className="text-xs mb-4" style={{ color: 'var(--color-danger)' }}>
+          <p
+            className="text-xs mb-4 normal-case"
+            style={{ color: 'var(--color-danger)' }}
+          >
             {errorMessage || 'An unknown error occurred during ISO generation.'}
           </p>
-
-          {errorMessage.toLowerCase().includes('xorriso') && (
-            <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
-              Install <code className="font-mono">xorriso</code> on the machine running the backend (not your browser):{' '}
-              <code className="font-mono">brew install xorriso</code> on macOS, or{' '}
-              <code className="font-mono">sudo apt install xorriso</code> on Debian/Ubuntu. Rebuild the backend image if you use Docker.
-            </p>
-          )}
 
           <button
             onClick={reset}

@@ -97,11 +97,16 @@ async function requireTool(name: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     execFile('which', [name], (err) => {
       if (err) {
-        const hint =
-          name === 'xorriso'
-            ? ' Debian/Ubuntu: sudo apt install xorriso · macOS: brew install xorriso · Alpine: apk add xorriso'
-            : ' Debian/Ubuntu: sudo apt install ' + name;
-        reject(new Error(`Required tool '${name}' not found in PATH.${hint}`));
+        if (name === 'xorriso') {
+          reject(
+            new Error(
+              'Missing xorriso on the server (not in PATH). Install it on the host that runs the backend: ' +
+                'macOS: brew install xorriso · Debian/Ubuntu: sudo apt install xorriso · Alpine/Docker image: apk add xorriso.',
+            ),
+          );
+        } else {
+          reject(new Error(`Missing required tool "${name}" on the server PATH.`));
+        }
       } else resolve();
     });
   });
