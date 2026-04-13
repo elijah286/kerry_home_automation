@@ -1,0 +1,16 @@
+# Installed inside the image
+node_modules
+**/node_modules
+
+# VCS
+.git
+.gitignore
+
+# Stale TypeScript incremental data — if copied, `tsc` may skip emit with no dist
+**/*.tsbuildinfo
+
+# Built artifacts (image always compiles from source)
+packages/shared/dist
+packages/backend/dist
+packages/frontend/.next
+packages/frontend/out

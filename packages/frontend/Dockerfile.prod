@@ -11,7 +11,10 @@ COPY packages/shared/ packages/shared/
 COPY packages/frontend/ packages/frontend/
 COPY tsconfig.base.json ./
 
-RUN npm run build -w @ha/shared && npm run build -w @ha/frontend
+RUN rm -f packages/shared/tsconfig.tsbuildinfo \
+    && npx tsc -p packages/shared/tsconfig.json \
+    && test -f packages/shared/dist/index.d.ts \
+    && npm run build -w @ha/frontend
 
 # ---------------------------------------------------------------------------
 FROM node:22-alpine

@@ -11,7 +11,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "sh -c 'rm -f tsconfig.tsbuildinfo && tsc -p tsconfig.json'",
     "dev": "tsc --watch"
   },
   "devDependencies": {
