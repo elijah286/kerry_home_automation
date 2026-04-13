@@ -9,6 +9,7 @@ RUN npm install --workspace=packages/shared --workspace=packages/frontend --igno
 
 COPY packages/shared/ packages/shared/
 COPY packages/frontend/ packages/frontend/
+COPY tsconfig.base.json ./
 
 RUN npm run build -w @ha/shared && npm run build -w @ha/frontend
 

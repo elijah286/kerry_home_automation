@@ -11,6 +11,7 @@ RUN npm install --workspace=packages/shared --workspace=packages/backend --ignor
 # Build
 COPY packages/shared/ packages/shared/
 COPY packages/backend/ packages/backend/
+COPY tsconfig.base.json ./
 
 RUN npm run build -w @ha/shared && npm run build -w @ha/backend
 
