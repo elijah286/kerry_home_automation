@@ -36,6 +36,7 @@ export default function UsersPage() {
   const [formUsername, setFormUsername] = useState('');
   const [formDisplayName, setFormDisplayName] = useState('');
   const [formPassword, setFormPassword] = useState('');
+  const [formPin, setFormPin] = useState('');
   const [formRole, setFormRole] = useState<UserRole>('user');
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -80,6 +81,7 @@ export default function UsersPage() {
     setFormUsername('');
     setFormDisplayName('');
     setFormPassword('');
+    setFormPin('');
     setFormRole('user');
     setFormError('');
     setShowCreate(false);
@@ -98,7 +100,13 @@ export default function UsersPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ username: formUsername, displayName: formDisplayName, password: formPassword, role: formRole }),
+        body: JSON.stringify({
+          username: formUsername,
+          displayName: formDisplayName,
+          password: formPassword,
+          pin: formPin,
+          role: formRole,
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -121,6 +129,7 @@ export default function UsersPage() {
     try {
       const body: Record<string, unknown> = { displayName: formDisplayName, role: formRole };
       if (formPassword) body.password = formPassword;
+      if (formPin) body.pin = formPin;
 
       const uiPreferencesAdmin: UiPreferencesAdminPatch = {};
       const prev = editingUser.uiPreferencesAdmin;
@@ -190,6 +199,7 @@ export default function UsersPage() {
     setFormDisplayName(u.displayName);
     setFormRole(u.role);
     setFormPassword('');
+    setFormPin('');
     setFormError('');
     setShowCreate(false);
     const adm = u.uiPreferencesAdmin;
@@ -328,6 +338,22 @@ export default function UsersPage() {
                 className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                 style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
                 {...(!editingUser && { required: true })}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                Elevation PIN (4–6 digits){editingUser ? ' — leave blank to keep' : ''}
+              </label>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={formPin}
+                onChange={(e) => setFormPin(e.target.value.replace(/\D/g, ''))}
+                className="w-full rounded-lg px-3 py-2 text-sm tracking-widest outline-none"
+                style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+                {...(!editingUser && { required: true })}
+                placeholder="••••"
               />
             </div>
             <div className="space-y-1">

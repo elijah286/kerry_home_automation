@@ -9,5 +9,6 @@ docker/mosquitto/data/
 docker/mosquitto/log/
 .next/
 packages/frontend/.next/
+packages/frontend/out/
 packages/shared/dist/
 *.tsbuildinfo

@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx --watch src/main.ts",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "reset-admin-password": "tsx scripts/reset-admin-password.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.0",

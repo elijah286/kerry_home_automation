@@ -57,8 +57,9 @@ export const appConfig = {
     workDir: process.env.ISO_WORK_DIR ?? '/tmp/ha-iso-work',
     ubuntuIsoUrl: process.env.UBUNTU_ISO_URL ??
       'https://releases.ubuntu.com/24.04.2/ubuntu-24.04.2-live-server-amd64.iso',
+    /** Must match SHA256SUMS for this URL (Ubuntu occasionally respins the same filename). */
     ubuntuIsoSha256: process.env.UBUNTU_ISO_SHA256 ??
-      'd6dab0c3a657988501b4bd76f1297c053df710e06e0a02068863f1ab43a1bc65',
+      'd6dab0c3a657988501b4bd76f1297c053df710e06e0c3aece60dead24f270b4d',
     appRepoUrl: process.env.APP_REPO_URL ?? '',
     envFilePath: process.env.ENV_FILE_PATH ?? resolve(__dirname, '../.env'),
     prodComposePath: process.env.PROD_COMPOSE_PATH ?? '/opt/home-automation/docker-compose.prod.yml',

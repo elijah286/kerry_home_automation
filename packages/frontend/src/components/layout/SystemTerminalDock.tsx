@@ -13,10 +13,9 @@ import {
   formatTerminalTimestamp,
 } from '@/lib/logDisplay';
 import { getLogInvestigationLinks } from '@/lib/logInvestigation';
+import { getApiBase } from '@/lib/api-base';
 
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
+const API_BASE = getApiBase();
 
 type LogLevelLabel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 

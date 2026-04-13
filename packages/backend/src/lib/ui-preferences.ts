@@ -168,9 +168,13 @@ export type SessionUserRow = {
   ui_preferences_admin: unknown;
   /** Present on login query only */
   password_hash?: string;
+  has_pin: boolean;
 };
 
-export function authSessionFromRow(r: SessionUserRow): AuthSessionResponse {
+export function authSessionFromRow(
+  r: SessionUserRow,
+  elevation?: { elevated: boolean; elevatedSecondsRemaining: number },
+): AuthSessionResponse {
   const user: User = {
     id: r.id,
     username: r.username,
@@ -178,7 +182,14 @@ export function authSessionFromRow(r: SessionUserRow): AuthSessionResponse {
     role: r.role as UserRole,
     enabled: r.enabled,
     createdAt: r.created_at.toISOString(),
+    hasPin: r.has_pin,
   };
   const { effective, locks } = effectiveUiPreferences(r.ui_preferences, r.ui_preferences_admin);
-  return { user, uiPreferences: effective, uiPreferenceLocks: locks };
+  return {
+    user,
+    uiPreferences: effective,
+    uiPreferenceLocks: locks,
+    elevated: elevation?.elevated ?? false,
+    elevatedSecondsRemaining: elevation?.elevatedSecondsRemaining ?? 0,
+  };
 }

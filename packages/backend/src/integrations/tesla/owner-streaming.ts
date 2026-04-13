@@ -80,6 +80,8 @@ function buildTagIndex(vehicles: TeslaVehicleListItem[]): Map<string, TeslaVehic
       m.set(String(v.id_s), v);
     }
     m.set(String(v.id), v);
+    /** Some payloads route updates by VIN; safe to index for lookup only (not duplicate subscribe). */
+    m.set(v.vin, v);
   }
   return m;
 }

@@ -31,6 +31,11 @@ function captureSerializedLine(s: string): void {
       if (!Number.isNaN(p)) ts = p;
     }
     const { time: _t, level: _l, msg: _m, pid, hostname: _h, v: _v, ...rest } = o;
+    // Per-request HTTP access logs flood the UI buffer and evict integration/system lines.
+    // Full logs still go to stdout / Docker; set STATUS_LOG_INCLUDE_HTTP=1 to mirror HTTP in the status UI.
+    if (msg === 'HTTP' && process.env.STATUS_LOG_INCLUDE_HTTP !== '1') {
+      return;
+    }
     const keys = Object.keys(rest);
     appendLogEntry({
       level: lv,

@@ -4,10 +4,26 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3001",
-    "build": "next build",
-    "start": "next start"
+    "build": "rimraf out && next build",
+    "build:mobile": "rimraf out && cross-env CAPACITOR_STATIC=1 next build",
+    "build:mobile:sync": "npm run build:mobile && cap sync",
+    "start": "next start",
+    "cap:sync": "cap sync",
+    "cap:open:android": "cap open android",
+    "cap:open:ios": "cap open ios",
+    "cap:run:android": "cap run android",
+    "cap:run:ios": "cap run ios"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/camera": "^8.0.2",
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/device": "^8.0.2",
+    "@capacitor/geolocation": "^8.2.0",
+    "@capacitor/ios": "^8.3.0",
+    "@capacitor/network": "^8.0.1",
     "@codemirror/autocomplete": "^6.20.1",
     "@codemirror/lang-yaml": "^6.1.3",
     "@codemirror/language": "^6.12.3",
@@ -42,7 +58,9 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "cross-env": "^10.1.0",
     "postcss": "^8.5.0",
+    "rimraf": "^6.1.3",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.0"
   }

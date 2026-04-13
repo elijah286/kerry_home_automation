@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 
 import type { FastifyInstance } from 'fastify';
-import type { DeviceCommand, IntegrationId, UserRole } from '@ha/shared';
-import { KNOWN_INTEGRATIONS } from '@ha/shared';
+import type { Automation, AutomationCreate, AutomationExecutionLog, AutomationUpdate, DeviceCommand, IntegrationId, UserRole } from '@ha/shared';
+import { KNOWN_INTEGRATIONS, Permission, ROLE_PERMISSIONS } from '@ha/shared';
 import OpenAI from 'openai';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions';
 import { stateStore } from '../state/store.js';
@@ -18,6 +18,13 @@ import {
   isPaprikaConfigured,
   searchPaprikaRecipes,
 } from '../lib/paprika-recipe-search.js';
+import { getAggregatedCalendarFeeds, filterCalendarEventsInRange } from '../lib/calendar-feeds.js';
+import {
+  saveAutomationProposal,
+  takeAutomationProposal,
+  type PendingAutomationOp,
+} from '../lib/chat-automation-proposals.js';
+import { applyAutomationProposal } from '../lib/apply-automation-proposal.js';
 
 // ---------------------------------------------------------------------------
 // Tool definitions for OpenAI function calling
@@ -109,7 +116,7 @@ const readTools: ChatCompletionTool[] = [
     function: {
       name: 'navigate_ui',
       description:
-        'Navigate the user interface to a specific page. Use when the user asks to see something or go to a page. Paths: /devices, /cameras, /settings, /integrations, /areas, /alarms, /recipes. To open a specific Paprika recipe after search_recipes, use /recipes?open=<recipe_uid> with the uid from the search result.',
+        'Navigate the user interface to a specific page. Use when the user asks to see something or go to a page. Paths: /devices, /cameras, /calendar, /settings, /integrations, /areas, /alarms, /recipes, /settings/automations. To open a specific Paprika recipe after search_recipes, use /recipes?open=<recipe_uid> with the uid from the search result.',
       parameters: {
         type: 'object',
         properties: {
@@ -171,9 +178,139 @@ const readTools: ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'get_calendar_events',
+      description:
+        'Read upcoming calendar events from ICS feeds synced in HomeOS (Temporal / Calendar). Use for questions about schedule, what is on the calendar, appointments, or events in the next days/weeks. Returns events per configured feed with start times and summaries.',
+      parameters: {
+        type: 'object',
+        properties: {
+          days_ahead: {
+            type: 'number',
+            description: 'How many days forward from now to include (default 14, max 90)',
+          },
+          feed_label_contains: {
+            type: 'string',
+            description: 'Optional — only include feeds whose label contains this text (case-insensitive)',
+          },
+        },
+      },
+    },
+  },
 ];
 
-const writeTools: ChatCompletionTool[] = [
+const automationChatTools: ChatCompletionTool[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'list_automations',
+      description:
+        'List HomeOS automations (triggers, conditions, actions). Requires Manage Automations permission. Use to answer questions about existing rules or to find automation IDs before editing.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_automation',
+      description: 'Get one automation by ID including full definition. Requires Manage Automations permission.',
+      parameters: {
+        type: 'object',
+        properties: {
+          automation_id: { type: 'string', description: 'Automation id' },
+        },
+        required: ['automation_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_automation_run_history',
+      description:
+        'Recent automation execution history (runs, success/failure). Optionally filter to one automation. Requires Manage Automations permission.',
+      parameters: {
+        type: 'object',
+        properties: {
+          automation_id: { type: 'string', description: 'Optional — limit to this automation' },
+          limit: { type: 'number', description: 'Max rows (default 25, max 100)' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'prepare_automation_change',
+      description:
+        'Stage a create, update, or delete of an automation for later commit. Does NOT apply changes. Always returns a proposal_id and a human-readable summary. You MUST ask the user to confirm explicitly before calling commit_automation_change. Requires Manage Automations permission.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['create', 'update', 'delete'], description: 'What to do' },
+          automation: {
+            type: 'object',
+            description:
+              'For create: full automation object with id, name, triggers[], actions[], optional conditions[], group, description, enabled, mode',
+          },
+          automation_id: { type: 'string', description: 'For update/delete: target automation id' },
+          updates: {
+            type: 'object',
+            description:
+              'For update: partial fields (name, group, description, enabled, mode, triggers, conditions, actions)',
+          },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'commit_automation_change',
+      description:
+        'Apply a previously prepared automation change. Only call after the user clearly confirms (e.g. yes, proceed, confirm). Requires proposal_id from prepare_automation_change. Requires Manage Automations permission.',
+      parameters: {
+        type: 'object',
+        properties: {
+          proposal_id: { type: 'string', description: 'The proposal_id returned by prepare_automation_change' },
+        },
+        required: ['proposal_id'],
+      },
+    },
+  },
+];
+
+const adminWriteTools: ChatCompletionTool[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'update_device_settings',
+      description:
+        'Update HomeOS metadata for a device (not integration bridge config). Use when the user asks to add nicknames, alternative names, or aliases so they can refer to the device with different wording later. Requires the device ID from get_devices. Prefer add_aliases to merge new names with existing ones. Use aliases only when replacing the entire list or clearing aliases (empty array). Admin only.',
+      parameters: {
+        type: 'object',
+        properties: {
+          deviceId: { type: 'string', description: 'Device ID from get_devices' },
+          add_aliases: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Names to add; merged with existing aliases (case-insensitive dedupe). Use for "also call it X", "add Y as an alias", etc.',
+          },
+          aliases: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'If provided, replaces the entire alias list. Use only when the user explicitly wants to set or clear the full list.',
+          },
+        },
+        required: ['deviceId'],
+      },
+    },
+  },
   {
     type: 'function',
     function: {
@@ -284,17 +421,150 @@ const writeTools: ChatCompletionTool[] = [
   },
 ];
 
+function hasPermission(role: UserRole, p: Permission): boolean {
+  return (ROLE_PERMISSIONS[role] ?? []).includes(p);
+}
+
 // ---------------------------------------------------------------------------
 // Tool execution
 // ---------------------------------------------------------------------------
 
 interface ToolContext {
   userRole: UserRole;
+  userId: string;
 }
 
+interface AutomationRow {
+  id: string;
+  name: string;
+  group_name: string | null;
+  description: string | null;
+  enabled: boolean;
+  mode: string;
+  definition: { triggers: []; conditions: []; actions: [] };
+  last_triggered: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+function automationRowToApi(r: AutomationRow): Automation {
+  return {
+    id: r.id,
+    name: r.name,
+    group: r.group_name ?? undefined,
+    description: r.description ?? undefined,
+    enabled: r.enabled,
+    mode: (r.mode as Automation['mode']) ?? 'single',
+    triggers: r.definition.triggers ?? [],
+    conditions: r.definition.conditions ?? [],
+    actions: r.definition.actions ?? [],
+    createdAt: r.created_at.toISOString(),
+    updatedAt: r.updated_at.toISOString(),
+    lastTriggered: r.last_triggered?.toISOString() ?? null,
+  };
+}
+
+interface ExecutionRow {
+  id: string;
+  automation_id: string;
+  triggered_at: Date;
+  trigger_type: string;
+  trigger_detail: Record<string, unknown> | null;
+  conditions_passed: boolean;
+  actions_executed: AutomationExecutionLog['actionsExecuted'];
+  status: string;
+  error: string | null;
+  completed_at: Date | null;
+}
+
+function executionRowToApi(r: ExecutionRow): AutomationExecutionLog {
+  return {
+    id: r.id,
+    automationId: r.automation_id,
+    triggeredAt: r.triggered_at.toISOString(),
+    triggerType: r.trigger_type,
+    triggerDetail: r.trigger_detail ?? undefined,
+    conditionsPassed: r.conditions_passed,
+    actionsExecuted: r.actions_executed,
+    status: r.status as AutomationExecutionLog['status'],
+    error: r.error ?? undefined,
+    completedAt: r.completed_at?.toISOString() ?? undefined,
+  };
+}
+
+function buildPendingAutomationOp(
+  args: Record<string, unknown>,
+): { op: PendingAutomationOp; summary: string } | { error: string } {
+  const action = String(args.action);
+  if (action === 'create') {
+    const raw = args.automation as Record<string, unknown> | undefined;
+    if (!raw || typeof raw !== 'object') return { error: 'create requires an automation object' };
+    const id = raw.id != null ? String(raw.id) : '';
+    const nm = raw.name != null ? String(raw.name) : '';
+    const triggers = raw.triggers;
+    const actions = raw.actions;
+    if (!id || !nm || !Array.isArray(triggers) || !Array.isArray(actions)) {
+      return { error: 'automation must include id, name, triggers (array), and actions (array)' };
+    }
+    const body: AutomationCreate = {
+      id,
+      name: nm,
+      group: raw.group != null ? String(raw.group) : undefined,
+      description: raw.description != null ? String(raw.description) : undefined,
+      enabled: raw.enabled !== undefined ? Boolean(raw.enabled) : undefined,
+      mode: raw.mode as AutomationCreate['mode'],
+      triggers: triggers as AutomationCreate['triggers'],
+      conditions: Array.isArray(raw.conditions) ? (raw.conditions as AutomationCreate['conditions']) : undefined,
+      actions: actions as AutomationCreate['actions'],
+    };
+    const summary = `Create automation "${nm}" (${id}): ${triggers.length} trigger(s), ${actions.length} action(s).`;
+    return { op: { action: 'create', body }, summary };
+  }
+  if (action === 'update') {
+    const id = args.automation_id != null ? String(args.automation_id) : '';
+    const updates = args.updates as Record<string, unknown> | undefined;
+    if (!id || !updates || typeof updates !== 'object') {
+      return { error: 'update requires automation_id and updates object' };
+    }
+    if (Object.keys(updates).length === 0) return { error: 'updates must not be empty' };
+    const body = updates as AutomationUpdate;
+    const summary = `Update automation "${id}": ${Object.keys(updates).join(', ')}`;
+    return { op: { action: 'update', id, body }, summary };
+  }
+  if (action === 'delete') {
+    const id = args.automation_id != null ? String(args.automation_id) : '';
+    if (!id) return { error: 'delete requires automation_id' };
+    return { op: { action: 'delete', id }, summary: `Delete automation "${id}".` };
+  }
+  return { error: `Unknown action: ${action}` };
+}
+
+const automationPermissionTools = [
+  'list_automations',
+  'get_automation',
+  'get_automation_run_history',
+  'prepare_automation_change',
+  'commit_automation_change',
+];
+
 async function executeTool(name: string, args: Record<string, unknown>, ctx: ToolContext): Promise<unknown> {
-  // Write tools require admin
-  const adminOnlyTools = ['send_command', 'create_integration_entry', 'update_integration_entry', 'restart_integration', 'ecobee_request_pin', 'ecobee_exchange_token'];
+  if (automationPermissionTools.includes(name) && !hasPermission(ctx.userRole, Permission.ManageAutomations)) {
+    return {
+      error:
+        'Permission denied. Automation features require the "Manage Automations" permission for your role (Settings → Users / role permissions).',
+    };
+  }
+
+  // Admin-only write tools
+  const adminOnlyTools = [
+    'send_command',
+    'update_device_settings',
+    'create_integration_entry',
+    'update_integration_entry',
+    'restart_integration',
+    'ecobee_request_pin',
+    'ecobee_exchange_token',
+  ];
   if (adminOnlyTools.includes(name) && ctx.userRole !== 'admin') {
     return { error: 'Permission denied. This action requires admin privileges.' };
   }
@@ -339,6 +609,71 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
       const device = stateStore.get(String(args.deviceId));
       if (!device) return { error: 'Device not found' };
       return device;
+    }
+
+    case 'update_device_settings': {
+      const deviceId = String(args.deviceId);
+      const device = stateStore.get(deviceId);
+      if (!device) return { error: 'Device not found' };
+
+      const addRaw = Array.isArray(args.add_aliases) ? args.add_aliases.map((a) => String(a).trim()).filter(Boolean) : [];
+      const hasFullReplace = Array.isArray(args.aliases);
+      const replaceRaw = hasFullReplace ? (args.aliases as unknown[]).map((a) => String(a).trim()) : [];
+
+      if (!hasFullReplace && addRaw.length === 0) {
+        return {
+          error: 'Provide add_aliases (one or more strings to merge) or aliases (full replacement list, may be empty to clear).',
+        };
+      }
+
+      const mergeDedupe = (base: string[], extra: string[]) => {
+        const byLower = new Map<string, string>();
+        for (const a of base) byLower.set(a.toLowerCase(), a);
+        for (const a of extra) byLower.set(a.toLowerCase(), a);
+        return [...byLower.values()];
+      };
+
+      let nextAliases: string[];
+      if (hasFullReplace) {
+        nextAliases = addRaw.length > 0 ? mergeDedupe(replaceRaw, addRaw) : replaceRaw;
+      } else {
+        let existing: string[] = [];
+        try {
+          const { rows } = await query<{ aliases: string[] | null }>(
+            'SELECT COALESCE(aliases, \'{}\') as aliases FROM device_settings WHERE device_id = $1',
+            [deviceId],
+          );
+          existing = rows[0]?.aliases?.length ? rows[0].aliases : device.aliases ?? [];
+        } catch {
+          existing = device.aliases ?? [];
+        }
+        nextAliases = mergeDedupe(existing, addRaw);
+      }
+
+      try {
+        await query(
+          `INSERT INTO device_settings (device_id, aliases, updated_at)
+           VALUES ($1, $2::text[], NOW())
+           ON CONFLICT (device_id) DO UPDATE SET
+             aliases = EXCLUDED.aliases,
+             updated_at = NOW()`,
+          [deviceId, nextAliases],
+        );
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error({ deviceId, err }, 'update_device_settings failed');
+        return { success: false, error: `Could not save aliases: ${message}` };
+      }
+
+      const updated = { ...device, aliases: nextAliases.length ? nextAliases : undefined };
+      stateStore.update(updated);
+      logger.info({ deviceId, aliasCount: nextAliases.length }, 'Device aliases updated via chat');
+
+      return {
+        success: true,
+        message: `Updated aliases for "${device.displayName || device.name}".`,
+        aliases: nextAliases,
+      };
     }
 
     case 'send_command': {
@@ -622,6 +957,122 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
       }
     }
 
+    case 'get_calendar_events': {
+      const days = Math.min(Math.max(Number(args.days_ahead) || 14, 1), 90);
+      const fromMs = Date.now();
+      const toMs = fromMs + days * 86400_000;
+      const feeds = await getAggregatedCalendarFeeds();
+      const labelFilter = args.feed_label_contains != null ? String(args.feed_label_contains) : undefined;
+      const { feeds: filtered, range } = filterCalendarEventsInRange(feeds, fromMs, toMs, labelFilter);
+      const totalEvents = filtered.reduce((n, f) => n + f.events.length, 0);
+      return {
+        range,
+        daysAhead: days,
+        totalEvents,
+        feeds: filtered.map((f) => ({
+          label: f.label,
+          entryId: f.entryId,
+          integration: f.integration,
+          eventCount: f.events.length,
+          events: f.events.map((e) => ({
+            summary: e.summary,
+            start: e.start,
+            end: e.end,
+            allDay: e.allDay,
+            location: e.location,
+          })),
+        })),
+        feedStatus: feeds.map((f) => ({
+          label: f.label,
+          fetchedAt: f.fetchedAt,
+          error: f.error,
+          storedEventCount: f.events.length,
+        })),
+      };
+    }
+
+    case 'list_automations': {
+      const { rows } = await query<AutomationRow>(
+        'SELECT * FROM automations ORDER BY group_name NULLS LAST, name',
+      );
+      return { automations: rows.map((r) => automationRowToApi(r)) };
+    }
+
+    case 'get_automation': {
+      const { rows } = await query<AutomationRow>('SELECT * FROM automations WHERE id = $1', [
+        String(args.automation_id),
+      ]);
+      if (rows.length === 0) return { error: 'Automation not found' };
+      return { automation: automationRowToApi(rows[0]) };
+    }
+
+    case 'get_automation_run_history': {
+      const limit = Math.min(Math.max(Number(args.limit) || 25, 1), 100);
+      if (args.automation_id) {
+        const { rows } = await query<ExecutionRow>(
+          `SELECT * FROM automation_execution_log WHERE automation_id = $1 ORDER BY triggered_at DESC LIMIT $2`,
+          [String(args.automation_id), limit],
+        );
+        return { executions: rows.map(executionRowToApi) };
+      }
+      const { rows } = await query<ExecutionRow>(
+        `SELECT * FROM automation_execution_log ORDER BY triggered_at DESC LIMIT $1`,
+        [limit],
+      );
+      return { executions: rows.map(executionRowToApi) };
+    }
+
+    case 'prepare_automation_change': {
+      const built = buildPendingAutomationOp(args);
+      if ('error' in built) return { error: built.error };
+      const { op, summary } = built;
+
+      if (op.action === 'create') {
+        const { rows } = await query('SELECT id FROM automations WHERE id = $1', [op.body.id]);
+        if (rows.length > 0) return { error: `An automation with id "${op.body.id}" already exists.` };
+      } else {
+        const { rows } = await query('SELECT id FROM automations WHERE id = $1', [op.id]);
+        if (rows.length === 0) return { error: `Automation "${op.id}" not found.` };
+      }
+
+      try {
+        const proposalId = saveAutomationProposal(ctx.userId, op, summary);
+        return {
+          status: 'pending_confirmation',
+          proposal_id: proposalId,
+          summary,
+          instructions:
+            'Ask the user to confirm this change explicitly. Only after they confirm, call commit_automation_change with this proposal_id.',
+          expires_in_minutes: 15,
+        };
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
+        return { error: message };
+      }
+    }
+
+    case 'commit_automation_change': {
+      const proposalId = String(args.proposal_id);
+      const pending = takeAutomationProposal(proposalId, ctx.userId);
+      if (!pending) {
+        return {
+          error:
+            'Invalid or expired proposal. Run prepare_automation_change again. Proposals expire after 15 minutes and are single-use.',
+        };
+      }
+      try {
+        const result = await applyAutomationProposal(pending.op);
+        if (result.deleted && pending.op.action === 'delete') {
+          return { success: true, deleted: true, message: `Deleted automation "${pending.op.id}".` };
+        }
+        return { success: true, automation: result.automation };
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
+        logger.error({ proposalId, err: e }, 'commit_automation_change failed');
+        return { success: false, error: message };
+      }
+    }
+
     case 'ecobee_request_pin': {
       const apiKey = String(args.apiKey);
       try {
@@ -866,9 +1317,13 @@ async function buildSystemPrompt(user: { username: string; role: UserRole }): Pr
     .filter(([, h]) => h.state === 'connected')
     .map(([id]) => id);
 
-  const roleDesc = user.role === 'admin'
-    ? 'You have full admin access — you can control devices, manage integrations, create/edit entries, and change settings.'
-    : 'You have read-only access — you can view devices and status but cannot control devices or change settings. If the user tries to do something that requires admin, let them know they need admin privileges.';
+  const canManageAutomations = hasPermission(user.role, Permission.ManageAutomations);
+  const roleDesc =
+    user.role === 'admin'
+      ? 'You have full admin access — you can control devices, manage integrations, create/edit entries, and change settings.'
+      : canManageAutomations
+        ? 'You are a non-admin user with **Manage Automations**: you can inspect and change automations using the two-step proposal flow, but admin-only tools (typical device control, integration entry management, device aliases) are not available unless you are an admin.'
+        : 'You have read-only access — you can view devices and status but cannot control devices or change settings. If the user tries to do something that requires admin, let them know they need admin privileges.';
 
   return `You are the built-in AI assistant for HomeOS — a custom home automation platform built specifically for the Kerry household. You are NOT Home Assistant, SmartThings, or any other third-party platform. HomeOS is a bespoke system with its own integrations, device model, and UI.
 
@@ -877,11 +1332,14 @@ HomeOS is a self-hosted platform that aggregates smart home devices across multi
 
 ## What you can do
 - Check device status, state history, and availability across all integrations
+- Answer **calendar and schedule** questions using get_calendar_events (ICS feeds synced from the Calendar integration — Temporal in LCARS)
 - Control devices (lights, fans, switches, covers, media players, vacuum, sprinklers, garage doors, vehicles) — admin only
+- Add or replace **device aliases** (alternative names for matching voice/chat requests) via update_device_settings — admin only. This is separate from integration entry config.
+- **Automations** — if the user's role includes Manage Automations (you will have list/get/prepare/commit tools): list and inspect rules, and propose create/update/delete using prepare_automation_change, then commit_automation_change **only after the user explicitly confirms**. If those tools are missing or return permission errors, the user needs an admin to grant "Manage Automations" for their role.
 - Navigate the HomeOS UI to any section
 - Help set up new integrations by walking the user through the required config
 - Search the web and read documentation pages to find the latest setup instructions for any integration or device
-- Manage integration entries (create, update, restart) — admin only
+- Manage integration entries (create, update, restart) — admin only. Use this for bridge credentials and integration config, **not** for renaming devices or adding device nicknames (use update_device_settings for aliases).
 
 ## What you are NOT
 - You are not Home Assistant and have no access to Home Assistant concepts (automations.yaml, integrations.yaml, HA add-ons, HA entities, Supervisor, etc.)
@@ -890,6 +1348,7 @@ HomeOS is a self-hosted platform that aggregates smart home devices across multi
 
 ## Current session
 User: ${user.username} (role: ${user.role})
+Manage Automations permission: ${canManageAutomations ? 'yes' : 'no'}
 ${roleDesc}
 
 ## Live system state
@@ -911,13 +1370,22 @@ ${buildDeviceInventory(devices, areaMap)}
 7. On confirmation ("yes", "go ahead", etc.) → execute immediately, no follow-up questions.
 8. Command fails → retry once, then report the error concisely.
 9. Confirm AFTER acting, not before. Be concise: "Done — turned on Patio Flood."
+10. To add or change **device aliases** (nicknames, alternate phrasing), call update_device_settings with the device ID from get_devices and add_aliases (merge) or aliases (full replace). Never use update_integration_entry for device names — that tool is only for integration bridge entries.
+
+## Calendar
+- Use **get_calendar_events** for upcoming events, schedule, and "what is on the calendar". Respect days_ahead. If feeds report errors or empty data, explain (feeds sync from the Calendar integration; user may need to open Calendar or refresh the integration).
+
+## Automations (HomeOS native — not Home Assistant)
+- **Never** claim to edit automations.yaml or HA automations.
+- If you have automation tools: use list_automations / get_automation to answer questions. To change anything: (1) prepare_automation_change with a clear summary, (2) ask the user to confirm explicitly, (3) only then commit_automation_change with the returned proposal_id. Do not commit without clear user confirmation.
+- Automation definitions use triggers (time, device_state, sun, manual), optional conditions, and actions (device_command, delay, etc.). Prefer small, testable changes.
 
 ## Paprika / recipes
 - The household recipe library is Paprika, synced into HomeOS and shown under **Recipes** (Replicator in LCARS). When the user asks to find recipes by ingredients or keywords, **always call search_recipes** with a short query — never defer to "search in the Paprika app only."
 - After search_recipes returns matches, list recipe names (and optional time/source). Offer to open the list with navigate_ui to \`/recipes\` or a specific recipe with \`/recipes?open=<uid>\` using the uid from the tool result.
 
 ## Navigation
-When the user asks to "show" or "go to" something, use navigate_ui. Paths: /devices, /cameras, /settings, /integrations, /areas, /alarms, /recipes, or /recipes?open=<recipe_uid> after a search.
+When the user asks to "show" or "go to" something, use navigate_ui. Paths: /devices, /cameras, /calendar, /settings, /integrations, /areas, /alarms, /recipes, /settings/automations, or /recipes?open=<recipe_uid> after a search.
 
 ## Integration setup guidelines
 - When a user asks to set up an integration, call get_integration_setup_info first.
@@ -934,8 +1402,14 @@ When the user asks to "show" or "go to" something, use navigate_ui. Paths: /devi
 // ---------------------------------------------------------------------------
 
 function getToolsForRole(role: UserRole): ChatCompletionTool[] {
-  if (role === 'admin') return [...readTools, ...writeTools];
-  return readTools;
+  const tools = [...readTools];
+  if (hasPermission(role, Permission.ManageAutomations)) {
+    tools.push(...automationChatTools);
+  }
+  if (role === 'admin') {
+    tools.push(...adminWriteTools);
+  }
+  return tools;
 }
 
 // ---------------------------------------------------------------------------
@@ -960,7 +1434,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
 
       const openai = new OpenAI({ apiKey });
       const tools = getToolsForRole(user.role);
-      const toolCtx: ToolContext = { userRole: user.role };
+      const toolCtx: ToolContext = { userRole: user.role, userId: user.id };
 
       const messages: ChatCompletionMessageParam[] = [
         { role: 'system', content: await buildSystemPrompt(user) },

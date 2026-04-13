@@ -27,6 +27,14 @@ interface AuthContextValue {
   uiPreferences: UiPreferences;
   uiPreferenceLocks: UiPreferenceLocks;
   patchUiPreferences: (patch: UiPreferences) => Promise<void>;
+  /** True while PIN elevation is active for this session */
+  elevated: boolean;
+  /** Seconds remaining (from server; polled while elevated) */
+  elevatedSecondsRemaining: number;
+  hasPin: boolean;
+  submitPin: (pin: string) => Promise<void>;
+  setAccountPin: (password: string, pin: string) => Promise<void>;
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -36,10 +44,14 @@ function applySessionToState(
   setUser: (u: User) => void,
   setUiPreferences: (p: UiPreferences) => void,
   setUiPreferenceLocks: (l: UiPreferenceLocks) => void,
+  setElevated: (b: boolean) => void,
+  setElevatedSecondsRemaining: (n: number) => void,
 ) {
   setUser(data.user);
   setUiPreferences(data.uiPreferences ?? {});
   setUiPreferenceLocks(data.uiPreferenceLocks ?? {});
+  setElevated(data.elevated ?? false);
+  setElevatedSecondsRemaining(data.elevatedSecondsRemaining ?? 0);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -47,6 +59,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [uiPreferences, setUiPreferences] = useState<UiPreferences>({});
   const [uiPreferenceLocks, setUiPreferenceLocks] = useState<UiPreferenceLocks>({});
+  const [elevated, setElevated] = useState(false);
+  const [elevatedSecondsRemaining, setElevatedSecondsRemaining] = useState(0);
+
+  const refreshSession = useCallback(async () => {
+    const api = getApiBase();
+    const res = await fetch(`${api}/api/auth/me`, { credentials: 'include' });
+    if (!res.ok) return;
+    const data = (await res.json()) as AuthSessionResponse;
+    applySessionToState(
+      data,
+      setUser,
+      setUiPreferences,
+      setUiPreferenceLocks,
+      setElevated,
+      setElevatedSecondsRemaining,
+    );
+  }, []);
 
   // Check existing session on mount, then load role permissions
   useEffect(() => {
@@ -57,7 +86,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return r.json();
       })
       .then((data: AuthSessionResponse) => {
-        applySessionToState(data, setUser, setUiPreferences, setUiPreferenceLocks);
+        applySessionToState(
+          data,
+          setUser,
+          setUiPreferences,
+          setUiPreferenceLocks,
+          setElevated,
+          setElevatedSecondsRemaining,
+        );
         return fetch(`${api}/api/role-permissions`, { credentials: 'include' })
           .then((r) => (r.ok ? r.json() : null))
           .then((permData: { roles: Record<string, Permission[]> } | null) => {
@@ -73,9 +109,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setUiPreferences({});
         setUiPreferenceLocks({});
+        setElevated(false);
+        setElevatedSecondsRemaining(0);
       })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!user || !elevated) return;
+    const id = window.setInterval(() => {
+      void refreshSession();
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [user, elevated, refreshSession]);
 
   const login = useCallback(async (username: string, password: string) => {
     const api = getApiBase();
@@ -98,7 +144,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error((err as { error?: string }).error ?? 'Login failed');
     }
     const data = (await res.json()) as AuthSessionResponse;
-    applySessionToState(data, setUser, setUiPreferences, setUiPreferenceLocks);
+    applySessionToState(
+      data,
+      setUser,
+      setUiPreferences,
+      setUiPreferenceLocks,
+      setElevated,
+      setElevatedSecondsRemaining,
+    );
   }, []);
 
   const logout = useCallback(async () => {
@@ -110,6 +163,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setUiPreferences({});
     setUiPreferenceLocks({});
+    setElevated(false);
+    setElevatedSecondsRemaining(0);
   }, []);
 
   const patchUiPreferences = useCallback(async (patch: UiPreferences) => {
@@ -122,17 +177,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     if (!res.ok) return;
     const data = (await res.json()) as AuthSessionResponse;
-    setUser(data.user);
-    setUiPreferences(data.uiPreferences ?? {});
-    setUiPreferenceLocks(data.uiPreferenceLocks ?? {});
+    applySessionToState(
+      data,
+      setUser,
+      setUiPreferences,
+      setUiPreferenceLocks,
+      setElevated,
+      setElevatedSecondsRemaining,
+    );
   }, []);
 
-  const isAdmin = user?.role === 'admin';
+  const submitPin = useCallback(async (pin: string) => {
+    const api = getApiBase();
+    const res = await fetch(`${api}/api/auth/pin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ pin }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as { error?: string }).error ?? 'PIN verification failed');
+    }
+    const data = (await res.json()) as AuthSessionResponse;
+    applySessionToState(
+      data,
+      setUser,
+      setUiPreferences,
+      setUiPreferenceLocks,
+      setElevated,
+      setElevatedSecondsRemaining,
+    );
+  }, []);
 
-  const hasPermission = useCallback((permission: Permission) => {
-    if (!user) return false;
-    return ROLE_PERMISSIONS[user.role]?.includes(permission) ?? false;
-  }, [user]);
+  const setAccountPin = useCallback(async (password: string, pin: string) => {
+    const api = getApiBase();
+    const res = await fetch(`${api}/api/auth/me/pin`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ password, pin }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as { error?: string }).error ?? 'Could not save PIN');
+    }
+    const data = (await res.json()) as AuthSessionResponse;
+    applySessionToState(
+      data,
+      setUser,
+      setUiPreferences,
+      setUiPreferenceLocks,
+      setElevated,
+      setElevatedSecondsRemaining,
+    );
+  }, []);
+
+  const hasPin = Boolean(user?.hasPin);
+
+  const isAdmin = user?.role === 'admin' || elevated;
+
+  const hasPermission = useCallback(
+    (permission: Permission) => {
+      if (!user) return false;
+      if (elevated) return true;
+      return ROLE_PERMISSIONS[user.role]?.includes(permission) ?? false;
+    },
+    [user, elevated],
+  );
 
   return (
     <AuthContext.Provider
@@ -146,6 +258,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         uiPreferences,
         uiPreferenceLocks,
         patchUiPreferences,
+        elevated,
+        elevatedSecondsRemaining,
+        hasPin,
+        submitPin,
+        setAccountPin,
+        refreshSession,
       }}
     >
       {children}

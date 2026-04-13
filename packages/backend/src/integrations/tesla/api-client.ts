@@ -302,14 +302,29 @@ export class TeslaApiClient {
     const products = await this.getProducts();
     return products
       .filter((p: any) => 'vehicle_id' in p)
-      .map((p: any) => ({
-        id: p.id as number,
-        vehicle_id: p.vehicle_id as number,
-        vin: String(p.vin),
-        display_name: String(p.display_name ?? ''),
-        state: p.state as TeslaVehicleListItem['state'],
-        id_s: typeof p.id_s === 'string' ? p.id_s : undefined,
-      }));
+      .map((p: any) => {
+        const idStr =
+          typeof p.id_s === 'string'
+            ? p.id_s
+            : typeof p.id === 'string'
+              ? p.id
+              : undefined;
+        const rawNumId =
+          typeof p.id === 'number' && Number.isFinite(p.id)
+            ? p.id
+            : typeof p.id === 'string'
+              ? Number(p.id)
+              : NaN;
+        return {
+          id: Number.isFinite(rawNumId) ? rawNumId : 0,
+          vehicle_id: p.vehicle_id as number,
+          vin: String(p.vin),
+          display_name: String(p.display_name ?? ''),
+          state: p.state as TeslaVehicleListItem['state'],
+          /** String vehicle id — prefer API id_s; string `id` avoids precision loss vs numeric id. */
+          id_s: idStr,
+        };
+      });
   }
 
   /** Filter products to energy sites only */

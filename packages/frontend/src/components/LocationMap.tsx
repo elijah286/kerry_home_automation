@@ -6,7 +6,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Crosshair, Plus, Minus } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { LocatableDevice, HistoryPoint } from '@/app/locations/page';
+import type { LocatableDevice, HistoryPoint } from '@/lib/locations-map';
 
 // ---------------------------------------------------------------------------
 // Marker icon (avoids broken default icon with bundlers)
@@ -35,6 +35,46 @@ function makeIcon(index: number) {
 // Auto-fit bounds
 // ---------------------------------------------------------------------------
 
+/**
+ * LCARS / flex layouts often finalize size after Leaflet's first layout pass; without this,
+ * only a few tiles render in the wrong places (fragmented map).
+ */
+function InvalidateMapSize() {
+  const map = useMap();
+
+  useEffect(() => {
+    const fix = () => {
+      map.invalidateSize({ animate: false });
+    };
+    fix();
+    const raf = requestAnimationFrame(fix);
+    const t1 = setTimeout(fix, 50);
+    const t2 = setTimeout(fix, 200);
+    const t3 = setTimeout(fix, 600);
+    window.addEventListener('resize', fix);
+
+    const el = map.getContainer();
+    const ro =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => {
+            fix();
+          })
+        : null;
+    if (ro && el) ro.observe(el);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      window.removeEventListener('resize', fix);
+      ro?.disconnect();
+    };
+  }, [map]);
+
+  return null;
+}
+
 function FitBounds({ devices }: { devices: LocatableDevice[] }) {
   const map = useMap();
   const prevSig = useRef('');
@@ -47,6 +87,7 @@ function FitBounds({ devices }: { devices: LocatableDevice[] }) {
       const bounds = L.latLngBounds(devices.map((d) => [d.latitude, d.longitude]));
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
       prevSig.current = sig;
+      requestAnimationFrame(() => map.invalidateSize({ animate: false }));
     }
   }, [devices, map]);
 
@@ -135,6 +176,7 @@ export default function LocationMap({ devices, historyPaths }: LocationMapProps)
       style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}
       zoomControl={false}
     >
+      <InvalidateMapSize />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

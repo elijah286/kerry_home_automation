@@ -289,6 +289,15 @@ export function formatLogPrimaryLine(entry: LogPrimaryFields): string {
   const msg = entry.msg ?? '';
   const c = entry.context;
 
+  if (msg === 'ISO build progress' && c && typeof c.percent === 'number') {
+    const detail =
+      typeof c.message === 'string' && c.message.trim()
+        ? c.message.trim().replace(/\s+/g, ' ')
+        : '';
+    const tail = detail.length > 120 ? `${detail.slice(0, 118)}…` : detail;
+    return tail ? `ISO build · ${c.percent}% · ${tail}` : `ISO build · ${c.percent}%`;
+  }
+
   if (msg === 'HTTP' && c && typeof c.method === 'string' && typeof c.path === 'string') {
     const status = typeof c.status === 'number' ? c.status : undefined;
     const ms = typeof c.ms === 'number' ? c.ms : undefined;

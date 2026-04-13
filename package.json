@@ -16,6 +16,8 @@
     "dev:backend": "npm run free-dev-ports && npm run dev -w @ha/backend",
     "dev:frontend": "npm run free-dev-ports && npm run dev -w @ha/frontend",
     "build": "npm run build -w @ha/shared && npm run build -w @ha/backend && npm run build -w @ha/frontend",
+    "build:mobile": "npm run build:mobile -w @ha/frontend",
+    "build:mobile:sync": "npm run build:mobile:sync -w @ha/frontend",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down"
   },

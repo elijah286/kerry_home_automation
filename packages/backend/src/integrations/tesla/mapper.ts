@@ -12,13 +12,21 @@ export function mapVehicleData(
   entryId: string,
   vehicle: TeslaVehicleListItem,
   data: TeslaVehicleData,
+  /** When the API omits GPS (common while parked or on some FW paths), keep last known fix for the map. */
+  previous?: VehicleState | null,
 ): VehicleState {
   const cs = data.charge_state;
   const cl = data.climate_state;
   const vs = data.vehicle_state;
   const ds = data.drive_state;
   const gui = data.gui_settings;
-  const { latitude, longitude } = resolveVehicleCoords(data);
+  const resolved = resolveVehicleCoords(data);
+  const latitude =
+    resolved.latitude ??
+    (typeof previous?.latitude === 'number' && Number.isFinite(previous.latitude) ? previous.latitude : null);
+  const longitude =
+    resolved.longitude ??
+    (typeof previous?.longitude === 'number' && Number.isFinite(previous.longitude) ? previous.longitude : null);
 
   return {
     type: 'vehicle',

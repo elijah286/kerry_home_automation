@@ -221,6 +221,26 @@
   animation-iteration-count: infinite;
 }
 
+/* System terminal: unseen error/fatal — Status control (slow red pulse; base from --status-alert-*) */
+@keyframes system-status-log-error-flash {
+  0%, 100% {
+    background-color: var(--status-alert-base, var(--color-bg-hover));
+    color: var(--status-alert-fg-base, #fff);
+    box-shadow: 0 0 0 transparent;
+    border-color: var(--status-alert-border-base, var(--color-border));
+  }
+  50% {
+    background-color: var(--status-alert-mid, rgba(220, 38, 38, 0.88));
+    color: #fff;
+    box-shadow: 0 0 24px rgba(220, 38, 38, 0.42);
+    border-color: var(--status-alert-border-mid, rgba(185, 28, 28, 0.95));
+  }
+}
+
+.system-status-log-error-alert {
+  animation: system-status-log-error-flash 3.2s ease-in-out infinite;
+}
+
 /* --- LCARS inputs --- */
 [data-active-theme="lcars"] input,
 [data-active-theme="lcars"] textarea,

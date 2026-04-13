@@ -2,20 +2,101 @@
 // Server installer ISO build pipeline
 // ---------------------------------------------------------------------------
 
-import { mkdir, writeFile, readFile, rm, rename, stat } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, rm, rename, stat, readdir, realpath } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { spawn, execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import type { ClientRequest, IncomingMessage } from 'node:http';
-import { join } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { createWriteStream } from 'node:fs';
 import { get as httpsGet } from 'node:https';
 import { get as httpGet } from 'node:http';
 import { appConfig } from '../config.js';
+import { chmodTreeWritable } from '../lib/chmod-tree-writable.js';
 import { generateAutoinstallYaml, hashPasswordForAutoinstall } from './autoinstall.js';
 import { logger } from '../logger.js';
 
 /** Used when HTTP has no Content-Length so the bar still moves (~Ubuntu 24.04 server ISO size). */
 const ESTIMATED_UBUNTU_ISO_BYTES = 1_750_000_000;
+
+/** xorriso warns if -volid has spaces / non-ECMA-119 characters; keep [A-Z0-9_]. */
+const OUTPUT_ISO_VOLID = 'UBUNTU_24_HA_INSTALLER';
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * Ubuntu ISO layouts vary by release; files may not live under boot/grub/i386-pc/.
+ * Prefer paths under .../boot/grub/ when multiple matches exist.
+ */
+function pickBestMatch(paths: string[]): string | null {
+  if (paths.length === 0) return null;
+  if (paths.length === 1) return paths[0];
+  const underBootGrub = paths.filter((p) => p.includes(`${sep}boot${sep}grub${sep}`));
+  return underBootGrub[0] ?? paths[0];
+}
+
+async function locateViaFind(isoTree: string, basename: string, iname: boolean): Promise<string | null> {
+  try {
+    const args = iname
+      ? [isoTree, '-iname', basename, '-type', 'f']
+      : [isoTree, '-name', basename, '-type', 'f'];
+    const { stdout } = await execFileAsync('find', args, {
+      maxBuffer: 32 * 1024 * 1024,
+    });
+    const lines = stdout
+      .trim()
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+    return pickBestMatch(lines);
+  } catch (e) {
+    logger.warn({ e, isoTree, basename, iname }, 'find failed while locating ISO boot file');
+    return null;
+  }
+}
+
+/** Pure Node fallback if `find` is missing or returns nothing (portable, no subprocess). */
+async function walkFindFileByName(root: string, basename: string): Promise<string | null> {
+  const want = basename.toLowerCase();
+  async function walk(dir: string): Promise<string | null> {
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return null;
+    }
+    for (const ent of entries) {
+      const p = join(dir, ent.name);
+      if (ent.isDirectory()) {
+        const sub = await walk(p);
+        if (sub) return sub;
+      } else if (ent.name.toLowerCase() === want) {
+        return p;
+      }
+    }
+    return null;
+  }
+  return walk(root);
+}
+
+async function locateFileInIsoTree(isoTree: string, basename: string): Promise<string | null> {
+  let r = await locateViaFind(isoTree, basename, false);
+  if (r) return r;
+  r = await locateViaFind(isoTree, basename, true);
+  if (r) return r;
+  r = await walkFindFileByName(isoTree, basename);
+  return r;
+}
+
+async function describeBootGrubHint(isoTree: string): Promise<string> {
+  const parts: string[] = [];
+  for (const rel of ['boot/grub', 'boot/grub/i386-pc', 'boot/grub/x86_64-efi']) {
+    const p = join(isoTree, ...rel.split('/'));
+    const names = await readdir(p).catch(() => [] as string[]);
+    parts.push(`${rel}: ${names.slice(0, 40).join(', ') || '(missing)'}`);
+  }
+  return parts.join(' | ');
+}
 
 export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
 
@@ -59,12 +140,18 @@ function throwIfCancelled(signal: AbortSignal | undefined): void {
 function runCancellable(
   cmd: string,
   args: string[],
-  options: { onStderr?: (line: string) => void; signal?: AbortSignal },
+  options: {
+    onStderr?: (line: string) => void;
+    signal?: AbortSignal;
+    /** When non-zero exit, append last N chars of stderr to the Error message (xorriso hides detail otherwise). */
+    attachStderrTailOnError?: number;
+  },
 ): Promise<void> {
-  const { onStderr, signal } = options;
+  const { onStderr, signal, attachStderrTailOnError = 0 } = options;
   return new Promise((resolve, reject) => {
     throwIfCancelled(signal);
     const proc = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stderrAcc = '';
     const onAbort = (): void => {
       proc.kill('SIGTERM');
       setTimeout(() => {
@@ -75,8 +162,17 @@ function runCancellable(
 
     proc.stdout?.on('data', () => { /* discard */ });
     proc.stderr?.on('data', (chunk: Buffer) => {
-      const line = chunk.toString().trim();
-      if (line && onStderr) onStderr(line);
+      const text = chunk.toString();
+      if (attachStderrTailOnError > 0) {
+        stderrAcc = (stderrAcc + text).slice(-Math.max(attachStderrTailOnError * 2, 24_000));
+      }
+      const line = text.trim();
+      if (line && onStderr) {
+        for (const part of text.split(/\r?\n/)) {
+          const p = part.trim();
+          if (p) onStderr(p);
+        }
+      }
     });
     proc.on('close', (code) => {
       signal?.removeEventListener('abort', onAbort);
@@ -85,7 +181,14 @@ function runCancellable(
         return;
       }
       if (code === 0) resolve();
-      else reject(new Error(`${cmd} exited with code ${code}`));
+      else {
+        let msg = `${cmd} exited with code ${code}`;
+        if (attachStderrTailOnError > 0 && stderrAcc.trim()) {
+          const tail = stderrAcc.trim().slice(-attachStderrTailOnError);
+          msg += `. stderr (last ${tail.length} chars): ${tail}`;
+        }
+        reject(new Error(msg));
+      }
     });
     proc.on('error', (err) => {
       signal?.removeEventListener('abort', onAbort);
@@ -93,6 +196,238 @@ function runCancellable(
       else reject(err);
     });
   });
+}
+
+/**
+ * Full-tree `xorriso -extract /` often omits hybrid boot blobs; they still exist as ISO9660 paths
+ * on the image. Pull them with single-file extract (same as Ubuntu remastering docs).
+ */
+async function extractIsoFileIfMissing(
+  cachedIso: string,
+  isoTree: string,
+  isoPathCandidates: string[],
+  destSegments: string[],
+  signal: AbortSignal | undefined,
+): Promise<boolean> {
+  const destAbs = join(isoTree, ...destSegments);
+  try {
+    await stat(destAbs);
+    return true;
+  } catch {
+    /* extract */
+  }
+  await mkdir(dirname(destAbs), { recursive: true });
+  for (const isoPath of isoPathCandidates) {
+    try {
+      await runCancellable('xorriso', ['-osirrox', 'on', '-indev', cachedIso, '-extract', isoPath, destAbs], {
+        signal,
+      });
+      await stat(destAbs);
+      logger.info({ isoPath, destAbs }, 'Pulled file from Ubuntu ISO via single-file xorriso extract');
+      return true;
+    } catch (e) {
+      logger.debug({ e, isoPath, destAbs }, 'single-file xorriso extract attempt failed');
+    }
+  }
+  return false;
+}
+
+async function ensureBootHybridAndEfiFromIsoImage(
+  cachedIso: string,
+  isoTree: string,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  await extractIsoFileIfMissing(
+    cachedIso,
+    isoTree,
+    ['/boot/grub/i386-pc/boot_hybrid.img', 'boot/grub/i386-pc/boot_hybrid.img'],
+    ['boot', 'grub', 'i386-pc', 'boot_hybrid.img'],
+    signal,
+  );
+  await extractIsoFileIfMissing(
+    cachedIso,
+    isoTree,
+    [
+      '/boot/grub/efi.img',
+      'boot/grub/efi.img',
+      '/boot/grub/x86_64-efi/efi.img',
+      'boot/grub/x86_64-efi/efi.img',
+    ],
+    ['boot', 'grub', 'efi.img'],
+    signal,
+  );
+}
+
+/** Spaces split tokens unless inside single quotes (xorriso mkisofs report lines). */
+function tokenizeMkisofsReportLine(s: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let inQuote = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]!;
+    if (c === "'") {
+      inQuote = !inQuote;
+      cur += c;
+      continue;
+    }
+    if (!inQuote && /\s/.test(c)) {
+      if (cur.trim()) out.push(cur.trim());
+      cur = '';
+      continue;
+    }
+    cur += c;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+function filterVolumeAndDateFromMkisofsTokens(tokens: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i]!;
+    if (t === '-V') {
+      i++;
+      continue;
+    }
+    if (t.startsWith('--modification-date=')) continue;
+    if (t === '--modification-date') {
+      i++;
+      continue;
+    }
+    out.push(t);
+  }
+  return out;
+}
+
+/** Report output must not include -o (we supply -o and the tree ourselves). */
+function stripOutputSpecifierFromMkisofsTokens(tokens: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i]!;
+    if (t === '-o') {
+      i++;
+      continue;
+    }
+    out.push(t);
+  }
+  return out;
+}
+
+/**
+ * `xorriso -report_* as_mkisofs` prints shell-style quoting. We pass argv directly (no shell), so
+ * literal `'` characters in tokens break parsing — see bin_path='/'"'"'/boot/... and interval open errors.
+ */
+function normalizeXorrisoMkisofsTokens(tokens: string[]): string[] {
+  return tokens.map((raw) => {
+    let t = raw.replace(/'"'"'/g, "'").replace(/\0/g, '');
+    // Token was one shell-quoted span, e.g. '/boot/grub/...' — drop outer quotes only.
+    if (t.length >= 2) {
+      const a = t[0];
+      const b = t[t.length - 1];
+      if ((a === "'" && b === "'") || (a === '"' && b === '"')) {
+        t = t.slice(1, -1);
+      }
+    }
+    // --interval:...:'/abs/path'  →  --interval:...:/abs/path  (spawn has no shell)
+    if (t.startsWith('--interval:')) {
+      t = t.replace(/:'(\/[^']+)'$/g, ':$1');
+    }
+    return t;
+  });
+}
+
+/**
+ * Parse stdout/stderr from `xorriso -indev ISO -report_el_torito as_mkisofs`.
+ * Rewrites any `'…something.iso'` interval reference to our cached Ubuntu image (absolute path).
+ */
+function parseXorrisoMkisofsReport(raw: string, cachedIsoAbs: string): string[] {
+  const lines = raw.split('\n');
+  const kept: string[] = [];
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t) continue;
+    if (/^xorriso\s*:/i.test(t)) continue;
+    if (/^libisofs:/i.test(t)) continue;
+    if (/^Drive current:/i.test(t)) continue;
+    if (/^Media current:/i.test(t)) continue;
+    if (/^Media status/i.test(t)) continue;
+    if (/^Media summary/i.test(t)) continue;
+    if (/^Boot record/i.test(t)) continue;
+    if (/^Volume id/i.test(t)) continue;
+    if (t.startsWith('-')) kept.push(t);
+  }
+  let joined = kept.join(' ');
+  // Reference the cached ISO by path without shell quotes (normalizeXorrisoMkisofsTokens strips them).
+  joined = joined.replace(/'[^']*\.iso'/gi, cachedIsoAbs);
+  const tokens = tokenizeMkisofsReportLine(joined);
+  return normalizeXorrisoMkisofsTokens(
+    stripOutputSpecifierFromMkisofsTokens(filterVolumeAndDateFromMkisofsTokens(tokens)),
+  );
+}
+
+function mkisofsRecipeLooksUsable(tokens: string[]): boolean {
+  const joined = tokens.join(' ');
+  if (/--grub2-mbr/.test(joined)) return true;
+  if (/-isohybrid-mbr/.test(joined)) return true;
+  if (tokens.includes('-b') && tokens.includes('-no-emul-boot')) return true;
+  return false;
+}
+
+/**
+ * Report lines may use `-e '--interval:appended_partition_2_start_NNNs_size_MMMd:all::'` from the
+ * *stock* ISO. After we change the tree, those sector numbers can make xorriso abort (often exit 5).
+ * The relative `appended_partition_2:::` form matches our manual legacy recipe and xorriso docs.
+ */
+function simplifyAppendedPartitionEfiInRecipe(tokens: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i]!;
+    const next = tokens[i + 1];
+    if (t === '-e' && typeof next === 'string' && next.includes('appended_partition_2_start')) {
+      out.push('-e', '--interval:appended_partition_2:::');
+      i++;
+      continue;
+    }
+    out.push(t);
+  }
+  return out;
+}
+
+async function gatherMkisofsBootRecipe(
+  cachedIsoAbs: string,
+  signal: AbortSignal | undefined,
+): Promise<string[] | null> {
+  const tryReport = async (mode: 'el_torito' | 'system_area'): Promise<string[] | null> => {
+    const reportFlag = mode === 'el_torito' ? '-report_el_torito' : '-report_system_area';
+    try {
+      const { stdout, stderr } = await execFileAsync(
+        'xorriso',
+        [
+          '-no_rc',
+          '-abort_on', 'NEVER',
+          '-report_about', 'SORRY',
+          '-indev', cachedIsoAbs,
+          reportFlag,
+          'as_mkisofs',
+        ],
+        { maxBuffer: 16 * 1024 * 1024, signal },
+      );
+      const raw = `${stdout}\n${stderr}`;
+      const tokens = parseXorrisoMkisofsReport(raw, cachedIsoAbs);
+      return tokens.length > 0 ? tokens : null;
+    } catch (e) {
+      logger.warn({ e, cachedIsoAbs, mode }, 'xorriso boot recipe report failed');
+      return null;
+    }
+  };
+
+  const fromElTorito = await tryReport('el_torito');
+  if (fromElTorito && mkisofsRecipeLooksUsable(fromElTorito)) return fromElTorito;
+
+  const fromSysArea = await tryReport('system_area');
+  if (fromSysArea && mkisofsRecipeLooksUsable(fromSysArea)) return fromSysArea;
+
+  return fromElTorito ?? fromSysArea ?? null;
 }
 
 /**
@@ -279,6 +614,7 @@ export async function buildInstallerIso(
   const signal = options?.signal;
   const { isoCacheDir, workDir, ubuntuIsoUrl, ubuntuIsoSha256, appRepoUrl, envFilePath } = appConfig.serverInstaller;
 
+  try {
   // Validate required config
   if (!appRepoUrl) {
     throw new Error('APP_REPO_URL is not configured. Set it in your .env file.');
@@ -353,7 +689,11 @@ export async function buildInstallerIso(
     progress(onProgress, 29, 'Verifying download SHA-256...');
     if (actualHash !== ubuntuIsoSha256) {
       await rm(tmpDest, { force: true });
-      throw new Error(`SHA-256 mismatch — download may be corrupted. Expected: ${ubuntuIsoSha256}, got: ${actualHash}`);
+      throw new Error(
+        `SHA-256 mismatch for Ubuntu ISO (corrupt download or mirror file changed). ` +
+          `Check ${ubuntuIsoUrl.replace(/[^/]+$/, 'SHA256SUMS')} and set UBUNTU_ISO_SHA256, or clear the ISO cache. ` +
+          `Expected: ${ubuntuIsoSha256}, got: ${actualHash}`,
+      );
     }
 
     await rename(tmpDest, cachedIso);
@@ -429,75 +769,133 @@ export async function buildInstallerIso(
     }
   }
 
-  progress(onProgress, 56, 'Boot configuration patched.');
+  progress(onProgress, 55, 'Boot configuration patched.');
 
   // -------------------------------------------------------------------------
-  // Step 4: Locate xorriso boot artifacts from extracted tree
+  // Step 4–5: Repack ISO with BIOS + UEFI hybrid boot (56–90%)
   // -------------------------------------------------------------------------
-  const bootHybridImg = join(isoTree, 'boot', 'grub', 'i386-pc', 'boot_hybrid.img');
-  const efiImg = join(isoTree, 'boot', 'grub', 'efi.img');
+  // Ubuntu 24.04+ often do not expose boot_hybrid.img / efi.img as normal files in the ISO
+  // tree — EFI is often an appended partition only. xorriso can reproduce boot equipment
+  // from the upstream ISO via --interval:local_fs:…:’original.iso’ (see GNU xorriso docs).
+  const cachedIsoAbs = await realpath(cachedIso).catch(() => resolve(cachedIso));
 
-  // Validate both files exist before attempting repack
-  try {
-    await stat(bootHybridImg);
-    await stat(efiImg);
-  } catch (e) {
-    throw new Error(
-      `Could not find Ubuntu boot artifacts in extracted ISO. ` +
-      `Expected: ${bootHybridImg} and ${efiImg}. ` +
-      `The ISO layout may have changed — check boot/grub/ contents.`
-    );
-  }
+  progress(onProgress, 56, 'Reading boot layout from Ubuntu ISO (El Torito / system area)...');
+  const recipe = await gatherMkisofsBootRecipe(cachedIsoAbs, signal);
 
-  // -------------------------------------------------------------------------
-  // Step 5: Repack ISO with BIOS + UEFI hybrid boot (56–90%)
-  // -------------------------------------------------------------------------
   progress(onProgress, 57, 'Repacking bootable ISO (this may take a minute)...');
   throwIfCancelled(signal);
 
-  await runCancellable('xorriso', [
-    '-as', 'mkisofs',
-    '-r',
-    '-V', 'Ubuntu 24.04 HA Installer',
-    '--grub2-mbr', bootHybridImg,
-    '--protective-msdos-label',
-    '-partition_offset', '16',
-    '--mbr-force-bootable',
-    '-append_partition', '2', '28732ac11ff8d211ba4b00a0c93ec93b', efiImg,
-    '-appended_part_as_gpt',
-    '-iso_mbr_part_type', 'a2a0d0ebe5b9334487c068b6b72699c7',
-    '-c', '/boot/boot.catalog',
-    '-b', '/boot/grub/i386-pc/eltorito.img',
-    '-no-emul-boot',
-    '-boot-load-size', '4',
-    '-boot-info-table',
-    '--grub2-boot-info',
-    '-eltorito-alt-boot',
-    '-e', '--interval:appended_partition_2:::',
-    '-no-emul-boot',
-    '-boot-load-size', '7336',
-    isoTree,
-    '-o', outputIso,
-  ], {
-    onStderr: (line) => {
-      const match = line.match(/(\d+)\s*%/);
-      if (match) {
-        const xorPct = parseInt(match[1], 10);
-        const overallPct = 57 + Math.floor((xorPct / 100) * 33); // 57–90%
-        progress(onProgress, overallPct, 'Repacking bootable ISO...');
-      }
-    },
-    signal,
-  });
+  const onXorrisoMkisofsStderr = (line: string): void => {
+    const match = line.match(/(\d+)\s*%/);
+    if (match) {
+      const xorPct = parseInt(match[1], 10);
+      const overallPct = 57 + Math.floor((xorPct / 100) * 33); // 57–90%
+      progress(onProgress, overallPct, 'Repacking bootable ISO...');
+    }
+  };
+
+  if (recipe && mkisofsRecipeLooksUsable(recipe)) {
+    const mkisofsFromRecipe = (r: string[]): string[] => [
+      '-no_rc',
+      '-abort_on', 'NEVER',
+      '-as', 'mkisofs',
+      '-r',
+      '-V', OUTPUT_ISO_VOLID,
+      ...r,
+      '-o', outputIso,
+      isoTree,
+    ];
+    try {
+      await runCancellable('xorriso', mkisofsFromRecipe(recipe), {
+        onStderr: onXorrisoMkisofsStderr,
+        signal,
+        attachStderrTailOnError: 6000,
+      });
+    } catch (firstErr) {
+      const simplified = simplifyAppendedPartitionEfiInRecipe(recipe);
+      if (JSON.stringify(simplified) === JSON.stringify(recipe)) throw firstErr;
+      logger.warn(
+        { jobId },
+        'xorriso mkisofs failed with stock -e interval; retrying with appended_partition_2:::',
+      );
+      await runCancellable('xorriso', mkisofsFromRecipe(simplified), {
+        onStderr: onXorrisoMkisofsStderr,
+        signal,
+        attachStderrTailOnError: 6000,
+      });
+    }
+  } else {
+    logger.warn(
+      { cachedIsoAbs },
+      'Falling back to file-based mkisofs (could not parse -report_el_torito as_mkisofs); ' +
+        'ensure upstream ISO matches Ubuntu live-server layout.',
+    );
+    progress(onProgress, 56, 'Ensuring hybrid boot blobs (full extract often skips these)...');
+    await ensureBootHybridAndEfiFromIsoImage(cachedIso, isoTree, signal);
+
+    progress(onProgress, 56, 'Locating boot images (boot_hybrid.img, efi.img)...');
+    const bootHybridImg = await locateFileInIsoTree(isoTree, 'boot_hybrid.img');
+    const efiImg = await locateFileInIsoTree(isoTree, 'efi.img');
+
+    if (!bootHybridImg || !efiImg) {
+      const hint = await describeBootGrubHint(isoTree);
+      throw new Error(
+        `Could not find boot_hybrid.img and efi.img in the extracted Ubuntu ISO. ${hint} ` +
+          `If this persists, the ISO layout may differ from what the installer expects.`,
+      );
+    }
+
+    await runCancellable(
+      'xorriso',
+      [
+        '-no_rc',
+        '-abort_on', 'NEVER',
+        '-as', 'mkisofs',
+        '-r',
+        '-V', OUTPUT_ISO_VOLID,
+        '--grub2-mbr', bootHybridImg,
+        '--protective-msdos-label',
+        '-partition_offset', '16',
+        '--mbr-force-bootable',
+        '-append_partition', '2', '28732ac11ff8d211ba4b00a0c93ec93b', efiImg,
+        '-appended_part_as_gpt',
+        '-iso_mbr_part_type', 'a2a0d0ebe5b9334487c068b6b72699c7',
+        '-c', '/boot/boot.catalog',
+        '-b', '/boot/grub/i386-pc/eltorito.img',
+        '-no-emul-boot',
+        '-boot-load-size', '4',
+        '-boot-info-table',
+        '--grub2-boot-info',
+        '-eltorito-alt-boot',
+        '-e', '--interval:appended_partition_2:::',
+        '-no-emul-boot',
+        '-boot-load-size', '7336',
+        '-o', outputIso,
+        isoTree,
+      ],
+      { onStderr: onXorrisoMkisofsStderr, signal, attachStderrTailOnError: 6000 },
+    );
+  }
 
   // -------------------------------------------------------------------------
   // Step 6: Finalize (90–100%)
   // -------------------------------------------------------------------------
   progress(onProgress, 90, 'Cleaning up build directory...');
+  await chmodTreeWritable(isoTree);
   await rm(isoTree, { recursive: true, force: true });
 
   progress(onProgress, 100, 'ISO ready for download', 'complete');
   logger.info({ jobId, outputIso }, 'Installer ISO build complete');
 
   return outputIso;
+  } catch (err) {
+    if (err instanceof BuildCancelledError) throw err;
+    const msg = err instanceof Error ? err.message : String(err);
+    try {
+      progress(onProgress, 0, msg, 'failed');
+    } catch {
+      /* ignore */
+    }
+    throw err;
+  }
 }

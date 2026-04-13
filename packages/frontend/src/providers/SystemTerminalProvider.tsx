@@ -12,6 +12,7 @@ import {
 import { Permission } from '@ha/shared';
 import { useAuth } from '@/providers/AuthProvider';
 import { SystemTerminalDock } from '@/components/layout/SystemTerminalDock';
+import { useSystemLogErrorAlert } from '@/hooks/useSystemLogErrorAlert';
 
 const STORAGE_SHOW_NAV = 'ha-ui-show-terminal-nav';
 const STORAGE_LOG_DETAIL = 'ha-ui-terminal-log-detail';
@@ -42,6 +43,8 @@ interface SystemTerminalContextValue {
   /** When true, new log lines scroll the view to the tail. */
   logAutoScroll: boolean;
   setLogAutoScroll: (v: boolean) => void;
+  /** Error/fatal in system log within the last 5 minutes — highlight Status control. */
+  hasRecentLogError: boolean;
 }
 
 const SystemTerminalContext = createContext<SystemTerminalContextValue | null>(null);
@@ -61,6 +64,7 @@ export function SystemTerminalProvider({
 
   const [showNavButton, setShowNavButtonState] = useState(true);
   const [open, setOpen] = useState(false);
+  const hasRecentLogError = useSystemLogErrorAlert(canUse, open);
   const [logFilter, setLogFilter] = useState<TerminalLogFilter>('all');
   const [logDetailStyle, setLogDetailStyleState] = useState<TerminalLogDetailStyle>('terminal');
   const [logAutoScroll, setLogAutoScroll] = useState(true);
@@ -100,6 +104,7 @@ export function SystemTerminalProvider({
       terminalDockPlacement,
       logAutoScroll,
       setLogAutoScroll,
+      hasRecentLogError,
     }),
     [
       canUse,
@@ -111,6 +116,7 @@ export function SystemTerminalProvider({
       setLogDetailStyle,
       terminalDockPlacement,
       logAutoScroll,
+      hasRecentLogError,
     ],
   );
 

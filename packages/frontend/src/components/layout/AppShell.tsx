@@ -10,6 +10,7 @@ import { useConnected } from '@/hooks/useWebSocket';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useTheme } from '@/providers/ThemeProvider';
 import { SystemTerminalProvider, useSystemTerminalBottomInset } from '@/providers/SystemTerminalProvider';
+import { LocationsMapProvider } from '@/providers/LocationsMapContext';
 import { LCARSFrame } from '../lcars/LCARSFrame';
 import { AppHeaderBar } from './AppHeaderBar';
 
@@ -84,6 +85,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <CookingTimersProvider>
+    <LocationsMapProvider>
     <AssistantProvider>
       {isLCARS ? (
         <SystemTerminalProvider
@@ -106,6 +108,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </SystemTerminalProvider>
       )}
     </AssistantProvider>
+    </LocationsMapProvider>
     </CookingTimersProvider>
   );
 }

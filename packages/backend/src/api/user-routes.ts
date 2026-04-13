@@ -10,6 +10,7 @@ import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
 import { authenticate, requireRole } from './auth.js';
 import { applyAdminPreferencesPatch } from '../lib/ui-preferences.js';
+import { isValidPinFormat } from '../lib/pin-elevation.js';
 
 function asRecord(v: unknown): Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
@@ -34,6 +35,7 @@ type UserRow = {
   enabled: boolean;
   created_at: Date;
   ui_preferences_admin?: unknown;
+  has_pin: boolean;
 };
 
 function toUser(row: UserRow): User {
@@ -44,6 +46,7 @@ function toUser(row: UserRow): User {
     role: row.role as UserRole,
     enabled: row.enabled,
     createdAt: row.created_at.toISOString(),
+    hasPin: row.has_pin,
   };
   const admin = adminPrefsSubset(row.ui_preferences_admin);
   if (Object.keys(admin).length > 0) {
@@ -60,17 +63,21 @@ export function registerUserRoutes(app: FastifyInstance): void {
   // GET /api/users
   app.get('/api/users', { preHandler: adminOnly }, async () => {
     const { rows } = await query<UserRow>(
-      'SELECT id, username, display_name, role, enabled, created_at, ui_preferences_admin FROM users ORDER BY created_at',
+      'SELECT id, username, display_name, role, enabled, created_at, ui_preferences_admin, (pin_hash IS NOT NULL) AS has_pin FROM users ORDER BY created_at',
     );
     return { users: rows.map(toUser) };
   });
 
   // POST /api/users
   app.post<{ Body: CreateUserRequest }>('/api/users', { preHandler: adminOnly }, async (req, reply) => {
-    const { username, displayName, password, role } = req.body;
+    const { username, displayName, password, pin, role } = req.body;
 
-    if (!username || !displayName || !password) {
-      return reply.code(400).send({ error: 'username, displayName, and password are required' });
+    if (!username || !displayName || !password || pin === undefined || pin === '') {
+      return reply.code(400).send({ error: 'username, displayName, password, and pin are required' });
+    }
+
+    if (!isValidPinFormat(pin)) {
+      return reply.code(400).send({ error: 'PIN must be 4–6 digits' });
     }
 
     if (!USER_ROLES.includes(role)) {
@@ -78,11 +85,14 @@ export function registerUserRoutes(app: FastifyInstance): void {
     }
 
     const hash = await bcrypt.hash(password, SALT_ROUNDS);
+    const pinHash = await bcrypt.hash(pin.trim(), SALT_ROUNDS);
 
     try {
       const { rows } = await query<UserRow>(
-        'INSERT INTO users (username, display_name, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, display_name, role, enabled, created_at',
-        [username, displayName, hash, role],
+        `INSERT INTO users (username, display_name, password_hash, role, pin_hash)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, username, display_name, role, enabled, created_at, (pin_hash IS NOT NULL) AS has_pin`,
+        [username, displayName, hash, role, pinHash],
       );
       logger.info({ username, role }, 'User created');
       return { user: toUser(rows[0]) };
@@ -97,7 +107,7 @@ export function registerUserRoutes(app: FastifyInstance): void {
   // PUT /api/users/:id
   app.put<{ Params: { id: string }; Body: UpdateUserRequest }>('/api/users/:id', { preHandler: adminOnly }, async (req, reply) => {
     const { id } = req.params;
-    const { displayName, role, enabled, password, uiPreferencesAdmin } = req.body;
+    const { displayName, role, enabled, password, pin, uiPreferencesAdmin } = req.body;
 
     // Prevent demoting the last admin
     if (role && role !== 'admin') {
@@ -124,6 +134,18 @@ export function registerUserRoutes(app: FastifyInstance): void {
       params.push(hash);
     }
 
+    if (pin !== undefined) {
+      if (pin === '') {
+        sets.push('pin_hash = NULL');
+      } else if (!isValidPinFormat(pin)) {
+        return reply.code(400).send({ error: 'PIN must be 4–6 digits' });
+      } else {
+        const ph = await bcrypt.hash(pin.trim(), SALT_ROUNDS);
+        sets.push(`pin_hash = $${i++}`);
+        params.push(ph);
+      }
+    }
+
     if (uiPreferencesAdmin !== undefined) {
       const { rows: prefRows } = await query<{ ui_preferences_admin: unknown }>(
         'SELECT ui_preferences_admin FROM users WHERE id = $1',
@@ -145,7 +167,7 @@ export function registerUserRoutes(app: FastifyInstance): void {
     params.push(id);
 
     const { rows } = await query<UserRow>(
-      `UPDATE users SET ${sets.join(', ')} WHERE id = $${i} RETURNING id, username, display_name, role, enabled, created_at, ui_preferences_admin`,
+      `UPDATE users SET ${sets.join(', ')} WHERE id = $${i} RETURNING id, username, display_name, role, enabled, created_at, ui_preferences_admin, (pin_hash IS NOT NULL) AS has_pin`,
       params,
     );
 

@@ -2,7 +2,7 @@
 
 import { useTheme } from '@/providers/ThemeProvider';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useMemo, type CSSProperties, type ReactNode } from 'react';
 import { clsx } from 'clsx';
 import { LCARSSidebar } from './LCARSSidebar';
 import { LCARSStartup } from './LCARSStartup';
@@ -22,7 +22,8 @@ import { lcarsVerticalRailGradient } from './lcarsRailGradient';
 import { LCARSBreadcrumbBlocks } from './LCARSBreadcrumbBlocks';
 import { getBreadcrumbItems } from '@/lib/appBreadcrumbs';
 import { AppVersionLabel } from '../layout/AppVersionLabel';
-import { AssistantHeaderButton, LCARSAssistantInsetSync } from '../ChatBot';
+import { PinElevationControls } from '../layout/PinElevationControls';
+import { AssistantHeaderButton, MapLayersHeaderButton, LCARSAssistantInsetSync } from '../ChatBot';
 import { LCARSFrameProvider } from './LCARSFrameContext';
 import { FooterSlotProvider, useFooterSlot } from './LCARSFooterSlotContext';
 import { useLCARSSounds } from './LCARSSounds';
@@ -139,6 +140,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
     open: terminalOpen,
     setOpen: setTerminalOpen,
     canUse: canUseTerminal,
+    hasRecentLogError,
     logFilter,
     setLogFilter,
     logDetailStyle,
@@ -444,12 +446,34 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         />
       </div>
       <div style={{ width: FOOTER_BAR_GAP_PX, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          alignSelf: 'stretch',
+          paddingLeft: 6,
+          paddingRight: 6,
+          flexShrink: 0,
+          background: colors.headerBar,
+        }}
+      >
+        <PinElevationControls variant="lcars" lcarsTextColor={colors.text} lcarsAccentBg={colors.accent} />
+      </div>
+      <div style={{ width: FOOTER_BAR_GAP_PX, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
       {canUseTerminal && (
         <button
           type="button"
           onClick={() => setTerminalOpen(!terminalOpen)}
-          className="lcars-chrome-item"
+          className={`lcars-chrome-item${hasRecentLogError ? ' system-status-log-error-alert' : ''}`}
+          aria-label={hasRecentLogError ? 'Status — recent error in system log' : 'Status'}
           style={{
+            ...(hasRecentLogError
+              ? ({
+                  '--status-alert-base': terminalOpen ? colors.navActive : colors.headerBar,
+                  '--status-alert-fg-base': colors.text,
+                  '--status-alert-border-base': 'transparent',
+                } as CSSProperties)
+              : {}),
             border: 'none',
             cursor: 'pointer',
             display: 'flex',
@@ -458,19 +482,25 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
             paddingLeft: 12,
             paddingRight: 12,
             flexShrink: 0,
-            background: terminalOpen ? colors.navActive : colors.headerBar,
-            color: colors.text,
+            background: hasRecentLogError
+              ? undefined
+              : terminalOpen
+                ? colors.navActive
+                : colors.headerBar,
+            color: hasRecentLogError ? undefined : colors.text,
             fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
             fontWeight: 700,
             fontSize: 10,
             letterSpacing: '0.12em',
             textTransform: 'uppercase',
-            transition: 'background 0.3s ease',
+            transition: 'background 0.3s ease, color 0.3s ease',
           }}
         >
           Status
         </button>
       )}
+      <div style={{ width: FOOTER_BAR_GAP_PX, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+      <MapLayersHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} />
       <div style={{ width: FOOTER_BAR_GAP_PX, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
       <AssistantHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} />
       <div style={{ width: FOOTER_BAR_GAP_PX, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
@@ -819,12 +849,34 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
                 />
               </div>
               <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  alignSelf: 'stretch',
+                  paddingLeft: 4,
+                  paddingRight: 4,
+                  flexShrink: 0,
+                  background: colors.headerBar,
+                }}
+              >
+                <PinElevationControls variant="lcars" lcarsTextColor={colors.text} lcarsAccentBg={colors.accent} />
+              </div>
+              <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
               {canUseTerminal && (
                 <button
                   type="button"
                   onClick={() => setTerminalOpen(!terminalOpen)}
-                  className="lcars-chrome-item"
+                  className={`lcars-chrome-item${hasRecentLogError ? ' system-status-log-error-alert' : ''}`}
+                  aria-label={hasRecentLogError ? 'Status — recent error in system log' : 'Status'}
                   style={{
+                    ...(hasRecentLogError
+                      ? ({
+                          '--status-alert-base': terminalOpen ? colors.navActive : colors.headerBar,
+                          '--status-alert-fg-base': colors.text,
+                          '--status-alert-border-base': 'transparent',
+                        } as CSSProperties)
+                      : {}),
                     border: 'none',
                     cursor: 'pointer',
                     display: 'flex',
@@ -833,19 +885,25 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
                     paddingLeft: 12,
                     paddingRight: 12,
                     flexShrink: 0,
-                    background: terminalOpen ? colors.navActive : colors.headerBar,
-                    color: colors.text,
+                    background: hasRecentLogError
+                      ? undefined
+                      : terminalOpen
+                        ? colors.navActive
+                        : colors.headerBar,
+                    color: hasRecentLogError ? undefined : colors.text,
                     fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
                     fontWeight: 700,
                     fontSize: 10,
                     letterSpacing: '0.12em',
                     textTransform: 'uppercase',
-                    transition: 'background 0.3s ease',
+                    transition: 'background 0.3s ease, color 0.3s ease',
                   }}
                 >
                   Status
                 </button>
               )}
+              <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+              <MapLayersHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} />
               <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
               <AssistantHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} />
               <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />

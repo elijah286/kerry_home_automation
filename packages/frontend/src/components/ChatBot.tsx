@@ -14,7 +14,7 @@ import {
   type CSSProperties,
 } from 'react';
 import type { LCARSFrameGeometry } from '@/components/lcars/LCARSFrameContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import {
   MessageSquare,
@@ -31,15 +31,13 @@ import {
   RotateCcw,
   Plus,
   Pencil,
+  MapPinned,
 } from 'lucide-react';
 import { useCookingTimers, formatCookingTimer } from '@/providers/CookingTimersProvider';
 import { clsx } from 'clsx';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-
-const API_BASE =
-  typeof window !== 'undefined'
-    ? `http://${window.location.hostname}:3000`
-    : 'http://localhost:3000';
+import { useLocationsMap } from '@/providers/LocationsMapContext';
+import { getApiBase } from '@/lib/api-base';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -117,7 +115,7 @@ const ChatBubble = memo(function ChatBubble({ msg }: { msg: Message }) {
 /** LCARS main content rect + frame accent for docking the assistant (same box as SlidePanel). */
 export type LcarsAssistantDockInset = LCARSFrameGeometry & { framePin: string };
 
-export type RightPanelMode = 'assistant' | 'timers';
+export type RightPanelMode = 'assistant' | 'timers' | 'map_layers';
 
 interface AssistantContextValue {
   open: boolean;
@@ -130,6 +128,8 @@ interface AssistantContextValue {
   setRightPanelMode: (m: RightPanelMode) => void;
   /** Opens the right panel on the kitchen timers view (used from recipe detail). */
   openTimersPanel: () => void;
+  /** Opens the right panel on the Locations map layers view. */
+  openMapLayersPanel: () => void;
 }
 
 const AssistantContext = createContext<AssistantContextValue | null>(null);
@@ -172,6 +172,10 @@ export function AssistantHeaderButton({
       setRightPanelMode('assistant');
       return;
     }
+    if (open && rightPanelMode === 'map_layers') {
+      setRightPanelMode('assistant');
+      return;
+    }
     if (open) {
       setOpen(false);
     } else {
@@ -186,7 +190,7 @@ export function AssistantHeaderButton({
       onClick={onClick}
       aria-label={
         open
-          ? rightPanelMode === 'timers'
+          ? rightPanelMode === 'timers' || rightPanelMode === 'map_layers'
             ? 'Switch to AI assistant'
             : 'Close AI assistant'
           : 'Open AI assistant'
@@ -223,6 +227,82 @@ export function AssistantHeaderButton({
         </>
       ) : (
         <MessageSquare className="h-[18px] w-[18px]" strokeWidth={2} />
+      )}
+    </button>
+  );
+}
+
+/** Locations page — opens the shared right slide panel in map-layers mode (same shell as Assistant). */
+export function MapLayersHeaderButton({
+  variant = 'default',
+  className,
+  style,
+}: {
+  variant?: 'default' | 'lcars';
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const pathname = usePathname();
+  const { open, setOpen, rightPanelMode, setRightPanelMode } = useAssistant();
+
+  if (pathname !== '/locations') return null;
+
+  const onClick = () => {
+    if (open && rightPanelMode === 'map_layers') {
+      setOpen(false);
+      return;
+    }
+    if (open && rightPanelMode === 'timers') {
+      setRightPanelMode('map_layers');
+      return;
+    }
+    if (open && rightPanelMode === 'assistant') {
+      setRightPanelMode('map_layers');
+      return;
+    }
+    setRightPanelMode('map_layers');
+    setOpen(true);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={
+        open && rightPanelMode === 'map_layers' ? 'Close map layers' : 'Open map layers'
+      }
+      aria-expanded={open && rightPanelMode === 'map_layers'}
+      className={clsx(
+        'flex shrink-0 items-center justify-center shadow-sm',
+        variant === 'default' &&
+          'h-9 w-9 rounded-full transition-transform hover:scale-105 active:scale-95',
+        variant === 'lcars' &&
+          'lcars-chrome-item h-full min-h-0 min-w-[min(160px,28vw)] touch-manipulation gap-1.5 rounded-none px-3 shadow-none transition-[filter] hover:brightness-110 active:brightness-95',
+        className,
+      )}
+      style={{
+        backgroundColor: 'var(--color-accent)',
+        color: '#fff',
+        ...(variant === 'lcars'
+          ? {
+              fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
+              fontWeight: 700,
+              fontSize: 10,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
+            }
+          : {}),
+        ...style,
+      }}
+    >
+      {variant === 'lcars' ? (
+        <>
+          <MapPinned className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
+          <span>Map layers</span>
+        </>
+      ) : (
+        <MapPinned className="h-[18px] w-[18px]" strokeWidth={2} />
       )}
     </button>
   );
@@ -475,6 +555,53 @@ function KitchenTimersSidebarBody() {
   );
 }
 
+function MapLayersSidebarBody() {
+  const { trackableDevices, hiddenIds, toggleDeviceOnMap } = useLocationsMap();
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <p className="mb-3 text-xs leading-snug" style={{ color: 'var(--color-text-secondary)' }}>
+        Choose which locators appear on the map. Vehicles are listed even before GPS is available; the marker
+        appears once a position is reported. Your choices are saved in this browser.
+      </p>
+      {trackableDevices.length === 0 ? (
+        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+          No vehicles or locators yet.
+        </p>
+      ) : (
+        <ul className="m-0 list-none space-y-0.5 p-0">
+          {trackableDevices.map((d) => (
+            <li key={d.id}>
+              <label
+                className="flex cursor-pointer items-start gap-2 rounded px-1 py-1.5 text-sm hover:opacity-90"
+                style={{ color: 'var(--color-text)' }}
+              >
+                <input
+                  type="checkbox"
+                  checked={!hiddenIds.has(d.id)}
+                  onChange={() => toggleDeviceOnMap(d.id)}
+                  className="accent-[var(--color-accent)] mt-0.5 h-3.5 w-3.5 shrink-0"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{d.displayName || d.name}</span>
+                  {!d.hasPosition && (
+                    <span
+                      className="mt-0.5 block text-[11px] leading-tight"
+                      style={{ color: 'var(--color-text-muted)' }}
+                    >
+                      Waiting for GPS…
+                    </span>
+                  )}
+                </span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function AssistantRightPanel() {
   const router = useRouter();
   const isMdUp = useMediaQuery('(min-width: 768px)');
@@ -530,7 +657,7 @@ function AssistantRightPanel() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/chat`, {
+      const res = await fetch(`${getApiBase()}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -629,7 +756,13 @@ function AssistantRightPanel() {
         }}
         role="dialog"
         aria-modal={open}
-        aria-label={rightPanelMode === 'timers' ? 'Kitchen timers' : 'AI assistant'}
+        aria-label={
+          rightPanelMode === 'timers'
+            ? 'Kitchen timers'
+            : rightPanelMode === 'map_layers'
+              ? 'Map layers'
+              : 'AI assistant'
+        }
         aria-hidden={!open}
       >
         <div
@@ -638,11 +771,17 @@ function AssistantRightPanel() {
         >
           {rightPanelMode === 'timers' ? (
             <Timer className="h-4 w-4 shrink-0" />
+          ) : rightPanelMode === 'map_layers' ? (
+            <MapPinned className="h-4 w-4 shrink-0" />
           ) : (
             <Bot className="h-4 w-4 shrink-0" />
           )}
           <span className="flex-1 text-sm font-medium">
-            {rightPanelMode === 'timers' ? 'Kitchen timers' : 'AI Assistant'}
+            {rightPanelMode === 'timers'
+              ? 'Kitchen timers'
+              : rightPanelMode === 'map_layers'
+                ? 'Map layers'
+                : 'AI Assistant'}
           </span>
           <button
             type="button"
@@ -656,7 +795,13 @@ function AssistantRightPanel() {
             type="button"
             onClick={close}
             className="rounded-md p-1 transition-colors hover:bg-white/20"
-            aria-label={rightPanelMode === 'timers' ? 'Close timers' : 'Close assistant'}
+            aria-label={
+              rightPanelMode === 'timers'
+                ? 'Close timers'
+                : rightPanelMode === 'map_layers'
+                  ? 'Close map layers'
+                  : 'Close assistant'
+            }
           >
             <X className="h-4 w-4" />
           </button>
@@ -664,6 +809,10 @@ function AssistantRightPanel() {
 
         {rightPanelMode === 'timers' ? (
           <KitchenTimersSidebarBody />
+        ) : rightPanelMode === 'map_layers' ? (
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <MapLayersSidebarBody />
+          </div>
         ) : (
           <>
             <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
@@ -772,6 +921,11 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     setOpen(true);
   }, []);
 
+  const openMapLayersPanel = useCallback(() => {
+    setRightPanelMode('map_layers');
+    setOpen(true);
+  }, []);
+
   const toggle = useCallback(() => {
     setOpen((o) => {
       if (!o) setRightPanelMode('assistant');
@@ -789,8 +943,9 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       rightPanelMode,
       setRightPanelMode,
       openTimersPanel,
+      openMapLayersPanel,
     }),
-    [open, toggle, lcarsDockInset, rightPanelMode, openTimersPanel],
+    [open, toggle, lcarsDockInset, rightPanelMode, openTimersPanel, openMapLayersPanel],
   );
 
   return (

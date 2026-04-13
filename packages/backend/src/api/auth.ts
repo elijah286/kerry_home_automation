@@ -10,6 +10,10 @@ import type { Permission } from '@ha/shared';
 import { ROLE_PERMISSIONS } from '@ha/shared';
 import { appConfig } from '../config.js';
 import { query } from '../db/pool.js';
+import {
+  getPinElevationTtlSeconds,
+  touchPinElevationIfActive,
+} from '../lib/pin-elevation.js';
 
 interface JwtPayload {
   sub: string;       // user id
@@ -25,6 +29,12 @@ declare module 'fastify' {
       username: string;
       role: UserRole;
     };
+    /** Session id from JWT — used for PIN elevation window */
+    sessionId?: string;
+    /** True when Redis has an active elevation TTL for this session */
+    elevated?: boolean;
+    /** Seconds left in elevation window (0 when not elevated) */
+    elevationTtlSeconds?: number;
   }
 }
 
@@ -84,6 +94,16 @@ export async function authenticate(req: FastifyRequest, reply: FastifyReply): Pr
       username: payload.username,
       role: payload.role,
     };
+    req.sessionId = payload.sid;
+
+    const path = req.url.split('?')[0];
+    const skipElevationTouch = req.method === 'GET' && path === '/api/auth/me';
+    if (!skipElevationTouch) {
+      await touchPinElevationIfActive(payload.sid);
+    }
+    const ttl = await getPinElevationTtlSeconds(payload.sid);
+    req.elevationTtlSeconds = ttl > 0 ? ttl : 0;
+    req.elevated = ttl > 0;
   } catch {
     return reply.code(401).send({ error: 'Invalid token' });
   }
@@ -94,6 +114,9 @@ export function requireRole(...roles: UserRole[]) {
   return async (req: FastifyRequest, reply: FastifyReply) => {
     if (!req.user) {
       return reply.code(401).send({ error: 'Authentication required' });
+    }
+    if (req.elevated && roles.includes('admin')) {
+      return;
     }
     if (!roles.includes(req.user.role)) {
       return reply.code(403).send({ error: 'Insufficient permissions' });
@@ -106,6 +129,9 @@ export function requirePermission(...permissions: Permission[]) {
   return async (req: FastifyRequest, reply: FastifyReply) => {
     if (!req.user) {
       return reply.code(401).send({ error: 'Authentication required' });
+    }
+    if (req.elevated) {
+      return;
     }
     const granted = ROLE_PERMISSIONS[req.user.role] ?? [];
     const ok = permissions.some((p) => granted.includes(p));

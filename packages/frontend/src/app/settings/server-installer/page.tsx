@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import { Card } from '@/components/ui/Card';
 import {
   HardDrive, ArrowLeft, Loader2, Download, ShieldAlert,
@@ -21,16 +22,29 @@ function persistInstallerJobId(id: string | null): void {
   else localStorage.removeItem(JOB_STORAGE_KEY);
 }
 
-interface ProgressEvent {
-  percent: number;
-  message: string;
-  status: 'running' | 'complete' | 'failed' | 'cancelled';
-}
-
 interface StatusResponse {
   status: string;
   progress: number;
   message: string;
+}
+
+function normalizeJobStatus(s: unknown): string {
+  return String(s ?? '').trim().toLowerCase();
+}
+
+/** Safe parse for SSE `data:` lines — bad JSON must not tear down the stream handler. */
+function parseSseProgressPayload(raw: string): Omit<StatusResponse, 'progress'> & { progress: number } | null {
+  try {
+    const j = JSON.parse(raw) as Record<string, unknown>;
+    const st = normalizeJobStatus(j.status);
+    const pctRaw = j.percent ?? j.progress;
+    const progress =
+      typeof pctRaw === 'number' && !Number.isNaN(pctRaw) ? pctRaw : 0;
+    const message = typeof j.message === 'string' ? j.message : '';
+    return { status: st, progress, message };
+  } catch {
+    return null;
+  }
 }
 
 type Phase = 'idle' | 'building' | 'complete' | 'failed' | 'cancelled';
@@ -81,6 +95,8 @@ export default function ServerInstallerPage() {
   const [buildActionError, setBuildActionError] = useState('');
   const [artifacts, setArtifacts] = useState<InstallerArtifact[]>([]);
   const [artifactsLoading, setArtifactsLoading] = useState(false);
+  /** Hydrate restored a terminal failed job (e.g. user navigated away during build). */
+  const [failedJobRestoredFromServer, setFailedJobRestoredFromServer] = useState(false);
 
   // Form fields
   const [hostname, setHostname] = useState('home-automation');
@@ -91,6 +107,53 @@ export default function ServerInstallerPage() {
   const [formError, setFormError] = useState('');
 
   const esRef = useRef<EventSource | null>(null);
+
+  const applyJobStatus = useCallback((data: StatusResponse) => {
+    const st = normalizeJobStatus(data.status);
+    const msg = (data.message ?? '').trim();
+    const pctRaw = data.progress;
+    const pct =
+      typeof pctRaw === 'number' && !Number.isNaN(pctRaw)
+        ? Math.max(0, Math.min(100, pctRaw))
+        : 0;
+
+    if (st === 'running' || st === 'pending') {
+      setProgress(pct);
+      setStatusMessage(msg);
+      return;
+    }
+
+    if (st === 'complete') {
+      setProgress(100);
+      setStatusMessage('ISO ready for download');
+      setPhase('complete');
+      esRef.current?.close();
+      return;
+    }
+
+    if (st === 'failed') {
+      const err = msg || 'ISO build failed';
+      flushSync(() => {
+        setProgress(pct);
+        setErrorMessage(err);
+        setStatusMessage(err);
+      });
+      setPhase('failed');
+      esRef.current?.close();
+      return;
+    }
+
+    if (st === 'cancelled') {
+      setProgress(pct);
+      setStatusMessage(msg || 'Cancelled');
+      setPhase('cancelled');
+      esRef.current?.close();
+      return;
+    }
+
+    setProgress(pct);
+    setStatusMessage(msg);
+  }, []);
 
   const fetchArtifacts = useCallback(async () => {
     setArtifactsLoading(true);
@@ -134,16 +197,18 @@ export default function ServerInstallerPage() {
         persistInstallerJobId(id);
         setProgress(data.progress);
         setStatusMessage(data.message || '');
-        if (data.status === 'running') {
+        const jobSt = normalizeJobStatus(data.status);
+        if (jobSt === 'running' || jobSt === 'pending') {
           setPhase('building');
-        } else if (data.status === 'complete') {
+        } else if (jobSt === 'complete') {
           setProgress(100);
           setStatusMessage('ISO ready for download');
           setPhase('complete');
-        } else if (data.status === 'failed') {
-          setErrorMessage(data.message || 'ISO build failed');
+        } else if (jobSt === 'failed') {
+          setFailedJobRestoredFromServer(true);
+          setErrorMessage((data.message ?? '').trim() || 'ISO build failed');
           setPhase('failed');
-        } else if (data.status === 'cancelled') {
+        } else if (jobSt === 'cancelled') {
           setStatusMessage(data.message || 'Cancelled');
           setPhase('cancelled');
         } else {
@@ -178,44 +243,29 @@ export default function ServerInstallerPage() {
     });
     esRef.current = es;
 
+    es.onopen = () => {
+      // Catch terminal state if the first `data:` line was missed or connection opened late.
+      void fetch(`${API_BASE}/api/installer/status/${jobId}`, { credentials: 'include' })
+        .then((r) => (r.ok ? r.json() as Promise<StatusResponse> : null))
+        .then((data) => { if (data) applyJobStatus(data); })
+        .catch(() => { /* ignore */ });
+    };
+
     es.onmessage = (e: MessageEvent<string>) => {
-      const event = JSON.parse(e.data) as ProgressEvent;
-      setProgress(event.percent);
-      setStatusMessage(event.message);
-      if (event.status === 'complete') {
-        setPhase('complete');
-        es.close();
-      } else if (event.status === 'failed') {
-        setErrorMessage(event.message);
-        setPhase('failed');
-        es.close();
-      } else if (event.status === 'cancelled') {
-        setStatusMessage(event.message || 'Cancelled');
-        setPhase('cancelled');
-        es.close();
-      }
+      const parsed = parseSseProgressPayload(e.data);
+      if (!parsed) return;
+      applyJobStatus({
+        status: parsed.status,
+        progress: parsed.progress,
+        message: parsed.message,
+      });
     };
 
     es.onerror = () => {
       // SSE connection dropped — poll once to check if already finished
-      fetch(`${API_BASE}/api/installer/status/${jobId}`, { credentials: 'include' })
-        .then((r) => r.json())
-        .then((data: ProgressEvent & { status: string }) => {
-          if (data.status === 'complete') {
-            setProgress(100);
-            setStatusMessage('ISO ready for download');
-            setPhase('complete');
-            es.close();
-          } else if (data.status === 'failed') {
-            setErrorMessage(data.message);
-            setPhase('failed');
-            es.close();
-          } else if (data.status === 'cancelled') {
-            setStatusMessage(data.message || 'Cancelled');
-            setPhase('cancelled');
-            es.close();
-          }
-        })
+      void fetch(`${API_BASE}/api/installer/status/${jobId}`, { credentials: 'include' })
+        .then((r) => (r.ok ? r.json() as Promise<StatusResponse> : null))
+        .then((data) => { if (data) applyJobStatus(data); })
         .catch(() => { /* will retry via browser SSE reconnect */ });
     };
 
@@ -223,7 +273,24 @@ export default function ServerInstallerPage() {
       es.close();
       esRef.current = null;
     };
-  }, [phase, jobId]);
+  }, [phase, jobId, applyJobStatus]);
+
+  // Poll while building — EventSource can fail silently (no progress events); status API still updates.
+  useEffect(() => {
+    if (phase !== 'building' || !jobId) return;
+    const id = jobId;
+
+    const tick = (): void => {
+      void fetch(`${API_BASE}/api/installer/status/${id}`, { credentials: 'include' })
+        .then((r) => (r.ok ? r.json() as Promise<StatusResponse> : null))
+        .then((data) => { if (data) applyJobStatus(data); })
+        .catch(() => { /* ignore */ });
+    };
+
+    tick();
+    const iv = setInterval(tick, 400);
+    return () => clearInterval(iv);
+  }, [phase, jobId, applyJobStatus]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -311,6 +378,7 @@ export default function ServerInstallerPage() {
     esRef.current?.close();
     persistInstallerJobId(null);
     setAttachedToExistingRun(false);
+    setFailedJobRestoredFromServer(false);
     setBuildActionError('');
     setPhase('idle');
     setJobId(null);
@@ -513,9 +581,16 @@ export default function ServerInstallerPage() {
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-              {statusMessage || 'Working...'}
+          <div className="flex items-start justify-between gap-2">
+            <p
+              className="text-xs min-w-0 flex-1 normal-case break-words"
+              aria-live="polite"
+              aria-atomic="true"
+              style={{
+                color: errorMessage ? 'var(--color-danger)' : 'var(--color-text-muted)',
+              }}
+            >
+              {errorMessage || statusMessage || 'Working...'}
             </p>
             <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>
               {progress}%
@@ -610,8 +685,15 @@ export default function ServerInstallerPage() {
             <h2 className="text-sm font-medium">Build failed</h2>
           </div>
 
+          {failedJobRestoredFromServer && (
+            <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
+              This job finished on the server while you were on another page — the message below is the real result, not a navigation glitch.
+            </p>
+          )}
+
           <p
-            className="text-xs mb-4 normal-case"
+            role="alert"
+            className="text-xs mb-4 normal-case break-words whitespace-pre-wrap"
             style={{ color: 'var(--color-danger)' }}
           >
             {errorMessage || 'An unknown error occurred during ISO generation.'}

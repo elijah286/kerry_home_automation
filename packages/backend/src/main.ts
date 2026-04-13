@@ -66,12 +66,15 @@ async function main() {
       const crypto = await import('node:crypto');
       const password = crypto.randomBytes(12).toString('base64url');
       const hash = await bcrypt.default.hash(password, 12);
+      const pin = String(1000 + Math.floor(Math.random() * 9000));
+      const pinHash = await bcrypt.default.hash(pin, 12);
       await query(
-        "INSERT INTO users (username, display_name, password_hash, role) VALUES ('admin', 'Administrator', $1, 'admin')",
-        [hash],
+        "INSERT INTO users (username, display_name, password_hash, pin_hash, role) VALUES ('admin', 'Administrator', $1, $2, 'admin')",
+        [hash, pinHash],
       );
       logger.info('==========================================================');
       logger.info(`  Admin user created — username: admin  password: ${password}`);
+      logger.info(`  Elevation PIN (4 digits): ${pin}`);
       logger.info('==========================================================');
     }
   }

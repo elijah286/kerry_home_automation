@@ -18,6 +18,8 @@ export interface User {
   role: UserRole;
   enabled: boolean;
   createdAt: string;
+  /** Whether this account has a PIN configured (used for temporary elevation). */
+  hasPin?: boolean;
   /** Present on admin user-list responses: appearance overrides for this user */
   uiPreferencesAdmin?: UiPreferences;
 }
@@ -32,6 +34,10 @@ export interface AuthSessionResponse {
   user: User;
   uiPreferences: UiPreferences;
   uiPreferenceLocks: UiPreferenceLocks;
+  /** True while this session has active PIN-based elevation */
+  elevated?: boolean;
+  /** Seconds remaining in the elevation window (counts down; refreshed by API activity) */
+  elevatedSecondsRemaining?: number;
 }
 
 export type LoginResponse = AuthSessionResponse;
@@ -40,6 +46,8 @@ export interface CreateUserRequest {
   username: string;
   displayName: string;
   password: string;
+  /** 4–6 digit PIN for temporary privilege elevation on devices */
+  pin: string;
   role: UserRole;
 }
 
@@ -48,6 +56,8 @@ export interface UpdateUserRequest {
   role?: UserRole;
   enabled?: boolean;
   password?: string;
+  /** Set or replace 4–6 digit elevation PIN */
+  pin?: string;
   /** Merge into admin UI overrides; use `null` for a key to clear that override */
   uiPreferencesAdmin?: UiPreferencesAdminPatch;
 }

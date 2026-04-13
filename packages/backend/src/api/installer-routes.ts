@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
 import { appConfig } from '../config.js';
+import { chmodTreeWritable } from '../lib/chmod-tree-writable.js';
 import { authenticate, requireRole } from './auth.js';
 import {
   buildInstallerIso,
@@ -131,15 +132,14 @@ export function registerInstallerRoutes(app: FastifyInstance): void {
         jobId,
         { hostname, username, password, sshPublicKey },
         async (event) => {
-          // Persist progress to DB
+          // Push to SSE first so the UI sees failures immediately; then persist.
+          emitToClients(jobId, event);
           await query(
             `UPDATE installer_jobs
              SET status = $1, progress = $2, message = $3, iso_path = $4, updated_at = NOW()
              WHERE id = $5`,
             [event.status, event.percent, event.message, null, jobId],
           ).catch((err) => logger.error({ err }, 'Failed to update job progress'));
-
-          emitToClients(jobId, event);
         },
         { signal: ac.signal },
       ).then(async (isoPath) => {
@@ -166,7 +166,9 @@ export function registerInstallerRoutes(app: FastifyInstance): void {
         if (cancelled) {
           logger.info({ jobId }, 'ISO build cancelled');
           const msg = 'Cancelled';
-          await rm(join(appConfig.serverInstaller.workDir, jobId), { recursive: true, force: true }).catch((e) =>
+          const workPath = join(appConfig.serverInstaller.workDir, jobId);
+          await chmodTreeWritable(workPath).catch(() => { /* best-effort */ });
+          await rm(workPath, { recursive: true, force: true }).catch((e) =>
             logger.warn({ e, jobId }, 'Could not remove installer work directory after cancel'),
           );
           await query(

@@ -114,15 +114,17 @@ export class TeslaIntegration implements Integration {
         this.log.info({ entryId, count: ctx.vehicles.length }, 'Tesla vehicles discovered');
         // Register initial stubs (don't wake sleeping vehicles)
         for (const v of ctx.vehicles) {
+          const deviceId = `tesla.${entryId}.vehicle.${v.vin}`;
+          const prev = stateStore.get(deviceId) as VehicleState | undefined;
           if (v.state === 'online') {
             const data = await client.getVehicleData(v.vin);
             if (data) {
-              stateStore.update(mapVehicleData(entryId, v, data));
+              stateStore.update(mapVehicleData(entryId, v, data, prev));
             } else {
-              stateStore.update(mapVehicleStub(entryId, v));
+              stateStore.update(mapVehicleStub(entryId, v, prev));
             }
           } else {
-            stateStore.update(mapVehicleStub(entryId, v));
+            stateStore.update(mapVehicleStub(entryId, v, prev));
           }
         }
       } catch (err) {
@@ -202,7 +204,7 @@ export class TeslaIntegration implements Integration {
 
             const data = await ctx.client.getVehicleData(v.vin);
             if (data) {
-              const state = mapVehicleData(ctx.entryId, v, data);
+              const state = mapVehicleData(ctx.entryId, v, data, existing);
               stateStore.update(state);
               this.lastVehiclePoll.set(v.vin, nowMs);
 
@@ -330,7 +332,9 @@ export class TeslaIntegration implements Integration {
         const data = await client.getVehicleData(vin);
         const vItem = ctx.vehicles.find((v) => v.vin === vin);
         if (data && vItem) {
-          stateStore.update(mapVehicleData(ctx.entryId, vItem, data));
+          const deviceId = `tesla.${ctx.entryId}.vehicle.${vin}`;
+          const prev = stateStore.get(deviceId) as VehicleState | undefined;
+          stateStore.update(mapVehicleData(ctx.entryId, vItem, data, prev));
         }
       } catch { /* ignore */ }
     }, 3000);
