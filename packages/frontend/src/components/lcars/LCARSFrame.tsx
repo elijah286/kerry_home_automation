@@ -3,6 +3,7 @@
 import { useTheme } from '@/providers/ThemeProvider';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
+import { clsx } from 'clsx';
 import { LCARSSidebar } from './LCARSSidebar';
 import { LCARSStartup } from './LCARSStartup';
 import { LCARSElbow } from './LCARSElbow';
@@ -25,6 +26,7 @@ import { AssistantHeaderButton, LCARSAssistantInsetSync } from '../ChatBot';
 import { LCARSFrameProvider } from './LCARSFrameContext';
 import { FooterSlotProvider, useFooterSlot } from './LCARSFooterSlotContext';
 import { useLCARSSounds } from './LCARSSounds';
+import { useLcarsLogAutoScrollNudge } from './useLcarsLogAutoScrollNudge';
 
 export const BAR_W = 150;
 export const BAR_W_COLLAPSED = 56;
@@ -143,6 +145,10 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
     setLogDetailStyle,
   } = useSystemTerminal();
 
+  const showTopTerminal = canUseTerminal && terminalOpen;
+  const { bumpStatusInteraction, flashPeriodMs, onAutoButtonClick, logAutoScroll } =
+    useLcarsLogAutoScrollNudge(showTopTerminal);
+
   const toggleLogDetailStyle = useCallback(() => {
     setLogDetailStyle(logDetailStyle === 'terminal' ? 'digest' : 'terminal');
   }, [logDetailStyle, setLogDetailStyle]);
@@ -178,7 +184,6 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
   const bottomElbowH = FOOTER_H + or;
 
   /** Top band only when status viewer (system terminal) is open; default = header + elbow flush to viewport top. */
-  const showTopTerminal = canUseTerminal && terminalOpen;
   const topChromeH = showTopTerminal ? statusViewerBandH : 0;
   /** When terminal open: optional strip above main header (footer geometry + gap) so logs sit in upper band only. */
   const STATUS_STACK_GAP = 2;
@@ -222,6 +227,10 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
   /** Rows: All|Warn, Info|Err, Full under left column — same pill size throughout. */
   const statusFilterButtons = showTopTerminal ? (
     <div
+      onPointerDownCapture={(e) => {
+        if ((e.target as HTMLElement).closest('[data-lcars-auto-scroll-btn]')) return;
+        bumpStatusInteraction();
+      }}
       style={{
         position: 'fixed',
         top: 0,
@@ -292,7 +301,31 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
           >
             {logDetailStyle === 'terminal' ? 'Short' : 'Full'}
           </button>
-          <div style={{ minWidth: 88, flexShrink: 0 }} aria-hidden />
+          <button
+            type="button"
+            data-lcars-auto-scroll-btn
+            className={clsx(
+              'lcars-btn lcars-btn--pill',
+              logAutoScroll ? ' lcars-btn--active' : '',
+              flashPeriodMs != null ? 'lcars-auto-scroll-nudge' : '',
+            )}
+            style={{
+              background: logAutoScroll ? colors.navActive : colors.muted,
+              minWidth: 88,
+              minHeight: 36,
+              fontSize: 12,
+              ...(flashPeriodMs != null ? { animationDuration: `${flashPeriodMs}ms` } : {}),
+            }}
+            aria-pressed={logAutoScroll}
+            aria-label={
+              logAutoScroll
+                ? 'Auto-scroll log tail: on. Click to pause following new lines.'
+                : 'Auto-scroll log tail: off. Click to follow new lines.'
+            }
+            onClick={onAutoButtonClick}
+          >
+            Auto
+          </button>
         </div>
       </div>
     </div>
@@ -554,6 +587,12 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
             topOffsetPx={statusBodyTop}
             lcarsTopStackedChrome={useStackedStatusChrome}
             lcarsFrameHandlesControls={useStackedStatusChrome}
+            onStatusInteraction={bumpStatusInteraction}
+            lcarsStatusAuto={
+              useStackedStatusChrome
+                ? undefined
+                : { flashPeriodMs, onAutoClick: onAutoButtonClick }
+            }
           />
           {/* Filter buttons — right-aligned in the status body area */}
           {statusFilterButtons}

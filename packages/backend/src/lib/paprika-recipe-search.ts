@@ -2,8 +2,7 @@
 // Load Paprika recipes from Redis (same store as paprika-routes) + text search
 // ---------------------------------------------------------------------------
 
-import type { PaprikaRecipe } from '@ha/shared';
-import type { IntegrationId } from '@ha/shared';
+import type { IntegrationId, PaprikaRecipe } from '@ha/shared';
 import { redis } from '../state/redis.js';
 import * as entryStore from '../db/integration-entry-store.js';
 

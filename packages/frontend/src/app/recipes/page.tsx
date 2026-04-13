@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import * as Tabs from '@radix-ui/react-tabs';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -247,7 +248,9 @@ function RecipeDetail({
 // Main Recipes Page
 // ---------------------------------------------------------------------------
 
-export default function RecipesPage() {
+function RecipesPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [recipes, setRecipes] = useState<PaprikaRecipe[]>([]);
   const [categories, setCategories] = useState<PaprikaCategory[]>([]);
   const [groceries, setGroceries] = useState<PaprikaGroceryItem[]>([]);
@@ -303,6 +306,16 @@ export default function RecipesPage() {
   };
 
   useEffect(() => { loadData(); }, []);
+
+  const openUid = searchParams.get('open');
+  useEffect(() => {
+    if (!openUid || loading || recipes.length === 0) return;
+    const found = recipes.find((r) => r.uid === openUid);
+    if (found) {
+      setSelectedRecipe(found);
+      router.replace('/recipes', { scroll: false });
+    }
+  }, [openUid, loading, recipes, router]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -623,5 +636,20 @@ export default function RecipesPage() {
         </Tabs.Content>
       </Tabs.Root>
     </div>
+  );
+}
+
+export default function RecipesPage() {
+  return (
+    <Suspense
+      fallback={(
+        <div className="mx-auto flex max-w-5xl items-center gap-2 p-4 lg:p-6">
+          <Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--color-accent)' }} />
+          <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Loading recipes...</span>
+        </div>
+      )}
+    >
+      <RecipesPageContent />
+    </Suspense>
   );
 }

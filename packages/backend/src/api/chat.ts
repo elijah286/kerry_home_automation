@@ -108,13 +108,38 @@ const readTools: ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'navigate_ui',
-      description: 'Navigate the user interface to a specific page. Use this when the user asks to see something or go to a page. Valid paths: /devices, /cameras, /settings, /integrations, /areas, /alarms, /recipes.',
+      description:
+        'Navigate the user interface to a specific page. Use when the user asks to see something or go to a page. Paths: /devices, /cameras, /settings, /integrations, /areas, /alarms, /recipes. To open a specific Paprika recipe after search_recipes, use /recipes?open=<recipe_uid> with the uid from the search result.',
       parameters: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'The UI path to navigate to' },
+          path: { type: 'string', description: 'The UI path (may include query, e.g. /recipes?open=abc-123)' },
         },
         required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_recipes',
+      description:
+        "Search the user's Paprika recipe library as synced in HomeOS (names, ingredients, directions, notes, source). Use whenever the user asks to find recipes by ingredients, keywords, cuisine, or dish type — do NOT tell them to search only in the Paprika app. Call this tool with their criteria. If results are few, try broader terms or match_all_terms=false. After listing matches, offer navigate_ui to /recipes or /recipes?open=<uid> for a specific recipe.",
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Search text, e.g. "chicken basil", "slow cooker", "pasta tomato"',
+          },
+          match_all_terms: {
+            type: 'boolean',
+            description:
+              'If true (default), every significant word in the query must appear in the recipe (good for "chicken and basil"). If false, any word can match (broader).',
+          },
+          limit: { type: 'number', description: 'Max recipes to return (default 20, max 40)' },
+        },
+        required: ['query'],
       },
     },
   },
@@ -483,6 +508,47 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
       return { navigate: String(args.path) };
     }
 
+    case 'search_recipes': {
+      const configured = await isPaprikaConfigured();
+      if (!configured) {
+        return {
+          error:
+            'Paprika is not configured in HomeOS. The user should add Paprika email/password under Integrations, then open the Recipes page once to sync.',
+        };
+      }
+      const recipes = await getPaprikaRecipesFromStore();
+      if (recipes.length === 0) {
+        return {
+          matches: [],
+          totalInLibrary: 0,
+          hint: 'Library cache is empty. Ask the user to open Recipes in HomeOS (Replicator) once to trigger a full sync, then try again.',
+        };
+      }
+      const limit = Math.min(Math.max(Number(args.limit) || 20, 1), 40);
+      const matchAllTerms = args.match_all_terms !== false;
+      const hits = searchPaprikaRecipes(recipes, String(args.query), {
+        maxResults: limit,
+        matchAllTerms,
+      });
+      return {
+        totalInLibrary: recipes.length,
+        matchCount: hits.length,
+        matchAllTerms,
+        matches: hits.map((h) => ({
+          uid: h.uid,
+          name: h.name,
+          total_time: h.total_time,
+          source: h.source,
+          rating: h.rating,
+          openPath: `/recipes?open=${encodeURIComponent(h.uid)}`,
+        })),
+        hint:
+          hits.length === 0
+            ? 'No recipes matched. Try fewer words, synonyms, or match_all_terms=false. Ingredients use the wording from Paprika (e.g. "cilantro" vs "coriander").'
+            : 'Summarize matches by name. Offer navigate_ui to /recipes or to openPath for one recipe.',
+      };
+    }
+
     case 'search_web': {
       const q = encodeURIComponent(String(args.query));
       try {
@@ -846,8 +912,12 @@ ${buildDeviceInventory(devices, areaMap)}
 8. Command fails → retry once, then report the error concisely.
 9. Confirm AFTER acting, not before. Be concise: "Done — turned on Patio Flood."
 
+## Paprika / recipes
+- The household recipe library is Paprika, synced into HomeOS and shown under **Recipes** (Replicator in LCARS). When the user asks to find recipes by ingredients or keywords, **always call search_recipes** with a short query — never defer to "search in the Paprika app only."
+- After search_recipes returns matches, list recipe names (and optional time/source). Offer to open the list with navigate_ui to \`/recipes\` or a specific recipe with \`/recipes?open=<uid>\` using the uid from the tool result.
+
 ## Navigation
-When the user asks to "show" or "go to" something, use navigate_ui. Valid paths: /devices, /cameras, /settings, /integrations, /areas, /alarms, /recipes.
+When the user asks to "show" or "go to" something, use navigate_ui. Paths: /devices, /cameras, /settings, /integrations, /areas, /alarms, /recipes, or /recipes?open=<recipe_uid> after a search.
 
 ## Integration setup guidelines
 - When a user asks to set up an integration, call get_integration_setup_info first.

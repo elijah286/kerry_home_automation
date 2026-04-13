@@ -70,6 +70,8 @@ export function SystemTerminalDock({
   lcarsTopStackedChrome = false,
   lcarsFrameHandlesControls = false,
   topOffsetPx = 0,
+  onStatusInteraction,
+  lcarsStatusAuto,
 }: {
   sidebarOffsetPx: number;
   onClose: () => void;
@@ -83,6 +85,10 @@ export function SystemTerminalDock({
   lcarsFrameHandlesControls?: boolean;
   /** Additional top offset when placement='top' (e.g. below a LCARS top bar) */
   topOffsetPx?: number;
+  /** LCARS status band: any scroll/tap — resets idle timer for auto-scroll nudge */
+  onStatusInteraction?: () => void;
+  /** LCARS: Auto tail-follow control when the frame does not render it (compact status band) */
+  lcarsStatusAuto?: { flashPeriodMs: number | null; onAutoClick: () => void };
 }) {
   const { activeTheme } = useTheme();
   const isMdUp = useMediaQuery('(min-width: 768px)');
@@ -99,7 +105,6 @@ export function SystemTerminalDock({
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const stickBottomRef = useRef(true);
 
   // Initial snapshot
   useEffect(() => {
@@ -147,16 +152,17 @@ export function SystemTerminalDock({
   }, [filter]);
 
   useEffect(() => {
-    if (!stickBottomRef.current || !scrollerRef.current) return;
+    if (!logAutoScroll || !scrollerRef.current) return;
     scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
-  }, [filtered]);
+  }, [filtered, logAutoScroll]);
 
   const onScroll = useCallback(() => {
+    onStatusInteraction?.();
     const el = scrollerRef.current;
     if (!el) return;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
-    stickBottomRef.current = nearBottom;
-  }, []);
+    if (!nearBottom) setLogAutoScroll(false);
+  }, [onStatusInteraction, setLogAutoScroll]);
 
   const bottomPx =
     placement === 'bottom' && activeTheme === 'lcars'
@@ -190,6 +196,10 @@ export function SystemTerminalDock({
           : { bottom: bottomPx ?? 0, top: 'auto' }),
         backgroundColor: isLCARS ? '#000' : 'var(--color-bg-card)',
         borderColor: 'var(--color-border)',
+      }}
+      onPointerDown={(e) => {
+        if ((e.target as HTMLElement).closest('[data-lcars-auto-scroll-btn]')) return;
+        onStatusInteraction?.();
       }}
     >
       {/* Header — filters (hidden when LCARS frame handles controls) */}
@@ -302,6 +312,33 @@ export function SystemTerminalDock({
               {logDetailStyle === 'terminal' ? 'Short' : 'Full'}
             </span>
           </button>
+          {lcarsStatusAuto && isLCARS && lcarsTop && !lcarsFrameHandlesControls ? (
+            <button
+              type="button"
+              data-lcars-auto-scroll-btn
+              onClick={lcarsStatusAuto.onAutoClick}
+              aria-pressed={logAutoScroll}
+              aria-label={
+                logAutoScroll
+                  ? 'Auto-scroll log tail: on. Click to pause following new lines.'
+                  : 'Auto-scroll log tail: off. Click to follow new lines.'
+              }
+              className={clsx(
+                'shrink-0 transition-colors',
+                lcarsTop ? 'rounded-none px-2.5 py-1 font-mono text-[8px] font-bold uppercase' : '',
+                lcarsStatusAuto.flashPeriodMs != null ? 'lcars-auto-scroll-nudge' : '',
+              )}
+              style={{
+                backgroundColor: logAutoScroll ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                color: logAutoScroll ? '#fff' : 'var(--color-text-secondary)',
+                ...(lcarsStatusAuto.flashPeriodMs != null
+                  ? { animationDuration: `${lcarsStatusAuto.flashPeriodMs}ms` }
+                  : {}),
+              }}
+            >
+              Auto
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onClose}
@@ -380,7 +417,7 @@ export function SystemTerminalDock({
                 : null;
 
             const activateLine = () => {
-              stickBottomRef.current = false;
+              setLogAutoScroll(false);
               setExpandedRowKey((k) => (k === rowKey ? null : rowKey));
             };
 
@@ -474,7 +511,7 @@ export function SystemTerminalDock({
                             className="font-semibold underline underline-offset-2"
                             style={{ color: 'var(--color-accent)' }}
                             onClick={() => {
-                              stickBottomRef.current = false;
+                              setLogAutoScroll(false);
                             }}
                           >
                             {link.label}
