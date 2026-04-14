@@ -38,6 +38,8 @@ export const OUTER_R = 50;
 export const INNER_R = 28;
 const FRAME_STRIPE_W = 4;
 export const CONTENT_EDGE = 10;
+/** Right sidebar width for LCARS top status band — log panel is inset so lines do not run under filter pills. */
+const LCARS_STATUS_FILTER_RAIL_W = 200;
 /** Pull rail under elbows by 1px and paint elbows above — removes anti-alias gaps at seams */
 const RAIL_SEAM_OVERLAP = 2;
 /** Black band between upper (log) footer strip and main header when status viewer is stacked */
@@ -250,7 +252,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
   const filterPanelTop = statusFullscreen ? MAIN_TOP : 0;
   const filterPanelHeight = statusFullscreen ? fullscreenPanelH : logBandH;
 
-  /** Rows: All|Warn, Info|Err, Full under left column — same pill size throughout. */
+  /** Right sidebar of the top status band: filter + Lines/Auto (log body uses matching right inset). */
   const statusFilterButtons = showTopTerminal ? (
     <div
       onPointerDownCapture={(e) => {
@@ -260,20 +262,32 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
       style={{
         position: 'fixed',
         top: filterPanelTop,
-        left: elbowW,
         right: CONTENT_EDGE,
+        width: LCARS_STATUS_FILTER_RAIL_W,
         height: filterPanelHeight,
         zIndex: 46,
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'stretch',
         justifyContent: 'center',
         gap: 4,
-        padding: '18px 8px 12px',
+        padding: '14px 8px 12px',
         boxSizing: 'border-box',
         pointerEvents: 'auto',
+        background: '#000',
+        boxShadow: 'inset 2px 0 0 rgba(255,255,255,0.07)',
       }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+          alignItems: 'center',
+          justifyContent: 'center',
+          flex: 1,
+          minHeight: 0,
+        }}
+      >
         <div style={{ display: 'flex', flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
           {[STATUS_FILTERS[0], STATUS_FILTERS[2]].map(({ id, label }) => (
             <button
@@ -597,7 +611,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
 
       {showTopTerminal && !statusFullscreen && (
         <>
-          {/* ===== SIDEBAR — "STATUS" label block, then gap, then elbow curves into separator ===== */}
+          {/* ===== SIDEBAR — square Status block (opens main-column full screen log) ===== */}
           <div
             className="lcars-status-sidebar-cap lcars-sidebar-cap lcars-chrome-item"
             style={{
@@ -613,45 +627,40 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
               transition: 'height 0.2s ease-out, width 0.2s ease-in-out, background 0.3s ease',
               display: 'flex',
               flexDirection: 'column',
-              justifyContent: 'center',
-              padding: '10px 6px 8px',
+              justifyContent: 'flex-end',
+              padding: '7px 6px 6px',
               boxSizing: 'border-box',
-              gap: 6,
             }}
           >
             <button
               type="button"
-              className="lcars-btn lcars-btn--pill"
-              style={{
-                background: colors.muted,
-                color: colors.text,
-                minHeight: 32,
-                fontSize: collapsed ? 9 : 10,
-                letterSpacing: '0.06em',
-                width: '100%',
-              }}
-              onClick={() => setTerminalOpen(false)}
-            >
-              {collapsed ? 'Off' : 'Hide log'}
-            </button>
-            <button
-              type="button"
-              className="lcars-btn lcars-btn--pill"
-              style={{
-                background: colors.muted,
-                color: colors.text,
-                minHeight: 32,
-                fontSize: collapsed ? 9 : 10,
-                letterSpacing: '0.06em',
-                width: '100%',
-              }}
+              className="lcars-chrome-item"
+              aria-label="View status log full screen"
               onClick={() => setStatusLcarsFullscreen(true)}
+              style={{
+                width: '100%',
+                minHeight: collapsed ? 40 : 48,
+                flexShrink: 0,
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: colors.muted,
+                color: colors.text,
+                fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
+                fontWeight: 700,
+                fontSize: collapsed ? 10 : 11,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                transition: 'background 0.2s ease, color 0.2s ease',
+              }}
             >
-              {collapsed ? 'Fill' : 'Full screen'}
+              {collapsed ? 'STA' : 'Status'}
             </button>
           </div>
 
-          {/* ===== STATUS BODY — log scroller + filter buttons overlay ===== */}
+          {/* ===== STATUS BODY — log scroller + right filter sidebar ===== */}
           <SystemTerminalDock
             sidebarOffsetPx={elbowW}
             onClose={() => setTerminalOpen(false)}
@@ -661,6 +670,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
             lcarsTopStackedChrome={useStackedStatusChrome}
             lcarsFrameHandlesControls={useStackedStatusChrome}
             onStatusInteraction={bumpStatusInteraction}
+            rightInsetPx={LCARS_STATUS_FILTER_RAIL_W}
             lcarsStatusAuto={
               useStackedStatusChrome
                 ? undefined
@@ -771,42 +781,37 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
               boxShadow: 'inset -2px 0 8px rgba(0,0,0,0.28)',
               display: 'flex',
               flexDirection: 'column',
-              justifyContent: 'center',
-              padding: '10px 6px 8px',
+              justifyContent: 'flex-end',
+              padding: '7px 6px 6px',
               boxSizing: 'border-box',
-              gap: 6,
             }}
           >
             <button
               type="button"
-              className="lcars-btn lcars-btn--pill"
+              className="lcars-chrome-item"
+              aria-label="Exit full screen status"
+              aria-pressed={statusFullscreen}
+              onClick={() => setStatusLcarsFullscreen(false)}
               style={{
-                background: colors.muted,
-                color: colors.text,
-                minHeight: 32,
-                fontSize: collapsed ? 9 : 10,
-                letterSpacing: '0.06em',
                 width: '100%',
-              }}
-              onClick={() => setTerminalOpen(false)}
-            >
-              {collapsed ? 'Off' : 'Hide log'}
-            </button>
-            <button
-              type="button"
-              className="lcars-btn lcars-btn--pill lcars-btn--active"
-              style={{
+                minHeight: collapsed ? 40 : 48,
+                flexShrink: 0,
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 background: colors.navActive,
                 color: colors.text,
-                minHeight: 32,
-                fontSize: collapsed ? 9 : 10,
-                letterSpacing: '0.06em',
-                width: '100%',
+                fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
+                fontWeight: 700,
+                fontSize: collapsed ? 10 : 11,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                transition: 'background 0.2s ease, color 0.2s ease',
               }}
-              aria-pressed
-              onClick={() => setStatusLcarsFullscreen(false)}
             >
-              {collapsed ? 'Split' : 'Split view'}
+              {collapsed ? 'STA' : 'Status'}
             </button>
           </div>
           <SystemTerminalDock
@@ -818,6 +823,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
             lcarsTopStackedChrome={false}
             lcarsFrameHandlesControls
             onStatusInteraction={bumpStatusInteraction}
+            rightInsetPx={LCARS_STATUS_FILTER_RAIL_W}
             lcarsStatusAuto={{ flashPeriodMs, onAutoClick: onAutoButtonClick }}
           />
           {statusFilterButtons}

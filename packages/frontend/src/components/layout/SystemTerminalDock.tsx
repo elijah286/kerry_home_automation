@@ -71,6 +71,7 @@ export function SystemTerminalDock({
   topOffsetPx = 0,
   onStatusInteraction,
   lcarsStatusAuto,
+  rightInsetPx = 0,
 }: {
   sidebarOffsetPx: number;
   onClose: () => void;
@@ -88,6 +89,8 @@ export function SystemTerminalDock({
   onStatusInteraction?: () => void;
   /** LCARS: Auto tail-follow control when the frame does not render it (compact status band) */
   lcarsStatusAuto?: { flashPeriodMs: number | null; onAutoClick: () => void };
+  /** LCARS: leave room on the right for frame-drawn filter sidebar (px from viewport right) */
+  rightInsetPx?: number;
 }) {
   const { activeTheme } = useTheme();
   const isMdUp = useMediaQuery('(min-width: 768px)');
@@ -190,7 +193,7 @@ export function SystemTerminalDock({
       )}
       style={{
         left: sidebarOffsetPx,
-        right: 0,
+        right: rightInsetPx,
         height: panelHeightPx,
         ...(placement === 'top'
           ? { top: topOffsetPx, bottom: 'auto' }
