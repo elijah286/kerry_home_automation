@@ -17,6 +17,16 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
+# Skip if a deployment is currently running (deploy.sh holds this lock)
+DEPLOY_LOCK=/tmp/ha-deploy.lock
+if [ -f "$DEPLOY_LOCK" ] && flock -n 9 9>"$DEPLOY_LOCK" 2>/dev/null; then
+  # We got the lock — no deploy running, release it and continue
+  flock -u 9
+else
+  echo "$(date -Iseconds 2>/dev/null || date) watchdog: deploy in progress, skipping" >&2
+  exit 0
+fi
+
 compose() {
   (cd "$WORKDIR" && /usr/bin/docker compose -f "$COMPOSE_FILE" "$@")
 }

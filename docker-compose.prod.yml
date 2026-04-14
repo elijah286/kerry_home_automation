@@ -21,6 +21,7 @@ services:
       retries: 5
 
   roborock-bridge:
+    image: ${HA_ROBOROCK_IMAGE:-ghcr.io/elijah286/ha-roborock-bridge:latest}
     build:
       context: ./services/roborock-bridge
       dockerfile: Dockerfile
@@ -51,6 +52,7 @@ services:
       retries: 5
 
   backend:
+    image: ${HA_BACKEND_IMAGE:-ghcr.io/elijah286/ha-backend:latest}
     build:
       context: .
       dockerfile: packages/backend/Dockerfile.prod
@@ -93,9 +95,12 @@ services:
       start_period: 30s
 
   frontend:
+    image: ${HA_FRONTEND_IMAGE:-ghcr.io/elijah286/ha-frontend:latest}
     build:
       context: .
       dockerfile: packages/frontend/Dockerfile.prod
+      args:
+        INTERNAL_API_ORIGIN: http://backend:3000
     restart: always
     ports:
       - "3001:3001"

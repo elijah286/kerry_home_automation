@@ -22,6 +22,13 @@ RUN rm -f packages/shared/tsconfig.tsbuildinfo \
 
 # ---------------------------------------------------------------------------
 FROM node:22-alpine
+
+# Version metadata baked in at build time (CI sets these; local builds get defaults)
+ARG BUILD_VERSION=dev
+ARG BUILD_SHA=unknown
+LABEL org.opencontainers.image.version="${BUILD_VERSION}" \
+      org.opencontainers.image.revision="${BUILD_SHA}"
+
 # xorriso: server installer ISO extract/repack (see iso-generator); git/bash for /api/system/update/*
 # Trust mounted host checkout (uid often ≠ root): Git 2.35+ "dubious ownership" otherwise.
 RUN apk add --no-cache curl xorriso git bash docker-cli docker-compose \
@@ -41,6 +48,9 @@ COPY --from=builder /app/packages/backend/scripts/reset-admin-password.mjs ./pac
 COPY --from=builder /app/packages/backend/package.json ./packages/backend/package.json
 COPY --from=builder /app/packages/backend/node_modules ./packages/backend/node_modules
 COPY --from=builder /app/package.json ./package.json
+
+# Bake version info so the backend can report its own image version
+RUN printf '{"version":"%s","sha":"%s"}\n' "${BUILD_VERSION}" "${BUILD_SHA}" > /app/build-info.json
 
 WORKDIR /app/packages/backend
 EXPOSE 3000

@@ -15,6 +15,13 @@ import { requirePermission, requireRole } from './auth.js';
 import { automationEngine } from '../automations/engine.js';
 import { getLogEntries, subscribeLogs, type LogEntry } from '../log-buffer.js';
 import { gitProcessEnv } from '../git-env.js';
+import {
+  startDeploy,
+  startRollback,
+  getUpdateStatus,
+  detectInFlightDeploy,
+  registerUpdateProgressSSE,
+} from './update-orchestrator.js';
 
 const adminOnly = [requireRole('admin')];
 const terminalAccess = [requirePermission(Permission.ViewSystemTerminal)];
@@ -132,22 +139,41 @@ interface AppVersionMeta {
   releaseNotes?: string;
 }
 
+/** Parsed `app-version.json` (git blob or workspace file). */
+function parseAppVersionJson(raw: string): (AppVersionMeta & { major: number; minor: number; patch: number }) | null {
+  const j = JSON.parse(raw) as {
+    major?: unknown;
+    minor?: unknown;
+    patch?: unknown;
+    releaseNotes?: unknown;
+  };
+  if (typeof j.major !== 'number' || typeof j.minor !== 'number' || typeof j.patch !== 'number') {
+    return null;
+  }
+  const versionLabel = `v${j.major}.${j.minor}.${j.patch}`;
+  const releaseNotes =
+    typeof j.releaseNotes === 'string' && j.releaseNotes.trim() ? j.releaseNotes.trim() : undefined;
+  return { versionLabel, major: j.major, minor: j.minor, patch: j.patch, releaseNotes };
+}
+
 async function readAppVersionMetaAtRef(root: string, ref: string): Promise<AppVersionMeta | null> {
   try {
     const raw = await execGit(['show', `${ref}:${APP_VERSION_JSON_PATH}`], root);
-    const j = JSON.parse(raw) as {
-      major?: unknown;
-      minor?: unknown;
-      patch?: unknown;
-      releaseNotes?: unknown;
-    };
-    if (typeof j.major !== 'number' || typeof j.minor !== 'number' || typeof j.patch !== 'number') {
-      return null;
-    }
-    const versionLabel = `v${j.major}.${j.minor}.${j.patch}`;
-    const releaseNotes =
-      typeof j.releaseNotes === 'string' && j.releaseNotes.trim() ? j.releaseNotes.trim() : undefined;
-    return { versionLabel, releaseNotes };
+    const p = parseAppVersionJson(raw);
+    if (!p) return null;
+    return { versionLabel: p.versionLabel, releaseNotes: p.releaseNotes };
+  } catch {
+    return null;
+  }
+}
+
+/** Version from the mounted workspace (matches running frontend after rebuild), not the baked UI bundle. */
+async function readAppVersionFromWorkspace(
+  root: string,
+): Promise<(AppVersionMeta & { major: number; minor: number; patch: number }) | null> {
+  try {
+    const raw = await readFile(join(root, APP_VERSION_JSON_PATH), 'utf8');
+    return parseAppVersionJson(raw);
   } catch {
     return null;
   }
@@ -276,6 +302,21 @@ async function gitIsAncestor(root: string, ancestor: string, descendant: string)
 // ---------------------------------------------------------------------------
 
 export function registerSystemRoutes(app: FastifyInstance): void {
+
+  // GET /api/system/app-version — workspace `app-version.json` (same tree as git); public for header badge
+  app.get('/api/system/app-version', async (_req, reply) => {
+    const root = appConfig.deploy.appRoot;
+    const meta = await readAppVersionFromWorkspace(root);
+    if (!meta) {
+      return reply.code(503).send({ error: 'app-version.json not readable (configure HA_APP_ROOT mount).' });
+    }
+    return {
+      versionLabel: meta.versionLabel,
+      major: meta.major,
+      minor: meta.minor,
+      patch: meta.patch,
+    };
+  });
 
   // GET /api/system/stats
   app.get('/api/system/stats', { preHandler: adminOnly }, async (_req, reply) => {
@@ -416,40 +457,40 @@ export function registerSystemRoutes(app: FastifyInstance): void {
     }
   });
 
-  // POST /api/system/update/apply — run scripts/update.sh on the host checkout (admin)
-  app.post('/api/system/update/apply', { preHandler: adminOnly }, async (_req, reply) => {
-    const root = appConfig.deploy.appRoot;
-    const script = appConfig.deploy.updateScriptPath;
-    if (!(await pathExists(join(root, '.git')))) {
-      return reply.code(503).send({ error: 'Git checkout not available (configure HA_APP_ROOT).' });
-    }
-    if (!(await pathExists(script))) {
-      return reply.code(503).send({ error: `Update script not found: ${script}` });
-    }
-    try {
-      await execGit(['fetch', 'origin', 'main'], root);
-      const currentSha = await execGit(['rev-parse', 'HEAD'], root);
-      const remoteSha = await execGit(['rev-parse', 'origin/main'], root);
-      if (currentSha === remoteSha) {
-        return reply.code(400).send({ error: 'Already up to date with origin/main.' });
+  // POST /api/system/update/apply — start a structured deployment via the orchestrator (admin)
+  app.post<{ Body: { buildFallback?: boolean } }>(
+    '/api/system/update/apply',
+    { preHandler: adminOnly },
+    async (req, reply) => {
+      const buildFallback = req.body?.buildFallback === true;
+      const error = await startDeploy({ buildFallback });
+      if (error) {
+        return reply.code(409).send({ error });
       }
-    } catch (err) {
-      return reply.code(503).send({
-        error: formatGitErrorForClient(err, root),
+      return reply.code(202).send({
+        ok: true,
+        message: 'Deployment started. Subscribe to /api/system/update/progress for real-time status.',
       });
-    }
+    },
+  );
 
-    logger.warn({ root, script }, 'Admin triggered software update (scripts/update.sh)');
-    const child = spawn('bash', [script], {
-      cwd: root,
-      detached: true,
-      stdio: 'ignore',
-      env: { ...process.env },
-    });
-    child.unref();
+  // GET /api/system/update/status — current deployment status (admin)
+  app.get('/api/system/update/status', { preHandler: adminOnly }, async () => {
+    return getUpdateStatus();
+  });
+
+  // GET /api/system/update/progress — SSE stream of deployment progress (admin, handled by orchestrator)
+  registerUpdateProgressSSE(app);
+
+  // POST /api/system/update/rollback — rollback to previous version via orchestrator (admin)
+  app.post('/api/system/update/rollback', { preHandler: adminOnly }, async (_req, reply) => {
+    const error = await startRollback();
+    if (error) {
+      return reply.code(409).send({ error });
+    }
     return reply.code(202).send({
       ok: true,
-      message: 'Update started. Services will restart; this page may refresh when the API is back.',
+      message: 'Rollback started. Subscribe to /api/system/update/progress for real-time status.',
     });
   });
 
@@ -474,12 +515,12 @@ export function registerSystemRoutes(app: FastifyInstance): void {
   });
 
   // POST /api/system/update/revert — reset checkout to a prior commit and rebuild (admin)
+  // Kept for backwards compatibility; prefer /api/system/update/rollback for the orchestrator-based flow.
   app.post<{ Body: { targetSha?: string } }>(
     '/api/system/update/revert',
     { preHandler: adminOnly },
     async (req, reply) => {
       const root = appConfig.deploy.appRoot;
-      const composeFile = appConfig.serverInstaller.prodComposePath;
       const targetSha = (req.body?.targetSha ?? '').trim().toLowerCase();
 
       if (!/^[0-9a-f]{40}$/.test(targetSha)) {
@@ -517,31 +558,14 @@ export function registerSystemRoutes(app: FastifyInstance): void {
         });
       }
 
-      logger.warn({ root, targetSha }, 'Admin triggered revert + rebuild');
-
-      const child = spawn(
-        'bash',
-        [
-          '-c',
-          'cd "$HA_ROOT" && git reset --hard "$HA_SHA" && docker compose -f "$HA_COMPOSE" up -d --build --wait',
-        ],
-        {
-          detached: true,
-          stdio: 'ignore',
-          env: {
-            ...process.env,
-            HA_ROOT: root,
-            HA_SHA: targetSha,
-            HA_COMPOSE: composeFile,
-          },
-        },
-      );
-      child.unref();
-
+      // Use the orchestrator for the actual rollback
+      const error = await startRollback();
+      if (error) {
+        return reply.code(409).send({ error });
+      }
       return reply.code(202).send({
         ok: true,
-        message:
-          'Revert and rebuild started. This checkout will be behind origin/main until you pull or install updates again.',
+        message: 'Revert started. Subscribe to /api/system/update/progress for real-time status.',
       });
     },
   );

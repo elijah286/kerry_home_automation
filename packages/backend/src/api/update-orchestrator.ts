@@ -1,0 +1,349 @@
+// ---------------------------------------------------------------------------
+// Update orchestrator — manages the deploy lifecycle and streams progress
+//
+// Replaces fire-and-forget spawn with structured stage tracking. The deploy
+// script (scripts/deploy.sh) writes JSONL progress to .update-progress.jsonl;
+// this module tails that file and streams events to the frontend via SSE.
+// ---------------------------------------------------------------------------
+
+import { spawn } from 'node:child_process';
+import { createReadStream, existsSync, statSync, watch } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { createInterface } from 'node:readline';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { appConfig } from '../config.js';
+import { logger } from '../logger.js';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface ProgressEvent {
+  id: number;
+  ts: string;
+  stage: string;
+  status: 'running' | 'completed' | 'failed' | 'log';
+  msg: string;
+}
+
+export interface ReleaseManifest {
+  version: string;
+  sha: string;
+  shaShort: string;
+  timestamp: string;
+  images: {
+    backend: string;
+    frontend: string;
+    'roborock-bridge': string;
+    proxy: string;
+  };
+}
+
+export interface UpdateStatus {
+  inProgress: boolean;
+  startedAt: string | null;
+  targetVersion: string | null;
+  currentStage: string | null;
+  stages: ProgressEvent[];
+  finalStatus: 'completed' | 'failed' | null;
+}
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+let updateInProgress = false;
+let updateStartedAt: string | null = null;
+let updateTargetVersion: string | null = null;
+
+const progressFilePath = () => join(appConfig.deploy.appRoot, '.update-progress.jsonl');
+
+// Active SSE subscribers
+const sseSubscribers = new Set<FastifyReply>();
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function parseProgressLine(line: string): ProgressEvent | null {
+  try {
+    const parsed = JSON.parse(line) as ProgressEvent;
+    if (parsed.id && parsed.stage && parsed.status) return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function readAllProgress(): Promise<ProgressEvent[]> {
+  const filePath = progressFilePath();
+  if (!existsSync(filePath)) return [];
+  try {
+    const content = await readFile(filePath, 'utf8');
+    return content
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map(parseProgressLine)
+      .filter((e): e is ProgressEvent => e !== null);
+  } catch {
+    return [];
+  }
+}
+
+/** Read the release manifest from the git checkout. */
+async function readReleaseManifest(): Promise<ReleaseManifest | null> {
+  const manifestPath = join(appConfig.deploy.appRoot, 'deploy', 'release-manifest.json');
+  try {
+    const content = await readFile(manifestPath, 'utf8');
+    return JSON.parse(content) as ReleaseManifest;
+  } catch {
+    return null;
+  }
+}
+
+/** Read the previous deployment state (for rollback info). */
+async function readPreviousState(): Promise<{ sha: string; timestamp: string } | null> {
+  const statePath = join(appConfig.deploy.appRoot, '.deploy-previous-state.json');
+  try {
+    const content = await readFile(statePath, 'utf8');
+    const parsed = JSON.parse(content);
+    return { sha: parsed.sha, timestamp: parsed.timestamp };
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SSE broadcasting
+// ---------------------------------------------------------------------------
+
+function broadcastSSE(event: ProgressEvent) {
+  const data = JSON.stringify(event);
+  for (const reply of sseSubscribers) {
+    try {
+      reply.raw.write(`id: ${event.id}\ndata: ${data}\n\n`);
+    } catch {
+      sseSubscribers.delete(reply);
+    }
+  }
+}
+
+/** Tail the progress file and broadcast new lines to SSE subscribers. */
+function startProgressTailing() {
+  const filePath = progressFilePath();
+  if (!existsSync(filePath)) return;
+
+  let lastSize = 0;
+  try {
+    lastSize = statSync(filePath).size;
+  } catch { /* fresh file */ }
+
+  const watcher = watch(filePath, () => {
+    try {
+      const currentSize = statSync(filePath).size;
+      if (currentSize <= lastSize) {
+        // File was truncated (new deployment started)
+        lastSize = 0;
+      }
+
+      const stream = createReadStream(filePath, { start: lastSize, encoding: 'utf8' });
+      const rl = createInterface({ input: stream });
+
+      rl.on('line', (line) => {
+        const event = parseProgressLine(line);
+        if (!event) return;
+        broadcastSSE(event);
+
+        // Detect completion
+        if (event.stage === 'done' && (event.status === 'completed' || event.status === 'failed')) {
+          updateInProgress = false;
+          logger.info({ version: updateTargetVersion, status: event.status }, 'Deployment finished');
+        }
+      });
+
+      rl.on('close', () => {
+        lastSize = currentSize;
+      });
+    } catch (err) {
+      logger.error({ err }, 'Error tailing progress file');
+    }
+  });
+
+  // Clean up watcher if the module is somehow reloaded
+  process.on('SIGTERM', () => watcher.close());
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/** Start a deployment. Returns an error string or null on success. */
+export async function startDeploy(options: { buildFallback?: boolean } = {}): Promise<string | null> {
+  if (updateInProgress) {
+    return 'A deployment is already in progress';
+  }
+
+  const root = appConfig.deploy.appRoot;
+  const scriptPath = join(root, 'scripts', 'deploy.sh');
+
+  if (!existsSync(scriptPath)) {
+    return `Deploy script not found at ${scriptPath}`;
+  }
+
+  // Read target version from manifest
+  const manifest = await readReleaseManifest();
+  updateTargetVersion = manifest?.version ?? 'unknown';
+  updateInProgress = true;
+  updateStartedAt = new Date().toISOString();
+
+  const args = ['bash', scriptPath];
+  if (options.buildFallback) args.push('--build-fallback');
+
+  logger.warn({ root, script: scriptPath, version: updateTargetVersion }, 'Starting deployment');
+
+  const child = spawn(args[0], args.slice(1), {
+    cwd: root,
+    detached: true,
+    stdio: 'ignore',
+    env: {
+      ...process.env,
+      HA_APP_ROOT: root,
+      HA_LOG_DIR: '/var/log/home-automation',
+    },
+  });
+  child.unref();
+
+  // Start tailing the progress file
+  startProgressTailing();
+
+  return null;
+}
+
+/** Start a rollback to the previous version. */
+export async function startRollback(): Promise<string | null> {
+  if (updateInProgress) {
+    return 'A deployment is already in progress';
+  }
+
+  const root = appConfig.deploy.appRoot;
+  const scriptPath = join(root, 'scripts', 'deploy.sh');
+  const prevState = await readPreviousState();
+
+  if (!prevState) {
+    return 'No previous deployment state found — cannot roll back';
+  }
+
+  updateInProgress = true;
+  updateStartedAt = new Date().toISOString();
+  updateTargetVersion = `rollback to ${prevState.sha.slice(0, 7)}`;
+
+  logger.warn({ root, prevSha: prevState.sha }, 'Starting rollback');
+
+  const child = spawn('bash', [scriptPath, '--rollback'], {
+    cwd: root,
+    detached: true,
+    stdio: 'ignore',
+    env: {
+      ...process.env,
+      HA_APP_ROOT: root,
+      HA_LOG_DIR: '/var/log/home-automation',
+    },
+  });
+  child.unref();
+
+  startProgressTailing();
+  return null;
+}
+
+/** Get current update status. */
+export async function getUpdateStatus(): Promise<UpdateStatus> {
+  const stages = await readAllProgress();
+  const lastStage = stages[stages.length - 1];
+
+  // Check if progress file indicates completion (in case we restarted)
+  let finalStatus: 'completed' | 'failed' | null = null;
+  if (lastStage?.stage === 'done') {
+    finalStatus = lastStage.status === 'completed' ? 'completed' : 'failed';
+    // If the backend just restarted and found a completed deploy, clear in-progress
+    if (updateInProgress && finalStatus) {
+      updateInProgress = false;
+    }
+  }
+
+  return {
+    inProgress: updateInProgress,
+    startedAt: updateStartedAt,
+    targetVersion: updateTargetVersion,
+    currentStage: lastStage?.stage ?? null,
+    stages,
+    finalStatus,
+  };
+}
+
+/** Check if a deployment might still be running from before this process started. */
+export async function detectInFlightDeploy() {
+  const stages = await readAllProgress();
+  if (stages.length === 0) return;
+
+  const last = stages[stages.length - 1];
+  // If the progress file exists and doesn't end with 'done', a deploy was interrupted
+  if (last.stage !== 'done') {
+    // Check how recent the last event is
+    const age = Date.now() - new Date(last.ts).getTime();
+    if (age < 5 * 60_000) {
+      // Less than 5 minutes old — deployment might still be running
+      updateInProgress = true;
+      updateStartedAt = stages[0]?.ts ?? new Date().toISOString();
+      logger.info('Detected in-flight deployment from before restart');
+      startProgressTailing();
+    }
+  } else {
+    // Deploy completed before we started — clear the in-progress flag
+    updateInProgress = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SSE route handler
+// ---------------------------------------------------------------------------
+
+export function registerUpdateProgressSSE(app: FastifyInstance) {
+  app.get('/api/system/update/progress', async (req: FastifyRequest, reply: FastifyReply) => {
+    reply.hijack();
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+
+    // Send all existing progress events (replay for reconnecting clients)
+    const lastEventId = parseInt(req.headers['last-event-id'] as string, 10) || 0;
+    const events = await readAllProgress();
+    for (const event of events) {
+      if (event.id > lastEventId) {
+        reply.raw.write(`id: ${event.id}\ndata: ${JSON.stringify(event)}\n\n`);
+      }
+    }
+
+    // Register for future events
+    sseSubscribers.add(reply);
+
+    // Keepalive ping
+    const ping = setInterval(() => {
+      try {
+        reply.raw.write(': ping\n\n');
+      } catch {
+        clearInterval(ping);
+        sseSubscribers.delete(reply);
+      }
+    }, 15_000);
+
+    req.raw.on('close', () => {
+      clearInterval(ping);
+      sseSubscribers.delete(reply);
+    });
+  });
+}

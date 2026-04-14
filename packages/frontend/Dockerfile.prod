@@ -14,6 +14,10 @@ COPY tsconfig.base.json ./
 # Small hosts often OOM during `next build` without a higher heap cap.
 ENV NODE_OPTIONS=--max-old-space-size=4096
 
+# Baked into next.config rewrites — production frontend container proxies /api → backend on the Docker network.
+ARG INTERNAL_API_ORIGIN=http://backend:3000
+ENV INTERNAL_API_ORIGIN=$INTERNAL_API_ORIGIN
+
 RUN rm -f packages/shared/tsconfig.tsbuildinfo \
     && npx tsc -p packages/shared/tsconfig.json \
     && test -f packages/shared/dist/index.d.ts \
@@ -21,6 +25,12 @@ RUN rm -f packages/shared/tsconfig.tsbuildinfo \
 
 # ---------------------------------------------------------------------------
 FROM node:22-alpine
+
+ARG BUILD_VERSION=dev
+ARG BUILD_SHA=unknown
+LABEL org.opencontainers.image.version="${BUILD_VERSION}" \
+      org.opencontainers.image.revision="${BUILD_SHA}"
+
 WORKDIR /app
 
 # Next.js standalone output bundles everything needed to run

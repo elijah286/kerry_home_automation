@@ -21,7 +21,7 @@ import { registerSystemRoutes } from './system-routes.js';
 import { authenticate } from './auth.js';
 
 // Routes that don't require authentication
-const PUBLIC_ROUTES = new Set(['/api/health', '/api/auth/login']);
+const PUBLIC_ROUTES = new Set(['/api/health', '/api/auth/login', '/api/system/app-version']);
 
 /** Paths to omit from HTTP access logs (high-frequency probes). */
 const HTTP_LOG_SKIP = new Set(['/api/health']);

@@ -149,7 +149,10 @@ export function UpdateInProgressOverlay() {
   const api = getApiBase();
   let title: string;
   let body: string;
-  if (forcedKind === 'reboot') {
+  if (forcedKind === 'update') {
+    title = 'Software update in progress';
+    body = 'Services are being updated. Return to Settings → Software update for detailed progress. This overlay clears when the API is healthy again.';
+  } else if (forcedKind === 'reboot') {
     title = 'Server restarting';
     body = 'The hub is rebooting. This page will clear when the API is healthy again.';
   } else if (passiveMode === 'deploy') {

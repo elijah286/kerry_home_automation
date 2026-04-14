@@ -49,6 +49,7 @@ import { ScreensaverIntegration } from './integrations/screensaver/index.js';
 import { HelpersIntegration } from './integrations/helpers/index.js';
 import { automationEngine } from './automations/engine.js';
 import { loadRolePermissions } from './api/role-permission-routes.js';
+import { detectInFlightDeploy } from './api/update-orchestrator.js';
 
 const REDIS_STATE_KEY = 'ha4:device_state';
 
@@ -143,6 +144,9 @@ async function main() {
 
   // 7. Start HTTP + WS server
   const server = await startServer();
+
+  // 7b. Check if a deployment was in-flight before we restarted (e.g. we ARE the new version after deploy.sh)
+  await detectInFlightDeploy();
 
   // Visible in the status terminal: kernel boot id changes after a full system reboot (Linux).
   try {

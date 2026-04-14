@@ -1,9 +1,25 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { APP_VERSION_LABEL } from '@/lib/appVersion';
+import { getApiBase } from '@/lib/api-base';
 
 const VERSION_HREF = '/settings/software-update';
+
+function appVersionFetchUrls(): string[] {
+  if (Capacitor.isNativePlatform()) {
+    const b = getApiBase().replace(/\/$/, '');
+    return b ? [`${b}/api/system/app-version`] : [];
+  }
+  const urls: string[] = [];
+  // Same origin as the page (Next rewrites `/api` → backend) — works behind nginx :80 and avoids http(s) → :3000 issues.
+  urls.push('/api/system/app-version');
+  const b = getApiBase().replace(/\/$/, '');
+  if (b) urls.push(`${b}/api/system/app-version`);
+  return urls;
+}
 
 export function AppVersionLabel({
   variant = 'default',
@@ -12,6 +28,30 @@ export function AppVersionLabel({
   variant?: 'default' | 'lcars';
   lcarsTextColor?: string;
 }) {
+  const [label, setLabel] = useState(APP_VERSION_LABEL);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      for (const url of appVersionFetchUrls()) {
+        try {
+          const r = await fetch(url);
+          if (!r.ok) continue;
+          const j = (await r.json()) as { versionLabel?: string };
+          if (!cancelled && j.versionLabel) {
+            setLabel(j.versionLabel);
+            return;
+          }
+        } catch {
+          /* try next */
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (variant === 'lcars') {
     return (
       <Link
@@ -27,7 +67,7 @@ export function AppVersionLabel({
         }}
         title="Software update"
       >
-        {APP_VERSION_LABEL}
+        {label}
       </Link>
     );
   }
@@ -38,7 +78,7 @@ export function AppVersionLabel({
       className="shrink-0 text-[11px] tabular-nums tracking-tight text-[var(--color-text-muted)] underline-offset-2 transition-colors hover:text-[var(--color-text)] hover:underline"
       title="Software update"
     >
-      {APP_VERSION_LABEL}
+      {label}
     </Link>
   );
 }

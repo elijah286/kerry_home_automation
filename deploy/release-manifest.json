@@ -1,0 +1,12 @@
+{
+  "version": "v3.14.33",
+  "sha": "local",
+  "shaShort": "local",
+  "timestamp": "2026-04-14T00:00:00Z",
+  "images": {
+    "backend": "ghcr.io/elijah286/ha-backend:latest",
+    "frontend": "ghcr.io/elijah286/ha-frontend:latest",
+    "roborock-bridge": "ghcr.io/elijah286/ha-roborock-bridge:latest",
+    "proxy": "ghcr.io/elijah286/ha-proxy:latest"
+  }
+}

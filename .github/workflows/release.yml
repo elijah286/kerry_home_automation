@@ -1,0 +1,199 @@
+# ---------------------------------------------------------------------------
+# CI/CD — Build Docker images and create releases on push to main
+#
+# Every push to main builds and pushes images to ghcr.io. A GitHub Release is
+# created only when the version in app-version.json changes. Images are always
+# tagged with both the semantic version and the short SHA.
+#
+# The home hub checks for new releases via git fetch and reads the release
+# manifest to determine which images to pull.
+# ---------------------------------------------------------------------------
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_release:
+        description: 'Create a release even if version unchanged'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # need previous commit to detect version changes
+
+      - name: Read version from app-version.json
+        id: version
+        run: |
+          VERSION=$(node -e "const v=require('./packages/frontend/src/lib/app-version.json'); console.log(v.major+'.'+v.minor+'.'+v.patch)")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+          # Check if version changed in this push
+          PREV_VERSION=$(git show HEAD~1:packages/frontend/src/lib/app-version.json 2>/dev/null \
+            | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const v=JSON.parse(d);console.log(v.major+'.'+v.minor+'.'+v.patch)}catch{console.log('')}})" \
+            || echo "")
+          if [ "$VERSION" != "$PREV_VERSION" ] || [ "${{ inputs.force_release }}" = "true" ]; then
+            echo "new_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "new_release=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Version: $VERSION (prev: $PREV_VERSION, new_release: $(grep new_release "$GITHUB_OUTPUT" | cut -d= -f2))"
+
+      - name: Read release notes
+        id: notes
+        run: |
+          NOTES=$(node -e "
+            const v = require('./packages/frontend/src/lib/app-version.json');
+            console.log(v.releaseNotes || '');
+          ")
+          echo "release_notes=$NOTES" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # -- Backend --
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/backend/Dockerfile.prod
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/ha-backend:${{ steps.version.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/ha-backend:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/ha-backend:sha-${{ steps.version.outputs.sha_short }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.tag }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+          build-args: |
+            BUILD_VERSION=${{ steps.version.outputs.tag }}
+            BUILD_SHA=${{ github.sha }}
+
+      # -- Frontend --
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/frontend/Dockerfile.prod
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/ha-frontend:${{ steps.version.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/ha-frontend:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/ha-frontend:sha-${{ steps.version.outputs.sha_short }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.tag }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+          build-args: |
+            INTERNAL_API_ORIGIN=http://backend:3000
+            BUILD_VERSION=${{ steps.version.outputs.tag }}
+            BUILD_SHA=${{ github.sha }}
+
+      # -- Roborock Bridge --
+      - name: Build and push roborock-bridge
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/roborock-bridge
+          file: services/roborock-bridge/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/ha-roborock-bridge:${{ steps.version.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/ha-roborock-bridge:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/ha-roborock-bridge:sha-${{ steps.version.outputs.sha_short }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.tag }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=roborock
+          cache-to: type=gha,mode=max,scope=roborock
+
+      # -- Proxy --
+      - name: Build and push proxy
+        uses: docker/build-push-action@v6
+        with:
+          context: ./proxy
+          file: proxy/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/ha-proxy:${{ steps.version.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/ha-proxy:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/ha-proxy:sha-${{ steps.version.outputs.sha_short }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.tag }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=proxy
+          cache-to: type=gha,mode=max,scope=proxy
+
+      # -- Release manifest --
+      - name: Generate release manifest
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          cat > deploy/release-manifest.json << EOF
+          {
+            "version": "${{ steps.version.outputs.tag }}",
+            "sha": "${{ github.sha }}",
+            "shaShort": "${{ steps.version.outputs.sha_short }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "images": {
+              "backend": "${{ env.REGISTRY }}/${OWNER}/ha-backend:${{ steps.version.outputs.tag }}",
+              "frontend": "${{ env.REGISTRY }}/${OWNER}/ha-frontend:${{ steps.version.outputs.tag }}",
+              "roborock-bridge": "${{ env.REGISTRY }}/${OWNER}/ha-roborock-bridge:${{ steps.version.outputs.tag }}",
+              "proxy": "${{ env.REGISTRY }}/${OWNER}/ha-proxy:${{ steps.version.outputs.tag }}"
+            }
+          }
+          EOF
+          cat deploy/release-manifest.json
+
+      - name: Commit release manifest
+        if: steps.version.outputs.new_release == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add deploy/release-manifest.json
+          git diff --cached --quiet && exit 0
+          git commit -m "ci: update release manifest for ${{ steps.version.outputs.tag }}"
+          git push
+
+      # -- GitHub Release (only for new versions) --
+      - name: Create GitHub Release
+        if: steps.version.outputs.new_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          body: |
+            ${{ steps.notes.outputs.release_notes }}
+
+            ## Images
+            ```
+            ghcr.io/${{ github.repository_owner }}/ha-backend:${{ steps.version.outputs.tag }}
+            ghcr.io/${{ github.repository_owner }}/ha-frontend:${{ steps.version.outputs.tag }}
+            ghcr.io/${{ github.repository_owner }}/ha-roborock-bridge:${{ steps.version.outputs.tag }}
+            ghcr.io/${{ github.repository_owner }}/ha-proxy:${{ steps.version.outputs.tag }}
+            ```
+          files: deploy/release-manifest.json
+          make_latest: true

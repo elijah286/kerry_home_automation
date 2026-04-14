@@ -1,12 +1,31 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Download, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
+import {
+  ArrowLeft,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Download,
+  Loader2,
+  RefreshCw,
+  AlertTriangle,
+  XCircle,
+  RotateCcw,
+  Terminal,
+} from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { useAuth } from '@/providers/AuthProvider';
 import { getApiBase } from '@/lib/api-base';
+import { signalServerTransitionPending } from '@/lib/server-transition';
+
 const API = getApiBase();
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface CommitRow {
   hash: string;
@@ -14,11 +33,9 @@ interface CommitRow {
   date: string;
 }
 
-/** From GET /api/system/update/check — matches server git + app-version.json */
 interface DeployRefInfo {
   sha: string;
   versionLabel: string | null;
-  /** releaseNotes from app-version.json, else latest commit subject (PR title on squash merge) */
   description: string;
 }
 
@@ -34,10 +51,85 @@ interface CheckResponse {
   error?: string;
 }
 
+interface ProgressEvent {
+  id: number;
+  ts: string;
+  stage: string;
+  status: 'running' | 'completed' | 'failed' | 'log';
+  msg: string;
+}
+
+interface UpdateStatus {
+  inProgress: boolean;
+  startedAt: string | null;
+  targetVersion: string | null;
+  currentStage: string | null;
+  stages: ProgressEvent[];
+  finalStatus: 'completed' | 'failed' | null;
+}
+
+// ---------------------------------------------------------------------------
+// Stage metadata for display
+// ---------------------------------------------------------------------------
+
+const STAGE_LABELS: Record<string, string> = {
+  preflight: 'Preflight checks',
+  pull_code: 'Fetching code',
+  pull_images: 'Pulling images',
+  db_backup: 'Database backup',
+  restart: 'Restarting services',
+  health_check: 'Health validation',
+  verify: 'Post-deploy verification',
+  done: 'Complete',
+  rollback: 'Rolling back',
+};
+
+const STAGE_ORDER = [
+  'preflight',
+  'pull_code',
+  'pull_images',
+  'db_backup',
+  'restart',
+  'health_check',
+  'verify',
+  'done',
+];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 function shortSha(sha: string | undefined): string {
   if (!sha) return '—';
   return sha.length > 12 ? `${sha.slice(0, 12)}…` : sha;
 }
+
+function formatCommitDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  } catch {
+    return iso;
+  }
+}
+
+function StageIcon({ status }: { status: 'pending' | 'running' | 'completed' | 'failed' }) {
+  switch (status) {
+    case 'running':
+      return <Loader2 className="h-4 w-4 animate-spin shrink-0" style={{ color: 'var(--color-accent)' }} />;
+    case 'completed':
+      return <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: 'var(--color-success)' }} />;
+    case 'failed':
+      return <XCircle className="h-4 w-4 shrink-0" style={{ color: 'var(--color-danger)' }} />;
+    default:
+      return <div className="h-4 w-4 shrink-0 rounded-full border-2" style={{ borderColor: 'var(--color-border)' }} />;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Components
+// ---------------------------------------------------------------------------
 
 function DeployRefBlock({
   title,
@@ -73,31 +165,274 @@ function DeployRefBlock({
   );
 }
 
-function formatCommitDate(iso: string): string {
-  try {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleString(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    });
-  } catch {
-    return iso;
+function DeployProgress({
+  events,
+  isConnected,
+}: {
+  events: ProgressEvent[];
+  isConnected: boolean;
+}) {
+  const [logsExpanded, setLogsExpanded] = useState(false);
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  // Determine the status of each stage
+  const stageStatuses = new Map<string, 'pending' | 'running' | 'completed' | 'failed'>();
+  for (const stage of STAGE_ORDER) stageStatuses.set(stage, 'pending');
+
+  const logLines: ProgressEvent[] = [];
+  for (const ev of events) {
+    if (ev.status === 'log') {
+      logLines.push(ev);
+    } else {
+      stageStatuses.set(ev.stage, ev.status === 'running' ? 'running' : ev.status === 'completed' ? 'completed' : 'failed');
+    }
   }
+
+  // Auto-scroll logs
+  useEffect(() => {
+    if (logsExpanded && logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [logLines.length, logsExpanded]);
+
+  const lastEvent = events[events.length - 1];
+  const isDone = lastEvent?.stage === 'done';
+  const isFailed = lastEvent?.status === 'failed';
+
+  return (
+    <div className="space-y-4">
+      {/* Stage progress */}
+      <div className="space-y-2">
+        {STAGE_ORDER.map((stage) => {
+          const status = stageStatuses.get(stage) ?? 'pending';
+          // Find the most recent message for this stage
+          const stageEvents = events.filter((e) => e.stage === stage && e.status !== 'log');
+          const lastMsg = stageEvents[stageEvents.length - 1]?.msg;
+
+          return (
+            <div key={stage} className="flex items-start gap-3">
+              <StageIcon status={status} />
+              <div className="min-w-0 flex-1">
+                <div
+                  className="text-sm font-medium"
+                  style={{ color: status === 'pending' ? 'var(--color-text-muted)' : 'var(--color-text)' }}
+                >
+                  {STAGE_LABELS[stage] ?? stage}
+                </div>
+                {lastMsg && status !== 'pending' && (
+                  <div className="text-xs mt-0.5 truncate" style={{ color: 'var(--color-text-secondary)' }}>
+                    {lastMsg}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Connection status */}
+      {!isConnected && !isDone && (
+        <div
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
+          style={{
+            background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)',
+            color: 'var(--color-accent)',
+          }}
+        >
+          <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+          Services are restarting — reconnecting when the API is back...
+        </div>
+      )}
+
+      {/* Final status */}
+      {isDone && !isFailed && (
+        <div
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
+          style={{
+            background: 'color-mix(in srgb, var(--color-success) 12%, transparent)',
+            color: 'var(--color-success)',
+          }}
+        >
+          <Check className="h-4 w-4 shrink-0" />
+          {lastEvent?.msg ?? 'Update completed successfully'}
+        </div>
+      )}
+
+      {isFailed && (
+        <div
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
+          style={{
+            background: 'color-mix(in srgb, var(--color-danger) 12%, transparent)',
+            color: 'var(--color-danger)',
+          }}
+        >
+          <XCircle className="h-4 w-4 shrink-0" />
+          {lastEvent?.msg ?? 'Deployment failed'}
+        </div>
+      )}
+
+      {/* Expandable log viewer */}
+      {logLines.length > 0 && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setLogsExpanded((v) => !v)}
+            className="flex items-center gap-1.5 text-xs font-medium"
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            <Terminal className="h-3.5 w-3.5" />
+            {logLines.length} log {logLines.length === 1 ? 'line' : 'lines'}
+            {logsExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+          {logsExpanded && (
+            <div
+              className="mt-2 rounded-lg border p-2 max-h-48 overflow-auto font-mono text-[11px] leading-relaxed"
+              style={{
+                borderColor: 'var(--color-border)',
+                backgroundColor: 'var(--color-bg)',
+                color: 'var(--color-text-secondary)',
+              }}
+            >
+              {logLines.map((ev) => (
+                <div key={ev.id} className="whitespace-pre-wrap break-all">
+                  <span style={{ color: 'var(--color-text-muted)' }}>
+                    [{ev.stage}]
+                  </span>{' '}
+                  {ev.msg}
+                </div>
+              ))}
+              <div ref={logEndRef} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
 
 export default function SoftwareUpdatePage() {
   const { isAdmin, loading } = useAuth();
   const [check, setCheck] = useState<CheckResponse | null>(null);
   const [checkLoading, setCheckLoading] = useState(false);
-  const [applyLoading, setApplyLoading] = useState(false);
-  const [applyMessage, setApplyMessage] = useState<string | null>(null);
-  const [applyError, setApplyError] = useState<string | null>(null);
+
+  // Deploy state
+  const [deploying, setDeploying] = useState(false);
+  const [deployEvents, setDeployEvents] = useState<ProgressEvent[]>([]);
+  const [sseConnected, setSseConnected] = useState(false);
+  const [deployError, setDeployError] = useState<string | null>(null);
+  const sseRef = useRef<EventSource | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // On mount, check if a deployment is already in progress
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`${API}/api/system/update/status`, { credentials: 'include' });
+        if (!r.ok || cancelled) return;
+        const status = (await r.json()) as UpdateStatus;
+        if (status.inProgress || (status.stages.length > 0 && !status.finalStatus)) {
+          setDeploying(true);
+          setDeployEvents(status.stages);
+          connectSSE();
+        } else if (status.finalStatus && status.stages.length > 0) {
+          // Show the results of the last deployment
+          setDeployEvents(status.stages);
+        }
+      } catch {
+        // API not available — ignore
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // SSE connection for real-time progress
+  const connectSSE = useCallback(() => {
+    if (sseRef.current) {
+      sseRef.current.close();
+    }
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
+    const lastId = deployEvents.length > 0 ? deployEvents[deployEvents.length - 1].id : 0;
+    const url = `${API}/api/system/update/progress`;
+    const es = new EventSource(url, { withCredentials: true });
+
+    es.onopen = () => {
+      setSseConnected(true);
+    };
+
+    es.onmessage = (event) => {
+      try {
+        const ev = JSON.parse(event.data) as ProgressEvent;
+        setDeployEvents((prev) => {
+          // Deduplicate by id
+          if (prev.some((p) => p.id === ev.id)) return prev;
+          return [...prev, ev];
+        });
+
+        // Detect completion
+        if (ev.stage === 'done') {
+          setDeploying(false);
+          es.close();
+          sseRef.current = null;
+        }
+      } catch {
+        // ignore malformed events
+      }
+    };
+
+    es.onerror = () => {
+      setSseConnected(false);
+      es.close();
+      sseRef.current = null;
+
+      // Reconnect after delay (the backend may be restarting)
+      reconnectTimerRef.current = setTimeout(() => {
+        if (deploying) {
+          // Try to get status first
+          fetch(`${API}/api/system/update/status`, { credentials: 'include' })
+            .then((r) => r.json())
+            .then((status: UpdateStatus) => {
+              if (status.stages.length > 0) {
+                setDeployEvents(status.stages);
+              }
+              if (status.finalStatus) {
+                setDeploying(false);
+              } else {
+                connectSSE();
+              }
+            })
+            .catch(() => {
+              // API still down — retry
+              reconnectTimerRef.current = setTimeout(() => connectSSE(), 5000);
+            });
+        }
+      }, 3000);
+    };
+
+    sseRef.current = es;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deploying]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      sseRef.current?.close();
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+    };
+  }, []);
 
   const runCheck = useCallback(async () => {
     setCheckLoading(true);
-    setApplyMessage(null);
-    setApplyError(null);
+    setDeployError(null);
     try {
       const r = await fetch(`${API}/api/system/update/check`, { credentials: 'include' });
       const j = (await r.json()) as CheckResponse;
@@ -116,27 +451,58 @@ export default function SoftwareUpdatePage() {
     }
   }, []);
 
-  const runApply = useCallback(async () => {
-    setApplyLoading(true);
-    setApplyMessage(null);
-    setApplyError(null);
+  const runDeploy = useCallback(async (options?: { buildFallback?: boolean }) => {
+    setDeploying(true);
+    setDeployEvents([]);
+    setDeployError(null);
+
+    // Signal the overlay that an update is starting
+    signalServerTransitionPending('update');
+
     try {
       const r = await fetch(`${API}/api/system/update/apply`, {
         method: 'POST',
         credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ buildFallback: options?.buildFallback }),
       });
       const j = (await r.json()) as { ok?: boolean; message?: string; error?: string };
-      if (r.status === 202 && j.message) {
-        setApplyMessage(j.message);
+      if (!r.ok || !j.ok) {
+        setDeployError(j.error ?? 'Failed to start deployment');
+        setDeploying(false);
         return;
       }
-      setApplyError(j.error ?? r.statusText);
+      // Connect to SSE for progress
+      connectSSE();
     } catch (e) {
-      setApplyError(e instanceof Error ? e.message : 'Request failed');
-    } finally {
-      setApplyLoading(false);
+      setDeployError(e instanceof Error ? e.message : 'Request failed');
+      setDeploying(false);
     }
-  }, []);
+  }, [connectSSE]);
+
+  const runRollback = useCallback(async () => {
+    setDeploying(true);
+    setDeployEvents([]);
+    setDeployError(null);
+    signalServerTransitionPending('update');
+
+    try {
+      const r = await fetch(`${API}/api/system/update/rollback`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const j = (await r.json()) as { ok?: boolean; error?: string };
+      if (!r.ok || !j.ok) {
+        setDeployError(j.error ?? 'Failed to start rollback');
+        setDeploying(false);
+        return;
+      }
+      connectSSE();
+    } catch (e) {
+      setDeployError(e instanceof Error ? e.message : 'Request failed');
+      setDeploying(false);
+    }
+  }, [connectSSE]);
 
   if (!loading && !isAdmin) {
     return (
@@ -150,6 +516,11 @@ export default function SoftwareUpdatePage() {
       </div>
     );
   }
+
+  const lastDeployEvent = deployEvents[deployEvents.length - 1];
+  const deployDone = lastDeployEvent?.stage === 'done';
+  const deployFailed = lastDeployEvent?.status === 'failed';
+  const showProgress = deploying || deployEvents.length > 0;
 
   return (
     <div className="max-w-2xl mx-auto p-4 lg:p-6">
@@ -171,16 +542,77 @@ export default function SoftwareUpdatePage() {
       </div>
 
       <p className="text-sm mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-        Compare the checkout on this hub with <span className="font-mono">origin/main</span>. Applying an update pulls
-        latest code and rebuilds the backend and frontend containers. Use when you are ready — not on a fixed schedule.
+        Compare the local checkout with <span className="font-mono">origin/main</span>. Updates pull pre-built Docker
+        images from the CI/CD pipeline and restart services. Falls back to building from source if images are
+        unavailable.
       </p>
 
+      {/* Deployment progress panel */}
+      {showProgress && (
+        <Card className="p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            {deploying ? (
+              <Loader2 className="h-5 w-5 animate-spin" style={{ color: 'var(--color-accent)' }} />
+            ) : deployFailed ? (
+              <XCircle className="h-5 w-5" style={{ color: 'var(--color-danger)' }} />
+            ) : (
+              <CheckCircle2 className="h-5 w-5" style={{ color: 'var(--color-success)' }} />
+            )}
+            <h2 className="text-sm font-semibold">
+              {deploying
+                ? 'Deploying...'
+                : deployFailed
+                  ? 'Deployment failed'
+                  : 'Deployment complete'}
+            </h2>
+          </div>
+          <DeployProgress events={deployEvents} isConnected={sseConnected} />
+
+          {/* Post-deploy actions */}
+          {deployDone && !deploying && (
+            <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
+              {deployFailed && (
+                <button
+                  type="button"
+                  onClick={() => void runRollback()}
+                  className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border transition-colors"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--color-danger) 12%, transparent)',
+                    borderColor: 'var(--color-danger)',
+                    color: 'var(--color-danger)',
+                  }}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Rollback to previous version
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setDeployEvents([]);
+                  setDeploying(false);
+                }}
+                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border transition-colors"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)',
+                }}
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Check for updates panel */}
       <Card className="p-4 mb-4 space-y-4">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => void runCheck()}
-            disabled={checkLoading}
+            disabled={checkLoading || deploying}
             className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border transition-colors disabled:opacity-50"
             style={{
               backgroundColor: 'var(--color-bg-secondary)',
@@ -214,23 +646,41 @@ export default function SoftwareUpdatePage() {
 
         {check?.checkSupported && (
           <div className="space-y-4 text-sm">
-            <DeployRefBlock
-              title="Running"
-              info={check.running}
-              shaFallback={check.currentSha}
-            />
-            <DeployRefBlock
-              title="origin/main"
-              info={check.remote}
-              shaFallback={check.remoteSha}
-            />
+            <DeployRefBlock title="Running" info={check.running} shaFallback={check.currentSha} />
+            <DeployRefBlock title="origin/main" info={check.remote} shaFallback={check.remoteSha} />
 
             {!check.updateAvailable ? (
-              <p style={{ color: 'var(--color-success)' }}>You are up to date with origin/main.</p>
+              <>
+                <p style={{ color: 'var(--color-success)' }}>
+                  You are on the latest commit from <span className="font-mono">origin/main</span>.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void runDeploy({ buildFallback: true })}
+                    disabled={deploying}
+                    className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border transition-colors disabled:opacity-50"
+                    style={{
+                      backgroundColor: 'rgba(234, 88, 12, 0.2)',
+                      borderColor: 'var(--color-accent)',
+                      color: 'var(--color-accent)',
+                    }}
+                  >
+                    {deploying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    Rebuild all containers
+                  </button>
+                </div>
+                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  Rebuilds from source (no git pull). Use when Docker images differ from the current checkout.
+                </p>
+              </>
             ) : (
               <>
                 <p style={{ color: 'var(--color-text)' }}>New commits on the server&apos;s remote branch:</p>
-                <ul className="space-y-2 border rounded-lg p-3 max-h-72 overflow-auto" style={{ borderColor: 'var(--color-border)' }}>
+                <ul
+                  className="space-y-2 border rounded-lg p-3 max-h-72 overflow-auto"
+                  style={{ borderColor: 'var(--color-border)' }}
+                >
                   {(check.commits ?? []).map((c) => (
                     <li key={c.hash} className="text-xs leading-snug">
                       <div className="font-mono text-[11px] opacity-80">{c.hash.slice(0, 7)}</div>
@@ -241,8 +691,8 @@ export default function SoftwareUpdatePage() {
                 </ul>
                 <button
                   type="button"
-                  onClick={() => void runApply()}
-                  disabled={applyLoading}
+                  onClick={() => void runDeploy()}
+                  disabled={deploying}
                   className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border transition-colors disabled:opacity-50"
                   style={{
                     backgroundColor: 'rgba(234, 88, 12, 0.2)',
@@ -250,12 +700,12 @@ export default function SoftwareUpdatePage() {
                     color: 'var(--color-accent)',
                   }}
                 >
-                  {applyLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                  Install update now
+                  {deploying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  Install update
                 </button>
                 <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                  Runs the same script as a manual server deploy (`scripts/update.sh`): pull, rebuild containers, and
-                  health checks. The page may disconnect briefly.
+                  Pulls pre-built Docker images from CI/CD and restarts services. Falls back to building from source
+                  if images are unavailable. Progress is streamed in real time above.
                 </p>
               </>
             )}
@@ -263,15 +713,17 @@ export default function SoftwareUpdatePage() {
         )}
       </Card>
 
-      {applyMessage && (
-        <p className="text-sm mb-2" style={{ color: 'var(--color-success)' }}>
-          {applyMessage}
-        </p>
-      )}
-      {applyError && (
-        <p className="text-sm mb-2" style={{ color: 'var(--color-danger)' }}>
-          {applyError}
-        </p>
+      {deployError && (
+        <div
+          className="flex gap-2 rounded-lg px-3 py-2 text-sm mb-4"
+          style={{
+            background: 'color-mix(in srgb, var(--color-danger) 12%, transparent)',
+            color: 'var(--color-danger)',
+          }}
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>{deployError}</span>
+        </div>
       )}
     </div>
   );
