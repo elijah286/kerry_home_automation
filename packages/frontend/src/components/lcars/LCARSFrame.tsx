@@ -274,7 +274,9 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         boxSizing: 'border-box',
         pointerEvents: 'auto',
         background: '#000',
-        boxShadow: 'inset 2px 0 0 rgba(255,255,255,0.07)',
+        border: 'none',
+        outline: 'none',
+        boxShadow: 'none',
       }}
     >
       <div

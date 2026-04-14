@@ -184,7 +184,9 @@ export function SystemTerminalDock({
   return (
     <div
       className={clsx(
-        'fixed z-[45] flex flex-col shadow-2xl',
+        'fixed z-[45] flex flex-col',
+        /* Avoid visible seam next to LCARS filter rail — shadow reads as a gray frame on black */
+        isLCARS && placement === 'top' && rightInsetPx > 0 ? 'shadow-none' : 'shadow-2xl',
         placement === 'top'
           ? lcarsTopStackedChrome
             ? ''
