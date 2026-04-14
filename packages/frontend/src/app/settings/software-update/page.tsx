@@ -341,14 +341,18 @@ export default function SoftwareUpdatePage() {
         const r = await fetch(`${API}/api/system/update/status`, { credentials: 'include' });
         if (!r.ok || cancelled) return;
         const status = (await r.json()) as UpdateStatus;
-        if (status.inProgress || (status.stages.length > 0 && !status.finalStatus)) {
+        if (status.inProgress) {
+          // Backend confirms a deploy is actively running right now
           setDeploying(true);
           setDeployEvents(status.stages);
           connectSSE();
         } else if (status.finalStatus && status.stages.length > 0) {
-          // Show the results of the last deployment
+          // Show the results of the last completed/failed deployment
           setDeployEvents(status.stages);
         }
+        // If stages exist but no finalStatus and NOT inProgress, the deploy was
+        // interrupted (e.g. the backend restarted and the script is long gone).
+        // Don't show stale progress — the user can trigger a new deploy.
       } catch {
         // API not available — ignore
       }
