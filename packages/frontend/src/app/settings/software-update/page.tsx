@@ -43,6 +43,8 @@ interface CheckResponse {
   checkSupported: boolean;
   reason?: string;
   updateAvailable?: boolean;
+  /** True when the running version comes from build-info.json (reliable). False for pre-CI containers. */
+  containerVersionKnown?: boolean;
   currentSha?: string;
   remoteSha?: string;
   running?: DeployRefInfo;
@@ -542,9 +544,8 @@ export default function SoftwareUpdatePage() {
       </div>
 
       <p className="text-sm mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-        Compare the local checkout with <span className="font-mono">origin/main</span>. Updates pull pre-built Docker
-        images from the CI/CD pipeline and restart services. Falls back to building from source if images are
-        unavailable.
+        Compare the running containers against <span className="font-mono">origin/main</span>. Updates pull pre-built
+        Docker images from the CI/CD pipeline and restart services.
       </p>
 
       {/* Deployment progress panel */}
@@ -652,8 +653,23 @@ export default function SoftwareUpdatePage() {
             {!check.updateAvailable ? (
               <>
                 <p style={{ color: 'var(--color-success)' }}>
-                  You are on the latest commit from <span className="font-mono">origin/main</span>.
+                  You are up to date.
                 </p>
+                {check.containerVersionKnown === false && (
+                  <div
+                    className="flex gap-2 rounded-lg px-3 py-2 text-sm"
+                    style={{
+                      background: 'color-mix(in srgb, var(--color-warning, #f59e0b) 12%, transparent)',
+                      color: 'var(--color-warning, #f59e0b)',
+                    }}
+                  >
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>
+                      The running container version could not be verified (pre-CI build).
+                      If you recently pushed new code, click <strong>Rebuild containers</strong> to apply it.
+                    </span>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -667,12 +683,9 @@ export default function SoftwareUpdatePage() {
                     }}
                   >
                     {deploying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                    Rebuild all containers
+                    Rebuild containers
                   </button>
                 </div>
-                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                  Rebuilds from source (no git pull). Use when Docker images differ from the current checkout.
-                </p>
               </>
             ) : (
               <>
@@ -704,8 +717,7 @@ export default function SoftwareUpdatePage() {
                   Install update
                 </button>
                 <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                  Pulls pre-built Docker images from CI/CD and restarts services. Falls back to building from source
-                  if images are unavailable. Progress is streamed in real time above.
+                  Pulls pre-built Docker images from CI/CD and restarts services. Progress streams in real time above.
                 </p>
               </>
             )}

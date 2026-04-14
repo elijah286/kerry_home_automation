@@ -15,6 +15,7 @@ import { requirePermission, requireRole } from './auth.js';
 import { automationEngine } from '../automations/engine.js';
 import { getLogEntries, subscribeLogs, type LogEntry } from '../log-buffer.js';
 import { gitProcessEnv } from '../git-env.js';
+import { buildInfo } from '../build-version.js';
 import {
   startDeploy,
   startRollback,
@@ -303,8 +304,22 @@ async function gitIsAncestor(root: string, ancestor: string, descendant: string)
 
 export function registerSystemRoutes(app: FastifyInstance): void {
 
-  // GET /api/system/app-version — workspace `app-version.json` (same tree as git); public for header badge
+  // GET /api/system/app-version — the *running* container version; public for header badge.
+  // Prefers the build-time version baked into the Docker image (build-info.json) so that
+  // a `git pull` on the host doesn't make the header show a version the containers aren't
+  // actually running.
   app.get('/api/system/app-version', async (_req, reply) => {
+    if (buildInfo.version) {
+      const parts = buildInfo.version.replace(/^v/, '').split('.');
+      return {
+        versionLabel: buildInfo.version,
+        major: parseInt(parts[0] ?? '0', 10),
+        minor: parseInt(parts[1] ?? '0', 10),
+        patch: parseInt(parts[2] ?? '0', 10),
+      };
+    }
+    // Fallback for pre-CI containers: read from the mounted workspace.
+    // NOTE: this may be wrong after `git pull` without a container rebuild.
     const root = appConfig.deploy.appRoot;
     const meta = await readAppVersionFromWorkspace(root);
     if (!meta) {
@@ -385,7 +400,7 @@ export function registerSystemRoutes(app: FastifyInstance): void {
     });
   });
 
-  // GET /api/system/update/check — git fetch + commits on origin/main not in HEAD (admin)
+  // GET /api/system/update/check — git fetch + compare running container version vs origin/main (admin)
   app.get('/api/system/update/check', { preHandler: adminOnly }, async (_req, reply) => {
     const root = appConfig.deploy.appRoot;
     const gitDir = join(root, '.git');
@@ -398,29 +413,105 @@ export function registerSystemRoutes(app: FastifyInstance): void {
     }
     try {
       await execGit(['fetch', 'origin', 'main'], root);
-      const currentSha = await execGit(['rev-parse', 'HEAD'], root);
+      const headSha = await execGit(['rev-parse', 'HEAD'], root);
       const remoteSha = await execGit(['rev-parse', 'origin/main'], root);
-      const updateAvailable = currentSha !== remoteSha;
-      const [runningMeta, remoteMeta] = await Promise.all([
-        describeDeployRef(root, 'HEAD'),
-        describeDeployRef(root, 'origin/main'),
-      ]);
+      const remoteMeta = await describeDeployRef(root, 'origin/main');
+
+      // -----------------------------------------------------------------------
+      // Determine the ACTUAL running container version.
+      //
+      // buildInfo.version comes from /app/build-info.json which is baked into the
+      // Docker image at build time. It doesn't change when the host runs `git pull`.
+      //
+      // When buildInfo is unavailable (pre-CI containers), we fall back to git HEAD
+      // which may be inaccurate if git was pulled without rebuilding containers.
+      // -----------------------------------------------------------------------
+      let runningSha: string;
+      let runningVersionLabel: string | null;
+      let runningDescription: string;
+      const containerVersionKnown = !!buildInfo.version;
+
+      if (buildInfo.version) {
+        runningVersionLabel = buildInfo.version;
+        runningSha = buildInfo.sha || headSha;
+        // Try to get the commit description for the running SHA
+        if (buildInfo.sha) {
+          try {
+            runningDescription = (await readCommitSubject(root, buildInfo.sha)).trim() || buildInfo.version;
+          } catch {
+            runningDescription = buildInfo.version;
+          }
+        } else {
+          runningDescription = buildInfo.version;
+        }
+      } else {
+        // Fallback for pre-CI containers
+        const headMeta = await describeDeployRef(root, 'HEAD');
+        runningVersionLabel = headMeta.versionLabel;
+        runningSha = headSha;
+        runningDescription = headMeta.description;
+      }
+
+      // -----------------------------------------------------------------------
+      // Decide whether an update is available.
+      // -----------------------------------------------------------------------
+      let updateAvailable: boolean;
+      if (containerVersionKnown && remoteMeta.versionLabel) {
+        // Reliable: compare the baked container version vs the remote version
+        updateAvailable = buildInfo.version !== remoteMeta.versionLabel;
+      } else {
+        // Fallback: compare git SHAs (may be wrong after git pull without rebuild)
+        updateAvailable = headSha !== remoteSha;
+      }
+
+      // -----------------------------------------------------------------------
+      // Collect commit list when there's something new on origin/main
+      // -----------------------------------------------------------------------
       const commits: { hash: string; subject: string; date: string }[] = [];
       let versionBumpSegments: VersionBumpSegment[] = [];
       let combinedUpgradeSummary = '';
+
+      // Use the running SHA as the base (not HEAD) so we show all commits since the container was built
+      const rangeBase = buildInfo.sha || headSha;
+      const rangeExpr = `${rangeBase}..origin/main`;
+
       if (updateAvailable) {
-        const logOut = await execGit(
-          ['log', '--no-color', '-n', '40', '--format=%H%x09%s%x09%ci', 'HEAD..origin/main'],
-          root,
-        );
-        for (const line of logOut.split('\n')) {
-          if (!line.trim()) continue;
-          const [hash, subject, date] = line.split('\t');
-          if (hash && subject && date) {
-            commits.push({ hash, subject, date });
+        try {
+          const logOut = await execGit(
+            ['log', '--no-color', '-n', '40', '--format=%H%x09%s%x09%ci', rangeExpr],
+            root,
+          );
+          for (const line of logOut.split('\n')) {
+            if (!line.trim()) continue;
+            const [hash, subject, date] = line.split('\t');
+            if (hash && subject && date) {
+              commits.push({ hash, subject, date });
+            }
+          }
+        } catch {
+          // The build SHA might not be in the local checkout (shallow fetch); fall back to HEAD range
+          if (rangeBase !== headSha) {
+            try {
+              const logOut = await execGit(
+                ['log', '--no-color', '-n', '40', '--format=%H%x09%s%x09%ci', `HEAD..origin/main`],
+                root,
+              );
+              for (const line of logOut.split('\n')) {
+                if (!line.trim()) continue;
+                const [hash, subject, date] = line.split('\t');
+                if (hash && subject && date) {
+                  commits.push({ hash, subject, date });
+                }
+              }
+            } catch { /* no commits to list */ }
           }
         }
-        versionBumpSegments = await getVersionBumpSegmentsInRange(root, 'HEAD..origin/main');
+
+        try {
+          versionBumpSegments = await getVersionBumpSegmentsInRange(root, rangeExpr);
+        } catch {
+          // Gracefully degrade if the range doesn't resolve
+        }
         combinedUpgradeSummary = formatCombinedUpgradeSummary(versionBumpSegments);
         if (!combinedUpgradeSummary.trim() && commits.length > 0) {
           combinedUpgradeSummary = commits
@@ -430,15 +521,17 @@ export function registerSystemRoutes(app: FastifyInstance): void {
             .join('\n');
         }
       }
+
       return {
         checkSupported: true,
         updateAvailable,
-        currentSha,
+        containerVersionKnown,
+        currentSha: headSha,
         remoteSha,
         running: {
-          sha: currentSha,
-          versionLabel: runningMeta.versionLabel,
-          description: runningMeta.description,
+          sha: runningSha,
+          versionLabel: runningVersionLabel,
+          description: runningDescription,
         },
         remote: {
           sha: remoteSha,
