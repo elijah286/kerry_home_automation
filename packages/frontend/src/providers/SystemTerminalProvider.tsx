@@ -16,6 +16,7 @@ import { useSystemLogErrorAlert } from '@/hooks/useSystemLogErrorAlert';
 
 const STORAGE_SHOW_NAV = 'ha-ui-show-terminal-nav';
 const STORAGE_LOG_DETAIL = 'ha-ui-terminal-log-detail';
+const STORAGE_LCARS_STATUS_FULL = 'ha-ui-lcars-status-fullscreen';
 
 export const TERMINAL_PANEL_HEIGHT = 200;
 
@@ -45,6 +46,9 @@ interface SystemTerminalContextValue {
   setLogAutoScroll: (v: boolean) => void;
   /** Error/fatal in system log within the last 5 minutes — highlight Status control. */
   hasRecentLogError: boolean;
+  /** LCARS: status terminal fills the main content column (hides top chrome). */
+  statusLcarsFullscreen: boolean;
+  setStatusLcarsFullscreen: (v: boolean) => void;
 }
 
 const SystemTerminalContext = createContext<SystemTerminalContextValue | null>(null);
@@ -68,6 +72,7 @@ export function SystemTerminalProvider({
   const [logFilter, setLogFilter] = useState<TerminalLogFilter>('all');
   const [logDetailStyle, setLogDetailStyleState] = useState<TerminalLogDetailStyle>('terminal');
   const [logAutoScroll, setLogAutoScroll] = useState(true);
+  const [statusLcarsFullscreen, setStatusLcarsFullscreenState] = useState(false);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_SHOW_NAV);
@@ -79,6 +84,26 @@ export function SystemTerminalProvider({
     const raw = localStorage.getItem(STORAGE_LOG_DETAIL);
     if (raw === 'digest' || raw === 'terminal') setLogDetailStyleState(raw);
   }, []);
+
+  useEffect(() => {
+    if (terminalDockPlacement !== 'top') return;
+    const raw = localStorage.getItem(STORAGE_LCARS_STATUS_FULL);
+    if (raw === 'true') setStatusLcarsFullscreenState(true);
+  }, [terminalDockPlacement]);
+
+  useEffect(() => {
+    if (!open) {
+      setStatusLcarsFullscreenState(false);
+      localStorage.setItem(STORAGE_LCARS_STATUS_FULL, 'false');
+    }
+  }, [open]);
+
+  const setStatusLcarsFullscreen = useCallback((v: boolean) => {
+    setStatusLcarsFullscreenState(v);
+    if (terminalDockPlacement === 'top') {
+      localStorage.setItem(STORAGE_LCARS_STATUS_FULL, String(v));
+    }
+  }, [terminalDockPlacement]);
 
   const setShowNavButton = useCallback((v: boolean) => {
     setShowNavButtonState(v);
@@ -105,6 +130,8 @@ export function SystemTerminalProvider({
       logAutoScroll,
       setLogAutoScroll,
       hasRecentLogError,
+      statusLcarsFullscreen,
+      setStatusLcarsFullscreen,
     }),
     [
       canUse,
@@ -117,6 +144,8 @@ export function SystemTerminalProvider({
       terminalDockPlacement,
       logAutoScroll,
       hasRecentLogError,
+      statusLcarsFullscreen,
+      setStatusLcarsFullscreen,
     ],
   );
 

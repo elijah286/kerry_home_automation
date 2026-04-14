@@ -145,6 +145,8 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
     setLogFilter,
     logDetailStyle,
     setLogDetailStyle,
+    statusLcarsFullscreen,
+    setStatusLcarsFullscreen,
   } = useSystemTerminal();
 
   const showTopTerminal = canUseTerminal && terminalOpen;
@@ -159,6 +161,9 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
   const [showStartup, setShowStartup] = useState(true);
   /** Status viewer band when terminal open: ~20% viewport, clamped for usability */
   const [statusViewerBandH, setStatusViewerBandH] = useState(TERMINAL_PANEL_HEIGHT);
+  const [viewportH, setViewportH] = useState(
+    typeof window !== 'undefined' ? window.innerHeight : 800,
+  );
 
   useEffect(() => {
     const syncBand = () => {
@@ -169,6 +174,13 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
     syncBand();
     window.addEventListener('resize', syncBand);
     return () => window.removeEventListener('resize', syncBand);
+  }, []);
+
+  useEffect(() => {
+    const sync = () => setViewportH(window.innerHeight);
+    sync();
+    window.addEventListener('resize', sync);
+    return () => window.removeEventListener('resize', sync);
   }, []);
 
   useEffect(() => {
@@ -214,6 +226,12 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
   const contentTop = mainChromeTop + HEADER_H + 2;
   const contentLeft = elbowW;
   const contentBottom = FOOTER_H + 2 + terminalInset;
+  const statusFullscreen = statusLcarsFullscreen && showTopTerminal;
+  /** Main column top offset (below header bar) — matches `<main>` when the header strip is visible. */
+  const MAIN_TOP = HEADER_H + 2;
+  const layoutMainChromeTop = statusFullscreen ? 0 : mainChromeTop;
+  const layoutContentTop = layoutMainChromeTop + HEADER_H + 2;
+  const fullscreenPanelH = Math.max(120, viewportH - layoutContentTop - contentBottom);
   const framePin = colors.verticalSegments[1] ?? colors.navColors[1] ?? '#cc99cc';
 
   const integList = Object.values(integrations);
@@ -226,6 +244,9 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
     { id: 'error', label: 'Err' },
   ];
 
+  const filterPanelTop = statusFullscreen ? MAIN_TOP : 0;
+  const filterPanelHeight = statusFullscreen ? fullscreenPanelH : logBandH;
+
   /** Rows: All|Warn, Info|Err, Full under left column — same pill size throughout. */
   const statusFilterButtons = showTopTerminal ? (
     <div
@@ -235,9 +256,9 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
       }}
       style={{
         position: 'fixed',
-        top: 0,
+        top: filterPanelTop,
         right: CONTENT_EDGE,
-        height: logBandH,
+        height: filterPanelHeight,
         zIndex: 46,
         display: 'flex',
         alignItems: 'center',
@@ -328,6 +349,43 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
           >
             Auto
           </button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 4 }}>
+          <button
+            type="button"
+            className={`lcars-btn lcars-btn--pill${statusFullscreen ? ' lcars-btn--active' : ''}`}
+            style={{
+              background: statusFullscreen ? colors.navActive : colors.muted,
+              minWidth: 88,
+              minHeight: 36,
+              fontSize: 12,
+            }}
+            aria-pressed={statusFullscreen}
+            aria-label={
+              statusFullscreen
+                ? 'Restore split layout — status band above page'
+                : 'Expand status log to fill the main content area'
+            }
+            onClick={() => setStatusLcarsFullscreen(!statusFullscreen)}
+          >
+            {statusFullscreen ? 'Split' : 'Full'}
+          </button>
+          {statusFullscreen ? (
+            <button
+              type="button"
+              className="lcars-btn lcars-btn--pill"
+              style={{
+                background: colors.muted,
+                minWidth: 88,
+                minHeight: 36,
+                fontSize: 12,
+              }}
+              aria-label="Close system status log"
+              onClick={() => setTerminalOpen(false)}
+            >
+              Close
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
@@ -523,7 +581,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
 
   const frameGeometry = useMemo(
     () => ({
-      contentTop,
+      contentTop: layoutContentTop,
       contentBottom,
       contentLeft,
       contentRight: CONTENT_EDGE,
@@ -533,17 +591,17 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
       footerH: FOOTER_H,
       showTopTerminal: !!showTopTerminal,
       topChromeH,
-      mainChromeTop,
+      mainChromeTop: layoutMainChromeTop,
     }),
     [
-      contentTop,
+      layoutContentTop,
       contentBottom,
       contentLeft,
       barW,
       elbowW,
       showTopTerminal,
       topChromeH,
-      mainChromeTop,
+      layoutMainChromeTop,
     ],
   );
 
@@ -569,7 +627,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
     >
       <LCARSAssistantInsetSync geometry={frameGeometry} framePin={framePin} />
 
-      {showTopTerminal && (
+      {showTopTerminal && !statusFullscreen && (
         <>
           {/* ===== SIDEBAR — "STATUS" label block, then gap, then elbow curves into separator ===== */}
           <div
@@ -713,8 +771,25 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         </>
       )}
 
+      {showTopTerminal && statusFullscreen && (
+        <>
+          <SystemTerminalDock
+            sidebarOffsetPx={elbowW}
+            onClose={() => setTerminalOpen(false)}
+            placement="top"
+            panelHeightPx={fullscreenPanelH}
+            topOffsetPx={MAIN_TOP}
+            lcarsTopStackedChrome={false}
+            lcarsFrameHandlesControls
+            onStatusInteraction={bumpStatusInteraction}
+            lcarsStatusAuto={{ flashPeriodMs, onAutoClick: onAutoButtonClick }}
+          />
+          {statusFilterButtons}
+        </>
+      )}
+
       <div className="lcars-elbow-top" style={{
-        position: 'fixed', top: mainChromeTop, left: 0, zIndex: 44, lineHeight: 0,
+        position: 'fixed', top: layoutMainChromeTop, left: 0, zIndex: 44, lineHeight: 0,
         transition: 'top 0.2s ease-out, left 0.2s ease-in-out',
       }}>
         <LCARSElbow
@@ -729,10 +804,11 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         />
       </div>
 
+      {!statusFullscreen && (
       <div
         className="lcars-header-bar lcars-cascade-1"
         style={{
-          position: 'fixed', top: mainChromeTop, right: 0,
+          position: 'fixed', top: layoutMainChromeTop, right: 0,
           left: elbowW,
           height: HEADER_H,
           zIndex: 41,
@@ -935,12 +1011,13 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
           </>
         )}
       </div>
+      )}
 
       <div
         className="lcars-vertical-rail lcars-chrome-item lcars-cascade-4"
         style={{
           position: 'fixed',
-          top: showTopTerminal ? mainChromeTop : 0,
+          top: showTopTerminal && !statusFullscreen ? layoutMainChromeTop : 0,
           bottom: bottomElbowH - RAIL_SEAM_OVERLAP,
           left: 0,
           width: barW,
@@ -996,7 +1073,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
 
       <main className="lcars-content" style={{
         position: 'fixed',
-        top: contentTop,
+        top: layoutContentTop,
         left: contentLeft,
         right: CONTENT_EDGE,
         bottom: contentBottom,
@@ -1005,6 +1082,8 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         overflowX: 'hidden',
         overflowY: 'auto',
         zIndex: 1,
+        opacity: statusFullscreen ? 0 : 1,
+        pointerEvents: statusFullscreen ? 'none' : 'auto',
         /* `absolute inset-0` recipe detail fills this box; min-height 0 helps nested flex scroll regions */
         minHeight: 0,
         transition: 'top 0.2s ease-out, left 0.2s ease-in-out, bottom 0.2s ease-out, border-color 0.3s ease, background 0.3s ease',

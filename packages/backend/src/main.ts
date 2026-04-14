@@ -9,12 +9,13 @@ import { startServer } from './api/server.js';
 import { registry } from './integrations/registry.js';
 import { stateStore } from './state/store.js';
 import { redis } from './state/redis.js';
-import { connectDb, closeDb } from './db/pool.js';
+import { connectDb, closeDb, query } from './db/pool.js';
 import { runMigrations } from './db/migrate.js';
 import { migrateFromRedis } from './db/integration-config-store.js';
 import { historyWriter } from './db/history-writer.js';
 import * as entryStore from './db/integration-entry-store.js';
-import { query } from './db/pool.js';
+import { readFile } from 'node:fs/promises';
+import * as os from 'node:os';
 
 // Integrations
 import { LutronIntegration } from './integrations/lutron/index.js';
@@ -141,6 +142,21 @@ async function main() {
 
   // 7. Start HTTP + WS server
   const server = await startServer();
+
+  // Visible in the status terminal: kernel boot id changes after a full system reboot (Linux).
+  try {
+    const bootId = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
+    const hostUptimeSec = Math.floor(os.uptime());
+    logger.info(
+      { bootId, hostUptimeSec },
+      `Host kernel session — uptime ${hostUptimeSec}s (new boot id after a full system reboot)`,
+    );
+  } catch {
+    logger.info(
+      { hostUptimeSec: Math.floor(os.uptime()) },
+      'Backend process started (host boot id unavailable on this OS)',
+    );
+  }
 
   // 8. Start state history writer
   historyWriter.start();
