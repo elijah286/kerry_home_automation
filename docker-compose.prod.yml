@@ -57,6 +57,11 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    # Mount the live git checkout + Docker socket so Settings → Software update can run scripts/update.sh.
+    # Set HA_APP_ROOT on the host if the repo is not at /opt/home-automation.
+    volumes:
+      - ${HA_APP_ROOT:-/opt/home-automation}:/opt/home-automation
+      - /var/run/docker.sock:/var/run/docker.sock
     env_file:
       - .env
     environment:
@@ -66,6 +71,8 @@ services:
       PORT: 3000
       ROBOROCK_BRIDGE_URL: http://roborock-bridge:8765
       ROBOROCK_BRIDGE_SECRET: ${ROBOROCK_BRIDGE_SECRET:-change-me-roborock-bridge}
+      HA_APP_ROOT: ${HA_APP_ROOT:-/opt/home-automation}
+      HA_UPDATE_SCRIPT: ${HA_UPDATE_SCRIPT:-/opt/home-automation/scripts/update.sh}
     depends_on:
       postgres:
         condition: service_healthy

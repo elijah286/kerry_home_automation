@@ -5,7 +5,10 @@ import { getApiBase } from '@/lib/api-base';
 import { Loader2 } from 'lucide-react';
 
 const INTERVAL_MS = 4000;
-const FAIL_THRESHOLD = 2;
+/** Consecutive failed health polls before showing overlay when no deploy signal (avoids flapping). */
+const FAIL_THRESHOLD = 5;
+/** Faster overlay during a known deploy (nginx flag) while API is still down. */
+const FAIL_THRESHOLD_URGENT = 1;
 const OK_THRESHOLD = 2;
 
 /** Same host, default HTTP(S) port — used to read nginx maintenance JSON from :3001 UI. */
@@ -16,8 +19,11 @@ function getHostDefaultOrigin(): string {
 
 /**
  * Full-screen notice while the server is updating or the API is unreachable.
- * - Polls port 80 /ha-update-status.json (written by scripts/update.sh) for an early signal.
- * - Polls /api/health with debouncing so brief blips do not flash the overlay.
+ * - Polls port 80 /ha-update-status.json (written by scripts/update.sh) for an early deploy signal.
+ * - Always polls /api/health. If health is OK repeatedly, the overlay clears even when
+ *   ha-update-status.json is stale (script crashed before removing it).
+ * - Without the nginx flag, requires several consecutive health failures before showing
+ *   (avoids flashing on brief network blips).
  */
 export function UpdateInProgressOverlay() {
   const [visible, setVisible] = useState(false);
@@ -50,13 +56,6 @@ export function UpdateInProgressOverlay() {
 
       if (cancelled) return;
 
-      if (nginxUpdating) {
-        failRef.current = 0;
-        okRef.current = 0;
-        setVisible(true);
-        return;
-      }
-
       let healthOk = false;
       try {
         const r = await fetch(`${api}/api/health`, {
@@ -74,11 +73,13 @@ export function UpdateInProgressOverlay() {
         failRef.current = 0;
         okRef.current += 1;
         if (okRef.current >= OK_THRESHOLD) setVisible(false);
-      } else {
-        okRef.current = 0;
-        failRef.current += 1;
-        if (failRef.current >= FAIL_THRESHOLD) setVisible(true);
+        return;
       }
+
+      okRef.current = 0;
+      failRef.current += 1;
+      const needFails = nginxUpdating ? FAIL_THRESHOLD_URGENT : FAIL_THRESHOLD;
+      if (failRef.current >= needFails) setVisible(true);
     };
 
     void tick();

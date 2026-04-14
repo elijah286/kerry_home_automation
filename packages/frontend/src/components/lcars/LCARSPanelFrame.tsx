@@ -7,17 +7,21 @@ import { useLCARSVariant } from './LCARSVariantProvider';
 export function LCARSPanelCorner({
   fill,
   variant,
+  compact,
 }: {
   fill: string;
   variant: 'top' | 'bottom';
+  /** Shorter strip for dense rails (e.g. status log controls). */
+  compact?: boolean;
 }) {
-  const h = 36;
-  const w = 14;
+  const h = compact ? 26 : 36;
+  const w = compact ? 11 : 14;
+  const curve = compact ? 8 : 11;
   /** Bottom: rounds bottom-left of the strip; top: same geometry mirrored over X (horizontal axis in viewBox). */
   const d =
     variant === 'top'
-      ? `M ${w} ${h} L ${w} 0 L 11 0 Q 0 0 0 11 L 0 ${h} Z`
-      : `M ${w} 0 L ${w} ${h} L 11 ${h} Q 0 ${h} 0 ${h - 11} L 0 0 Z`;
+      ? `M ${w} ${h} L ${w} 0 L ${curve} 0 Q 0 0 0 ${curve} L 0 ${h} Z`
+      : `M ${w} 0 L ${w} ${h} L ${curve} ${h} Q 0 ${h} 0 ${h - curve} L 0 0 Z`;
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: 'block', flexShrink: 0 }} aria-hidden>
       <path d={d} fill={fill} />

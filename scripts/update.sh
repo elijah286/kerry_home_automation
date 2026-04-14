@@ -15,12 +15,18 @@
 # happens in this script as a last-resort recovery step. If nginx + deploy/standby are
 # installed, http://<server>/ (port 80) shows a static page while the app is unavailable;
 # during automated updates we temporarily swap in "software update in progress".
+#
+# Updates are NOT scheduled by default. Use Settings → Software update (or run this script
+# manually). To re-enable periodic pulls, see deploy/cron-home-automation.example.
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
 APP=/opt/home-automation
 LOG=/var/log/home-automation/update.log
 COMPOSE="docker compose -f $APP/docker-compose.prod.yml"
+if ! docker compose version >/dev/null 2>&1; then
+  COMPOSE="docker-compose -f $APP/docker-compose.prod.yml"
+fi
 MAX_LOG_LINES=500
 LOCK_FILE=/tmp/ha-update.lock
 

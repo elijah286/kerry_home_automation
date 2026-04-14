@@ -4,7 +4,7 @@ import { useMemo, createElement } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Settings, Palette, Clock, Puzzle, Users, ChevronRight, MapPin, Bot, Zap,
-  ToggleLeft, LayoutGrid, HardDrive, Server, UserCircle,
+  ToggleLeft, LayoutGrid, HardDrive, Server, UserCircle, Download,
 } from 'lucide-react';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -48,6 +48,13 @@ const groups: { title?: string; items: SettingsItem[] }[] = [
         icon: Server,
         label: 'System health',
         description: 'CPU, memory, disk, service restarts, and reloads',
+        adminOnly: true,
+      },
+      {
+        href: '/settings/software-update',
+        icon: Download,
+        label: 'Software update',
+        description: 'Check for new versions and install when you are ready',
         adminOnly: true,
       },
       { href: '/settings/llm', icon: Bot, label: 'LLM Integration', description: 'Configure AI assistant and API key' },

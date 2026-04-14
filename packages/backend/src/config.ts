@@ -64,5 +64,12 @@ export const appConfig = {
     envFilePath: process.env.ENV_FILE_PATH ?? resolve(__dirname, '../.env'),
     prodComposePath: process.env.PROD_COMPOSE_PATH ?? '/opt/home-automation/docker-compose.prod.yml',
   },
+
+  /** Host git checkout + update script (mounted into the backend container in production). */
+  deploy: {
+    appRoot: (process.env.HA_APP_ROOT ?? '/opt/home-automation').replace(/\/$/, ''),
+    updateScriptPath:
+      (process.env.HA_UPDATE_SCRIPT ?? '/opt/home-automation/scripts/update.sh').replace(/\/$/, ''),
+  },
 } as const;
 

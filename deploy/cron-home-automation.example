@@ -1,0 +1,11 @@
+# Periodic updates are OFF by default — use Settings → Software update (admin).
+#
+# To REMOVE an old every-5-minutes job on the server:
+#   sudo rm -f /etc/cron.d/home-automation
+#   # or: sudo crontab -e -u root   and delete the update.sh line
+#
+# To re-enable a schedule (not recommended), copy this file:
+#   sudo cp /opt/home-automation/deploy/cron-home-automation.example /etc/cron.d/home-automation
+#   sudo chmod 644 /etc/cron.d/home-automation
+#
+# */5 * * * * root /opt/home-automation/scripts/update.sh >> /var/log/home-automation/update.log 2>&1

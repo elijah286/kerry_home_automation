@@ -28,6 +28,7 @@ import { LCARSFrameProvider } from './LCARSFrameContext';
 import { FooterSlotProvider, useFooterSlot } from './LCARSFooterSlotContext';
 import { useLCARSSounds } from './LCARSSounds';
 import { useLcarsLogAutoScrollNudge } from './useLcarsLogAutoScrollNudge';
+import { LCARSPanelCorner } from './LCARSPanelFrame';
 
 export const BAR_W = 150;
 export const BAR_W_COLLAPSED = 56;
@@ -251,6 +252,8 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
 
   const filterPanelTop = statusFullscreen ? MAIN_TOP : 0;
   const filterPanelHeight = statusFullscreen ? fullscreenPanelH : logBandH;
+  const logControlsPanelAccent = colors.accent;
+  const logControlsPanelEndCap = colors.verticalSegments[1] ?? colors.navColors[1] ?? '#cc99cc';
 
   /** Right sidebar of the top status band: filter + Lines/Auto (log body uses matching right inset). */
   const statusFilterButtons = showTopTerminal ? (
@@ -268,10 +271,11 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         height: filterPanelHeight,
         zIndex: 46,
         display: 'flex',
+        flexDirection: statusFullscreen ? 'column' : 'row',
         alignItems: 'stretch',
-        justifyContent: 'center',
-        gap: 4,
-        padding: '14px 8px 12px',
+        justifyContent: statusFullscreen ? 'flex-start' : 'center',
+        gap: statusFullscreen ? 6 : 4,
+        padding: statusFullscreen ? '10px 8px 12px' : '14px 8px 12px',
         boxSizing: 'border-box',
         pointerEvents: 'auto',
         background: '#000',
@@ -280,13 +284,40 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         boxShadow: 'none',
       }}
     >
+      {statusFullscreen && (
+        <div
+          className="lcars-chrome-row flex w-full min-w-0 shrink-0 items-stretch"
+          style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))' }}
+        >
+          <LCARSPanelCorner fill={logControlsPanelAccent} variant="top" compact />
+          <div
+            className="lcars-panel-title lcars-chrome-item flex min-h-[26px] min-w-0 flex-1 items-center px-2 text-[9px] font-bold uppercase tracking-[0.16em]"
+            style={{
+              background: logControlsPanelAccent,
+              color: '#000',
+              fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)',
+            }}
+          >
+            <span className="truncate">Log Controls</span>
+          </div>
+          <div
+            className="lcars-chrome-item min-h-[26px] w-11 shrink-0 rounded-tr-[14px]"
+            style={{
+              background: logControlsPanelEndCap,
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
+            }}
+            aria-hidden
+          />
+        </div>
+      )}
       <div
         style={{
           display: 'flex',
           flexDirection: 'column',
           gap: 4,
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: statusFullscreen ? 'flex-end' : 'center',
           flex: 1,
           minHeight: 0,
           background: '#000',
