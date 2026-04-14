@@ -64,7 +64,14 @@ async function main() {
     if (parseInt(rows[0].count) === 0) {
       const bcrypt = await import('bcrypt');
       const crypto = await import('node:crypto');
-      const password = crypto.randomBytes(12).toString('base64url');
+      const fromEnv = process.env.ADMIN_INITIAL_PASSWORD?.trim();
+      const password =
+        fromEnv && fromEnv.length >= 8
+          ? fromEnv
+          : crypto.randomBytes(12).toString('base64url');
+      if (fromEnv && fromEnv.length < 8) {
+        logger.warn('ADMIN_INITIAL_PASSWORD is set but shorter than 8 chars — using random password instead');
+      }
       const hash = await bcrypt.default.hash(password, 12);
       const pin = String(1000 + Math.floor(Math.random() * 9000));
       const pinHash = await bcrypt.default.hash(pin, 12);
@@ -73,7 +80,11 @@ async function main() {
         [hash, pinHash],
       );
       logger.info('==========================================================');
-      logger.info(`  Admin user created — username: admin  password: ${password}`);
+      if (fromEnv && fromEnv.length >= 8) {
+        logger.info('  Admin user created — username: admin  (password from ADMIN_INITIAL_PASSWORD; not logged)');
+      } else {
+        logger.info(`  Admin user created — username: admin  password: ${password}`);
+      }
       logger.info(`  Elevation PIN (4 digits): ${pin}`);
       logger.info('==========================================================');
     }
