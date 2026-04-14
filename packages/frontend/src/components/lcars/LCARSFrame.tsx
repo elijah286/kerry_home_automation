@@ -227,8 +227,11 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
   const contentLeft = elbowW;
   const contentBottom = FOOTER_H + 2 + terminalInset;
   const statusFullscreen = statusLcarsFullscreen && showTopTerminal;
+  /** Stacked header row (footer bar in header) only when the top status band is visible — not in main-column fullscreen. */
+  const useSplitStyleHeaderRow = useStackedStatusChrome && !statusFullscreen;
   /** Main column top offset (below header bar) — matches `<main>` when the header strip is visible. */
   const MAIN_TOP = HEADER_H + 2;
+  /** Fullscreen log uses main column below the normal header strip (breadcrumb bar stays visible). */
   const layoutMainChromeTop = statusFullscreen ? 0 : mainChromeTop;
   const layoutContentTop = layoutMainChromeTop + HEADER_H + 2;
   const fullscreenPanelH = Math.max(120, viewportH - layoutContentTop - contentBottom);
@@ -257,19 +260,21 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
       style={{
         position: 'fixed',
         top: filterPanelTop,
+        left: elbowW,
         right: CONTENT_EDGE,
         height: filterPanelHeight,
         zIndex: 46,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'flex-end',
+        justifyContent: 'center',
         gap: 4,
-        padding: '8px 0',
+        padding: '18px 8px 12px',
+        boxSizing: 'border-box',
         pointerEvents: 'auto',
       }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <div style={{ display: 'flex', flexDirection: 'row', gap: 4 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
           {[STATUS_FILTERS[0], STATUS_FILTERS[2]].map(({ id, label }) => (
             <button
               key={id}
@@ -287,7 +292,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'row', gap: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
           {[STATUS_FILTERS[1], STATUS_FILTERS[3]].map(({ id, label }) => (
             <button
               key={id}
@@ -305,7 +310,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'row', gap: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
           <button
             type="button"
             className={`lcars-btn lcars-btn--pill${logDetailStyle === 'terminal' ? ' lcars-btn--active' : ''}`}
@@ -322,7 +327,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
             }
             onClick={toggleLogDetailStyle}
           >
-            {logDetailStyle === 'terminal' ? 'Short' : 'Full'}
+            {logDetailStyle === 'terminal' ? 'Digest' : 'Lines'}
           </button>
           <button
             type="button"
@@ -349,43 +354,6 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
           >
             Auto
           </button>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'row', gap: 4 }}>
-          <button
-            type="button"
-            className={`lcars-btn lcars-btn--pill${statusFullscreen ? ' lcars-btn--active' : ''}`}
-            style={{
-              background: statusFullscreen ? colors.navActive : colors.muted,
-              minWidth: 88,
-              minHeight: 36,
-              fontSize: 12,
-            }}
-            aria-pressed={statusFullscreen}
-            aria-label={
-              statusFullscreen
-                ? 'Restore split layout — status band above page'
-                : 'Expand status log to fill the main content area'
-            }
-            onClick={() => setStatusLcarsFullscreen(!statusFullscreen)}
-          >
-            {statusFullscreen ? 'Split' : 'Full'}
-          </button>
-          {statusFullscreen ? (
-            <button
-              type="button"
-              className="lcars-btn lcars-btn--pill"
-              style={{
-                background: colors.muted,
-                minWidth: 88,
-                minHeight: 36,
-                fontSize: 12,
-              }}
-              aria-label="Close system status log"
-              onClick={() => setTerminalOpen(false)}
-            >
-              Close
-            </button>
-          ) : null}
         </div>
       </div>
     </div>
@@ -631,7 +599,6 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         <>
           {/* ===== SIDEBAR — "STATUS" label block, then gap, then elbow curves into separator ===== */}
           <div
-            aria-hidden
             className="lcars-status-sidebar-cap lcars-sidebar-cap lcars-chrome-item"
             style={{
               position: 'fixed',
@@ -646,24 +613,42 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
               transition: 'height 0.2s ease-out, width 0.2s ease-in-out, background 0.3s ease',
               display: 'flex',
               flexDirection: 'column',
-              justifyContent: 'flex-end',
-              padding: '7px 6px 6px',
+              justifyContent: 'center',
+              padding: '10px 6px 8px',
               boxSizing: 'border-box',
+              gap: 6,
             }}
           >
-            <span
+            <button
+              type="button"
+              className="lcars-btn lcars-btn--pill"
               style={{
+                background: colors.muted,
                 color: colors.text,
-                fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
-                fontWeight: 700,
-                fontSize: collapsed ? 10 : 11,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                textAlign: 'right',
+                minHeight: 32,
+                fontSize: collapsed ? 9 : 10,
+                letterSpacing: '0.06em',
+                width: '100%',
               }}
+              onClick={() => setTerminalOpen(false)}
             >
-              {collapsed ? 'STA' : 'Status'}
-            </span>
+              {collapsed ? 'Off' : 'Hide log'}
+            </button>
+            <button
+              type="button"
+              className="lcars-btn lcars-btn--pill"
+              style={{
+                background: colors.muted,
+                color: colors.text,
+                minHeight: 32,
+                fontSize: collapsed ? 9 : 10,
+                letterSpacing: '0.06em',
+                width: '100%',
+              }}
+              onClick={() => setStatusLcarsFullscreen(true)}
+            >
+              {collapsed ? 'Fill' : 'Full screen'}
+            </button>
           </div>
 
           {/* ===== STATUS BODY — log scroller + filter buttons overlay ===== */}
@@ -773,6 +758,57 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
 
       {showTopTerminal && statusFullscreen && (
         <>
+          <div
+            className="lcars-status-sidebar-cap lcars-sidebar-cap lcars-chrome-item"
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: barW,
+              height: Math.min(120, Math.max(88, fullscreenPanelH * 0.14)),
+              zIndex: 43,
+              background: colors.verticalSegments[0] ?? colors.elbowTop,
+              boxShadow: 'inset -2px 0 8px rgba(0,0,0,0.28)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              padding: '10px 6px 8px',
+              boxSizing: 'border-box',
+              gap: 6,
+            }}
+          >
+            <button
+              type="button"
+              className="lcars-btn lcars-btn--pill"
+              style={{
+                background: colors.muted,
+                color: colors.text,
+                minHeight: 32,
+                fontSize: collapsed ? 9 : 10,
+                letterSpacing: '0.06em',
+                width: '100%',
+              }}
+              onClick={() => setTerminalOpen(false)}
+            >
+              {collapsed ? 'Off' : 'Hide log'}
+            </button>
+            <button
+              type="button"
+              className="lcars-btn lcars-btn--pill lcars-btn--active"
+              style={{
+                background: colors.navActive,
+                color: colors.text,
+                minHeight: 32,
+                fontSize: collapsed ? 9 : 10,
+                letterSpacing: '0.06em',
+                width: '100%',
+              }}
+              aria-pressed
+              onClick={() => setStatusLcarsFullscreen(false)}
+            >
+              {collapsed ? 'Split' : 'Split view'}
+            </button>
+          </div>
           <SystemTerminalDock
             sidebarOffsetPx={elbowW}
             onClose={() => setTerminalOpen(false)}
@@ -804,7 +840,6 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         />
       </div>
 
-      {!statusFullscreen && (
       <div
         className="lcars-header-bar lcars-cascade-1"
         style={{
@@ -818,7 +853,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
           transition: 'top 0.2s ease-out, left 0.2s ease-in-out',
         }}
       >
-        {useStackedStatusChrome ? (
+        {useSplitStyleHeaderRow ? (
           <LcarsFooterStyleBarRow
             colors={colors}
             height={HEADER_H}
@@ -1011,7 +1046,6 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
           </>
         )}
       </div>
-      )}
 
       <div
         className="lcars-vertical-rail lcars-chrome-item lcars-cascade-4"

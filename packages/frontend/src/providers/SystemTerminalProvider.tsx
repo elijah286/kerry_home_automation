@@ -16,7 +16,8 @@ import { useSystemLogErrorAlert } from '@/hooks/useSystemLogErrorAlert';
 
 const STORAGE_SHOW_NAV = 'ha-ui-show-terminal-nav';
 const STORAGE_LOG_DETAIL = 'ha-ui-terminal-log-detail';
-const STORAGE_LCARS_STATUS_FULL = 'ha-ui-lcars-status-fullscreen';
+/** Terminal log expanded into main column (LCARS top dock or standard bottom dock). */
+const STORAGE_TERMINAL_MAIN_COLUMN = 'ha-ui-lcars-status-fullscreen';
 
 export const TERMINAL_PANEL_HEIGHT = 200;
 
@@ -49,6 +50,8 @@ interface SystemTerminalContextValue {
   /** LCARS: status terminal fills the main content column (hides top chrome). */
   statusLcarsFullscreen: boolean;
   setStatusLcarsFullscreen: (v: boolean) => void;
+  /** Bottom-dock terminal height when expanded (standard theme). */
+  bottomDockHeightPx: number;
 }
 
 const SystemTerminalContext = createContext<SystemTerminalContextValue | null>(null);
@@ -73,6 +76,7 @@ export function SystemTerminalProvider({
   const [logDetailStyle, setLogDetailStyleState] = useState<TerminalLogDetailStyle>('terminal');
   const [logAutoScroll, setLogAutoScroll] = useState(true);
   const [statusLcarsFullscreen, setStatusLcarsFullscreenState] = useState(false);
+  const [bottomDockHeightPx, setBottomDockHeightPx] = useState(TERMINAL_PANEL_HEIGHT);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_SHOW_NAV);
@@ -86,24 +90,32 @@ export function SystemTerminalProvider({
   }, []);
 
   useEffect(() => {
-    if (terminalDockPlacement !== 'top') return;
-    const raw = localStorage.getItem(STORAGE_LCARS_STATUS_FULL);
+    const raw = localStorage.getItem(STORAGE_TERMINAL_MAIN_COLUMN);
     if (raw === 'true') setStatusLcarsFullscreenState(true);
-  }, [terminalDockPlacement]);
+  }, []);
 
   useEffect(() => {
     if (!open) {
       setStatusLcarsFullscreenState(false);
-      localStorage.setItem(STORAGE_LCARS_STATUS_FULL, 'false');
+      localStorage.setItem(STORAGE_TERMINAL_MAIN_COLUMN, 'false');
     }
   }, [open]);
 
+  useEffect(() => {
+    if (terminalDockPlacement !== 'bottom' || !open || !statusLcarsFullscreen) {
+      setBottomDockHeightPx(TERMINAL_PANEL_HEIGHT);
+      return;
+    }
+    const sync = () => setBottomDockHeightPx(Math.max(260, window.innerHeight - 100));
+    sync();
+    window.addEventListener('resize', sync);
+    return () => window.removeEventListener('resize', sync);
+  }, [terminalDockPlacement, open, statusLcarsFullscreen]);
+
   const setStatusLcarsFullscreen = useCallback((v: boolean) => {
     setStatusLcarsFullscreenState(v);
-    if (terminalDockPlacement === 'top') {
-      localStorage.setItem(STORAGE_LCARS_STATUS_FULL, String(v));
-    }
-  }, [terminalDockPlacement]);
+    localStorage.setItem(STORAGE_TERMINAL_MAIN_COLUMN, String(v));
+  }, []);
 
   const setShowNavButton = useCallback((v: boolean) => {
     setShowNavButtonState(v);
@@ -132,6 +144,7 @@ export function SystemTerminalProvider({
       hasRecentLogError,
       statusLcarsFullscreen,
       setStatusLcarsFullscreen,
+      bottomDockHeightPx,
     }),
     [
       canUse,
@@ -146,6 +159,7 @@ export function SystemTerminalProvider({
       hasRecentLogError,
       statusLcarsFullscreen,
       setStatusLcarsFullscreen,
+      bottomDockHeightPx,
     ],
   );
 
@@ -157,6 +171,7 @@ export function SystemTerminalProvider({
           sidebarOffsetPx={sidebarOffsetPx}
           onClose={() => setOpen(false)}
           placement="bottom"
+          panelHeightPx={statusLcarsFullscreen ? bottomDockHeightPx : TERMINAL_PANEL_HEIGHT}
         />
       )}
     </SystemTerminalContext.Provider>
@@ -174,5 +189,5 @@ export function useSystemTerminalBottomInset(): number {
   const ctx = useContext(SystemTerminalContext);
   if (!ctx?.canUse || !ctx.open) return 0;
   if (ctx.terminalDockPlacement === 'top') return 0;
-  return TERMINAL_PANEL_HEIGHT;
+  return ctx.statusLcarsFullscreen ? ctx.bottomDockHeightPx : TERMINAL_PANEL_HEIGHT;
 }

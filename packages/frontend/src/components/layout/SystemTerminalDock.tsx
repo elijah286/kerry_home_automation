@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clsx } from 'clsx';
-import { X, AlertTriangle, Info, AlertOctagon, ListTree, Braces } from 'lucide-react';
+import { X, AlertTriangle, Info, AlertOctagon, ListTree, Braces, Maximize2, Minimize2 } from 'lucide-react';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { TERMINAL_PANEL_HEIGHT, useSystemTerminal, type TerminalLogFilter } from '@/providers/SystemTerminalProvider';
@@ -98,6 +98,8 @@ export function SystemTerminalDock({
     setLogDetailStyle,
     logAutoScroll,
     setLogAutoScroll,
+    statusLcarsFullscreen,
+    setStatusLcarsFullscreen,
   } = useSystemTerminal();
   const [entries, setEntries] = useState<LogEntry[]>([]);
   /** Row expanded by click — full JSON + deep links */
@@ -308,9 +310,35 @@ export function SystemTerminalDock({
           >
             {!isLCARS && <Braces className="h-3.5 w-3.5 opacity-90" />}
             <span className={clsx(!isLCARS && 'hidden sm:inline')}>
-              {logDetailStyle === 'terminal' ? 'Short' : 'Full'}
+              {logDetailStyle === 'terminal' ? 'Digest' : 'Lines'}
             </span>
           </button>
+          {placement === 'bottom' && (
+            <button
+              type="button"
+              onClick={() => setStatusLcarsFullscreen(!statusLcarsFullscreen)}
+              aria-pressed={statusLcarsFullscreen}
+              aria-label={
+                statusLcarsFullscreen
+                  ? 'Restore default terminal height'
+                  : 'Expand system terminal toward full screen'
+              }
+              className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
+              style={{
+                backgroundColor: statusLcarsFullscreen ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                color: statusLcarsFullscreen ? '#fff' : 'var(--color-text-secondary)',
+              }}
+            >
+              {statusLcarsFullscreen ? (
+                <Minimize2 className="h-3.5 w-3.5 opacity-90" />
+              ) : (
+                <Maximize2 className="h-3.5 w-3.5 opacity-90" />
+              )}
+              <span className="hidden sm:inline">
+                {statusLcarsFullscreen ? 'Dock' : 'Full screen'}
+              </span>
+            </button>
+          )}
           {lcarsStatusAuto && isLCARS && lcarsTop && !lcarsFrameHandlesControls ? (
             <button
               type="button"
