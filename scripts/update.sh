@@ -10,6 +10,11 @@
 # (that deletes volumes). Use scripts/db-dump.sh for backups.
 #
 # For first-time empty DB installs, set ADMIN_INITIAL_PASSWORD in .env (see backend main.ts).
+#
+# OS reboot is NOT required for routine updates (only containers restart). A full reboot only
+# happens in this script as a last-resort recovery step. If nginx + deploy/standby are
+# installed, http://<server>/ (port 80) shows a static page while the app is unavailable;
+# during automated updates we temporarily swap in "software update in progress".
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -34,6 +39,17 @@ compose_up() {
   else
     $COMPOSE up -d
   fi
+}
+
+# Port 80 nginx standby (optional): swap static page while we rebuild containers
+STANDBY_WWW=/var/www/ha-standby
+STANDBY_SWAPPED=0
+restore_standby_page() {
+  [[ "$STANDBY_SWAPPED" -eq 1 ]] || return 0
+  if [[ -f "$STANDBY_WWW/standby.html.bak" ]]; then
+    mv -f "$STANDBY_WWW/standby.html.bak" "$STANDBY_WWW/standby.html"
+  fi
+  STANDBY_SWAPPED=0
 }
 
 # Prevent concurrent runs
@@ -94,6 +110,14 @@ PREV_COMMIT="$CURRENT"
 log "Pulling new code..."
 git pull origin main --quiet
 
+if [[ -f "$APP/deploy/standby/updating.html" && -d "$STANDBY_WWW" ]]; then
+  cp -a "$STANDBY_WWW/standby.html" "$STANDBY_WWW/standby.html.bak" 2>/dev/null || true
+  cp -a "$APP/deploy/standby/updating.html" "$STANDBY_WWW/standby.html"
+  STANDBY_SWAPPED=1
+  log "Standby page (port 80): showing software update message until health checks pass"
+  trap restore_standby_page EXIT
+fi
+
 log "Rebuilding containers..."
 compose_build_up 2>&1 | tail -8 | while IFS= read -r line; do
   log "  [compose] $line"
@@ -101,6 +125,8 @@ done
 
 log "Waiting for health check..."
 if health_check 12; then
+  restore_standby_page
+  trap - EXIT
   log "✓ Update successful — running ${REMOTE:0:7}"
   trim_log
   exit 0
@@ -119,6 +145,8 @@ compose_build_up 2>&1 | tail -5 | while IFS= read -r line; do
 done
 
 if health_check 12; then
+  restore_standby_page
+  trap - EXIT
   log "✓ Rollback successful — bad commit was ${REMOTE:0:7}"
   trim_log
   exit 0
@@ -137,6 +165,8 @@ compose_up 2>&1 | tail -5 | while IFS= read -r line; do
 done
 
 if health_check 24; then
+  restore_standby_page
+  trap - EXIT
   log "✓ Recovered via cold restart"
   trim_log
   exit 0
@@ -149,4 +179,6 @@ log "✗ All recovery attempts failed"
 log "Rebooting system as last resort..."
 trim_log
 
+restore_standby_page || true
+trap - EXIT
 sudo reboot

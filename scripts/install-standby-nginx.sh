@@ -17,6 +17,7 @@ fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 STANDBY_SRC="$ROOT/deploy/standby/standby.html"
+UPDATING_SRC="$ROOT/deploy/standby/updating.html"
 NGINX_SITE_SRC="$ROOT/deploy/standby/nginx-ha.conf"
 WWW=/var/www/ha-standby
 SITE=/etc/nginx/sites-available/home-automation.conf
@@ -28,6 +29,7 @@ fi
 
 mkdir -p "$WWW"
 cp -a "$STANDBY_SRC" "$WWW/standby.html"
+[[ -f "$UPDATING_SRC" ]] && cp -a "$UPDATING_SRC" "$WWW/updating.html"
 cp -a "$NGINX_SITE_SRC" "$SITE"
 
 if [[ -f /etc/nginx/sites-enabled/default ]]; then
