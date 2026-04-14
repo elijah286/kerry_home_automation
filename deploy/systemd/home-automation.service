@@ -1,0 +1,31 @@
+# Install on the server (paths assume /opt/home-automation):
+#   sudo cp deploy/systemd/home-automation.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now home-automation.service
+#
+# Edit User=/Group= if your login is not elijah286. User must be in the "docker" group.
+
+[Unit]
+Description=Home Automation stack (Docker Compose production)
+Documentation=https://github.com/elijah286/kerry_home_automation
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/home-automation
+User=elijah286
+Group=elijah286
+Environment=HOME=/home/elijah286
+# .env must exist here for compose (secrets, POSTGRES_PASSWORD, etc.)
+ExecStart=/usr/bin/docker compose -f /opt/home-automation/docker-compose.prod.yml up -d
+ExecStop=/usr/bin/docker compose -f /opt/home-automation/docker-compose.prod.yml stop
+TimeoutStartSec=0
+# If compose fails, systemd marks the unit failed (visible in journalctl)
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -4,6 +4,12 @@
 # Runs every 5 minutes via cron. Checks for new commits on main, pulls them,
 # rebuilds containers, and health-checks. On failure, rolls back through
 # increasingly aggressive recovery layers before giving up and rebooting.
+#
+# Postgres data (users/passwords) live in the Docker volume postgres_data.
+# Normal deploys do NOT reset them. Never run: docker compose ... down -v
+# (that deletes volumes). Use scripts/db-dump.sh for backups.
+#
+# For first-time empty DB installs, set ADMIN_INITIAL_PASSWORD in .env (see backend main.ts).
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -12,6 +18,23 @@ LOG=/var/log/home-automation/update.log
 COMPOSE="docker compose -f $APP/docker-compose.prod.yml"
 MAX_LOG_LINES=500
 LOCK_FILE=/tmp/ha-update.lock
+
+# Prefer --wait so Compose blocks until healthchecks pass (Compose plugin v2.12+).
+compose_build_up() {
+  if $COMPOSE up --help 2>&1 | grep -qE '[[:space:]]--wait[[:space:]]'; then
+    $COMPOSE up -d --build --wait
+  else
+    $COMPOSE up -d --build
+  fi
+}
+
+compose_up() {
+  if $COMPOSE up --help 2>&1 | grep -qE '[[:space:]]--wait[[:space:]]'; then
+    $COMPOSE up -d --wait
+  else
+    $COMPOSE up -d
+  fi
+}
 
 # Prevent concurrent runs
 exec 9>"$LOCK_FILE"
@@ -72,7 +95,7 @@ log "Pulling new code..."
 git pull origin main --quiet
 
 log "Rebuilding containers..."
-$COMPOSE up -d --build 2>&1 | tail -5 | while IFS= read -r line; do
+compose_build_up 2>&1 | tail -8 | while IFS= read -r line; do
   log "  [compose] $line"
 done
 
@@ -91,7 +114,7 @@ log "Rolling back to ${PREV_COMMIT:0:7}..."
 
 git reset --hard "$PREV_COMMIT"
 
-$COMPOSE up -d --build 2>&1 | tail -3 | while IFS= read -r line; do
+compose_build_up 2>&1 | tail -5 | while IFS= read -r line; do
   log "  [compose] $line"
 done
 
@@ -109,7 +132,9 @@ log "Attempting cold restart..."
 
 $COMPOSE down --timeout 30
 sleep 5
-$COMPOSE up -d
+compose_up 2>&1 | tail -5 | while IFS= read -r line; do
+  log "  [compose] $line"
+done
 
 if health_check 24; then
   log "✓ Recovered via cold restart"
