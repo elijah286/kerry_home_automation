@@ -25,7 +25,7 @@ export function LCARSBreadcrumbBlocks({
   return (
     <nav
       aria-label="Breadcrumb"
-      className="lcars-breadcrumb-blocks lcars-chrome-row flex min-w-0 flex-1 items-stretch"
+      className="lcars-breadcrumb-blocks lcars-chrome-row flex min-w-0 grow-0 shrink items-stretch"
       style={{ gap: 3, height: '100%', minHeight: barHeight, alignSelf: 'stretch' }}
     >
       {items.map((item, i) => {
