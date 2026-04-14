@@ -310,10 +310,10 @@ if [ "$IMAGES_PULLED" = false ]; then
   emit_log "restart" "Building from source (this may take several minutes)..."
 fi
 
-# Add --wait if supported (blocks until healthchecks pass)
-if $COMPOSE up --help 2>&1 | grep -qE '[[:space:]]--wait[[:space:]]'; then
-  COMPOSE_CMD="$COMPOSE_CMD --wait"
-fi
+# NOTE: do NOT add --wait here. It blocks until ALL containers are healthy,
+# including optional services like roborock-bridge. If any non-critical service
+# is unhealthy, the entire deploy hangs. The health_check stage below validates
+# the backend API is responding, which is sufficient.
 
 COMPOSE_OUT=$(mktemp)
 if ! eval "$COMPOSE_CMD" >"$COMPOSE_OUT" 2>&1; then
