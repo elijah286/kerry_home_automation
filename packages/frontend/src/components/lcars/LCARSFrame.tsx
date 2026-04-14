@@ -611,9 +611,12 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
 
       {showTopTerminal && !statusFullscreen && (
         <>
-          {/* ===== SIDEBAR — square Status block (opens main-column full screen log) ===== */}
-          <div
+          {/* ===== SIDEBAR — yellow Status cap (entire block is the control; opens full-screen log) ===== */}
+          <button
+            type="button"
             className="lcars-status-sidebar-cap lcars-sidebar-cap lcars-chrome-item"
+            aria-label="View status log full screen"
+            onClick={() => setStatusLcarsFullscreen(true)}
             style={{
               position: 'fixed',
               top: 0,
@@ -628,37 +631,22 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'flex-end',
+              alignItems: 'stretch',
               padding: '7px 6px 6px',
               boxSizing: 'border-box',
+              border: 'none',
+              cursor: 'pointer',
+              color: colors.text,
+              fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
+              fontWeight: 700,
+              fontSize: collapsed ? 10 : 11,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              textAlign: 'right',
             }}
           >
-            <button
-              type="button"
-              className="lcars-chrome-item"
-              aria-label="View status log full screen"
-              onClick={() => setStatusLcarsFullscreen(true)}
-              style={{
-                width: '100%',
-                minHeight: collapsed ? 40 : 48,
-                flexShrink: 0,
-                border: 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: colors.muted,
-                color: colors.text,
-                fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
-                fontWeight: 700,
-                fontSize: collapsed ? 10 : 11,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                transition: 'background 0.2s ease, color 0.2s ease',
-              }}
-            >
-              {collapsed ? 'STA' : 'Status'}
-            </button>
-          </div>
+            {collapsed ? 'STA' : 'Status'}
+          </button>
 
           {/* ===== STATUS BODY — log scroller + right filter sidebar ===== */}
           <SystemTerminalDock
@@ -768,8 +756,12 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
 
       {showTopTerminal && statusFullscreen && (
         <>
-          <div
+          <button
+            type="button"
             className="lcars-status-sidebar-cap lcars-sidebar-cap lcars-chrome-item"
+            aria-label="Exit full screen status"
+            aria-pressed={statusFullscreen}
+            onClick={() => setStatusLcarsFullscreen(false)}
             style={{
               position: 'fixed',
               top: 0,
@@ -782,38 +774,22 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'flex-end',
+              alignItems: 'stretch',
               padding: '7px 6px 6px',
               boxSizing: 'border-box',
+              border: 'none',
+              cursor: 'pointer',
+              color: colors.text,
+              fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
+              fontWeight: 700,
+              fontSize: collapsed ? 10 : 11,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              textAlign: 'right',
             }}
           >
-            <button
-              type="button"
-              className="lcars-chrome-item"
-              aria-label="Exit full screen status"
-              aria-pressed={statusFullscreen}
-              onClick={() => setStatusLcarsFullscreen(false)}
-              style={{
-                width: '100%',
-                minHeight: collapsed ? 40 : 48,
-                flexShrink: 0,
-                border: 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: colors.navActive,
-                color: colors.text,
-                fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
-                fontWeight: 700,
-                fontSize: collapsed ? 10 : 11,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                transition: 'background 0.2s ease, color 0.2s ease',
-              }}
-            >
-              {collapsed ? 'STA' : 'Status'}
-            </button>
-          </div>
+            {collapsed ? 'STA' : 'Status'}
+          </button>
           <SystemTerminalDock
             sidebarOffsetPx={elbowW}
             onClose={() => setTerminalOpen(false)}
