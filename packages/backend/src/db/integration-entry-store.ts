@@ -47,7 +47,8 @@ export async function saveEntry(entry: IntegrationEntry): Promise<void> {
        config = $4,
        enabled = $5,
        updated_at = NOW()`,
-    [entry.id, entry.integration, entry.label, JSON.stringify(entry.config), entry.enabled],
+    // Pass a plain object for JSONB — not JSON.stringify (pg expects objects for jsonb params).
+    [entry.id, entry.integration, entry.label, entry.config as object, entry.enabled],
   );
 }
 

@@ -34,7 +34,7 @@ export async function saveConfig(
        config = $3,
        display_name = $2,
        updated_at = NOW()`,
-    [id, displayName, JSON.stringify(config)],
+    [id, displayName, config as object],
   );
 }
 
