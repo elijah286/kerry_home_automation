@@ -1,18 +1,38 @@
-FROM node:22-alpine
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-COPY shared/package.json shared/
+# Copy the legacy shared types package (proxy imports type-only from @home-automation/shared)
+COPY shared/ shared/
+
+# Copy proxy package files for layer-cached install
 COPY proxy/package.json proxy/
 
-RUN npm ci --workspace=shared --workspace=proxy
+# Create a minimal root package.json with the correct workspaces for this build
+RUN printf '{"private":true,"workspaces":["shared","proxy"]}\n' > package.json
 
-COPY shared/ shared/
+# Install dependencies (generates a fresh lockfile for this workspace subset)
+RUN npm install --workspaces
+
+# Copy proxy source and build
 COPY proxy/ proxy/
-
 WORKDIR /app/proxy
 RUN npm run build
+
+# ---------------------------------------------------------------------------
+FROM node:22-alpine
+
+ARG BUILD_VERSION=dev
+ARG BUILD_SHA=unknown
+LABEL org.opencontainers.image.version="${BUILD_VERSION}" \
+      org.opencontainers.image.revision="${BUILD_SHA}"
+
+WORKDIR /app
+
+# Copy built output and production dependencies
+COPY --from=builder /app/proxy/dist ./dist
+COPY --from=builder /app/proxy/package.json ./
+COPY --from=builder /app/proxy/node_modules ./node_modules
 
 EXPOSE 3000
 CMD ["node", "dist/index.js"]
