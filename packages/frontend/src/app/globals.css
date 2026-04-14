@@ -221,6 +221,56 @@
   animation-iteration-count: infinite;
 }
 
+/*
+ * Fixed right rail next to system log (ALL / WARN / Lines / Auto, etc.)
+ * Global .lcars-btn--active inset shadow + filter: brightness() on hover can read as a faint
+ * frame around the pill grid; auto-scroll nudge adds outer glow. Force flush #000 and no halos.
+ */
+.lcars-status-filter-rail {
+  background: #000 !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lcars-status-filter-rail .lcars-btn {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  -webkit-appearance: none;
+  appearance: none;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+.lcars-status-filter-rail .lcars-btn:hover,
+.lcars-status-filter-rail .lcars-btn:active {
+  /* brightness() filter bleeds slightly past pill edges against black */
+  filter: none !important;
+}
+
+.lcars-status-filter-rail .lcars-btn:focus,
+.lcars-status-filter-rail .lcars-btn:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.lcars-status-filter-rail .lcars-btn.lcars-btn--active {
+  box-shadow: none !important;
+}
+
+@keyframes lcars-auto-scroll-nudge-rail {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.35);
+  }
+}
+
+.lcars-status-filter-rail .lcars-auto-scroll-nudge {
+  animation-name: lcars-auto-scroll-nudge-rail !important;
+}
+
 /* System terminal: unseen error/fatal — Status control (slow red pulse; base from --status-alert-*) */
 @keyframes system-status-log-error-flash {
   0%, 100% {

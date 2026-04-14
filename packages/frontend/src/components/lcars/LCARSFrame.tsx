@@ -255,6 +255,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
   /** Right sidebar of the top status band: filter + Lines/Auto (log body uses matching right inset). */
   const statusFilterButtons = showTopTerminal ? (
     <div
+      className="lcars-status-filter-rail"
       onPointerDownCapture={(e) => {
         if ((e.target as HTMLElement).closest('[data-lcars-auto-scroll-btn]')) return;
         bumpStatusInteraction();
@@ -288,9 +289,18 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
           justifyContent: 'center',
           flex: 1,
           minHeight: 0,
+          background: '#000',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            gap: 4,
+            justifyContent: 'center',
+            background: '#000',
+          }}
+        >
           {[STATUS_FILTERS[0], STATUS_FILTERS[2]].map(({ id, label }) => (
             <button
               key={id}
@@ -308,7 +318,15 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            gap: 4,
+            justifyContent: 'center',
+            background: '#000',
+          }}
+        >
           {[STATUS_FILTERS[1], STATUS_FILTERS[3]].map(({ id, label }) => (
             <button
               key={id}
@@ -326,7 +344,15 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            gap: 4,
+            justifyContent: 'center',
+            background: '#000',
+          }}
+        >
           <button
             type="button"
             className={`lcars-btn lcars-btn--pill${logDetailStyle === 'terminal' ? ' lcars-btn--active' : ''}`}
