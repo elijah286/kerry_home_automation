@@ -12,11 +12,21 @@ import * as entryStore from '../../db/integration-entry-store.js';
 
 const POLL_INTERVAL_MS = 10_000; // poll every 10s for fresher snapshots
 
+/** Default when `go2rtc_url` is omitted — same host as backend (override with LAN IP if go2rtc is elsewhere). */
+export const UNIFI_DEFAULT_GO2RTC_URL = 'http://localhost:1984';
+
 /** Trim and strip trailing slashes so fetch URLs match go2rtc consistently. */
 function normalizeGo2rtcBaseUrl(url: string): string {
   const t = url.trim();
   if (!t) return t;
   return t.replace(/\/+$/, '');
+}
+
+/** Effective go2rtc base URL from saved entry config (defaults if blank). */
+export function resolveGo2rtcConfigUrl(config: Record<string, string>): string {
+  const raw = config.go2rtc_url?.trim();
+  if (raw) return normalizeGo2rtcBaseUrl(raw);
+  return UNIFI_DEFAULT_GO2RTC_URL;
 }
 
 /** If go2rtc was down at startup, re-attempt entry init on this interval. */
@@ -61,8 +71,7 @@ export class UniFiIntegration implements Integration {
 
     for (const entry of dbEntries) {
       if (!entry.enabled) continue;
-      const go2rtcUrl = entry.config.go2rtc_url;
-      if (!go2rtcUrl) continue;
+      const go2rtcUrl = resolveGo2rtcConfigUrl(entry.config);
 
       try {
         await this.initEntry(entry.id, go2rtcUrl, entry.config.protect_host ?? '');
@@ -84,7 +93,7 @@ export class UniFiIntegration implements Integration {
       this.emitHealth('error');
     }
 
-    const hasUnifiConfig = dbEntries.some((e) => e.enabled && e.config.go2rtc_url);
+    const hasUnifiConfig = dbEntries.some((e) => e.enabled);
     if (hasUnifiConfig) {
       // go2rtc often starts after the backend — retry soon, then on an interval.
       setTimeout(() => void this.retryMissingEntries(), 5_000);
@@ -134,8 +143,8 @@ export class UniFiIntegration implements Integration {
     }> = [];
 
     for (const entry of dbEntries) {
-      if (!entry.enabled || !entry.config.go2rtc_url) continue;
-      const base = normalizeGo2rtcBaseUrl(entry.config.go2rtc_url);
+      if (!entry.enabled) continue;
+      const base = resolveGo2rtcConfigUrl(entry.config);
       let reachable = false;
       let httpStatus: number | undefined;
       let streamCount = 0;
@@ -189,7 +198,7 @@ export class UniFiIntegration implements Integration {
     const dbEntries = await entryStore.getEntries('unifi');
     let n = 0;
     for (const e of dbEntries) {
-      if (!e.enabled || !e.config.go2rtc_url) continue;
+      if (!e.enabled) continue;
       if (!this.entries.has(e.id)) n += 1;
     }
     return n;
@@ -200,8 +209,7 @@ export class UniFiIntegration implements Integration {
     let anySuccess = false;
     for (const entry of dbEntries) {
       if (!entry.enabled) continue;
-      const go2rtcUrl = entry.config.go2rtc_url;
-      if (!go2rtcUrl) continue;
+      const go2rtcUrl = resolveGo2rtcConfigUrl(entry.config);
       if (this.entries.has(entry.id)) continue;
       try {
         await this.initEntry(entry.id, go2rtcUrl, entry.config.protect_host ?? '');

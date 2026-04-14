@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import type { FastifyInstance } from 'fastify';
+import { randomUUID } from 'node:crypto';
 import type { DeviceCommand, DeviceState, IntegrationId } from '@ha/shared';
 import { KNOWN_INTEGRATIONS, Permission } from '@ha/shared';
 import { stateStore } from '../state/store.js';
@@ -527,7 +528,7 @@ export function registerRoutes(app: FastifyInstance): void {
     return { entries };
   });
 
-  app.post<{ Params: { id: string }; Body: { label: string; config: Record<string, string> } }>(
+  app.post<{ Params: { id: string }; Body: { label?: string; config?: Record<string, string> } }>(
     '/api/integrations/:id/entries',
     { preHandler: [requireRole('admin')] },
     async (req, reply) => {
@@ -535,14 +536,26 @@ export function registerRoutes(app: FastifyInstance): void {
       const info = KNOWN_INTEGRATIONS.find((i) => i.id === id);
       if (!info) return reply.code(404).send({ error: 'Unknown integration' });
 
-      const entryId = crypto.randomUUID();
-      await entryStore.saveEntry({
-        id: entryId,
-        integration: id,
-        label: req.body.label || '',
-        config: req.body.config,
-        enabled: true,
-      });
+      const raw = req.body;
+      const label = typeof raw?.label === 'string' ? raw.label : '';
+      const config =
+        raw?.config && typeof raw.config === 'object' && !Array.isArray(raw.config)
+          ? (raw.config as Record<string, string>)
+          : {};
+
+      const entryId = randomUUID();
+      try {
+        await entryStore.saveEntry({
+          id: entryId,
+          integration: id,
+          label,
+          config,
+          enabled: true,
+        });
+      } catch (err) {
+        logger.error({ err, integration: id }, 'Integration entry save failed');
+        return reply.code(500).send({ error: 'Failed to save integration entry' });
+      }
       logger.info({ integration: id, entryId }, 'Integration entry created');
 
       // Auto-restart so the new entry is picked up
