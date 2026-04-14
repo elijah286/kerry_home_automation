@@ -131,11 +131,11 @@ jobs:
           cache-from: type=gha,scope=roborock
           cache-to: type=gha,mode=max,scope=roborock
 
-      # -- Proxy --
+      # -- Proxy (Dockerfile expects repo root as context: copies shared/ + proxy/) --
       - name: Build and push proxy
         uses: docker/build-push-action@v6
         with:
-          context: ./proxy
+          context: .
           file: proxy/Dockerfile
           push: true
           tags: |
