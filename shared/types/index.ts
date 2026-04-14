@@ -60,20 +60,19 @@ interface TunnelPong {
 
 interface TunnelWsOpen {
   type: 'ws_open';
-  clientId: string;
-  path: string;
-  headers: Record<string, string>;
+  sessionId: string;
+  user: TunnelUser;
 }
 
 interface TunnelWsMessage {
   type: 'ws_message';
-  clientId: string;
+  sessionId: string;
   data: string;
 }
 
 interface TunnelWsClose {
   type: 'ws_close';
-  clientId: string;
+  sessionId: string;
   code?: number;
   reason?: string;
 }
