@@ -88,6 +88,11 @@ function formatCommitDate(iso: string): string {
   }
 }
 
+function versionLabelNorm(v: string | null | undefined): string | null {
+  if (!v?.trim()) return null;
+  return v.trim().replace(/^v/i, '');
+}
+
 export default function SoftwareUpdatePage() {
   const { isAdmin, loading } = useAuth();
   const [check, setCheck] = useState<CheckResponse | null>(null);
@@ -173,8 +178,10 @@ export default function SoftwareUpdatePage() {
       </div>
 
       <p className="text-sm mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-        UI build <span className="font-mono tabular-nums">{APP_VERSION_LABEL}</span>. Updates load new code on the server
-        and restart containers — use when you are ready, not on a fixed schedule.
+        UI build <span className="font-mono tabular-nums">{APP_VERSION_LABEL}</span> comes from the{' '}
+        <strong>frontend</strong> image (set when that image was built). &quot;Running&quot; below is from{' '}
+        <strong>git</strong> on the server. They can differ until you rebuild the frontend container after pulling.
+        Updates load new code and restart containers — use when you are ready, not on a fixed schedule.
       </p>
 
       <Card className="p-4 mb-4 space-y-4">
@@ -216,6 +223,22 @@ export default function SoftwareUpdatePage() {
 
         {check?.checkSupported && (
           <div className="space-y-4 text-sm">
+            {check.running?.versionLabel &&
+              versionLabelNorm(check.running.versionLabel) !== versionLabelNorm(APP_VERSION_LABEL) && (
+                <p
+                  className="text-xs rounded-lg px-3 py-2 border"
+                  style={{
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-text-muted)',
+                    backgroundColor: 'var(--color-bg-secondary)',
+                  }}
+                >
+                  UI shows {APP_VERSION_LABEL} but git reports {check.running.versionLabel} on disk. Rebuild the{' '}
+                  <span className="font-mono">frontend</span> service (e.g.{' '}
+                  <span className="font-mono">docker compose -f docker-compose.prod.yml up -d --build frontend</span>)
+                  so this page matches the repo, then hard-refresh the browser.
+                </p>
+              )}
             <DeployRefBlock
               title="Running"
               info={check.running}

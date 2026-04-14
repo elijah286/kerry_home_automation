@@ -138,6 +138,17 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
             </Dialog.Close>
           </div>
 
+          <form
+            className="space-y-4"
+            style={{ position: 'relative', zIndex: 1 }}
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void handleSave();
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
           {/* Body */}
           <div className="space-y-4 px-5 py-4">
             {integrationId === 'tesla' && (
@@ -236,16 +247,16 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
           {/* Footer */}
           <div className="flex justify-end border-t px-5 py-3" style={{ borderColor: 'var(--color-border)' }}>
             <button
-              type="button"
-              onClick={() => void handleSave()}
+              type="submit"
               disabled={saving}
-              className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+              className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60"
               style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
             >
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
               {entry ? 'Update' : 'Submit'}
             </button>
           </div>
+          </form>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

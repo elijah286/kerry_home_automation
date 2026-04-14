@@ -379,9 +379,20 @@ function NewInstanceCard({
 
       {expanded && (
         <div
-          className="border-t px-5 py-5 space-y-4"
+          className="border-t px-5 py-5"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-secondary)' }}
         >
+          <form
+            className="space-y-4"
+            style={{ position: 'relative', zIndex: 2 }}
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void handleSave();
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
           {integrationId === 'tesla' && (
             <p className="text-xs rounded-lg border px-3 py-2" style={{ color: 'var(--color-text-muted)', borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}>
               Use &apos;Auth App for Tesla&apos; on iOS or &apos;Tesla Tokens&apos; on Android to create a refresh token.
@@ -471,16 +482,16 @@ function NewInstanceCard({
               Cancel
             </button>
             <button
-              type="button"
-              onClick={() => void handleSave()}
+              type="submit"
               disabled={saving}
-              className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+              className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60"
               style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
             >
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
               {saving ? 'Saving…' : 'Save Instance'}
             </button>
           </div>
+          </form>
         </div>
       )}
     </Card>

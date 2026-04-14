@@ -14,7 +14,7 @@ import { logger } from '../logger.js';
 import { requirePermission, requireRole } from './auth.js';
 import { automationEngine } from '../automations/engine.js';
 import { getLogEntries, subscribeLogs, type LogEntry } from '../log-buffer.js';
-import { ensureGitSafeGlobalConfig, gitProcessEnv } from '../git-env.js';
+import { gitProcessEnv } from '../git-env.js';
 
 const adminOnly = [requireRole('admin')];
 const terminalAccess = [requirePermission(Permission.ViewSystemTerminal)];
@@ -97,14 +97,13 @@ async function pathExists(p: string): Promise<boolean> {
 
 /**
  * Mounted checkout may be owned by host uid ≠ container uid (Git 2.35+ "dubious ownership").
- * `gitProcessEnv()` + `ensureGitSafeGlobalConfig()` — see git-env.ts.
+ * See git-env.ts — HOME=/root + Dockerfile /root/.gitconfig; do not set GIT_CONFIG_GLOBAL to a missing file.
  */
 function gitTrustArgs(cwd: string): string[] {
   return ['-c', 'safe.directory=*', '-c', `safe.directory=${cwd}`];
 }
 
 function execGit(args: string[], cwd: string): Promise<string> {
-  ensureGitSafeGlobalConfig();
   return new Promise((resolve, reject) => {
     execFile(
       'git',
@@ -262,7 +261,6 @@ async function listRecentReleases(root: string, max: number): Promise<ListedRele
 
 /** True if `ancestor` is an ancestor of `descendant` (reachable). */
 async function gitIsAncestor(root: string, ancestor: string, descendant: string): Promise<boolean> {
-  ensureGitSafeGlobalConfig();
   return new Promise((resolve) => {
     execFile(
       'git',
