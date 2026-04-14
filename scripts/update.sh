@@ -18,6 +18,9 @@
 #
 # Updates are NOT scheduled by default. Use Settings → Software update (or run this script
 # manually). To re-enable periodic pulls, see deploy/cron-home-automation.example.
+#
+# One-time on the hub: sudo ./scripts/install-systemd.sh — enables boot bring-up + API watchdog
+# so the stack self-heals without SSH if a container fails after an update.
 # ---------------------------------------------------------------------------
 set -euo pipefail
 

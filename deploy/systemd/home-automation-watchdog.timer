@@ -1,14 +1,14 @@
-# Runs the watchdog every few minutes and once shortly after boot.
-# Pair with home-automation-watchdog.service (see that file for install steps).
+# Runs the watchdog on a short interval and once shortly after boot.
+# Install: sudo ./scripts/install-systemd.sh (copies this unit and enables the timer).
 
 [Unit]
 Description=Timer for Home Automation API watchdog
 
 [Timer]
-OnBootSec=3min
-OnUnitActiveSec=3min
-AccuracySec=1min
-RandomizedDelaySec=45
+OnBootSec=90s
+OnUnitActiveSec=2min
+AccuracySec=30s
+RandomizedDelaySec=20
 Persistent=true
 
 [Install]

@@ -1,12 +1,8 @@
-# Install on the server (paths assume /opt/home-automation):
-#   sudo cp deploy/systemd/home-automation.service /etc/systemd/system/
-#   sudo systemctl daemon-reload
-#   sudo systemctl enable --now home-automation.service
+# Boot + stack bring-up. Install together with the API watchdog:
+#   cd /opt/home-automation && sudo ./scripts/install-systemd.sh
 #
-# Optional: periodic recovery if the API is down but Docker is up — see
-#   deploy/systemd/home-automation-watchdog.{service,timer}
-#
-# Edit User=/Group= if your login is not elijah286. User must be in the "docker" group.
+# User=/Group=/HOME= are rewritten from SUDO_USER when using install-systemd.sh.
+# Deploy user must be in the "docker" group.
 
 [Unit]
 Description=Home Automation stack (Docker Compose production)

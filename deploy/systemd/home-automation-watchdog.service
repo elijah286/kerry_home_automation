@@ -1,10 +1,5 @@
-# Optional: recovers the stack when /api/health fails (missing backend, partial compose, etc.).
-# Install (paths assume /opt/home-automation and user elijah286 in group docker):
-#   sudo chmod +x /opt/home-automation/scripts/watchdog-stack.sh
-#   sudo cp deploy/systemd/home-automation-watchdog.service /etc/systemd/system/
-#   sudo cp deploy/systemd/home-automation-watchdog.timer /etc/systemd/system/
-#   sudo systemctl daemon-reload
-#   sudo systemctl enable --now home-automation-watchdog.timer
+# Runs scripts/watchdog-stack.sh — self-heal when :3000/api/health fails.
+# Install with the main stack: sudo ./scripts/install-systemd.sh
 #
 # Logs: journalctl -u home-automation-watchdog.service -f
 
