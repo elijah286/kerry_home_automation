@@ -104,6 +104,18 @@ ha_git() {
   command git -c "safe.directory=$APP" -c "safe.directory=*" "$@"
 }
 
+# deploy.sh runs inside the backend container as root, but the git checkout is a
+# bind-mount from the host owned by a regular user. Git operations create new
+# objects as root, which prevents the host user from running git directly later.
+# After any git write, restore ownership to match the repo root.
+fix_git_owner() {
+  local owner
+  owner=$(stat -c '%u:%g' "$APP" 2>/dev/null || stat -f '%u:%g' "$APP" 2>/dev/null || echo "")
+  if [ -n "$owner" ] && [ "$owner" != "0:0" ]; then
+    chown -R "$owner" "$APP/.git" 2>/dev/null || true
+  fi
+}
+
 # Health check with retries
 health_check() {
   local retries=$1 stage=$2
@@ -229,10 +241,14 @@ if [ "$CURRENT_SHA" = "$REMOTE_SHA" ]; then
 else
   emit_log "pull_code" "Pulling ${CURRENT_SHA:0:7} → ${REMOTE_SHA:0:7}"
   if ! ha_git pull origin main --quiet 2>&1; then
+    fix_git_owner
     emit "pull_code" "failed" "Git pull failed — working tree may have conflicts"
     exit 1
   fi
 fi
+
+# Restore .git ownership to the host user (container runs as root, bind-mount is host-owned)
+fix_git_owner
 
 # Read the release manifest to get image tags
 MANIFEST="$APP/deploy/release-manifest.json"

@@ -4,7 +4,7 @@
 
 import { execFile, spawn } from 'node:child_process';
 import { access, readFile } from 'node:fs/promises';
-import { constants } from 'node:fs';
+import { constants, statSync } from 'node:fs';
 import { join } from 'node:path';
 import * as os from 'node:os';
 import type { FastifyInstance } from 'fastify';
@@ -126,6 +126,24 @@ function execGit(args: string[], cwd: string): Promise<string> {
       },
     );
   });
+}
+
+/**
+ * The backend runs as root inside the container but the git checkout is a
+ * bind-mount owned by the host user. `git fetch` creates objects as root,
+ * which prevents the host user from running git directly later.
+ * Restore .git ownership after fetch operations.
+ */
+function fixGitOwner(cwd: string): void {
+  try {
+    const st = statSync(cwd);
+    // Only fix if the repo root is NOT owned by root (i.e. it's a host mount)
+    if (st.uid !== 0) {
+      execFile('chown', ['-R', `${st.uid}:${st.gid}`, join(cwd, '.git')], { timeout: 10_000 }, () => {});
+    }
+  } catch {
+    // Best-effort — don't break the update check if this fails
+  }
 }
 
 function formatGitErrorForClient(err: unknown, _repoRoot: string): string {
@@ -413,6 +431,7 @@ export function registerSystemRoutes(app: FastifyInstance): void {
     }
     try {
       await execGit(['fetch', 'origin', 'main'], root);
+      fixGitOwner(root);
       const headSha = await execGit(['rev-parse', 'HEAD'], root);
       const remoteSha = await execGit(['rev-parse', 'origin/main'], root);
       const remoteMeta = await describeDeployRef(root, 'origin/main');
@@ -596,6 +615,7 @@ export function registerSystemRoutes(app: FastifyInstance): void {
     }
     try {
       await execGit(['fetch', 'origin', 'main'], root);
+      fixGitOwner(root);
       const runningSha = await execGit(['rev-parse', 'HEAD'], root);
       const releases = await listRecentReleases(root, 28);
       return { runningSha, releases };
@@ -626,6 +646,7 @@ export function registerSystemRoutes(app: FastifyInstance): void {
 
       try {
         await execGit(['fetch', 'origin', 'main'], root);
+        fixGitOwner(root);
         const head = await execGit(['rev-parse', 'HEAD'], root);
         const remoteMain = await execGit(['rev-parse', 'origin/main'], root);
 
