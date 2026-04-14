@@ -9,3 +9,6 @@
 #   sudo chmod 644 /etc/cron.d/home-automation
 #
 # */5 * * * * root /opt/home-automation/scripts/update.sh >> /var/log/home-automation/update.log 2>&1
+#
+# Optional API watchdog (prefer systemd timer: deploy/systemd/home-automation-watchdog.timer):
+# */3 * * * * elijah286 /opt/home-automation/scripts/watchdog-stack.sh >> /var/log/home-automation/watchdog.log 2>&1

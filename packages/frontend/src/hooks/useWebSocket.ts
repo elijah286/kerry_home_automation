@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import type { DeviceState, IntegrationHealth, WsServerMessage } from '@ha/shared';
+import { getWsBase } from '@/lib/api-base';
 
 type Listener = () => void;
 
@@ -84,10 +85,6 @@ class DeviceStore {
 
 const store = new DeviceStore();
 
-const WS_URL = typeof window !== 'undefined'
-  ? `ws://${window.location.hostname}:3000/ws`
-  : 'ws://localhost:3000/ws';
-
 let ws: WebSocket | null = null;
 let retryCount = 0;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -95,7 +92,7 @@ let retryTimer: ReturnType<typeof setTimeout> | null = null;
 function connectWs(): void {
   if (ws && ws.readyState <= WebSocket.OPEN) return;
 
-  ws = new WebSocket(WS_URL);
+  ws = new WebSocket(`${getWsBase()}/ws`);
 
   ws.onopen = () => {
     retryCount = 0;

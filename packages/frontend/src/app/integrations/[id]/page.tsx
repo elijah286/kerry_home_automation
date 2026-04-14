@@ -22,10 +22,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import type { EntrySaveDetail } from '@/components/AddEntryDialog';
 import { RoborockCloudConnect, filterRoborockConfigFields } from '@/components/RoborockCloudConnect';
 import { devicesForIntegrationEntry } from '@/lib/device-instance';
-
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
+import { getApiBase } from '@/lib/api-base';
 
 function IntegrationDebugLoggingCard({ integrationId }: { integrationId: string }) {
   const { hasPermission } = useAuth();
@@ -36,7 +33,7 @@ function IntegrationDebugLoggingCard({ integrationId }: { integrationId: string 
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${API_BASE}/api/integrations/debug-logging`, { credentials: 'include' })
+    fetch(`${getApiBase()}/api/integrations/debug-logging`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d: { flags?: Record<string, boolean> }) => {
         if (!cancelled) setEnabled(d.flags?.[integrationId] === true);
@@ -59,7 +56,7 @@ function IntegrationDebugLoggingCard({ integrationId }: { integrationId: string 
     setErr(null);
     try {
       const next = !enabled;
-      const res = await fetch(`${API_BASE}/api/integrations/${integrationId}/debug-logging`, {
+      const res = await fetch(`${getApiBase()}/api/integrations/${integrationId}/debug-logging`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -109,6 +106,102 @@ function IntegrationDebugLoggingCard({ integrationId }: { integrationId: string 
   );
 }
 
+interface UnifiDiagEntry {
+  entryId: string;
+  label: string;
+  go2rtcUrl: string;
+  reachable: boolean;
+  httpStatus?: number;
+  streamCount: number;
+  streamNames: string[];
+  error?: string;
+  hint?: string;
+}
+
+/** Live probe of go2rtc from the backend — explains “works on laptop, empty on server” (wrong URL / Docker localhost). */
+function UnifiDiagnosticsCard() {
+  const [entries, setEntries] = useState<UnifiDiagEntry[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setErr(null);
+    fetch(`${getApiBase()}/api/cameras/diagnostics`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d: { entries?: UnifiDiagEntry[] }) => setEntries(d.entries ?? []))
+      .catch((e) => {
+        setErr(e instanceof Error ? e.message : String(e));
+        setEntries(null);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return (
+    <Card className="!p-0 overflow-hidden">
+      <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
+        <h2 className="text-sm font-semibold">go2rtc connectivity (this server)</h2>
+        <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+          The backend reads camera names from go2rtc&apos;s <span className="font-mono">/api/streams</span>. If this shows
+          zero streams but your laptop works, set go2rtc URL to the LAN IP of the machine running go2rtc (reachable from
+          this server), not localhost unless go2rtc runs on the same host as the backend.
+        </p>
+      </div>
+      <div className="px-5 py-4 space-y-4">
+        {loading ? (
+          <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Checking go2rtc…
+          </div>
+        ) : err ? (
+          <p className="text-xs" style={{ color: 'var(--color-danger)' }}>{err}</p>
+        ) : !entries || entries.length === 0 ? (
+          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>No enabled UniFi instances with a go2rtc URL.</p>
+        ) : (
+          entries.map((e) => (
+            <div
+              key={e.entryId}
+              className="rounded-lg border px-3 py-2 text-xs space-y-1"
+              style={{ borderColor: 'var(--color-border)' }}
+            >
+              <div className="font-medium" style={{ color: 'var(--color-text-secondary)' }}>{e.label}</div>
+              <div className="font-mono break-all opacity-90">{e.go2rtcUrl}</div>
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                <span style={{ color: e.reachable ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                  {e.reachable ? 'Reachable' : 'Not reachable'}
+                  {e.httpStatus != null ? ` (HTTP ${e.httpStatus})` : ''}
+                </span>
+                <span style={{ color: 'var(--color-text-muted)' }}>Streams: {e.streamCount}</span>
+              </div>
+              {e.error ? <p style={{ color: 'var(--color-danger)' }}>{e.error}</p> : null}
+              {e.streamNames.length > 0 ? (
+                <p className="text-[10px] break-words" style={{ color: 'var(--color-text-muted)' }}>
+                  {e.streamNames.join(', ')}
+                  {e.streamCount > e.streamNames.length ? ' …' : ''}
+                </p>
+              ) : null}
+              {e.hint ? <p className="mt-1" style={{ color: 'var(--color-warning)' }}>{e.hint}</p> : null}
+            </div>
+          ))
+        )}
+        <button
+          type="button"
+          onClick={() => void load()}
+          disabled={loading}
+          className="text-xs rounded border px-3 py-1.5 transition-colors disabled:opacity-50"
+          style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+        >
+          Refresh check
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 const INTEGRATION_ICONS: Record<string, React.ElementType> = {
   lutron: LutronIcon,
   yamaha: YamahaIcon,
@@ -143,7 +236,10 @@ function integrationStatus(data: IntegrationData, devices: DeviceState[]) {
   const onlineDevices = integrationDevices.filter((d) => d.available).length;
   const totalDevices = integrationDevices.length;
 
-  if (data.info.providesDevices && totalDevices > 0) {
+  if (data.info.providesDevices) {
+    if (totalDevices === 0) {
+      return { label: 'No devices', variant: 'warning' as const };
+    }
     if (onlineDevices === totalDevices) return { label: 'Connected', variant: 'success' as const };
     if (onlineDevices > 0) return { label: 'Problem', variant: 'warning' as const };
     return { label: 'Offline', variant: 'danger' as const };
@@ -173,6 +269,7 @@ function NewInstanceCard({
   const [label, setLabel] = useState('');
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const reset = () => {
     setLabel('');
@@ -181,6 +278,7 @@ function NewInstanceCard({
       if (f.defaultValue) defaults[f.key] = f.defaultValue;
     }
     setValues(defaults);
+    setSaveError(null);
   };
 
   const handleToggle = () => {
@@ -192,20 +290,44 @@ function NewInstanceCard({
     integrationId === 'roborock' ? filterRoborockConfigFields(fields, values) : fields;
 
   const handleSave = async () => {
+    setSaveError(null);
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/api/integrations/${integrationId}/entries`, {
+      const res = await fetch(`${getApiBase()}/api/integrations/${integrationId}/entries`, {
         credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ label, config: values }),
       });
-      if (!res.ok) return;
-      const data = (await res.json()) as { id?: string };
-      if (!data.id) return;
+      const text = await res.text();
+      let data: { id?: string; error?: string } = {};
+      try {
+        data = text ? (JSON.parse(text) as { id?: string; error?: string }) : {};
+      } catch {
+        setSaveError(res.ok ? 'Invalid response from server' : `Request failed (${res.status})`);
+        return;
+      }
+      if (!res.ok) {
+        setSaveError(
+          typeof data.error === 'string'
+            ? data.error
+            : res.status === 403
+              ? 'Admin access required — sign in as an admin user or use PIN elevation, then try again.'
+              : res.status === 401
+                ? 'Session expired — sign in again.'
+                : `Could not save (${res.status})`,
+        );
+        return;
+      }
+      if (!data.id) {
+        setSaveError('Invalid response from server');
+        return;
+      }
       onSaved({ kind: 'created', entryId: data.id });
       setExpanded(false);
       reset();
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Network error — is the backend running on port 3000?');
     } finally {
       setSaving(false);
     }
@@ -213,7 +335,7 @@ function NewInstanceCard({
 
   const useHomeLocation = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/settings`, { credentials: 'include' });
+      const res = await fetch(`${getApiBase()}/api/settings`, { credentials: 'include' });
       const data = await res.json();
       const s = data.settings as Record<string, unknown>;
       if (typeof s.home_latitude === 'number' && typeof s.home_longitude === 'number') {
@@ -232,6 +354,7 @@ function NewInstanceCard({
   return (
     <Card className="overflow-hidden !p-0">
       <button
+        type="button"
         onClick={handleToggle}
         className="flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-[var(--color-bg-hover)]"
       >
@@ -332,16 +455,24 @@ function NewInstanceCard({
             />
           )}
 
+          {saveError ? (
+            <p className="text-xs rounded-lg border px-3 py-2" style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)', backgroundColor: 'color-mix(in srgb, var(--color-danger) 8%, transparent)' }}>
+              {saveError}
+            </p>
+          ) : null}
+
           <div className="flex justify-end gap-2 pt-1">
             <button
-              onClick={() => setExpanded(false)}
+              type="button"
+              onClick={() => { setExpanded(false); setSaveError(null); }}
               className="rounded-lg px-4 py-2 text-sm font-medium transition-colors border"
               style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
             >
               Cancel
             </button>
             <button
-              onClick={handleSave}
+              type="button"
+              onClick={() => void handleSave()}
               disabled={saving}
               className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
               style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
@@ -578,7 +709,7 @@ export default function IntegrationDetailPage() {
   devicesRef.current = devices;
 
   const loadData = useCallback(() => {
-    fetch(`${API_BASE}/api/integrations`, { credentials: 'include' })
+    fetch(`${getApiBase()}/api/integrations`, { credentials: 'include' })
       .then((r) => r.json())
       .then((d: { integrations: Record<string, IntegrationData> }) => {
         const found = d.integrations[integrationId];
@@ -630,14 +761,14 @@ export default function IntegrationDetailPage() {
   }, [data?.info.providesDevices, loadData]);
 
   const handleDeleteEntry = async (entryId: string) => {
-    await fetch(`${API_BASE}/api/integrations/${integrationId}/entries/${entryId}`, { method: 'DELETE', credentials: 'include' });
+    await fetch(`${getApiBase()}/api/integrations/${integrationId}/entries/${entryId}`, { method: 'DELETE', credentials: 'include' });
     loadData();
   };
 
   const handleRebuildEntry = async (entryId: string) => {
     setRebuildingEntryId(entryId);
     try {
-      await fetch(`${API_BASE}/api/integrations/${integrationId}/entries/${entryId}/rebuild`, { method: 'POST', credentials: 'include' });
+      await fetch(`${getApiBase()}/api/integrations/${integrationId}/entries/${entryId}/rebuild`, { method: 'POST', credentials: 'include' });
       loadData();
     } finally {
       setRebuildingEntryId(null);
@@ -647,7 +778,7 @@ export default function IntegrationDetailPage() {
   const handleRestart = async () => {
     setRestarting(true);
     try {
-      await fetch(`${API_BASE}/api/integrations/${integrationId}/restart`, { method: 'POST', credentials: 'include' });
+      await fetch(`${getApiBase()}/api/integrations/${integrationId}/restart`, { method: 'POST', credentials: 'include' });
       loadData();
     } finally {
       setRestarting(false);
@@ -657,7 +788,7 @@ export default function IntegrationDetailPage() {
   const handleRebuild = async () => {
     setRebuilding(true);
     try {
-      await fetch(`${API_BASE}/api/integrations/${integrationId}/rebuild`, { method: 'POST', credentials: 'include' });
+      await fetch(`${getApiBase()}/api/integrations/${integrationId}/rebuild`, { method: 'POST', credentials: 'include' });
       loadData();
     } finally {
       setRebuilding(false);
@@ -748,6 +879,8 @@ export default function IntegrationDetailPage() {
       </Card>
 
       <IntegrationDebugLoggingCard integrationId={info.id} />
+
+      {info.id === 'unifi' ? <UnifiDiagnosticsCard /> : null}
 
       {/* Instances section */}
       <div className="space-y-3">

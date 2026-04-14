@@ -49,11 +49,12 @@ import { ScreensaverIntegration } from './integrations/screensaver/index.js';
 import { HelpersIntegration } from './integrations/helpers/index.js';
 import { automationEngine } from './automations/engine.js';
 import { loadRolePermissions } from './api/role-permission-routes.js';
+import { ensureGitSafeGlobalConfig } from './git-env.js';
 
 const REDIS_STATE_KEY = 'ha4:device_state';
 
-
 async function main() {
+  ensureGitSafeGlobalConfig();
   logger.info('Starting Home Automation 4.0');
 
   // 1. Connect Postgres and run migrations

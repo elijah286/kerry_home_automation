@@ -95,13 +95,19 @@ health_check() {
 # ---------------------------------------------------------------------------
 # Check for updates
 # ---------------------------------------------------------------------------
+# Git 2.35+ refuses repos whose owner differs from the current user (common with Docker mounts).
+# Per-invocation safe.directory avoids needing `git config --global safe.directory` on the host.
+ha_git() {
+  command git -c "safe.directory=$APP" "$@"
+}
+
 cd "$APP"
 
 # Ensure we're on main and fetch latest
-git fetch origin main --quiet 2>/dev/null
+ha_git fetch origin main --quiet 2>/dev/null
 
-CURRENT=$(git rev-parse HEAD)
-REMOTE=$(git rev-parse origin/main)
+CURRENT=$(ha_git rev-parse HEAD)
+REMOTE=$(ha_git rev-parse origin/main)
 
 if [ "$CURRENT" = "$REMOTE" ]; then
   exit 0  # Nothing to do
@@ -115,7 +121,7 @@ PREV_COMMIT="$CURRENT"
 # Layer 1: Pull + rebuild
 # ---------------------------------------------------------------------------
 log "Pulling new code..."
-git pull origin main --quiet
+ha_git pull origin main --quiet
 
 if [[ -f "$APP/deploy/standby/updating.html" && -d "$STANDBY_WWW" ]]; then
   cp -a "$STANDBY_WWW/standby.html" "$STANDBY_WWW/standby.html.bak" 2>/dev/null || true
@@ -133,7 +139,7 @@ if ! compose_build_up >"$COMPOSE_OUT" 2>&1; then
   while IFS= read -r line; do log "  [compose] $line"; done <"$COMPOSE_OUT"
   rm -f "$COMPOSE_OUT"
   log "Rolling back git to ${PREV_COMMIT:0:7} so cron can retry (avoids repo ahead of running images)."
-  git reset --hard "$PREV_COMMIT"
+  ha_git reset --hard "$PREV_COMMIT"
   restore_standby_page || true
   trap - EXIT
   trim_log
@@ -157,7 +163,7 @@ fi
 log "✗ Health check failed after update"
 log "Rolling back to ${PREV_COMMIT:0:7}..."
 
-git reset --hard "$PREV_COMMIT"
+ha_git reset --hard "$PREV_COMMIT"
 
 compose_build_up 2>&1 | tail -5 | while IFS= read -r line; do
   log "  [compose] $line"

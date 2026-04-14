@@ -136,6 +136,22 @@ export function registerRoutes(app: FastifyInstance): void {
     }
   });
 
+  // Troubleshooting: probe each saved go2rtc URL from the server (stream count, reachability)
+  app.get('/api/cameras/diagnostics', async (req, reply) => {
+    const integration = registry.get('unifi');
+    if (!integration || integration.id !== 'unifi') {
+      return reply.code(503).send({ error: 'UniFi integration not available' });
+    }
+    const unifi = integration as UniFiIntegration;
+    try {
+      const entries = await unifi.getCameraDiagnostics();
+      return { entries };
+    } catch (err) {
+      logger.error({ err }, 'Camera diagnostics failed');
+      return reply.code(500).send({ error: 'diagnostics failed' });
+    }
+  });
+
   // Camera list — returns cameras discovered by the UniFi integration
   app.get('/api/cameras', async () => {
     const unifi = registry.get('unifi') as UniFiIntegration | undefined;

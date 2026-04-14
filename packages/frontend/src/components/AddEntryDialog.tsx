@@ -5,10 +5,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { X, Loader2, Save, MapPin } from 'lucide-react';
 import type { ConfigField, IntegrationEntry } from '@ha/shared';
 import { RoborockCloudConnect, filterRoborockConfigFields } from '@/components/RoborockCloudConnect';
-
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
+import { getApiBase } from '@/lib/api-base';
 
 export type EntrySaveDetail =
   | { kind: 'created'; entryId: string }
@@ -30,6 +27,7 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
   const [label, setLabel] = useState('');
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const configFields =
     integrationId === 'roborock' ? filterRoborockConfigFields(fields, values) : fields;
@@ -37,6 +35,7 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
   // Initialize form when dialog opens or entry changes
   useEffect(() => {
     if (open) {
+      setSaveError(null);
       if (entry) {
         setLabel(entry.label);
         setValues(entry.config);
@@ -51,32 +50,69 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
     }
   }, [open, entry, fields]);
 
+  const parseSaveResponse = (
+    res: Response,
+    text: string,
+  ): { ok: true; data: { id?: string } } | { ok: false; message: string } => {
+    let data: { id?: string; error?: string } = {};
+    try {
+      data = text ? (JSON.parse(text) as { id?: string; error?: string }) : {};
+    } catch {
+      return { ok: false, message: res.ok ? 'Invalid response from server' : `Request failed (${res.status})` };
+    }
+    if (!res.ok) {
+      const msg =
+        typeof data.error === 'string'
+          ? data.error
+          : res.status === 403
+            ? 'Admin access required — sign in as an admin or use PIN elevation.'
+            : res.status === 401
+              ? 'Session expired — sign in again.'
+              : `Could not save (${res.status})`;
+      return { ok: false, message: msg };
+    }
+    return { ok: true, data };
+  };
+
   const handleSave = async () => {
+    setSaveError(null);
     setSaving(true);
     try {
       if (entry) {
-        const res = await fetch(`${API_BASE}/api/integrations/${integrationId}/entries/${entry.id}`, {
+        const res = await fetch(`${getApiBase()}/api/integrations/${integrationId}/entries/${entry.id}`, {
           credentials: 'include',
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ label, config: values }),
         });
-        if (!res.ok) return;
+        const parsed = parseSaveResponse(res, await res.text());
+        if (!parsed.ok) {
+          setSaveError(parsed.message);
+          return;
+        }
         onSaved({ kind: 'updated', entryId: entry.id });
         onClose();
       } else {
-        const res = await fetch(`${API_BASE}/api/integrations/${integrationId}/entries`, {
+        const res = await fetch(`${getApiBase()}/api/integrations/${integrationId}/entries`, {
           credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ label, config: values }),
         });
-        if (!res.ok) return;
-        const data = (await res.json()) as { id?: string };
-        if (!data.id) return;
-        onSaved({ kind: 'created', entryId: data.id });
+        const parsed = parseSaveResponse(res, await res.text());
+        if (!parsed.ok) {
+          setSaveError(parsed.message);
+          return;
+        }
+        if (!parsed.data.id) {
+          setSaveError('Invalid response from server');
+          return;
+        }
+        onSaved({ kind: 'created', entryId: parsed.data.id });
         onClose();
       }
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Network error — is the backend running on port 3000?');
     } finally {
       setSaving(false);
     }
@@ -96,7 +132,7 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
               {entry ? 'Edit Entry' : `${integrationName} - Configuration`}
             </Dialog.Title>
             <Dialog.Close asChild>
-              <button className="rounded-md p-1 hover:bg-[var(--color-bg-hover)] transition-colors">
+              <button type="button" className="rounded-md p-1 hover:bg-[var(--color-bg-hover)] transition-colors">
                 <X className="h-4 w-4" style={{ color: 'var(--color-text-muted)' }} />
               </button>
             </Dialog.Close>
@@ -116,7 +152,7 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
                 type="button"
                 onClick={async () => {
                   try {
-                    const res = await fetch(`${API_BASE}/api/settings`, { credentials: 'include' });
+                    const res = await fetch(`${getApiBase()}/api/settings`, { credentials: 'include' });
                     const data = await res.json();
                     const s = data.settings as Record<string, unknown>;
                     if (typeof s.home_latitude === 'number' && typeof s.home_longitude === 'number') {
@@ -191,10 +227,17 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
             )}
           </div>
 
+          {saveError ? (
+            <p className="mx-5 text-xs rounded-lg border px-3 py-2" style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)', backgroundColor: 'color-mix(in srgb, var(--color-danger) 8%, transparent)' }}>
+              {saveError}
+            </p>
+          ) : null}
+
           {/* Footer */}
           <div className="flex justify-end border-t px-5 py-3" style={{ borderColor: 'var(--color-border)' }}>
             <button
-              onClick={handleSave}
+              type="button"
+              onClick={() => void handleSave()}
               disabled={saving}
               className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
               style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}

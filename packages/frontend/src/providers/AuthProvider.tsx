@@ -14,7 +14,10 @@ function isLikelyNetworkFailure(e: unknown): boolean {
 }
 
 function apiReachabilityHint(api: string): string {
-  return `Cannot reach the API at ${api}. Start the backend (npm run dev) or set NEXT_PUBLIC_API_URL to the correct origin.`;
+  if (process.env.NODE_ENV === 'development') {
+    return `Cannot reach the API at ${api}. Start the backend (npm run dev) or set NEXT_PUBLIC_API_URL to the correct origin.`;
+  }
+  return `Cannot reach the hub at ${api}. The service may still be starting after an update or reboot. If this continues, check Docker or the server (SSH).`;
 }
 
 interface AuthContextValue {

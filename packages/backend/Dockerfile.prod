@@ -23,7 +23,9 @@ RUN rm -f packages/shared/tsconfig.tsbuildinfo \
 # ---------------------------------------------------------------------------
 FROM node:22-alpine
 # xorriso: server installer ISO extract/repack (see iso-generator); git/bash for /api/system/update/*
-RUN apk add --no-cache curl xorriso git bash docker-cli docker-compose
+# Trust mounted host checkout (uid often ≠ root): Git 2.35+ "dubious ownership" otherwise.
+RUN apk add --no-cache curl xorriso git bash docker-cli docker-compose \
+    && git config --global --add safe.directory '*'
 
 WORKDIR /app
 

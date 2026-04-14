@@ -14,6 +14,7 @@ import { logger } from '../logger.js';
 import { requirePermission, requireRole } from './auth.js';
 import { automationEngine } from '../automations/engine.js';
 import { getLogEntries, subscribeLogs, type LogEntry } from '../log-buffer.js';
+import { ensureGitSafeGlobalConfig, gitProcessEnv } from '../git-env.js';
 
 const adminOnly = [requireRole('admin')];
 const terminalAccess = [requirePermission(Permission.ViewSystemTerminal)];
@@ -94,12 +95,21 @@ async function pathExists(p: string): Promise<boolean> {
   }
 }
 
+/**
+ * Mounted checkout may be owned by host uid ≠ container uid (Git 2.35+ "dubious ownership").
+ * `gitProcessEnv()` + `ensureGitSafeGlobalConfig()` — see git-env.ts.
+ */
+function gitTrustArgs(cwd: string): string[] {
+  return ['-c', 'safe.directory=*', '-c', `safe.directory=${cwd}`];
+}
+
 function execGit(args: string[], cwd: string): Promise<string> {
+  ensureGitSafeGlobalConfig();
   return new Promise((resolve, reject) => {
     execFile(
       'git',
-      args,
-      { cwd, timeout: 120_000, maxBuffer: 4_000_000 },
+      [...gitTrustArgs(cwd), ...args],
+      { cwd, timeout: 120_000, maxBuffer: 4_000_000, env: gitProcessEnv() },
       (err, stdout, stderr) => {
         if (err) {
           reject(new Error(stderr.trim() || err.message));
@@ -111,19 +121,8 @@ function execGit(args: string[], cwd: string): Promise<string> {
   });
 }
 
-/** Append fix hints Git omits from stderr in some deployments. */
-function formatGitErrorForClient(err: unknown, repoRoot: string): string {
-  const msg = err instanceof Error ? err.message : String(err);
-  if (msg.includes('dubious ownership') || msg.includes('safe.directory')) {
-    return `${msg}
-
-Fix (SSH to the host, run once as the user that performs updates — often the same user that owns ${repoRoot} or runs Docker):
-
-  git config --global --add safe.directory ${repoRoot}
-
-If updates run as root: sudo git config --global --add safe.directory ${repoRoot}`;
-  }
-  return msg;
+function formatGitErrorForClient(err: unknown, _repoRoot: string): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 /** Same path as the UI bundle version (`packages/frontend/src/lib/appVersion.ts`). */
@@ -263,11 +262,12 @@ async function listRecentReleases(root: string, max: number): Promise<ListedRele
 
 /** True if `ancestor` is an ancestor of `descendant` (reachable). */
 async function gitIsAncestor(root: string, ancestor: string, descendant: string): Promise<boolean> {
+  ensureGitSafeGlobalConfig();
   return new Promise((resolve) => {
     execFile(
       'git',
-      ['merge-base', '--is-ancestor', ancestor, descendant],
-      { cwd: root },
+      [...gitTrustArgs(root), 'merge-base', '--is-ancestor', ancestor, descendant],
+      { cwd: root, env: gitProcessEnv() },
       (err) => resolve(!err),
     );
   });

@@ -2,14 +2,7 @@
 
 import { useState, useEffect, useRef, memo } from 'react';
 import { X } from 'lucide-react';
-
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
-
-const WS_BASE = typeof window !== 'undefined'
-  ? `ws://${window.location.hostname}:3000`
-  : 'ws://localhost:3000';
+import { getApiBase, getWsBase } from '@/lib/api-base';
 
 // ---------------------------------------------------------------------------
 // MSE stream — fMP4 over WebSocket (invisible until frames actually play)
@@ -154,7 +147,7 @@ function MSEStream({
     ms.addEventListener('sourceopen', () => {
       if (disposed) return;
 
-      ws = new WebSocket(`${WS_BASE}/api/cameras/${encodeURIComponent(name)}/stream`);
+      ws = new WebSocket(`${getWsBase()}/api/cameras/${encodeURIComponent(name)}/stream`);
       ws.binaryType = 'arraybuffer';
 
       ws.onopen = () => resetDataTimeout();
@@ -323,7 +316,7 @@ function WebRTCStream({
     pc.createOffer()
       .then((offer) => pc.setLocalDescription(offer))
       .then(() =>
-        fetch(`${API_BASE}/api/cameras/${encodeURIComponent(name)}/webrtc`, {
+        fetch(`${getApiBase()}/api/cameras/${encodeURIComponent(name)}/webrtc`, {
           credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/sdp' },
@@ -509,7 +502,7 @@ const CameraTile = memo(function CameraTile({
 
           {!msePlaying && (
             <img
-              src={`${API_BASE}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapshotRev}`}
+              src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapshotRev}`}
               alt={cam.label}
               className="absolute inset-0 z-[1] h-full w-full object-cover"
               onLoad={() => setSnapLoaded(true)}
@@ -568,13 +561,13 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
         {!webrtcPlaying && (
           <>
             <img
-              src={`${API_BASE}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapRev}`}
+              src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapRev}`}
               alt={cam.label}
               className="absolute inset-0 z-[1] h-full w-full object-contain"
               onError={() => setSnapError(true)}
             />
             <img
-              src={`${API_BASE}/api/cameras/${encodeURIComponent(cam.name)}/mjpeg`}
+              src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/mjpeg`}
               alt=""
               className="absolute inset-0 z-[2] h-full w-full object-contain"
               onError={() => setMjpegError(true)}
@@ -637,7 +630,7 @@ export default function CamerasPage() {
   const [recovering, setRecovering] = useState(false);
 
   const loadCameras = () => {
-    fetch(`${API_BASE}/api/cameras`, { credentials: 'include' })
+    fetch(`${getApiBase()}/api/cameras`, { credentials: 'include' })
       .then((r) => {
         if (!r.ok) throw new Error('bad status');
         return r.json();
@@ -662,7 +655,7 @@ export default function CamerasPage() {
 
   const onRecover = () => {
     setRecovering(true);
-    fetch(`${API_BASE}/api/cameras/recover`, { method: 'POST', credentials: 'include' })
+    fetch(`${getApiBase()}/api/cameras/recover`, { method: 'POST', credentials: 'include' })
       .finally(() => {
         setRecovering(false);
         loadCameras();

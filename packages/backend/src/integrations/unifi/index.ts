@@ -12,6 +12,13 @@ import * as entryStore from '../../db/integration-entry-store.js';
 
 const POLL_INTERVAL_MS = 10_000; // poll every 10s for fresher snapshots
 
+/** Trim and strip trailing slashes so fetch URLs match go2rtc consistently. */
+function normalizeGo2rtcBaseUrl(url: string): string {
+  const t = url.trim();
+  if (!t) return t;
+  return t.replace(/\/+$/, '');
+}
+
 /** If go2rtc was down at startup, re-attempt entry init on this interval. */
 const RETRY_FAILED_ENTRY_MS = 45_000;
 /** Re-fetch `/api/streams` so new cameras appear and recovered go2rtc repopulates after empty startup. */
@@ -62,6 +69,10 @@ export class UniFiIntegration implements Integration {
       } catch (err) {
         logger.error({ err, entryId: entry.id }, 'UniFi entry init failed');
         this.lastError = String(err);
+        logger.warn(
+          { entryId: entry.id, go2rtcUrl: normalizeGo2rtcBaseUrl(go2rtcUrl) },
+          'If this persists: use the LAN IP of the host running go2rtc (reachable from the backend). localhost only works when go2rtc is on the same machine as the backend.',
+        );
       }
     }
 
@@ -90,6 +101,87 @@ export class UniFiIntegration implements Integration {
     await this.retryMissingEntries();
     await this.refreshAllEntryStreams();
     return { ok: true, cameraCount: this.getCameraNames().length };
+  }
+
+  /**
+   * Live probe of each saved go2rtc URL (from DB), for troubleshooting when the server sees no streams
+   * but the same config works on a developer laptop.
+   */
+  async getCameraDiagnostics(): Promise<
+    Array<{
+      entryId: string;
+      label: string;
+      go2rtcUrl: string;
+      reachable: boolean;
+      httpStatus?: number;
+      streamCount: number;
+      streamNames: string[];
+      error?: string;
+      hint?: string;
+    }>
+  > {
+    const dbEntries = await entryStore.getEntries('unifi');
+    const out: Array<{
+      entryId: string;
+      label: string;
+      go2rtcUrl: string;
+      reachable: boolean;
+      httpStatus?: number;
+      streamCount: number;
+      streamNames: string[];
+      error?: string;
+      hint?: string;
+    }> = [];
+
+    for (const entry of dbEntries) {
+      if (!entry.enabled || !entry.config.go2rtc_url) continue;
+      const base = normalizeGo2rtcBaseUrl(entry.config.go2rtc_url);
+      let reachable = false;
+      let httpStatus: number | undefined;
+      let streamCount = 0;
+      let streamNames: string[] = [];
+      let error: string | undefined;
+
+      try {
+        const res = await fetch(`${base}/api/streams`, { signal: AbortSignal.timeout(12_000) });
+        httpStatus = res.status;
+        reachable = res.ok;
+        if (res.ok) {
+          const data = (await res.json()) as Record<string, unknown>;
+          streamNames = Object.keys(data);
+          streamCount = streamNames.length;
+        } else {
+          error = `HTTP ${res.status}`;
+        }
+      } catch (err) {
+        error = err instanceof Error ? err.message : String(err);
+      }
+
+      let hint: string | undefined;
+      if (/localhost|127\.0\.0\.1/i.test(base)) {
+        hint =
+          'This URL uses localhost — it targets the machine running the **backend**, not your laptop. If go2rtc runs elsewhere or the backend is in Docker, set go2rtc_url to that host\'s LAN IP.';
+      }
+      if (reachable && streamCount === 0) {
+        hint =
+          (hint ? `${hint} ` : '') +
+          'go2rtc responded but listed no streams — configure inputs (e.g. RTSP from UniFi Protect) in go2rtc on this server.';
+      }
+
+      out.push({
+        entryId: entry.id,
+        label: entry.label || 'UniFi',
+        go2rtcUrl: base,
+        reachable,
+        httpStatus,
+        streamCount,
+        streamNames: streamNames.slice(0, 24),
+        error: reachable ? undefined : error,
+        hint,
+      });
+    }
+
+    return out;
   }
 
   /** Entries configured in DB but not yet successfully initialized (go2rtc unreachable at startup). */
@@ -168,21 +260,31 @@ export class UniFiIntegration implements Integration {
   }
 
   private async initEntry(entryId: string, go2rtcUrl: string, protectHost: string): Promise<void> {
-    const streams = await this.discoverStreams(go2rtcUrl);
+    const base = normalizeGo2rtcBaseUrl(go2rtcUrl);
+    const streams = await this.discoverStreams(base);
     const cameras: CameraInfo[] = streams.map((name) => ({
       name,
       entryId,
       deviceId: `unifi.${entryId}.${name}`,
     }));
 
-    logger.info({ entryId, cameras: cameras.length }, 'UniFi cameras discovered from go2rtc');
+    logger.info({ entryId, cameras: cameras.length, go2rtcUrl: base }, 'UniFi cameras discovered from go2rtc');
 
-    const ctx: EntryContext = { entryId, go2rtcUrl, protectHost, cameras, pollTimer: null };
+    if (cameras.length === 0) {
+      const msg =
+        'go2rtc returned no streams — use a go2rtc URL reachable from this backend (try the host LAN IP instead of localhost) and ensure streams are configured in go2rtc.';
+      this.lastError = msg;
+      logger.warn({ entryId, go2rtcUrl: base }, msg);
+    } else {
+      this.lastError = null;
+    }
+
+    const ctx: EntryContext = { entryId, go2rtcUrl: base, protectHost, cameras, pollTimer: null };
     this.entries.set(entryId, ctx);
 
     // Register initial camera devices and fetch first snapshots
     for (const cam of cameras) {
-      stateStore.update(this.makeCameraState(cam, go2rtcUrl, true));
+      stateStore.update(this.makeCameraState(cam, base, true));
     }
 
     // Initial snapshot fetch (parallel, don't block startup)
@@ -192,8 +294,8 @@ export class UniFiIntegration implements Integration {
     ctx.pollTimer = setInterval(() => void this.pollCameras(ctx), POLL_INTERVAL_MS);
   }
 
-  private async discoverStreams(go2rtcUrl: string): Promise<string[]> {
-    const res = await fetch(`${go2rtcUrl}/api/streams`);
+  private async discoverStreams(go2rtcBaseUrl: string): Promise<string[]> {
+    const res = await fetch(`${go2rtcBaseUrl}/api/streams`, { signal: AbortSignal.timeout(12_000) });
     if (!res.ok) throw new Error(`go2rtc streams API returned ${res.status}`);
     const data = (await res.json()) as Record<string, unknown>;
     return Object.keys(data);

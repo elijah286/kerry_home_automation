@@ -19,9 +19,7 @@ import {
 } from '@/components/icons/IntegrationIcons';
 import type { DeviceState, IntegrationHealth, IntegrationInfo, IntegrationEntry } from '@ha/shared';
 
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
+import { getApiBase } from '@/lib/api-base';
 
 const INTEGRATION_ICONS: Record<string, React.ElementType> = {
   lutron: LutronIcon,
@@ -56,14 +54,15 @@ function integrationStatus(
   const onlineDevices = integrationDevices.filter((d) => d.available).length;
   const totalDevices = integrationDevices.length;
 
-  // If the integration provides devices, check device availability
-  if (data.info.providesDevices && totalDevices > 0) {
+  if (data.info.providesDevices) {
+    if (totalDevices === 0) {
+      return { label: 'No devices', variant: 'warning' };
+    }
     if (onlineDevices === totalDevices) return { label: 'Connected', variant: 'success' };
     if (onlineDevices > 0) return { label: 'Problem', variant: 'warning' };
     return { label: 'Offline', variant: 'danger' };
   }
 
-  // No devices — just check if any entries are enabled
   return { label: 'Connected', variant: 'success' };
 }
 
@@ -296,7 +295,7 @@ export default function IntegrationsPage() {
   }, [searchParams, router]);
 
   const loadIntegrations = useCallback(() => {
-    fetch(`${API_BASE}/api/integrations`, { credentials: 'include' })
+    fetch(`${getApiBase()}/api/integrations`, { credentials: 'include' })
       .then((r) => {
         if (!r.ok) throw new Error(`${r.status}`);
         return r.json();

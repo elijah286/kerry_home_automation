@@ -32,9 +32,13 @@ function getHostDefaultOrigin(): string {
  * - Without the nginx flag, requires several consecutive health failures before showing
  *   (avoids flashing on brief network blips).
  */
+type PassiveMode = 'deploy' | 'offline';
+
 export function UpdateInProgressOverlay() {
   const [forcedKind, setForcedKind] = useState<ServerTransitionKind | null>(null);
   const [passiveVisible, setPassiveVisible] = useState(false);
+  /** When the passive overlay is shown: deploy signal from nginx vs API simply down. */
+  const [passiveMode, setPassiveMode] = useState<PassiveMode | null>(null);
   const failRef = useRef(0);
   const okRef = useRef(0);
   const forcedKindRef = useRef<ServerTransitionKind | null>(null);
@@ -110,6 +114,7 @@ export function UpdateInProgressOverlay() {
             forcedKindRef.current = null;
             setForcedKind(null);
           }
+          setPassiveMode(null);
           setPassiveVisible(false);
         }
         return;
@@ -122,7 +127,10 @@ export function UpdateInProgressOverlay() {
       failRef.current += 1;
       if (process.env.NODE_ENV === 'production') {
         const needFails = nginxUpdating ? FAIL_THRESHOLD_URGENT : FAIL_THRESHOLD;
-        if (failRef.current >= needFails) setPassiveVisible(true);
+        if (failRef.current >= needFails) {
+          setPassiveMode(nginxUpdating ? 'deploy' : 'offline');
+          setPassiveVisible(true);
+        }
       }
     };
 
@@ -138,12 +146,19 @@ export function UpdateInProgressOverlay() {
   const visible = forcedKind !== null || passiveVisible;
   if (!visible) return null;
 
-  const title =
-    forcedKind === 'reboot' ? 'Server restarting' : 'Software update in progress';
-  const body =
-    forcedKind === 'reboot'
-      ? 'The hub is rebooting. This page will clear when the API is healthy again.'
-      : 'The system is restarting services. This page will clear when the API is healthy again.';
+  const api = getApiBase();
+  let title: string;
+  let body: string;
+  if (forcedKind === 'reboot') {
+    title = 'Server restarting';
+    body = 'The hub is rebooting. This page will clear when the API is healthy again.';
+  } else if (passiveMode === 'deploy') {
+    title = 'Software update in progress';
+    body = 'The system is restarting services. This page will clear when the API is healthy again.';
+  } else {
+    title = 'Hub unavailable';
+    body = `The API at ${api} is not responding. This screen clears when health checks succeed. If this lasts more than a few minutes, the backend may have failed to start—check Docker and logs on the host (SSH).`;
+  }
 
   return (
     <div

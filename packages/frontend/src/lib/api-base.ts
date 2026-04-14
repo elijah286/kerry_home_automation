@@ -15,3 +15,11 @@ export function getApiBase(): string {
   }
   return `http://${window.location.hostname}:3000`;
 }
+
+/** WebSocket origin matching {@link getApiBase} (same host/port as the API). */
+export function getWsBase(): string {
+  const b = getApiBase();
+  if (b.startsWith('https://')) return `wss://${b.slice('https://'.length)}`;
+  if (b.startsWith('http://')) return `ws://${b.slice('http://'.length)}`;
+  return b;
+}

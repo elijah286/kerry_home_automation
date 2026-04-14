@@ -3,6 +3,9 @@
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now home-automation.service
 #
+# Optional: periodic recovery if the API is down but Docker is up — see
+#   deploy/systemd/home-automation-watchdog.{service,timer}
+#
 # Edit User=/Group= if your login is not elijah286. User must be in the "docker" group.
 
 [Unit]

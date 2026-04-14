@@ -1,0 +1,26 @@
+# Optional: recovers the stack when /api/health fails (missing backend, partial compose, etc.).
+# Install (paths assume /opt/home-automation and user elijah286 in group docker):
+#   sudo chmod +x /opt/home-automation/scripts/watchdog-stack.sh
+#   sudo cp deploy/systemd/home-automation-watchdog.service /etc/systemd/system/
+#   sudo cp deploy/systemd/home-automation-watchdog.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now home-automation-watchdog.timer
+#
+# Logs: journalctl -u home-automation-watchdog.service -f
+
+[Unit]
+Description=Home Automation API watchdog (docker compose up -d if unhealthy)
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=elijah286
+Group=elijah286
+Environment=HOME=/home/elijah286
+WorkingDirectory=/opt/home-automation
+ExecStart=/opt/home-automation/scripts/watchdog-stack.sh
+
+[Install]
+WantedBy=multi-user.target
