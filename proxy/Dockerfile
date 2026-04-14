@@ -22,6 +22,13 @@ COPY proxy/ proxy/
 WORKDIR /app/proxy
 RUN npm run build
 
+# Prune dev-only dependencies so the runtime image stays lean.
+# @home-automation/shared is type-only (erased by tsc), so remove the
+# workspace link — it would be a broken symlink in the runtime image anyway.
+WORKDIR /app
+RUN npm prune --omit=dev --workspaces \
+    && rm -rf shared proxy/src proxy/node_modules
+
 # ---------------------------------------------------------------------------
 FROM node:22-alpine
 
@@ -32,10 +39,10 @@ LABEL org.opencontainers.image.version="${BUILD_VERSION}" \
 
 WORKDIR /app
 
-# Copy built output and production dependencies
+# Copy built output and production dependencies (hoisted to /app/node_modules by npm workspaces)
 COPY --from=builder /app/proxy/dist ./dist
 COPY --from=builder /app/proxy/package.json ./
-COPY --from=builder /app/proxy/node_modules ./node_modules
+COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 3000
 CMD ["node", "dist/index.js"]
