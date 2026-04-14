@@ -2,6 +2,9 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+# Copy the base tsconfig (proxy/tsconfig.json and shared/tsconfig.json both extend it)
+COPY tsconfig.base.json tsconfig.base.json
+
 # Copy the legacy shared types package (proxy imports type-only from @home-automation/shared)
 COPY shared/ shared/
 
