@@ -49,6 +49,7 @@ restore_standby_page() {
   if [[ -f "$STANDBY_WWW/standby.html.bak" ]]; then
     mv -f "$STANDBY_WWW/standby.html.bak" "$STANDBY_WWW/standby.html"
   fi
+  rm -f "$STANDBY_WWW/ha-update-status.json"
   STANDBY_SWAPPED=0
 }
 
@@ -113,6 +114,7 @@ git pull origin main --quiet
 if [[ -f "$APP/deploy/standby/updating.html" && -d "$STANDBY_WWW" ]]; then
   cp -a "$STANDBY_WWW/standby.html" "$STANDBY_WWW/standby.html.bak" 2>/dev/null || true
   cp -a "$APP/deploy/standby/updating.html" "$STANDBY_WWW/standby.html"
+  echo '{"updating":true}' >"$STANDBY_WWW/ha-update-status.json"
   STANDBY_SWAPPED=1
   log "Standby page (port 80): showing software update message until health checks pass"
   trap restore_standby_page EXIT

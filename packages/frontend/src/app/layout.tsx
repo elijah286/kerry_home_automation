@@ -13,6 +13,7 @@ import { AuthGate } from '@/components/layout/AuthGate';
 import { AlertProvider } from '@/components/lcars/LCARSAlertOverlay';
 import { LCARSSoundsProvider } from '@/components/lcars/LCARSSounds';
 import { LCARSVariantProvider } from '@/components/lcars/LCARSVariantProvider';
+import { UpdateInProgressOverlay } from '@/components/layout/UpdateInProgressOverlay';
 
 export const metadata: Metadata = {
   title: 'HomeOS',
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <AlertProvider>
               <LCARSVariantProvider>
                 <LCARSSoundsProvider>
+                  <UpdateInProgressOverlay />
                   <AuthGate>{children}</AuthGate>
                 </LCARSSoundsProvider>
               </LCARSVariantProvider>
