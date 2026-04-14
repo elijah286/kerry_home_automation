@@ -30,12 +30,10 @@ services:
       ROBOROCK_BRIDGE_SECRET: ${ROBOROCK_BRIDGE_SECRET:-change-me-roborock-bridge}
     expose:
       - "8765"
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health')\""]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
+    # Health check is defined in the Dockerfile (curl-based, more reliable than
+    # the previous Python one-liner which was fragile and caused false unhealthy).
+    # This service is non-critical: the backend starts regardless of its health
+    # (depends_on: service_started) and handles bridge failures gracefully.
 
   redis:
     image: redis:7-alpine
