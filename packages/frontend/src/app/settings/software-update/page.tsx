@@ -328,6 +328,10 @@ export default function SoftwareUpdatePage() {
   const [deployError, setDeployError] = useState<string | null>(null);
   const sseRef = useRef<EventSource | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ref mirrors `deploying` so SSE reconnection callbacks always read the current
+  // value instead of a stale closure capture.
+  const deployingRef = useRef(false);
+  useEffect(() => { deployingRef.current = deploying; }, [deploying]);
 
   // On mount, check if a deployment is already in progress
   useEffect(() => {
@@ -353,7 +357,9 @@ export default function SoftwareUpdatePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // SSE connection for real-time progress
+  // SSE connection for real-time progress.
+  // Uses deployingRef (always current) instead of the `deploying` state value
+  // which would be stale inside the onerror closure.
   const connectSSE = useCallback(() => {
     if (sseRef.current) {
       sseRef.current.close();
@@ -363,7 +369,6 @@ export default function SoftwareUpdatePage() {
       reconnectTimerRef.current = null;
     }
 
-    const lastId = deployEvents.length > 0 ? deployEvents[deployEvents.length - 1].id : 0;
     const url = `${API}/api/system/update/progress`;
     const es = new EventSource(url, { withCredentials: true });
 
@@ -396,12 +401,17 @@ export default function SoftwareUpdatePage() {
       es.close();
       sseRef.current = null;
 
-      // Reconnect after delay (the backend may be restarting)
-      reconnectTimerRef.current = setTimeout(() => {
-        if (deploying) {
-          // Try to get status first
+      // Reconnect after delay — the backend is likely restarting during a deploy.
+      // Read deployingRef (not the stale `deploying` closure) so we keep retrying.
+      const scheduleReconnect = (delay: number) => {
+        reconnectTimerRef.current = setTimeout(() => {
+          if (!deployingRef.current) return; // deploy finished or was never started
+
           fetch(`${API}/api/system/update/status`, { credentials: 'include' })
-            .then((r) => r.json())
+            .then((r) => {
+              if (!r.ok) throw new Error(`HTTP ${r.status}`);
+              return r.json();
+            })
             .then((status: UpdateStatus) => {
               if (status.stages.length > 0) {
                 setDeployEvents(status.stages);
@@ -413,16 +423,17 @@ export default function SoftwareUpdatePage() {
               }
             })
             .catch(() => {
-              // API still down — retry
-              reconnectTimerRef.current = setTimeout(() => connectSSE(), 5000);
+              // API still down — keep retrying every 4s
+              scheduleReconnect(4000);
             });
-        }
-      }, 3000);
+        }, delay);
+      };
+
+      scheduleReconnect(3000);
     };
 
     sseRef.current = es;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deploying]);
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
