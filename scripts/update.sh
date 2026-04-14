@@ -121,9 +121,20 @@ if [[ -f "$APP/deploy/standby/updating.html" && -d "$STANDBY_WWW" ]]; then
 fi
 
 log "Rebuilding containers..."
-compose_build_up 2>&1 | tail -8 | while IFS= read -r line; do
-  log "  [compose] $line"
-done
+COMPOSE_OUT=$(mktemp)
+if ! compose_build_up >"$COMPOSE_OUT" 2>&1; then
+  log "✗ Docker compose build/up failed — full log:"
+  while IFS= read -r line; do log "  [compose] $line"; done <"$COMPOSE_OUT"
+  rm -f "$COMPOSE_OUT"
+  log "Rolling back git to ${PREV_COMMIT:0:7} so cron can retry (avoids repo ahead of running images)."
+  git reset --hard "$PREV_COMMIT"
+  restore_standby_page || true
+  trap - EXIT
+  trim_log
+  exit 1
+fi
+tail -n 24 "$COMPOSE_OUT" | while IFS= read -r line; do log "  [compose] $line"; done
+rm -f "$COMPOSE_OUT"
 
 log "Waiting for health check..."
 if health_check 12; then

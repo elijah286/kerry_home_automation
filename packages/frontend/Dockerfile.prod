@@ -11,6 +11,9 @@ COPY packages/shared/ packages/shared/
 COPY packages/frontend/ packages/frontend/
 COPY tsconfig.base.json ./
 
+# Small hosts often OOM during `next build` without a higher heap cap.
+ENV NODE_OPTIONS=--max-old-space-size=4096
+
 RUN rm -f packages/shared/tsconfig.tsbuildinfo \
     && npx tsc -p packages/shared/tsconfig.json \
     && test -f packages/shared/dist/index.d.ts \
