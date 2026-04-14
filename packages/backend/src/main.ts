@@ -11,6 +11,7 @@ import { stateStore } from './state/store.js';
 import { redis } from './state/redis.js';
 import { connectDb, closeDb, query } from './db/pool.js';
 import { runMigrations } from './db/migrate.js';
+import { loadIntegrationDebugFlags } from './integration-debug.js';
 import { migrateFromRedis } from './db/integration-config-store.js';
 import { historyWriter } from './db/history-writer.js';
 import * as entryStore from './db/integration-entry-store.js';
@@ -58,6 +59,7 @@ async function main() {
   // 1. Connect Postgres and run migrations
   await connectDb();
   await runMigrations();
+  await loadIntegrationDebugFlags();
 
   // 2. Seed admin user if no users exist
   {

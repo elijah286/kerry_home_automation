@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Permission } from '@ha/shared';
+import { KNOWN_INTEGRATIONS, Permission } from '@ha/shared';
 import { useAuth } from '@/providers/AuthProvider';
 import { SystemTerminalDock } from '@/components/layout/SystemTerminalDock';
 import { useSystemLogErrorAlert } from '@/hooks/useSystemLogErrorAlert';
@@ -18,6 +18,10 @@ const STORAGE_SHOW_NAV = 'ha-ui-show-terminal-nav';
 const STORAGE_LOG_DETAIL = 'ha-ui-terminal-log-detail';
 /** Terminal log expanded into main column (LCARS top dock or standard bottom dock). */
 const STORAGE_TERMINAL_MAIN_COLUMN = 'ha-ui-lcars-status-fullscreen';
+const STORAGE_LOG_INTEGRATION_WHITELIST = 'ha-ui-log-integration-whitelist';
+
+/** Lines with no `integration` field in log context (backend HTTP, startup, etc.) */
+export const SYSTEM_LOG_SOURCE_ID = '__system__';
 
 export const TERMINAL_PANEL_HEIGHT = 200;
 
@@ -52,6 +56,17 @@ interface SystemTerminalContextValue {
   setStatusLcarsFullscreen: (v: boolean) => void;
   /** Bottom-dock terminal height when expanded (standard theme). */
   bottomDockHeightPx: number;
+  /**
+   * When non-null, only log lines whose `context.integration` is in this list are shown
+   * (plus `SYSTEM_LOG_SOURCE_ID` for untagged lines when that id is included).
+   * `null` = show all sources.
+   */
+  logIntegrationWhitelist: string[] | null;
+  setLogIntegrationWhitelist: (v: string[] | null) => void;
+  logIntegrationFilterPanelOpen: boolean;
+  setLogIntegrationFilterPanelOpen: (v: boolean) => void;
+  /** First open of the filter panel: seed checklist with all integrations + system. */
+  initLogIntegrationWhitelistIfNeeded: () => void;
 }
 
 const SystemTerminalContext = createContext<SystemTerminalContextValue | null>(null);
@@ -77,6 +92,44 @@ export function SystemTerminalProvider({
   const [logAutoScroll, setLogAutoScroll] = useState(true);
   const [statusLcarsFullscreen, setStatusLcarsFullscreenState] = useState(false);
   const [bottomDockHeightPx, setBottomDockHeightPx] = useState(TERMINAL_PANEL_HEIGHT);
+  const [logIntegrationWhitelist, setLogIntegrationWhitelistState] = useState<string[] | null>(null);
+  const [logIntegrationFilterPanelOpen, setLogIntegrationFilterPanelOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_LOG_INTEGRATION_WHITELIST);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed === null) setLogIntegrationWhitelistState(null);
+      else if (Array.isArray(parsed) && parsed.every((x) => typeof x === 'string')) {
+        setLogIntegrationWhitelistState(parsed);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const setLogIntegrationWhitelist = useCallback((v: string[] | null) => {
+    setLogIntegrationWhitelistState(v);
+    try {
+      localStorage.setItem(STORAGE_LOG_INTEGRATION_WHITELIST, JSON.stringify(v));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const initLogIntegrationWhitelistIfNeeded = useCallback(() => {
+    setLogIntegrationWhitelistState((prev) => {
+      if (prev !== null) return prev;
+      const all = [SYSTEM_LOG_SOURCE_ID, ...KNOWN_INTEGRATIONS.map((i) => i.id)];
+      try {
+        localStorage.setItem(STORAGE_LOG_INTEGRATION_WHITELIST, JSON.stringify(all));
+      } catch {
+        /* ignore */
+      }
+      return all;
+    });
+  }, []);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_SHOW_NAV);
@@ -100,6 +153,10 @@ export function SystemTerminalProvider({
       localStorage.setItem(STORAGE_TERMINAL_MAIN_COLUMN, 'false');
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!statusLcarsFullscreen) setLogIntegrationFilterPanelOpen(false);
+  }, [statusLcarsFullscreen]);
 
   useEffect(() => {
     if (terminalDockPlacement !== 'bottom' || !open || !statusLcarsFullscreen) {
@@ -145,6 +202,11 @@ export function SystemTerminalProvider({
       statusLcarsFullscreen,
       setStatusLcarsFullscreen,
       bottomDockHeightPx,
+      logIntegrationWhitelist,
+      setLogIntegrationWhitelist,
+      logIntegrationFilterPanelOpen,
+      setLogIntegrationFilterPanelOpen,
+      initLogIntegrationWhitelistIfNeeded,
     }),
     [
       canUse,
@@ -160,6 +222,10 @@ export function SystemTerminalProvider({
       statusLcarsFullscreen,
       setStatusLcarsFullscreen,
       bottomDockHeightPx,
+      logIntegrationWhitelist,
+      setLogIntegrationWhitelist,
+      logIntegrationFilterPanelOpen,
+      initLogIntegrationWhitelistIfNeeded,
     ],
   );
 

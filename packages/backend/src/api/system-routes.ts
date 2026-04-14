@@ -111,6 +111,70 @@ function execGit(args: string[], cwd: string): Promise<string> {
   });
 }
 
+/** Append fix hints Git omits from stderr in some deployments. */
+function formatGitErrorForClient(err: unknown, repoRoot: string): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes('dubious ownership') || msg.includes('safe.directory')) {
+    return `${msg}
+
+Fix (SSH to the host, run once as the user that performs updates — often the same user that owns ${repoRoot} or runs Docker):
+
+  git config --global --add safe.directory ${repoRoot}
+
+If updates run as root: sudo git config --global --add safe.directory ${repoRoot}`;
+  }
+  return msg;
+}
+
+/** Same path as the UI bundle version (`packages/frontend/src/lib/appVersion.ts`). */
+const APP_VERSION_JSON_PATH = 'packages/frontend/src/lib/app-version.json';
+
+interface AppVersionMeta {
+  versionLabel: string;
+  releaseNotes?: string;
+}
+
+async function readAppVersionMetaAtRef(root: string, ref: string): Promise<AppVersionMeta | null> {
+  try {
+    const raw = await execGit(['show', `${ref}:${APP_VERSION_JSON_PATH}`], root);
+    const j = JSON.parse(raw) as {
+      major?: unknown;
+      minor?: unknown;
+      patch?: unknown;
+      releaseNotes?: unknown;
+    };
+    if (typeof j.major !== 'number' || typeof j.minor !== 'number' || typeof j.patch !== 'number') {
+      return null;
+    }
+    const versionLabel = `v${j.major}.${j.minor}.${j.patch}`;
+    const releaseNotes =
+      typeof j.releaseNotes === 'string' && j.releaseNotes.trim() ? j.releaseNotes.trim() : undefined;
+    return { versionLabel, releaseNotes };
+  } catch {
+    return null;
+  }
+}
+
+async function readCommitSubject(root: string, ref: string): Promise<string> {
+  try {
+    return await execGit(['log', '-1', '--format=%s', ref], root);
+  } catch {
+    return '';
+  }
+}
+
+/** Version label from app-version.json; description = optional releaseNotes else latest commit subject (PR title on squash merges). */
+async function describeDeployRef(
+  root: string,
+  ref: string,
+): Promise<{ versionLabel: string | null; description: string }> {
+  const meta = await readAppVersionMetaAtRef(root, ref);
+  const subject = (await readCommitSubject(root, ref)).trim();
+  const versionLabel = meta?.versionLabel ?? null;
+  const description = meta?.releaseNotes ?? (subject || '—');
+  return { versionLabel, description };
+}
+
 // ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
@@ -200,6 +264,10 @@ export function registerSystemRoutes(app: FastifyInstance): void {
       const currentSha = await execGit(['rev-parse', 'HEAD'], root);
       const remoteSha = await execGit(['rev-parse', 'origin/main'], root);
       const updateAvailable = currentSha !== remoteSha;
+      const [runningMeta, remoteMeta] = await Promise.all([
+        describeDeployRef(root, 'HEAD'),
+        describeDeployRef(root, 'origin/main'),
+      ]);
       const commits: { hash: string; subject: string; date: string }[] = [];
       if (updateAvailable) {
         const logOut = await execGit(
@@ -219,12 +287,22 @@ export function registerSystemRoutes(app: FastifyInstance): void {
         updateAvailable,
         currentSha,
         remoteSha,
+        running: {
+          sha: currentSha,
+          versionLabel: runningMeta.versionLabel,
+          description: runningMeta.description,
+        },
+        remote: {
+          sha: remoteSha,
+          versionLabel: remoteMeta.versionLabel,
+          description: remoteMeta.description,
+        },
         commits,
       };
     } catch (err) {
       logger.error({ err }, 'Update check failed');
       return reply.code(503).send({
-        error: err instanceof Error ? err.message : 'Git operation failed',
+        error: formatGitErrorForClient(err, root),
       });
     }
   });
@@ -248,7 +326,7 @@ export function registerSystemRoutes(app: FastifyInstance): void {
       }
     } catch (err) {
       return reply.code(503).send({
-        error: err instanceof Error ? err.message : 'Git check failed',
+        error: formatGitErrorForClient(err, root),
       });
     }
 

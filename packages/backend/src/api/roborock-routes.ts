@@ -13,13 +13,15 @@ import {
   isRoborockBridgeConfigured,
 } from '../integrations/roborock/bridge-client.js';
 
+const log = logger.child({ integration: 'roborock' });
+
 export function registerRoborockRoutes(app: FastifyInstance): void {
   app.post<{ Body: { email?: string } }>(
     '/api/roborock/request-code',
     { preHandler: [requireRole('admin')] },
     async (req, reply) => {
       if (!isRoborockBridgeConfigured()) {
-        logger.warn('Roborock request-code: bridge unavailable (managed bridge failed to start or services/roborock-bridge missing)');
+        log.warn('Roborock request-code: bridge unavailable (managed bridge failed to start or services/roborock-bridge missing)');
         return reply.code(503).send({
           error:
             'Roborock cloud bridge is not running. With ROBOROCK_BRIDGE_URL unset, the backend creates services/roborock-bridge/.venv and installs Python packages on startup (needs Python 3.9+ on PATH, 3.11+ for maps). Check server logs. In Docker, set ROBOROCK_BRIDGE_URL to the bridge service.',
@@ -27,13 +29,13 @@ export function registerRoborockRoutes(app: FastifyInstance): void {
       }
       const email = req.body?.email?.trim();
       if (!email) return reply.code(400).send({ error: 'email required' });
-      logger.info({ email: email.replace(/@.*/, '@…') }, 'Roborock: sending email verification code via bridge');
+      log.info({ email: email.replace(/@.*/, '@…') }, 'Roborock: sending email verification code via bridge');
       try {
         await bridgeRequestCode(email);
-        logger.info('Roborock: verification code request succeeded');
+        log.info('Roborock: verification code request succeeded');
         return { ok: true };
       } catch (e) {
-        logger.warn({ err: String(e) }, 'Roborock: request-code failed');
+        log.warn({ err: String(e) }, 'Roborock: request-code failed');
         return reply.code(400).send({ error: String(e) });
       }
     },
@@ -49,13 +51,13 @@ export function registerRoborockRoutes(app: FastifyInstance): void {
       const email = req.body?.email?.trim();
       const code = req.body?.code?.trim();
       if (!email || !code) return reply.code(400).send({ error: 'email and code required' });
-      logger.info({ email: email.replace(/@.*/, '@…') }, 'Roborock: completing email login via bridge');
+      log.info({ email: email.replace(/@.*/, '@…') }, 'Roborock: completing email login via bridge');
       try {
         const out = await bridgeLogin(email, code);
-        logger.info({ devices: out.devices?.length ?? 0 }, 'Roborock: login succeeded');
+        log.info({ devices: out.devices?.length ?? 0 }, 'Roborock: login succeeded');
         return { session_b64: out.session_b64, devices: out.devices };
       } catch (e) {
-        logger.warn({ err: String(e) }, 'Roborock: login failed');
+        log.warn({ err: String(e) }, 'Roborock: login failed');
         return reply.code(400).send({ error: String(e) });
       }
     },

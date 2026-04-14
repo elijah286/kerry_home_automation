@@ -1,0 +1,22 @@
+---
+description: Semantic app version (A.B.C) when committing/pushing to git
+alwaysApply: true
+---
+
+# App version on git push (`packages/frontend/src/lib/app-version.json`)
+
+The UI version is **A.B.C** (`major`, `minor`, `patch` in JSON):
+
+- **A** — User-controlled release generation; **leave at 3** unless the user explicitly asks to change it.
+- **B** — Bump for a **major set of new capabilities** or a broad feature (new flows, integrations, migrations, large cross-cutting work).
+- **C** — Bump for **minor fixes** and small, localized changes (tweaks, bugfixes, copy, narrow refactors).
+
+## On every push to git
+
+1. Update `app-version.json` as part of the commit (not a separate drive-by).
+2. **Choose B vs C** by judgement: compare the **scope and size** of this change set to what a “minor release” vs “patch” usually means above. It does not need to be perfect.
+   - Mostly small fixes / one area → increment **C** only (e.g. 3.12.0 → 3.12.1).
+   - Notable new behavior or multi-area feature work → increment **B** and set **C** to **0** (e.g. 3.12.3 → 3.13.0).
+3. Do not bump **A** unless the user asks.
+
+This replaces any older rule that always bumped B on every push.

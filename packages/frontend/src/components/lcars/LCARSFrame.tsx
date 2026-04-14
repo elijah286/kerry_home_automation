@@ -150,6 +150,10 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
     setLogDetailStyle,
     statusLcarsFullscreen,
     setStatusLcarsFullscreen,
+    initLogIntegrationWhitelistIfNeeded,
+    setLogIntegrationFilterPanelOpen,
+    logIntegrationFilterPanelOpen,
+    logIntegrationWhitelist,
   } = useSystemTerminal();
 
   const showTopTerminal = canUseTerminal && terminalOpen;
@@ -375,6 +379,32 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
             </button>
           ))}
         </div>
+        {statusFullscreen && (
+          <div style={{ display: 'flex', justifyContent: 'center', width: '100%', background: '#000' }}>
+            <button
+              type="button"
+              onClick={() => {
+                initLogIntegrationWhitelistIfNeeded();
+                setLogIntegrationFilterPanelOpen(true);
+              }}
+              aria-pressed={logIntegrationFilterPanelOpen}
+              className={`lcars-btn lcars-btn--pill${
+                logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null ? ' lcars-btn--active' : ''
+              }`}
+              style={{
+                background:
+                  logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
+                    ? colors.navActive
+                    : colors.muted,
+                minWidth: '100%',
+                minHeight: 36,
+                fontSize: 11,
+              }}
+            >
+              Sources
+            </button>
+          </div>
+        )}
         <div
           style={{
             display: 'flex',

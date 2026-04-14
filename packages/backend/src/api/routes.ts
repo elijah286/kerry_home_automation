@@ -4,13 +4,15 @@
 
 import type { FastifyInstance } from 'fastify';
 import type { DeviceCommand, DeviceState, IntegrationId } from '@ha/shared';
-import { KNOWN_INTEGRATIONS } from '@ha/shared';
+import { KNOWN_INTEGRATIONS, Permission } from '@ha/shared';
 import { stateStore } from '../state/store.js';
 import { registry } from '../integrations/registry.js';
 import { redis } from '../state/redis.js';
 import { logger } from '../logger.js';
 import * as configStore from '../db/integration-config-store.js';
 import * as entryStore from '../db/integration-entry-store.js';
+import * as integrationDebugStore from '../db/integration-debug-store.js';
+import { setIntegrationDebugEnabledMemory } from '../integration-debug.js';
 import { query } from '../db/pool.js';
 import { UniFiIntegration } from '../integrations/unifi/index.js';
 import WebSocket from 'ws';
@@ -18,7 +20,7 @@ import { registerChatRoutes } from './chat.js';
 import { registerHelperRoutes } from './helpers-routes.js';
 import { registerScreensaverRoutes } from './screensaver-routes.js';
 import { registerRoborockRoutes } from './roborock-routes.js';
-import { requireRole } from './auth.js';
+import { requirePermission, requireRole } from './auth.js';
 
 /** Prevent hung Node fetch() calls when go2rtc or Protect is slow or wedged. */
 const GO2RTC_FETCH_INIT_MS = 12_000;
@@ -36,6 +38,32 @@ export function registerRoutes(app: FastifyInstance): void {
   registerHelperRoutes(app);
   registerScreensaverRoutes(app);
   registerRoborockRoutes(app);
+
+  // Per-integration verbose logging (system terminal troubleshooting)
+  app.get('/api/integrations/debug-logging', { preHandler: [requirePermission(Permission.ManageIntegrations)] }, async () => {
+    const stored = await integrationDebugStore.getAllDebugFlags();
+    const flags: Record<string, boolean> = {};
+    for (const info of KNOWN_INTEGRATIONS) {
+      flags[info.id] = stored.get(info.id) === true;
+    }
+    return { flags };
+  });
+
+  app.put<{ Params: { id: string }; Body: { enabled?: boolean } }>(
+    '/api/integrations/:id/debug-logging',
+    { preHandler: [requirePermission(Permission.ManageIntegrations)] },
+    async (req, reply) => {
+      const id = req.params.id as IntegrationId;
+      if (!KNOWN_INTEGRATIONS.some((i) => i.id === id)) {
+        return reply.code(404).send({ error: 'Unknown integration' });
+      }
+      const enabled = req.body?.enabled === true;
+      await integrationDebugStore.setDebugFlag(id, enabled);
+      setIntegrationDebugEnabledMemory(id, enabled);
+      return { ok: true, enabled };
+    },
+  );
+
   app.get('/api/health', async () => ({ ok: true, time: Date.now() }));
 
   // Camera snapshot — serve from backend cache (instant), fallback to live fetch from integration

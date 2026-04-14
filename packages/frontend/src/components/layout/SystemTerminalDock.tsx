@@ -1,12 +1,19 @@
 'use client';
 
 import Link from 'next/link';
+import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clsx } from 'clsx';
 import { X, AlertTriangle, Info, AlertOctagon, ListTree, Braces, Maximize2, Minimize2 } from 'lucide-react';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { TERMINAL_PANEL_HEIGHT, useSystemTerminal, type TerminalLogFilter } from '@/providers/SystemTerminalProvider';
+import {
+  SYSTEM_LOG_SOURCE_ID,
+  TERMINAL_PANEL_HEIGHT,
+  useSystemTerminal,
+  type TerminalLogFilter,
+} from '@/providers/SystemTerminalProvider';
+import { LogIntegrationFilterPanel, logIntegrationFilterPanelWidthPx } from '@/components/layout/LogIntegrationFilterPanel';
 import {
   formatLogPrimaryLine,
   formatTerminalLogLines,
@@ -33,6 +40,16 @@ function matchesFilter(level: LogLevelLabel, filter: TerminalLogFilter): boolean
   if (filter === 'warn') return level === 'warn';
   if (filter === 'error') return level === 'error' || level === 'fatal';
   return true;
+}
+
+function logSourceTag(e: LogEntry): string {
+  const v = e.context?.integration;
+  return typeof v === 'string' ? v : SYSTEM_LOG_SOURCE_ID;
+}
+
+function matchesIntegrationWhitelist(e: LogEntry, whitelist: string[] | null): boolean {
+  if (whitelist === null) return true;
+  return whitelist.includes(logSourceTag(e));
 }
 
 function levelStyle(level: LogLevelLabel): string {
@@ -103,6 +120,11 @@ export function SystemTerminalDock({
     setLogAutoScroll,
     statusLcarsFullscreen,
     setStatusLcarsFullscreen,
+    logIntegrationWhitelist,
+    setLogIntegrationWhitelist,
+    logIntegrationFilterPanelOpen,
+    setLogIntegrationFilterPanelOpen,
+    initLogIntegrationWhitelistIfNeeded,
   } = useSystemTerminal();
   const [entries, setEntries] = useState<LogEntry[]>([]);
   /** Row expanded by click — full JSON + deep links */
@@ -147,8 +169,11 @@ export function SystemTerminalDock({
   }, []);
 
   const filtered = useMemo(
-    () => entries.filter((e) => matchesFilter(e.level, filter)),
-    [entries, filter],
+    () =>
+      entries
+        .filter((e) => matchesFilter(e.level, filter))
+        .filter((e) => matchesIntegrationWhitelist(e, logIntegrationWhitelist)),
+    [entries, filter, logIntegrationWhitelist],
   );
 
   useEffect(() => {
@@ -181,7 +206,41 @@ export function SystemTerminalDock({
 
   const lcarsTop = isLCARS && placement === 'top';
 
+  const filterPanelW = logIntegrationFilterPanelWidthPx();
+  const showIntegrationFilterPanel = statusLcarsFullscreen && logIntegrationFilterPanelOpen;
+  const dockLeftShift = showIntegrationFilterPanel ? filterPanelW : 0;
+
+  const panelFixedStyle: CSSProperties =
+    placement === 'top'
+      ? {
+          position: 'fixed',
+          left: sidebarOffsetPx,
+          top: topOffsetPx,
+          height: panelHeightPx,
+          zIndex: 48,
+        }
+      : {
+          position: 'fixed',
+          left: sidebarOffsetPx,
+          bottom: bottomPx ?? 0,
+          height: panelHeightPx,
+          zIndex: 48,
+        };
+
+  const lcars = isLCARS;
+
   return (
+    <>
+    {showIntegrationFilterPanel && (
+      <LogIntegrationFilterPanel
+        open
+        onClose={() => setLogIntegrationFilterPanelOpen(false)}
+        whitelist={logIntegrationWhitelist}
+        setWhitelist={setLogIntegrationWhitelist}
+        fixedStyle={panelFixedStyle}
+        isLcars={lcars}
+      />
+    )}
     <div
       className={clsx(
         'fixed z-[45] flex flex-col',
@@ -194,7 +253,7 @@ export function SystemTerminalDock({
           : 'right-0 border-t',
       )}
       style={{
-        left: sidebarOffsetPx,
+        left: sidebarOffsetPx + dockLeftShift,
         right: rightInsetPx,
         height: panelHeightPx,
         ...(placement === 'top'
@@ -318,6 +377,30 @@ export function SystemTerminalDock({
               {logDetailStyle === 'terminal' ? 'Digest' : 'Lines'}
             </span>
           </button>
+          {placement === 'bottom' && statusLcarsFullscreen && (
+            <button
+              type="button"
+              onClick={() => {
+                initLogIntegrationWhitelistIfNeeded();
+                setLogIntegrationFilterPanelOpen(true);
+              }}
+              aria-pressed={logIntegrationFilterPanelOpen}
+              aria-label="Filter log by integration"
+              className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
+              style={{
+                backgroundColor:
+                  logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
+                    ? 'var(--color-accent)'
+                    : 'var(--color-bg-secondary)',
+                color:
+                  logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
+                    ? '#fff'
+                    : 'var(--color-text-secondary)',
+              }}
+            >
+              <span className="hidden sm:inline">Sources</span>
+            </button>
+          )}
           {placement === 'bottom' && (
             <button
               type="button"
@@ -559,5 +642,6 @@ export function SystemTerminalDock({
         )}
       </div>
     </div>
+    </>
   );
 }

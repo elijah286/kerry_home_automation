@@ -6,6 +6,7 @@ import type { DeviceCommand, IntegrationHealth, ConnectionState } from '@ha/shar
 import type { Integration } from '../registry.js';
 import { stateStore } from '../../state/store.js';
 import { logger } from '../../logger.js';
+import { integrationDetailLog } from '../../integration-debug.js';
 import { eventBus } from '../../state/event-bus.js';
 import * as entryStore from '../../db/integration-entry-store.js';
 import { MiioClient } from './miio-client.js';
@@ -18,6 +19,8 @@ import {
   isRoborockBridgeConfigured,
   type BridgeDevice,
 } from './bridge-client.js';
+
+const log = logger.child({ integration: 'roborock' });
 
 const POLL_INTERVAL_MS = 30_000;
 const MAP_POLL_MS = 50_000;
@@ -122,7 +125,7 @@ export class RoborockIntegration implements Integration {
           await this.poll(ctx);
           this.lastConnected = Date.now();
         } catch (err) {
-          logger.error({ err, entryId: entry.id }, 'Roborock: initial poll failed');
+          log.error({ err, entryId: entry.id }, 'Roborock: initial poll failed');
           this.lastError = String(err);
         }
         ctx.pollTimer = setInterval(() => {
@@ -137,11 +140,11 @@ export class RoborockIntegration implements Integration {
       // Cloud + hybrid via bridge
       const session = cfg.cloud_session?.trim();
       if (!session) {
-        logger.warn({ entryId: entry.id }, 'Roborock: cloud entry missing cloud_session');
+        log.warn({ entryId: entry.id }, 'Roborock: cloud entry missing cloud_session');
         continue;
       }
       if (!isRoborockBridgeConfigured()) {
-        logger.error(
+        log.error(
           { entryId: entry.id },
           'Roborock: cloud entry requires the bridge (auto-started locally, or set ROBOROCK_BRIDGE_URL)',
         );
@@ -153,11 +156,11 @@ export class RoborockIntegration implements Integration {
       try {
         devices = await bridgeListDevices(session);
       } catch (err) {
-        logger.error({ err, entryId: entry.id }, 'Roborock: list devices failed');
+        log.error({ err, entryId: entry.id }, 'Roborock: list devices failed');
         this.lastError = String(err);
       }
       if (devices.length === 0) {
-        logger.warn({ entryId: entry.id }, 'Roborock: no devices on account');
+        log.warn({ entryId: entry.id }, 'Roborock: no devices on account');
         continue;
       }
 
@@ -178,7 +181,7 @@ export class RoborockIntegration implements Integration {
         await this.poll(ctx);
         this.lastConnected = Date.now();
       } catch (err) {
-        logger.error({ err, entryId: entry.id }, 'Roborock: initial cloud poll failed');
+        log.error({ err, entryId: entry.id }, 'Roborock: initial cloud poll failed');
         this.lastError = String(err);
       }
 
@@ -199,7 +202,15 @@ export class RoborockIntegration implements Integration {
     if (this.vacuums.size > 0 && this.lastConnected) {
       this.emitHealth('connected');
     }
-    logger.info({ instances: this.vacuums.size }, 'Roborock integration started');
+    log.info({ instances: this.vacuums.size }, 'Roborock integration started');
+    integrationDetailLog(
+      'roborock',
+      'Roborock: start() complete',
+      {
+        vacuumContexts: this.vacuums.size,
+        keys: [...this.vacuums.keys()],
+      },
+    );
   }
 
   async stop(): Promise<void> {
@@ -225,9 +236,9 @@ export class RoborockIntegration implements Integration {
     const localCtx = this.vacuums.get(localKey) as LocalVacuumCtx | undefined;
 
     if (localCtx) {
-      logger.info({ deviceId: cmd.deviceId, action: cmd.action }, 'Roborock: local miIO vacuum command');
+      log.info({ deviceId: cmd.deviceId, action: cmd.action }, 'Roborock: local miIO vacuum command');
       await this.runLocalCommand(localCtx, cmd);
-      logger.info({ deviceId: cmd.deviceId, action: cmd.action }, 'Roborock: local miIO command finished');
+      log.info({ deviceId: cmd.deviceId, action: cmd.action }, 'Roborock: local miIO command finished');
       setTimeout(() => void this.poll(localCtx).catch(() => {}), 3000);
       return;
     }
@@ -239,10 +250,16 @@ export class RoborockIntegration implements Integration {
       }
       if (!duid) throw new Error('Roborock: device id must include duid when multiple vacuums are linked');
       const cached = cloudCtx.hostByDuid.get(duid);
-      logger.info(
+      log.info(
         { deviceId: cmd.deviceId, action: cmd.action, duid: duid.slice(0, 12), cachedHost: cached ?? null },
         'Roborock: vacuum command (prefer LAN when IP known)',
       );
+      integrationDetailLog('roborock', 'Roborock: bridge command', {
+        action: cmd.action,
+        duidPrefix: duid.slice(0, 16),
+        cachedHost: cached ?? null,
+        deviceId: cmd.deviceId,
+      });
       switch (cmd.action) {
         case 'start':
           await bridgeCommand(cloudCtx.sessionB64, duid, 'start', { cachedHost: cached });
@@ -272,7 +289,7 @@ export class RoborockIntegration implements Integration {
           throw new Error(`Roborock: unsupported vacuum action ${a ?? '(missing)'}`);
         }
       }
-      logger.info({ deviceId: cmd.deviceId, action: cmd.action }, 'Roborock: vacuum command finished');
+      log.info({ deviceId: cmd.deviceId, action: cmd.action }, 'Roborock: vacuum command finished');
       setTimeout(() => void this.poll(cloudCtx).catch(() => {}), 3000);
       return;
     }
@@ -319,6 +336,12 @@ export class RoborockIntegration implements Integration {
       const status = await ctx.client.getStatus();
       stateStore.update(mapVacuumState(ctx.entryId, ctx.label, status));
       if (status) this.lastConnected = Date.now();
+      integrationDetailLog('roborock', 'Roborock: local miIO poll', {
+        entryId: ctx.entryId,
+        hasStatus: Boolean(status),
+        battery: status?.battery,
+        state: status?.state,
+      });
       return;
     }
 
@@ -332,8 +355,17 @@ export class RoborockIntegration implements Integration {
           mapVacuumState(ctx.entryId, dev.name, res.status, dev.duid),
         );
         if (res.status) anyOk = true;
+        integrationDetailLog('roborock', 'Roborock: cloud/bridge poll', {
+          entryId: ctx.entryId,
+          duidPrefix: dev.duid.slice(0, 16),
+          transport: res.transport,
+          localIp: res.local_ip,
+          battery: res.status?.battery,
+          state: res.status?.state,
+          hadCachedIp: Boolean(cached),
+        });
       } catch (err) {
-        logger.warn(
+        log.warn(
           { err: String(err), duid: dev.duid.slice(0, 12), hadCachedIp: Boolean(cached) },
           'Roborock: status poll failed (device may be offline or bridge cannot reach MQTT/LAN)',
         );
@@ -363,7 +395,7 @@ export class RoborockIntegration implements Integration {
       config: { ...entry.config, device_hosts: json },
     });
     ctx.lastPersistedHostsJson = json;
-    logger.info(
+    log.info(
       { entryId: ctx.entryId, duids: ctx.hostByDuid.size },
       'Roborock: saved vacuum LAN IPs to integration config (local-first on restart)',
     );
@@ -388,7 +420,7 @@ export class RoborockIntegration implements Integration {
           }
         }
       } catch (err) {
-        logger.debug({ err, duid: dev.duid }, 'Roborock map poll skipped');
+        log.debug({ err, duid: dev.duid }, 'Roborock map poll skipped');
       }
     }
   }

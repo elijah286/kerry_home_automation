@@ -16,14 +16,63 @@ interface CommitRow {
   date: string;
 }
 
+/** From GET /api/system/update/check — matches server git + app-version.json */
+interface DeployRefInfo {
+  sha: string;
+  versionLabel: string | null;
+  /** releaseNotes from app-version.json, else latest commit subject (PR title on squash merge) */
+  description: string;
+}
+
 interface CheckResponse {
   checkSupported: boolean;
   reason?: string;
   updateAvailable?: boolean;
   currentSha?: string;
   remoteSha?: string;
+  running?: DeployRefInfo;
+  remote?: DeployRefInfo;
   commits?: CommitRow[];
   error?: string;
+}
+
+function shortSha(sha: string | undefined): string {
+  if (!sha) return '—';
+  return sha.length > 12 ? `${sha.slice(0, 12)}…` : sha;
+}
+
+function DeployRefBlock({
+  title,
+  info,
+  shaFallback,
+}: {
+  title: string;
+  info?: DeployRefInfo;
+  shaFallback?: string;
+}) {
+  const version = info?.versionLabel ?? null;
+  const description = info?.description?.trim() || '—';
+  const sha = info?.sha ?? shaFallback ?? '';
+
+  return (
+    <div
+      className="rounded-lg border px-3 py-3 space-y-2"
+      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}
+    >
+      <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-muted)' }}>
+        {title}
+      </div>
+      <div className="text-base font-semibold tabular-nums" style={{ color: 'var(--color-text)' }}>
+        {version ?? shortSha(sha)}
+      </div>
+      <p className="text-sm leading-snug" style={{ color: 'var(--color-text-secondary)' }}>
+        {description}
+      </p>
+      <div className="text-[11px] font-mono break-all opacity-75" style={{ color: 'var(--color-text-muted)' }}>
+        {sha || '—'}
+      </div>
+    </div>
+  );
 }
 
 function formatCommitDate(iso: string): string {
@@ -155,7 +204,7 @@ export default function SoftwareUpdatePage() {
             }}
           >
             <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>{check.error}</span>
+            <span className="whitespace-pre-wrap break-words min-w-0">{check.error}</span>
           </div>
         )}
 
@@ -166,19 +215,17 @@ export default function SoftwareUpdatePage() {
         )}
 
         {check?.checkSupported && (
-          <div className="space-y-3 text-sm">
-            <div style={{ color: 'var(--color-text-secondary)' }}>
-              <span className="font-medium" style={{ color: 'var(--color-text)' }}>
-                Running:{' '}
-              </span>
-              <code className="text-xs break-all">{check.currentSha?.slice(0, 12) ?? '—'}</code>
-            </div>
-            <div style={{ color: 'var(--color-text-secondary)' }}>
-              <span className="font-medium" style={{ color: 'var(--color-text)' }}>
-                origin/main:{' '}
-              </span>
-              <code className="text-xs break-all">{check.remoteSha?.slice(0, 12) ?? '—'}</code>
-            </div>
+          <div className="space-y-4 text-sm">
+            <DeployRefBlock
+              title="Running"
+              info={check.running}
+              shaFallback={check.currentSha}
+            />
+            <DeployRefBlock
+              title="origin/main"
+              info={check.remote}
+              shaFallback={check.remoteSha}
+            />
 
             {!check.updateAvailable ? (
               <p style={{ color: 'var(--color-success)' }}>You are up to date with origin/main.</p>

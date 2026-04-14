@@ -6,6 +6,8 @@ import type { RoborockStatus } from './miio-client.js';
 import { logger } from '../../logger.js';
 import { roborockBridgeSettings } from '../../config.js';
 
+const log = logger.child({ integration: 'roborock' });
+
 export interface BridgeDevice {
   duid: string;
   name: string;
@@ -94,7 +96,7 @@ export async function bridgeStatus(
   });
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    logger.warn({ duid, detail: err.detail }, 'Roborock bridge status failed');
+    log.warn({ duid, detail: err.detail }, 'Roborock bridge status failed');
     throw new Error(err.detail ?? res.statusText);
   }
   return res.json() as Promise<BridgeStatusResult>;
@@ -106,7 +108,7 @@ export async function bridgeCommand(
   action: string,
   opts?: { fanSpeed?: number; cachedHost?: string },
 ): Promise<void> {
-  logger.info(
+  log.info(
     { duid: duid.slice(0, 12), action, cachedHost: opts?.cachedHost ?? null },
     'Roborock bridge: sending vacuum command',
   );
@@ -122,7 +124,7 @@ export async function bridgeCommand(
     throw new Error(err.detail ?? res.statusText);
   }
   const out = (await res.json().catch(() => ({}))) as { transport?: string; local_ip?: string | null };
-  logger.info(
+  log.info(
     {
       duid: duid.slice(0, 12),
       action,
@@ -155,7 +157,7 @@ export async function bridgeMap(
   );
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { detail?: string };
-    logger.warn({ duid, detail: err.detail }, 'Roborock bridge map failed');
+    log.warn({ duid, detail: err.detail }, 'Roborock bridge map failed');
     throw new Error(err.detail ?? res.statusText);
   }
   const data = (await res.json()) as {

@@ -12,6 +12,8 @@ import { logger } from './logger.js';
 import { roborockBridgeSettings } from './config.js';
 import { ensureRoborockBridgeVenv } from './roborock-bridge-bootstrap.js';
 
+const log = logger.child({ integration: 'roborock' });
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let managedChild: ChildProcess | null = null;
@@ -32,7 +34,7 @@ function logBridgeStderrLine(raw: string): void {
     upper.includes('SYNTAXERROR') ||
     upper.includes('EXCEPTION:')
   ) {
-    logger.warn({ bridge: 'stderr', line: t }, 'roborock-bridge');
+    log.warn({ bridge: 'stderr', line: t }, 'roborock-bridge');
     return;
   }
 
@@ -47,16 +49,16 @@ function logBridgeStderrLine(raw: string): void {
       upper.includes('CLOUD_API'));
 
   if (mqttOrBrokerChurn || /^INFO:/i.test(t) || /^DEBUG:/i.test(t)) {
-    logger.debug({ bridge: 'stderr', line: t.slice(0, 500) }, 'roborock-bridge');
+    log.debug({ bridge: 'stderr', line: t.slice(0, 500) }, 'roborock-bridge');
     return;
   }
 
   if (/^WARNING:/i.test(t) || /^ERROR:/i.test(t)) {
-    logger.info({ bridge: 'stderr', line: t.slice(0, 500) }, 'roborock-bridge');
+    log.info({ bridge: 'stderr', line: t.slice(0, 500) }, 'roborock-bridge');
     return;
   }
 
-  logger.debug({ bridge: 'stderr', line: t.slice(0, 500) }, 'roborock-bridge');
+  log.debug({ bridge: 'stderr', line: t.slice(0, 500) }, 'roborock-bridge');
 }
 
 function repoRootFromDist(): string {
@@ -107,7 +109,7 @@ export async function startManagedRoborockBridgeIfNeeded(): Promise<void> {
 
   const bridgeDir = bridgeServiceDir();
   if (!existsSync(resolve(bridgeDir, 'app.py'))) {
-    logger.warn(
+    log.warn(
       { bridgeDir },
       'Roborock: managed bridge skipped — services/roborock-bridge not found (use local miIO or set ROBOROCK_BRIDGE_URL)',
     );
@@ -118,7 +120,7 @@ export async function startManagedRoborockBridgeIfNeeded(): Promise<void> {
   try {
     python = await ensureRoborockBridgeVenv(bridgeDir);
   } catch (e) {
-    logger.error({ err: String(e) }, 'Roborock: could not prepare bridge virtualenv');
+    log.error({ err: String(e) }, 'Roborock: could not prepare bridge virtualenv');
     return;
   }
 
@@ -127,7 +129,7 @@ export async function startManagedRoborockBridgeIfNeeded(): Promise<void> {
   try {
     port = await pickLoopbackPort(8765);
   } catch (e) {
-    logger.error({ err: String(e) }, 'Roborock: could not allocate a port for managed bridge');
+    log.error({ err: String(e) }, 'Roborock: could not allocate a port for managed bridge');
     return;
   }
 
@@ -139,7 +141,7 @@ export async function startManagedRoborockBridgeIfNeeded(): Promise<void> {
 
   const args = ['-m', 'uvicorn', 'app:app', '--host', '127.0.0.1', '--port', String(port)];
 
-  logger.info({ port, bridgeDir }, 'Roborock: starting managed python bridge');
+  log.info({ port, bridgeDir }, 'Roborock: starting managed python bridge');
 
   const proc = spawn(python, args, {
     cwd: bridgeDir,
@@ -153,7 +155,7 @@ export async function startManagedRoborockBridgeIfNeeded(): Promise<void> {
 
   proc.stdout?.on('data', (buf: Buffer) => {
     const s = buf.toString().trim();
-    if (s) logger.debug({ bridge: 'stdout', line: s.slice(0, 500) }, 'roborock-bridge');
+    if (s) log.debug({ bridge: 'stdout', line: s.slice(0, 500) }, 'roborock-bridge');
   });
   proc.stderr?.on('data', (buf: Buffer) => {
     for (const line of buf.toString().split('\n')) {
@@ -166,19 +168,19 @@ export async function startManagedRoborockBridgeIfNeeded(): Promise<void> {
     const was = managedByServer;
     managedByServer = false;
     if (was) {
-      logger.warn({ code, signal }, 'Roborock: managed bridge process exited');
+      log.warn({ code, signal }, 'Roborock: managed bridge process exited');
       roborockBridgeSettings.baseUrl = (process.env.ROBOROCK_BRIDGE_URL ?? '').trim();
       roborockBridgeSettings.secret = (process.env.ROBOROCK_BRIDGE_SECRET ?? '').trim();
     }
   });
 
   proc.once('error', (err) => {
-    logger.error({ err }, 'Roborock: managed bridge spawn error');
+    log.error({ err }, 'Roborock: managed bridge spawn error');
   });
 
   await new Promise((r) => setTimeout(r, 400));
   if (proc.exitCode != null) {
-    logger.error(
+    log.error(
       { exitCode: proc.exitCode },
       'Roborock: managed bridge exited during startup (see roborock-bridge stderr above)',
     );
@@ -189,7 +191,7 @@ export async function startManagedRoborockBridgeIfNeeded(): Promise<void> {
 
   const alive = await waitForHealth(baseUrl, 45_000);
   if (!alive) {
-    logger.error('Roborock: managed bridge did not become healthy in time');
+    log.error('Roborock: managed bridge did not become healthy in time');
     proc.kill('SIGTERM');
     managedChild = null;
     managedByServer = false;
@@ -198,7 +200,7 @@ export async function startManagedRoborockBridgeIfNeeded(): Promise<void> {
 
   roborockBridgeSettings.baseUrl = baseUrl;
   roborockBridgeSettings.secret = secret;
-  logger.info({ baseUrl: `${baseUrl.replace(/\/$/, '')}` }, 'Roborock: managed bridge is ready');
+  log.info({ baseUrl: `${baseUrl.replace(/\/$/, '')}` }, 'Roborock: managed bridge is ready');
 }
 
 export async function stopManagedRoborockBridge(): Promise<void> {

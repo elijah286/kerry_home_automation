@@ -17,6 +17,8 @@ import {
   RoborockIcon, RachioIcon, CalendarIcon, RainsoftIcon, SenseIcon,
 } from '@/components/icons/IntegrationIcons';
 import type { DeviceState, IntegrationHealth, IntegrationInfo, IntegrationEntry, ConfigField } from '@ha/shared';
+import { Permission } from '@ha/shared';
+import { useAuth } from '@/providers/AuthProvider';
 import type { EntrySaveDetail } from '@/components/AddEntryDialog';
 import { RoborockCloudConnect, filterRoborockConfigFields } from '@/components/RoborockCloudConnect';
 import { devicesForIntegrationEntry } from '@/lib/device-instance';
@@ -24,6 +26,88 @@ import { devicesForIntegrationEntry } from '@/lib/device-instance';
 const API_BASE = typeof window !== 'undefined'
   ? `http://${window.location.hostname}:3000`
   : 'http://localhost:3000';
+
+function IntegrationDebugLoggingCard({ integrationId }: { integrationId: string }) {
+  const { hasPermission } = useAuth();
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_BASE}/api/integrations/debug-logging`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d: { flags?: Record<string, boolean> }) => {
+        if (!cancelled) setEnabled(d.flags?.[integrationId] === true);
+      })
+      .catch(() => {
+        if (!cancelled) setErr('Could not load debug flags');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [integrationId]);
+
+  if (!hasPermission(Permission.ManageIntegrations)) return null;
+
+  const toggle = async () => {
+    setSaving(true);
+    setErr(null);
+    try {
+      const next = !enabled;
+      const res = await fetch(`${API_BASE}/api/integrations/${integrationId}/debug-logging`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: next }),
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(t || res.statusText);
+      }
+      setEnabled(next);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card className="!p-0 overflow-hidden">
+      <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
+        <h2 className="text-sm font-semibold">Troubleshooting</h2>
+        <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+          When enabled, the system terminal includes extra diagnostic lines from this integration. Open Status → full
+          screen → <span className="font-medium">Sources</span> to filter logs by integration.
+        </p>
+      </div>
+      <div className="px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+        <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+          Detailed logging
+        </span>
+        <button
+          type="button"
+          disabled={loading || saving}
+          onClick={() => void toggle()}
+          className="rounded-lg px-4 py-2 text-sm font-medium border transition-colors disabled:opacity-60"
+          style={{
+            borderColor: 'var(--color-border)',
+            backgroundColor: enabled ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+            color: enabled ? '#fff' : 'var(--color-text-secondary)',
+          }}
+        >
+          {loading ? '…' : saving ? 'Saving…' : enabled ? 'On' : 'Off'}
+        </button>
+      </div>
+      {err ? <p className="px-5 pb-3 text-xs" style={{ color: 'var(--color-danger)' }}>{err}</p> : null}
+    </Card>
+  );
+}
 
 const INTEGRATION_ICONS: Record<string, React.ElementType> = {
   lutron: LutronIcon,
@@ -662,6 +746,8 @@ export default function IntegrationDetailPage() {
           ))}
         </div>
       </Card>
+
+      <IntegrationDebugLoggingCard integrationId={info.id} />
 
       {/* Instances section */}
       <div className="space-y-3">

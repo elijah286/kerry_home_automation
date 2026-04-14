@@ -7,6 +7,8 @@ import { createSocket, type Socket } from 'node:dgram';
 import { createCipheriv, createDecipheriv, createHash } from 'node:crypto';
 import { logger } from '../../logger.js';
 
+const log = logger.child({ integration: 'roborock' });
+
 const MIIO_PORT = 54321;
 
 export interface RoborockStatus {
@@ -162,7 +164,7 @@ export class MiioClient {
       const result = (await this.send('get_status')) as RoborockStatus[];
       return result?.[0] ?? null;
     } catch (err) {
-      logger.debug({ err }, 'Roborock: get_status failed');
+      log.debug({ err }, 'Roborock: get_status failed');
       return null;
     }
   }
