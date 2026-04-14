@@ -12,6 +12,11 @@ import * as entryStore from '../../db/integration-entry-store.js';
 
 const POLL_INTERVAL_MS = 10_000; // poll every 10s for fresher snapshots
 
+/** If go2rtc was down at startup, re-attempt entry init on this interval. */
+const RETRY_FAILED_ENTRY_MS = 45_000;
+/** Re-fetch `/api/streams` so new cameras appear and recovered go2rtc repopulates after empty startup. */
+const REDISCOVER_STREAMS_MS = 120_000;
+
 interface CameraInfo {
   name: string;
   entryId: string;
@@ -31,6 +36,8 @@ export class UniFiIntegration implements Integration {
   private entries = new Map<string, EntryContext>();
   private connectionState: ConnectionState = 'init';
   private lastError: string | null = null;
+  private retryTimer: ReturnType<typeof setInterval> | null = null;
+  private rediscoverTimer: ReturnType<typeof setInterval> | null = null;
 
   /** Cached JPEG snapshots per camera name — updated every poll cycle */
   private snapshotCache = new Map<string, { buffer: Buffer; timestamp: number }>();
@@ -65,6 +72,99 @@ export class UniFiIntegration implements Integration {
       this.connectionState = 'error';
       this.emitHealth('error');
     }
+
+    const hasUnifiConfig = dbEntries.some((e) => e.enabled && e.config.go2rtc_url);
+    if (hasUnifiConfig) {
+      // go2rtc often starts after the backend — retry soon, then on an interval.
+      setTimeout(() => void this.retryMissingEntries(), 5_000);
+      this.retryTimer = setInterval(() => void this.retryMissingEntries(), RETRY_FAILED_ENTRY_MS);
+      this.rediscoverTimer = setInterval(() => void this.refreshAllEntryStreams(), REDISCOVER_STREAMS_MS);
+    }
+  }
+
+  /**
+   * Re-run discovery for entries that failed init (go2rtc was offline) and refresh stream lists
+   * from go2rtc. Safe to call from HTTP for a manual "recover" button.
+   */
+  async recoverCameras(): Promise<{ ok: boolean; cameraCount: number }> {
+    await this.retryMissingEntries();
+    await this.refreshAllEntryStreams();
+    return { ok: true, cameraCount: this.getCameraNames().length };
+  }
+
+  /** Entries configured in DB but not yet successfully initialized (go2rtc unreachable at startup). */
+  async getPendingEntryCount(): Promise<number> {
+    const dbEntries = await entryStore.getEntries('unifi');
+    let n = 0;
+    for (const e of dbEntries) {
+      if (!e.enabled || !e.config.go2rtc_url) continue;
+      if (!this.entries.has(e.id)) n += 1;
+    }
+    return n;
+  }
+
+  private async retryMissingEntries(): Promise<void> {
+    const dbEntries = await entryStore.getEntries('unifi');
+    let anySuccess = false;
+    for (const entry of dbEntries) {
+      if (!entry.enabled) continue;
+      const go2rtcUrl = entry.config.go2rtc_url;
+      if (!go2rtcUrl) continue;
+      if (this.entries.has(entry.id)) continue;
+      try {
+        await this.initEntry(entry.id, go2rtcUrl, entry.config.protect_host ?? '');
+        anySuccess = true;
+        this.lastError = null;
+      } catch (err) {
+        logger.warn({ err, entryId: entry.id }, 'UniFi entry init retry failed (will try again)');
+        this.lastError = String(err);
+      }
+    }
+    if (anySuccess) {
+      this.connectionState = 'connected';
+      this.emitHealth('connected');
+    }
+  }
+
+  private async refreshAllEntryStreams(): Promise<void> {
+    await Promise.allSettled([...this.entries.values()].map((ctx) => this.refreshEntryStreams(ctx)));
+  }
+
+  /**
+   * Merge go2rtc's current stream list into this entry. Adds new cameras, removes ones gone from go2rtc.
+   * If go2rtc returns an empty list while we already had streams, keep the old list (protect against transient API glitches).
+   */
+  private async refreshEntryStreams(ctx: EntryContext): Promise<void> {
+    let streams: string[];
+    try {
+      streams = await this.discoverStreams(ctx.go2rtcUrl);
+    } catch (err) {
+      logger.warn({ err, entryId: ctx.entryId }, 'go2rtc stream list refresh failed');
+      return;
+    }
+    if (streams.length === 0 && ctx.cameras.length > 0) {
+      logger.warn({ entryId: ctx.entryId }, 'go2rtc returned no streams — keeping previous camera list');
+      return;
+    }
+
+    const nextNames = new Set(streams);
+    for (const cam of ctx.cameras) {
+      if (!nextNames.has(cam.name)) {
+        stateStore.remove(cam.deviceId);
+        this.snapshotCache.delete(cam.name);
+      }
+    }
+
+    const newCameras: CameraInfo[] = streams.map((name) => ({
+      name,
+      entryId: ctx.entryId,
+      deviceId: `unifi.${ctx.entryId}.${name}`,
+    }));
+    ctx.cameras = newCameras;
+    for (const cam of newCameras) {
+      stateStore.update(this.makeCameraState(cam, ctx.go2rtcUrl, true));
+    }
+    void this.pollCameras(ctx);
   }
 
   private async initEntry(entryId: string, go2rtcUrl: string, protectHost: string): Promise<void> {
@@ -161,6 +261,14 @@ export class UniFiIntegration implements Integration {
   }
 
   async stop(): Promise<void> {
+    if (this.retryTimer) {
+      clearInterval(this.retryTimer);
+      this.retryTimer = null;
+    }
+    if (this.rediscoverTimer) {
+      clearInterval(this.rediscoverTimer);
+      this.rediscoverTimer = null;
+    }
     for (const ctx of this.entries.values()) {
       if (ctx.pollTimer) clearInterval(ctx.pollTimer);
     }

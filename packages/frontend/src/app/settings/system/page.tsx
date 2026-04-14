@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, createElement } from 'react';
 import { useRouter } from 'next/navigation';
+import { signalServerTransitionPending } from '@/lib/server-transition';
 import { Card } from '@/components/ui/Card';
 import { useAuth } from '@/providers/AuthProvider';
 import {
@@ -190,6 +191,9 @@ export default function SystemPage() {
       });
       if (res.ok) {
         setAction(key, 'success');
+        if (key === 'restart-hardware' && res.status === 202) {
+          signalServerTransitionPending('reboot');
+        }
       } else {
         setAction(key, 'error');
       }

@@ -114,6 +114,7 @@ function summarizeHttpPath(method: string, pathname: string): string {
   if (p === '/api/devices') return m === 'GET' ? 'Load all devices' : `Devices (${m})`;
   if (p === '/api/integrations') return 'Load integrations & status';
   if (p === '/api/cameras') return 'List cameras';
+  if (p === '/api/cameras/recover') return 'Cameras · reconnect go2rtc / refresh list';
   if (p === '/api/settings') return 'Load settings';
   if (p === '/api/areas') return m === 'GET' ? 'Load rooms / areas' : `Areas (${m})`;
   if (p === '/api/alarms') return m === 'GET' ? 'Load alarms' : `Alarms (${m})`;

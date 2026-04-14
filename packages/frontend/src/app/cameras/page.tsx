@@ -617,32 +617,90 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
 // Main cameras page
 // ---------------------------------------------------------------------------
 
+const FALLBACK_CAMERAS: CameraInfo[] = [
+  { name: 'back_door', label: 'Back Door' },
+  { name: 'living_room', label: 'Living Room' },
+  { name: 'garage', label: 'Garage' },
+  { name: 'backyard', label: 'Backyard' },
+  { name: 'street', label: 'Street' },
+  { name: 'driveway', label: 'Driveway' },
+  { name: 'game_room', label: 'Game Room' },
+  { name: 'pool', label: 'Pool' },
+  { name: 'front_porch', label: 'Front Porch' },
+];
+
 export default function CamerasPage() {
-  const [cameras,      setCameras]      = useState<CameraInfo[]>([]);
+  const [cameras, setCameras] = useState<CameraInfo[]>([]);
   const [fullscreenCam, setFullscreenCam] = useState<CameraInfo | null>(null);
+  const [pendingEntries, setPendingEntries] = useState(0);
+  const [listError, setListError] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+
+  const loadCameras = () => {
+    fetch(`${API_BASE}/api/cameras`, { credentials: 'include' })
+      .then((r) => {
+        if (!r.ok) throw new Error('bad status');
+        return r.json();
+      })
+      .then((data: { cameras?: CameraInfo[]; recover?: { pendingEntries?: number } }) => {
+        setCameras(data.cameras ?? []);
+        setPendingEntries(data.recover?.pendingEntries ?? 0);
+        setListError(false);
+      })
+      .catch(() => {
+        setListError(true);
+        setCameras(FALLBACK_CAMERAS);
+        setPendingEntries(0);
+      });
+  };
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/cameras`, { credentials: 'include' })
-      .then((r) => r.json())
-      .then((data: { cameras: CameraInfo[] }) => setCameras(data.cameras))
-      .catch(() => {
-        setCameras([
-          { name: 'back_door',   label: 'Back Door' },
-          { name: 'living_room', label: 'Living Room' },
-          { name: 'garage',      label: 'Garage' },
-          { name: 'backyard',    label: 'Backyard' },
-          { name: 'street',      label: 'Street' },
-          { name: 'driveway',    label: 'Driveway' },
-          { name: 'game_room',   label: 'Game Room' },
-          { name: 'pool',        label: 'Pool' },
-          { name: 'front_porch', label: 'Front Porch' },
-        ]);
-      });
+    loadCameras();
+    const id = window.setInterval(loadCameras, 15_000);
+    return () => window.clearInterval(id);
   }, []);
+
+  const onRecover = () => {
+    setRecovering(true);
+    fetch(`${API_BASE}/api/cameras/recover`, { method: 'POST', credentials: 'include' })
+      .finally(() => {
+        setRecovering(false);
+        loadCameras();
+      });
+  };
+
+  const showEmptyHint = cameras.length === 0 && !listError;
 
   return (
     <>
       <div className="p-2 lg:p-3">
+        {showEmptyHint && (
+          <div className="mb-3 rounded-md border border-zinc-700/80 bg-zinc-900/50 px-3 py-3 text-sm text-zinc-300">
+            <p className="font-medium text-zinc-100">No cameras listed yet</p>
+            <p className="mt-1 text-xs text-zinc-400">
+              The backend pulls this list from go2rtc (UniFi Protect). If go2rtc was offline when the server started, names stay
+              empty until it reconnects. This page rechecks every 15 seconds, and the server retries automatically.
+            </p>
+            {pendingEntries > 0 && (
+              <p className="mt-2 text-xs text-amber-200/90">
+                {pendingEntries} UniFi integration {pendingEntries === 1 ? 'entry has' : 'entries have'} not finished connecting to go2rtc — still retrying.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={onRecover}
+              disabled={recovering}
+              className="mt-3 rounded border border-zinc-500 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-100 transition-colors hover:bg-zinc-700 disabled:opacity-50"
+            >
+              {recovering ? 'Reconnecting…' : 'Retry connection now'}
+            </button>
+          </div>
+        )}
+        {listError && (
+          <div className="mb-3 rounded-md border border-amber-900/60 bg-amber-950/30 px-3 py-2 text-xs text-amber-100/90">
+            Could not reach the camera API — showing a static list. Check that the backend on port 3000 is running.
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-1 lg:grid-cols-3 xl:grid-cols-4">
           {cameras.map((cam) => (
             <CameraTile

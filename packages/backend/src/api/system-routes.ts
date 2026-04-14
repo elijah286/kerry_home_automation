@@ -175,6 +175,104 @@ async function describeDeployRef(
   return { versionLabel, description };
 }
 
+interface VersionBumpSegment {
+  hash: string;
+  versionLabel: string;
+  description: string;
+  date: string;
+}
+
+/** Commits in `range` (e.g. HEAD..origin/main) where app-version.json version changed vs parent, oldest → newest. */
+async function getVersionBumpSegmentsInRange(root: string, range: string): Promise<VersionBumpSegment[]> {
+  let logOut: string;
+  try {
+    logOut = await execGit(['log', '--no-color', '--reverse', '--format=%H%x09%ci', range], root);
+  } catch {
+    return [];
+  }
+  const segments: VersionBumpSegment[] = [];
+  for (const line of logOut.split('\n')) {
+    if (!line.trim()) continue;
+    const [hash, date] = line.split('\t');
+    if (!hash || !date) continue;
+    let parentSha: string;
+    try {
+      parentSha = await execGit(['rev-parse', `${hash}^`], root);
+    } catch {
+      continue;
+    }
+    const vCur = await readAppVersionMetaAtRef(root, hash);
+    const vPar = await readAppVersionMetaAtRef(root, parentSha);
+    const curLabel = vCur?.versionLabel ?? null;
+    const parLabel = vPar?.versionLabel ?? null;
+    if (curLabel && curLabel !== parLabel) {
+      const subject = (await readCommitSubject(root, hash)).trim();
+      const description = vCur?.releaseNotes ?? subject;
+      segments.push({ hash, versionLabel: curLabel, description, date });
+    }
+  }
+  return segments;
+}
+
+function formatCombinedUpgradeSummary(segments: VersionBumpSegment[]): string {
+  if (segments.length === 0) return '';
+  return segments
+    .map((s) => {
+      const when = s.date.trim();
+      return `${s.versionLabel} (${when})\n${s.description}`;
+    })
+    .join('\n\n');
+}
+
+interface ListedRelease {
+  sha: string;
+  versionLabel: string;
+  description: string;
+  date: string;
+}
+
+/** Recent version bumps on origin/main (newest first), for revert dropdown. */
+async function listRecentReleases(root: string, max: number): Promise<ListedRelease[]> {
+  const revs = (await execGit(['rev-list', '--max-count=150', 'origin/main'], root))
+    .split('\n')
+    .filter(Boolean);
+  const out: ListedRelease[] = [];
+  for (const sha of revs) {
+    if (out.length >= max) break;
+    let parentSha: string;
+    try {
+      parentSha = await execGit(['rev-parse', `${sha}^`], root);
+    } catch {
+      continue;
+    }
+    const vCur = await readAppVersionMetaAtRef(root, sha);
+    const vPar = await readAppVersionMetaAtRef(root, parentSha);
+    if (!vCur?.versionLabel) continue;
+    if (vCur.versionLabel === vPar?.versionLabel) continue;
+    const subject = (await readCommitSubject(root, sha)).trim();
+    const date = (await execGit(['log', '-1', '--format=%ci', sha], root)).trim();
+    out.push({
+      sha,
+      versionLabel: vCur.versionLabel,
+      description: vCur.releaseNotes ?? subject,
+      date,
+    });
+  }
+  return out;
+}
+
+/** True if `ancestor` is an ancestor of `descendant` (reachable). */
+async function gitIsAncestor(root: string, ancestor: string, descendant: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    execFile(
+      'git',
+      ['merge-base', '--is-ancestor', ancestor, descendant],
+      { cwd: root },
+      (err) => resolve(!err),
+    );
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
@@ -269,6 +367,8 @@ export function registerSystemRoutes(app: FastifyInstance): void {
         describeDeployRef(root, 'origin/main'),
       ]);
       const commits: { hash: string; subject: string; date: string }[] = [];
+      let versionBumpSegments: VersionBumpSegment[] = [];
+      let combinedUpgradeSummary = '';
       if (updateAvailable) {
         const logOut = await execGit(
           ['log', '--no-color', '-n', '40', '--format=%H%x09%s%x09%ci', 'HEAD..origin/main'],
@@ -280,6 +380,15 @@ export function registerSystemRoutes(app: FastifyInstance): void {
           if (hash && subject && date) {
             commits.push({ hash, subject, date });
           }
+        }
+        versionBumpSegments = await getVersionBumpSegmentsInRange(root, 'HEAD..origin/main');
+        combinedUpgradeSummary = formatCombinedUpgradeSummary(versionBumpSegments);
+        if (!combinedUpgradeSummary.trim() && commits.length > 0) {
+          combinedUpgradeSummary = commits
+            .slice()
+            .reverse()
+            .map((c) => `${c.subject} (${c.date})`)
+            .join('\n');
         }
       }
       return {
@@ -298,6 +407,8 @@ export function registerSystemRoutes(app: FastifyInstance): void {
           description: remoteMeta.description,
         },
         commits,
+        versionBumpSegments,
+        combinedUpgradeSummary,
       };
     } catch (err) {
       logger.error({ err }, 'Update check failed');
@@ -343,6 +454,99 @@ export function registerSystemRoutes(app: FastifyInstance): void {
       message: 'Update started. Services will restart; this page may refresh when the API is back.',
     });
   });
+
+  // GET /api/system/update/releases — recent version bumps on origin/main (admin)
+  app.get('/api/system/update/releases', { preHandler: adminOnly }, async (_req, reply) => {
+    const root = appConfig.deploy.appRoot;
+    const gitDir = join(root, '.git');
+    if (!(await pathExists(gitDir))) {
+      return reply.code(503).send({ error: 'Git checkout not available.' });
+    }
+    try {
+      await execGit(['fetch', 'origin', 'main'], root);
+      const runningSha = await execGit(['rev-parse', 'HEAD'], root);
+      const releases = await listRecentReleases(root, 28);
+      return { runningSha, releases };
+    } catch (err) {
+      logger.error({ err }, 'List releases failed');
+      return reply.code(503).send({
+        error: formatGitErrorForClient(err, root),
+      });
+    }
+  });
+
+  // POST /api/system/update/revert — reset checkout to a prior commit and rebuild (admin)
+  app.post<{ Body: { targetSha?: string } }>(
+    '/api/system/update/revert',
+    { preHandler: adminOnly },
+    async (req, reply) => {
+      const root = appConfig.deploy.appRoot;
+      const composeFile = appConfig.serverInstaller.prodComposePath;
+      const targetSha = (req.body?.targetSha ?? '').trim().toLowerCase();
+
+      if (!/^[0-9a-f]{40}$/.test(targetSha)) {
+        return reply.code(400).send({ error: 'targetSha must be a full 40-character commit hash.' });
+      }
+
+      if (!(await pathExists(join(root, '.git')))) {
+        return reply.code(503).send({ error: 'Git checkout not available (configure HA_APP_ROOT).' });
+      }
+
+      try {
+        await execGit(['fetch', 'origin', 'main'], root);
+        const head = await execGit(['rev-parse', 'HEAD'], root);
+        const remoteMain = await execGit(['rev-parse', 'origin/main'], root);
+
+        try {
+          await execGit(['rev-parse', '--verify', targetSha], root);
+        } catch {
+          return reply.code(400).send({ error: 'That commit was not found in this repository.' });
+        }
+
+        const onMainHistory = await gitIsAncestor(root, targetSha, remoteMain);
+        if (!onMainHistory) {
+          return reply.code(400).send({
+            error: 'That commit is not on origin/main — revert is only allowed for history on main.',
+          });
+        }
+
+        if (head === targetSha) {
+          return reply.code(400).send({ error: 'Already running that commit.' });
+        }
+      } catch (err) {
+        return reply.code(503).send({
+          error: formatGitErrorForClient(err, root),
+        });
+      }
+
+      logger.warn({ root, targetSha }, 'Admin triggered revert + rebuild');
+
+      const child = spawn(
+        'bash',
+        [
+          '-c',
+          'cd "$HA_ROOT" && git reset --hard "$HA_SHA" && docker compose -f "$HA_COMPOSE" up -d --build --wait',
+        ],
+        {
+          detached: true,
+          stdio: 'ignore',
+          env: {
+            ...process.env,
+            HA_ROOT: root,
+            HA_SHA: targetSha,
+            HA_COMPOSE: composeFile,
+          },
+        },
+      );
+      child.unref();
+
+      return reply.code(202).send({
+        ok: true,
+        message:
+          'Revert and rebuild started. This checkout will be behind origin/main until you pull or install updates again.',
+      });
+    },
+  );
 
   // GET /api/system/update-log
   app.get('/api/system/update-log', { preHandler: adminOnly }, async (_req, reply) => {

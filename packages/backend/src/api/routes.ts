@@ -140,7 +140,26 @@ export function registerRoutes(app: FastifyInstance): void {
   app.get('/api/cameras', async () => {
     const unifi = registry.get('unifi') as UniFiIntegration | undefined;
     const names = unifi?.getCameraNames() ?? [];
-    return { cameras: names.map((name) => ({ name, label: name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) })) };
+    const pendingEntries = unifi ? await unifi.getPendingEntryCount() : 0;
+    return {
+      cameras: names.map((name) => ({ name, label: name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) })),
+      recover: { pendingEntries },
+    };
+  });
+
+  // Manual recover: retry failed UniFi/go2rtc init and refresh stream list (same logic as background timers)
+  app.post('/api/cameras/recover', async (req, reply) => {
+    const integration = registry.get('unifi');
+    if (!integration || integration.id !== 'unifi') {
+      return reply.code(503).send({ error: 'UniFi integration not available' });
+    }
+    const unifi = integration as UniFiIntegration;
+    try {
+      return await unifi.recoverCameras();
+    } catch (err) {
+      logger.error({ err }, 'Camera recover failed');
+      return reply.code(500).send({ error: 'recover failed' });
+    }
   });
 
   // Camera MSE WebSocket proxy — pipes go2rtc MP4 fragments to browser
