@@ -225,6 +225,22 @@ export async function startDeploy(options: { buildFallback?: boolean } = {}): Pr
   });
   child.unref();
 
+  // Monitor deploy script exit. When it exits non-zero (failure before sidecar
+  // launch), wait briefly for last writes then emit synthetic 'done' if missing.
+  child.on('exit', (code) => {
+    if (code !== null && code !== 0) {
+      setTimeout(async () => {
+        const stages = await readAllProgress();
+        const hasDone = stages.some((s) => s.stage === 'done');
+        if (!hasDone && updateInProgress) {
+          logger.warn({ exitCode: code }, 'Deploy script failed — writing synthetic done');
+          await appendSyntheticFailure(stages);
+          updateInProgress = false;
+        }
+      }, 3000);
+    }
+  });
+
   // Start tailing the progress file
   startProgressTailing();
 
@@ -282,6 +298,16 @@ export async function getUpdateStatus(): Promise<UpdateStatus> {
     }
   }
 
+  // If no 'done' event exists but a stage failed and the deploy is no longer
+  // tracked as in-progress (cleared by child exit handler or detectInFlightDeploy),
+  // report the deploy as failed so the frontend can recover.
+  if (!finalStatus && !updateInProgress && stages.length > 0) {
+    const lastNonLog = [...stages].reverse().find((s) => s.status !== 'log');
+    if (lastNonLog?.status === 'failed') {
+      finalStatus = 'failed';
+    }
+  }
+
   return {
     inProgress: updateInProgress,
     startedAt: updateStartedAt,
@@ -290,6 +316,27 @@ export async function getUpdateStatus(): Promise<UpdateStatus> {
     stages,
     finalStatus,
   };
+}
+
+/**
+ * Append a synthetic "done failed" event when the deploy script exits
+ * abnormally before launching the sidecar (e.g. git pull failure).
+ */
+async function appendSyntheticFailure(stages: ProgressEvent[]) {
+  const filePath = progressFilePath();
+  const maxId = stages.reduce((max, s) => Math.max(max, s.id), 0);
+  const ts = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+  const lastFailed = [...stages].reverse().find((s) => s.status === 'failed');
+  const msg = lastFailed?.msg ?? 'Deploy process failed';
+
+  const line = JSON.stringify({ id: maxId + 1, ts, stage: 'done', status: 'failed', msg });
+
+  try {
+    const existing = await readFile(filePath, 'utf8');
+    await writeFile(filePath, existing + line + '\n');
+  } catch (err) {
+    logger.error({ err }, 'Failed to write synthetic failure event');
+  }
 }
 
 /**

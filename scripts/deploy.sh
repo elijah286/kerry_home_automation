@@ -63,17 +63,19 @@ emit_log() {
   emit "$stage" "log" "$msg"
 }
 
-# Wipe progress file at start of a new deployment
-true > "$PROGRESS_FILE"
-
 # ---------------------------------------------------------------------------
 # Lock — prevent concurrent runs (also blocks the watchdog from interfering)
+# Acquire the lock BEFORE truncating the progress file so a concurrent run
+# doesn't wipe the active deploy's progress.
 # ---------------------------------------------------------------------------
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
-  emit "preflight" "failed" "Another deployment is already running"
+  echo "Another deployment is already running" >&2
   exit 1
 fi
+
+# Wipe progress file at start of a new deployment (safe now — lock acquired)
+true > "$PROGRESS_FILE"
 
 # Ensure log directory exists
 mkdir -p "$LOG_DIR"
@@ -98,7 +100,19 @@ restore_standby_page() {
   STANDBY_SWAPPED=0
 }
 SIDECAR_LAUNCHED=0
-trap '[ "$SIDECAR_LAUNCHED" -eq 0 ] && restore_standby_page' EXIT
+# Ensure failed deploys always produce a 'done' event so the frontend never
+# gets stuck in a "Deploying..." spinner with no recovery path.
+trap_on_exit() {
+  local exit_code=$?
+  if [ "$SIDECAR_LAUNCHED" -eq 0 ]; then
+    # If no 'done' event was written and the script is exiting, emit one now.
+    if [ -f "$PROGRESS_FILE" ] && ! grep -q '"stage":"done"' "$PROGRESS_FILE" 2>/dev/null; then
+      emit "done" "failed" "Deploy process exited unexpectedly (code $exit_code)"
+    fi
+    restore_standby_page
+  fi
+}
+trap 'trap_on_exit' EXIT
 
 # Git helper for dubious ownership
 ha_git() {
@@ -240,15 +254,18 @@ REMOTE_SHA=$(ha_git rev-parse origin/main)
 if [ "$CURRENT_SHA" = "$REMOTE_SHA" ]; then
   emit_log "pull_code" "Already at latest commit (${CURRENT_SHA:0:7})"
 else
-  # Reset any build artifacts (tsconfig.tsbuildinfo, etc.) that could block pull
-  if ! ha_git diff --quiet 2>/dev/null; then
-    emit_log "pull_code" "Cleaning dirty working tree before pull"
-    ha_git checkout -- . 2>/dev/null || true
-  fi
-  emit_log "pull_code" "Pulling ${CURRENT_SHA:0:7} → ${REMOTE_SHA:0:7}"
-  if ! ha_git pull origin main --quiet 2>&1; then
+  # Clean the working tree completely before applying remote changes.
+  # Use reset+clean instead of pull to avoid merge conflicts entirely —
+  # the previous state was already saved for rollback.
+  emit_log "pull_code" "Cleaning working tree"
+  ha_git reset --hard HEAD 2>/dev/null || true
+  ha_git clean -fd 2>/dev/null || true
+
+  emit_log "pull_code" "Applying ${CURRENT_SHA:0:7} → ${REMOTE_SHA:0:7}"
+  # reset --hard origin/main is guaranteed to succeed after fetch (no merge needed)
+  if ! ha_git reset --hard origin/main 2>&1; then
     fix_git_owner
-    emit "pull_code" "failed" "Git pull failed — working tree may have conflicts"
+    emit "pull_code" "failed" "Failed to apply origin/main"
     exit 1
   fi
 fi

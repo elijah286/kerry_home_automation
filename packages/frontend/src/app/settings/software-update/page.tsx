@@ -185,6 +185,7 @@ function DeployProgress({
   const lastEvent = events[events.length - 1];
   const isDone = lastEvent?.stage === 'done';
   const isFailed = lastEvent?.status === 'failed';
+  const hasAnyFailure = events.some((e) => e.status === 'failed');
 
   return (
     <div className="space-y-4">
@@ -217,8 +218,8 @@ function DeployProgress({
         })}
       </div>
 
-      {/* Connection status */}
-      {!isConnected && !isDone && (
+      {/* Connection status — only show when SSE dropped AND deploy hasn't failed */}
+      {!isConnected && !isDone && !hasAnyFailure && (
         <div
           className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
           style={{
@@ -345,6 +346,26 @@ export default function SoftwareUpdatePage() {
           setDeploying(false);
           es.close();
           sseRef.current = null;
+        }
+
+        // Detect early failure (deploy script exited before sidecar).
+        // The trap/orchestrator should write a 'done' event, but as a
+        // safety net, poll the status endpoint after a short delay.
+        if (ev.status === 'failed' && ev.stage !== 'done' && ev.stage !== 'log') {
+          setTimeout(() => {
+            fetch(`${API}/api/system/update/status`, { credentials: 'include' })
+              .then((r) => (r.ok ? r.json() : null))
+              .then((status: UpdateStatus | null) => {
+                if (!status) return;
+                if (status.stages.length > 0) setDeployEvents(status.stages);
+                if (status.finalStatus || !status.inProgress) {
+                  setDeploying(false);
+                  es.close();
+                  sseRef.current = null;
+                }
+              })
+              .catch(() => { /* API may be down */ });
+          }, 5000);
         }
       } catch {
         // ignore malformed events
@@ -491,6 +512,9 @@ export default function SoftwareUpdatePage() {
   const lastDeployEvent = deployEvents[deployEvents.length - 1];
   const deployDone = lastDeployEvent?.stage === 'done';
   const deployFailed = lastDeployEvent?.status === 'failed';
+  // Deploy is in a terminal state when done event arrived OR when a stage
+  // failed and we're no longer in the deploying state (orchestrator confirmed).
+  const deployTerminal = deployDone || (deployFailed && !deploying);
   const showProgress = deploying || deployEvents.length > 0;
 
   return (
@@ -539,7 +563,7 @@ export default function SoftwareUpdatePage() {
           <DeployProgress events={deployEvents} isConnected={sseConnected} />
 
           {/* Post-deploy actions */}
-          {deployDone && !deploying && (
+          {deployTerminal && (
             <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
               {deployFailed && (
                 <button
@@ -582,7 +606,7 @@ export default function SoftwareUpdatePage() {
           <button
             type="button"
             onClick={() => void runCheck()}
-            disabled={checkLoading || deploying}
+            disabled={checkLoading || (deploying && !deployFailed)}
             className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border transition-colors disabled:opacity-50"
             style={{
               backgroundColor: 'var(--color-bg-secondary)',
