@@ -63,6 +63,9 @@ services:
     volumes:
       - ${HA_APP_ROOT:-/opt/home-automation}:/opt/home-automation
       - /var/run/docker.sock:/var/run/docker.sock
+      # Docker credentials so deploy.sh (running inside this container) can pull
+      # from ghcr.io using the host user's `docker login` session.
+      - ${DOCKER_CONFIG:-${HOME}/.docker}:/root/.docker:ro
     env_file:
       - .env
     environment:
