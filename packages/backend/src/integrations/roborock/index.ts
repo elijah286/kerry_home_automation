@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Roborock: local miIO (UDP) or cloud session + hybrid local/MQTT via bridge
+// Roborock: local miIO (UDP) or cloud session via bridge DeviceManager
 // ---------------------------------------------------------------------------
 
 import type { DeviceCommand, IntegrationHealth, ConnectionState } from '@ha/shared';
@@ -13,7 +13,8 @@ import { MiioClient } from './miio-client.js';
 import { mapVacuumState } from './mapper.js';
 import {
   bridgeCommand,
-  bridgeListDevices,
+  bridgeConnect,
+  bridgeDisconnect,
   bridgeMap,
   bridgeStatus,
   isRoborockBridgeConfigured,
@@ -40,12 +41,9 @@ interface LocalVacuumCtx {
 interface CloudVacuumCtx {
   kind: 'cloud';
   entryId: string;
-  sessionB64: string;
+  /** Session token from bridge DeviceManager */
+  sessionToken: string;
   devices: BridgeDevice[];
-  /** Last known LAN IP per duid (speeds up hybrid local path) */
-  hostByDuid: Map<string, string>;
-  /** Avoid rewriting integration_entries when device_hosts unchanged */
-  lastPersistedHostsJson: string | null;
   pollTimer: ReturnType<typeof setInterval> | null;
   mapPollTimer: ReturnType<typeof setInterval> | null;
 }
@@ -54,34 +52,9 @@ type VacuumCtx = LocalVacuumCtx | CloudVacuumCtx;
 
 function isLocalEntry(config: Record<string, string>): boolean {
   if (config.local_miio === 'true') return true;
-  if (config.cloud_session?.trim()) return false;
+  // New session format: cloud_user_data (JSON) — or legacy cloud_session (pickle b64)
+  if (config.cloud_user_data?.trim() || config.cloud_session?.trim()) return false;
   return Boolean(config.host?.trim() && config.token?.trim());
-}
-
-function parseDeviceHosts(raw: string | undefined): Map<string, string> {
-  const m = new Map<string, string>();
-  if (!raw?.trim()) return m;
-  try {
-    const o = JSON.parse(raw) as Record<string, string>;
-    if (o && typeof o === 'object') {
-      for (const [k, v] of Object.entries(o)) {
-        if (typeof v === 'string' && v.trim()) m.set(k, v.trim());
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  return m;
-}
-
-/** Stable JSON for comparing / persisting `device_hosts` (key order independent). */
-function stableHostsJsonFromMap(m: Map<string, string>): string {
-  const o: Record<string, string> = {};
-  for (const k of [...m.keys()].sort()) {
-    const v = m.get(k);
-    if (v) o[k] = v;
-  }
-  return JSON.stringify(o);
 }
 
 export class RoborockIntegration implements Integration {
@@ -137,41 +110,68 @@ export class RoborockIntegration implements Integration {
         continue;
       }
 
-      // Cloud + hybrid via bridge
-      const session = cfg.cloud_session?.trim();
-      if (!session) {
-        log.warn({ entryId: entry.id }, 'Roborock: cloud entry missing cloud_session');
-        continue;
-      }
+      // Cloud via bridge DeviceManager
       if (!isRoborockBridgeConfigured()) {
         log.error(
           { entryId: entry.id },
-          'Roborock: cloud entry requires the bridge (auto-started locally, or set ROBOROCK_BRIDGE_URL)',
+          'Roborock: cloud entry requires the bridge (set ROBOROCK_BRIDGE_URL)',
         );
         this.lastError = 'Roborock bridge not available';
         continue;
       }
 
+      // Support both new (cloud_user_data JSON) and legacy (cloud_session pickle) formats
+      const email = cfg.cloud_email?.trim();
+      const userDataJson = cfg.cloud_user_data?.trim();
+      const baseUrl = cfg.cloud_base_url?.trim() || undefined;
+      const legacySession = cfg.cloud_session?.trim();
+
+      if (!userDataJson && !legacySession) {
+        log.warn({ entryId: entry.id }, 'Roborock: cloud entry missing credentials');
+        continue;
+      }
+
+      if (!userDataJson) {
+        // Legacy pickle session — user must re-authenticate
+        log.warn(
+          { entryId: entry.id },
+          'Roborock: legacy cloud_session format detected. Please re-authenticate via the Roborock integration card to upgrade to the new session format.',
+        );
+        this.lastError = 'Roborock session needs re-authentication (library upgraded)';
+        continue;
+      }
+
+      let userData: Record<string, unknown>;
+      try {
+        userData = JSON.parse(userDataJson) as Record<string, unknown>;
+      } catch {
+        log.error({ entryId: entry.id }, 'Roborock: invalid cloud_user_data JSON');
+        this.lastError = 'Invalid Roborock user data';
+        continue;
+      }
+
+      let sessionToken: string;
       let devices: BridgeDevice[] = [];
       try {
-        devices = await bridgeListDevices(session);
+        const result = await bridgeConnect(email || '', userData, baseUrl);
+        sessionToken = result.session_token;
+        devices = result.devices;
       } catch (err) {
-        log.error({ err, entryId: entry.id }, 'Roborock: list devices failed');
+        log.error({ err, entryId: entry.id }, 'Roborock: bridge connect failed');
         this.lastError = String(err);
+        continue;
       }
+
       if (devices.length === 0) {
         log.warn({ entryId: entry.id }, 'Roborock: no devices on account');
         continue;
       }
 
-      const hostByDuid = parseDeviceHosts(cfg.device_hosts);
       const ctx: CloudVacuumCtx = {
         kind: 'cloud',
         entryId: entry.id,
-        sessionB64: session,
+        sessionToken,
         devices,
-        hostByDuid,
-        lastPersistedHostsJson: hostByDuid.size > 0 ? stableHostsJsonFromMap(hostByDuid) : null,
         pollTimer: null,
         mapPollTimer: null,
       };
@@ -217,7 +217,10 @@ export class RoborockIntegration implements Integration {
     this.stopping = true;
     for (const ctx of this.vacuums.values()) {
       if (ctx.pollTimer) clearInterval(ctx.pollTimer);
-      if (ctx.kind === 'cloud' && ctx.mapPollTimer) clearInterval(ctx.mapPollTimer);
+      if (ctx.kind === 'cloud') {
+        if (ctx.mapPollTimer) clearInterval(ctx.mapPollTimer);
+        await bridgeDisconnect(ctx.sessionToken).catch(() => {});
+      }
       if (ctx.kind === 'local') ctx.client.disconnect();
     }
     this.vacuums.clear();
@@ -249,39 +252,29 @@ export class RoborockIntegration implements Integration {
         if (cloudCtx.devices.length === 1) duid = cloudCtx.devices[0].duid;
       }
       if (!duid) throw new Error('Roborock: device id must include duid when multiple vacuums are linked');
-      const cached = cloudCtx.hostByDuid.get(duid);
       log.info(
-        { deviceId: cmd.deviceId, action: cmd.action, duid: duid.slice(0, 12), cachedHost: cached ?? null },
-        'Roborock: vacuum command (prefer LAN when IP known)',
+        { deviceId: cmd.deviceId, action: cmd.action, duid: duid.slice(0, 12) },
+        'Roborock: vacuum command via bridge',
       );
-      integrationDetailLog('roborock', 'Roborock: bridge command', {
-        action: cmd.action,
-        duidPrefix: duid.slice(0, 16),
-        cachedHost: cached ?? null,
-        deviceId: cmd.deviceId,
-      });
       switch (cmd.action) {
         case 'start':
-          await bridgeCommand(cloudCtx.sessionB64, duid, 'start', { cachedHost: cached });
+          await bridgeCommand(cloudCtx.sessionToken, duid, 'start');
           break;
         case 'stop':
-          await bridgeCommand(cloudCtx.sessionB64, duid, 'stop', { cachedHost: cached });
+          await bridgeCommand(cloudCtx.sessionToken, duid, 'stop');
           break;
         case 'pause':
-          await bridgeCommand(cloudCtx.sessionB64, duid, 'pause', { cachedHost: cached });
+          await bridgeCommand(cloudCtx.sessionToken, duid, 'pause');
           break;
         case 'return_dock':
-          await bridgeCommand(cloudCtx.sessionB64, duid, 'return_dock', { cachedHost: cached });
+          await bridgeCommand(cloudCtx.sessionToken, duid, 'return_dock');
           break;
         case 'find':
-          await bridgeCommand(cloudCtx.sessionB64, duid, 'find', { cachedHost: cached });
+          await bridgeCommand(cloudCtx.sessionToken, duid, 'find');
           break;
         case 'set_fan_speed': {
           const speed = FAN_SPEED_MAP[cmd.fanSpeed ?? ''] ?? 102;
-          await bridgeCommand(cloudCtx.sessionB64, duid, 'set_fan_speed', {
-            fanSpeed: speed,
-            cachedHost: cached,
-          });
+          await bridgeCommand(cloudCtx.sessionToken, duid, 'set_fan_speed', { fanSpeed: speed });
           break;
         }
         default: {
@@ -347,10 +340,8 @@ export class RoborockIntegration implements Integration {
 
     let anyOk = false;
     for (const dev of ctx.devices) {
-      const cached = ctx.hostByDuid.get(dev.duid);
       try {
-        const res = await bridgeStatus(ctx.sessionB64, dev.duid, cached);
-        if (res.local_ip) ctx.hostByDuid.set(dev.duid, res.local_ip);
+        const res = await bridgeStatus(ctx.sessionToken, dev.duid);
         stateStore.update(
           mapVacuumState(ctx.entryId, dev.name, res.status, dev.duid),
         );
@@ -359,55 +350,25 @@ export class RoborockIntegration implements Integration {
           entryId: ctx.entryId,
           duidPrefix: dev.duid.slice(0, 16),
           transport: res.transport,
-          localIp: res.local_ip,
           battery: res.status?.battery,
           state: res.status?.state,
-          hadCachedIp: Boolean(cached),
         });
       } catch (err) {
         log.warn(
-          { err: String(err), duid: dev.duid.slice(0, 12), hadCachedIp: Boolean(cached) },
-          'Roborock: status poll failed (device may be offline or bridge cannot reach MQTT/LAN)',
+          { err: String(err), duid: dev.duid.slice(0, 12) },
+          'Roborock: status poll failed',
         );
         stateStore.update(mapVacuumState(ctx.entryId, dev.name, null, dev.duid));
       }
     }
     if (anyOk) this.lastConnected = Date.now();
-    await this.persistLearnedHosts(ctx);
-  }
-
-  /** Save discovered LAN IPs to the integration entry so the next backend start tries local-first immediately. */
-  private async persistLearnedHosts(ctx: CloudVacuumCtx): Promise<void> {
-    if (ctx.hostByDuid.size === 0) return;
-    const json = stableHostsJsonFromMap(ctx.hostByDuid);
-    if (json === ctx.lastPersistedHostsJson) return;
-    const entry = await entryStore.getEntry(ctx.entryId);
-    if (!entry) return;
-    const existingJson = entry.config.device_hosts?.trim()
-      ? stableHostsJsonFromMap(parseDeviceHosts(entry.config.device_hosts))
-      : null;
-    if (existingJson === json) {
-      ctx.lastPersistedHostsJson = json;
-      return;
-    }
-    await entryStore.saveEntry({
-      ...entry,
-      config: { ...entry.config, device_hosts: json },
-    });
-    ctx.lastPersistedHostsJson = json;
-    log.info(
-      { entryId: ctx.entryId, duids: ctx.hostByDuid.size },
-      'Roborock: saved vacuum LAN IPs to integration config (local-first on restart)',
-    );
   }
 
   private async pollMaps(ctx: CloudVacuumCtx): Promise<void> {
     for (const dev of ctx.devices) {
       const deviceId = `roborock.${ctx.entryId}.${dev.duid}.vacuum`;
-      const cached = ctx.hostByDuid.get(dev.duid);
       try {
-        const { png, local_ip } = await bridgeMap(ctx.sessionB64, dev.duid, cached);
-        if (local_ip) ctx.hostByDuid.set(dev.duid, local_ip);
+        const { png } = await bridgeMap(ctx.sessionToken, dev.duid);
         if (png && png.length > 200) {
           this.mapCache.set(deviceId, png);
           const prev = stateStore.get(deviceId);

@@ -1,6 +1,7 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
-python-roborock==0.24.1
-# Floor-plan maps only; PyPI wheels require Python >=3.11. On 3.9/3.10, pip skips these — cloud login still works.
-vacuum-map-parser-roborock==0.1.4; python_version >= "3.11"
-vacuum-map-parser-base==0.1.5; python_version >= "3.11"
+aiohttp>=3.9.0
+python-roborock==5.5.1
+# Floor-plan map rendering
+vacuum-map-parser-roborock==0.1.4
+vacuum-map-parser-base==0.1.5

@@ -460,8 +460,14 @@ function NewInstanceCard({
           {integrationId === 'roborock' && values.local_miio !== 'true' && (
             <RoborockCloudConnect
               email={values.email ?? ''}
-              onSessionReady={(sessionB64) =>
-                setValues((v) => ({ ...v, cloud_session: sessionB64, local_miio: 'false' }))
+              onSessionReady={(session) =>
+                setValues((v) => ({
+                  ...v,
+                  cloud_user_data: JSON.stringify(session.user_data),
+                  cloud_email: v.email ?? '',
+                  cloud_base_url: session.base_url ?? '',
+                  local_miio: 'false',
+                }))
               }
             />
           )}

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Roborock cloud login — proxies to Python bridge (admin only)
+// Roborock cloud login — proxies to Python bridge v2 (admin only)
 // ---------------------------------------------------------------------------
 
 import type { FastifyInstance } from 'fastify';
@@ -21,10 +21,10 @@ export function registerRoborockRoutes(app: FastifyInstance): void {
     { preHandler: [requireRole('admin')] },
     async (req, reply) => {
       if (!isRoborockBridgeConfigured()) {
-        log.warn('Roborock request-code: bridge unavailable (managed bridge failed to start or services/roborock-bridge missing)');
+        log.warn('Roborock request-code: bridge unavailable');
         return reply.code(503).send({
           error:
-            'Roborock cloud bridge is not running. With ROBOROCK_BRIDGE_URL unset, the backend creates services/roborock-bridge/.venv and installs Python packages on startup (needs Python 3.9+ on PATH, 3.11+ for maps). Check server logs. In Docker, set ROBOROCK_BRIDGE_URL to the bridge service.',
+            'Roborock cloud bridge is not running. Set ROBOROCK_BRIDGE_URL to the bridge service.',
         });
       }
       const email = req.body?.email?.trim();
@@ -55,7 +55,12 @@ export function registerRoborockRoutes(app: FastifyInstance): void {
       try {
         const out = await bridgeLogin(email, code);
         log.info({ devices: out.devices?.length ?? 0 }, 'Roborock: login succeeded');
-        return { session_b64: out.session_b64, devices: out.devices };
+        return {
+          session_token: out.session_token,
+          user_data: out.user_data,
+          base_url: out.base_url,
+          devices: out.devices,
+        };
       } catch (e) {
         log.warn({ err: String(e) }, 'Roborock: login failed');
         return reply.code(400).send({ error: String(e) });

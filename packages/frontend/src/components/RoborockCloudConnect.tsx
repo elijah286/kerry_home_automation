@@ -16,9 +16,14 @@ export function filterRoborockConfigFields(
   return fields.filter((f) => ['local_miio', 'email'].includes(f.key));
 }
 
+interface SessionData {
+  user_data: Record<string, unknown>;
+  base_url: string | null;
+}
+
 interface Props {
   email: string;
-  onSessionReady: (sessionB64: string) => void;
+  onSessionReady: (session: SessionData) => void;
 }
 
 type HintKind = 'success' | 'error' | 'muted';
@@ -109,7 +114,9 @@ export function RoborockCloudConnect({ email, onSessionReady }: Props) {
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
         detail?: string | string[];
-        session_b64?: string;
+        session_token?: string;
+        user_data?: Record<string, unknown>;
+        base_url?: string | null;
         devices?: { duid: string; name: string }[];
       };
       if (!res.ok) {
@@ -123,12 +130,12 @@ export function RoborockCloudConnect({ email, onSessionReady }: Props) {
         setHint((data.error ?? detail) || `Login failed (${res.status})`);
         return;
       }
-      if (!data.session_b64) {
+      if (!data.user_data) {
         setHintKind('error');
         setHint('Login succeeded but no session was returned. Check backend logs.');
         return;
       }
-      onSessionReady(data.session_b64);
+      onSessionReady({ user_data: data.user_data, base_url: data.base_url ?? null });
       const n = data.devices?.length ?? 0;
       setHintKind('success');
       setHint(

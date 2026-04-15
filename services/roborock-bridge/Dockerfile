@@ -8,7 +8,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py map_render.py .
+COPY app.py map_render.py ./
 
 EXPOSE 8765
 
