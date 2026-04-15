@@ -13,8 +13,8 @@ import { useConnected, useWebSocket } from '@/hooks/useWebSocket';
 import { useLCARSVariant, type ResolvedColors } from './LCARSVariantProvider';
 import { DenseReadout } from './LCARSStatusStrip';
 import { useAlert } from './LCARSAlertOverlay';
+import { TERMINAL_PANEL_HEIGHT } from '@/lib/terminal-constants';
 import {
-  TERMINAL_PANEL_HEIGHT,
   useSystemTerminal,
   useSystemTerminalBottomInset,
   type TerminalLogFilter,

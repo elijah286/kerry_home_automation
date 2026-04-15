@@ -7,9 +7,8 @@ import { clsx } from 'clsx';
 import { X, AlertTriangle, Info, AlertOctagon, ListTree, Braces, Maximize2, Minimize2, Filter } from 'lucide-react';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { SYSTEM_LOG_SOURCE_ID, TERMINAL_PANEL_HEIGHT } from '@/lib/terminal-constants';
 import {
-  SYSTEM_LOG_SOURCE_ID,
-  TERMINAL_PANEL_HEIGHT,
   useSystemTerminal,
   type TerminalLogFilter,
 } from '@/providers/SystemTerminalProvider';

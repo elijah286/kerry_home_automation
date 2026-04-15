@@ -153,6 +153,32 @@ function formatGitErrorForClient(err: unknown, _repoRoot: string): string {
 /** Same path as the UI bundle version (`packages/frontend/src/lib/appVersion.ts`). */
 const APP_VERSION_JSON_PATH = 'packages/frontend/src/lib/app-version.json';
 
+/**
+ * CI-generated manifest committed only AFTER all images are built and pushed.
+ * Using this to determine remote version avoids advertising updates before
+ * Docker images are actually available on ghcr.io.
+ */
+const RELEASE_MANIFEST_PATH = 'deploy/release-manifest.json';
+
+interface ReleaseManifest {
+  version: string;
+  sha: string;
+  shaShort: string;
+  timestamp: string;
+  images: Record<string, string>;
+}
+
+async function readReleaseManifestAtRef(root: string, ref: string): Promise<ReleaseManifest | null> {
+  try {
+    const raw = await execGit(['show', `${ref}:${RELEASE_MANIFEST_PATH}`], root);
+    const j = JSON.parse(raw) as ReleaseManifest;
+    if (!j.version || !j.sha) return null;
+    return j;
+  } catch {
+    return null;
+  }
+}
+
 interface AppVersionMeta {
   versionLabel: string;
   releaseNotes?: string;
@@ -434,7 +460,23 @@ export function registerSystemRoutes(app: FastifyInstance): void {
       fixGitOwner(root);
       const headSha = await execGit(['rev-parse', 'HEAD'], root);
       const remoteSha = await execGit(['rev-parse', 'origin/main'], root);
-      const remoteMeta = await describeDeployRef(root, 'origin/main');
+
+      // -----------------------------------------------------------------------
+      // Read the CI release manifest from origin/main.  This file is committed
+      // by the GitHub Actions workflow ONLY after all Docker images have been
+      // built and pushed to ghcr.io.  By basing the "update available" decision
+      // on the manifest version (not app-version.json), we avoid advertising
+      // an update before the images are actually available to pull.
+      // -----------------------------------------------------------------------
+      const manifest = await readReleaseManifestAtRef(root, 'origin/main');
+      const remoteMeta: { versionLabel: string | null; description: string } = manifest
+        ? {
+            versionLabel: manifest.version,
+            description:
+              (await readCommitSubject(root, manifest.sha).catch(() => '')).trim() ||
+              manifest.version,
+          }
+        : await describeDeployRef(root, 'origin/main');
 
       // -----------------------------------------------------------------------
       // Determine the ACTUAL running container version.

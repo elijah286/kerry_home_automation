@@ -13,6 +13,7 @@ import { KNOWN_INTEGRATIONS, Permission } from '@ha/shared';
 import { useAuth } from '@/providers/AuthProvider';
 import { SystemTerminalDock } from '@/components/layout/SystemTerminalDock';
 import { useSystemLogErrorAlert } from '@/hooks/useSystemLogErrorAlert';
+import { SYSTEM_LOG_SOURCE_ID, TERMINAL_PANEL_HEIGHT } from '@/lib/terminal-constants';
 
 const STORAGE_SHOW_NAV = 'ha-ui-show-terminal-nav';
 const STORAGE_LOG_DETAIL = 'ha-ui-terminal-log-detail';
@@ -20,10 +21,8 @@ const STORAGE_LOG_DETAIL = 'ha-ui-terminal-log-detail';
 const STORAGE_TERMINAL_MAIN_COLUMN = 'ha-ui-lcars-status-fullscreen';
 const STORAGE_LOG_INTEGRATION_WHITELIST = 'ha-ui-log-integration-whitelist';
 
-/** Lines with no `integration` field in log context (backend HTTP, startup, etc.) */
-export const SYSTEM_LOG_SOURCE_ID = '__system__';
-
-export const TERMINAL_PANEL_HEIGHT = 200;
+// Re-export for backward compatibility — other files import these from here
+export { SYSTEM_LOG_SOURCE_ID, TERMINAL_PANEL_HEIGHT } from '@/lib/terminal-constants';
 
 export type TerminalLogFilter = 'all' | 'info' | 'warn' | 'error';
 

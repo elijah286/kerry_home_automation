@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from 'react';
 import { KNOWN_INTEGRATIONS } from '@ha/shared';
-import { SYSTEM_LOG_SOURCE_ID } from '@/providers/SystemTerminalProvider';
+import { SYSTEM_LOG_SOURCE_ID } from '@/lib/terminal-constants';
 
 /** Non-integration log sources that appear in the filter panel. */
 const EXTRA_SOURCES = [
