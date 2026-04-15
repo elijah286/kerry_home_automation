@@ -282,27 +282,72 @@ export async function getUpdateStatus(): Promise<UpdateStatus> {
   };
 }
 
+/**
+ * Append synthetic completion stages to the progress file.
+ *
+ * deploy.sh runs inside the backend container. When it executes
+ * `docker compose up -d`, the container restarts and kills deploy.sh before it
+ * can write the health_check / verify / done stages. This function fills in
+ * those missing stages so the frontend sees a completed deploy.
+ */
+async function appendSyntheticCompletion(stages: ProgressEvent[]) {
+  const filePath = progressFilePath();
+  const maxId = stages.reduce((max, s) => Math.max(max, s.id), 0);
+  const ts = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+
+  const lines = [
+    JSON.stringify({ id: maxId + 1, ts, stage: 'restart', status: 'completed', msg: 'Services restarted' }),
+    JSON.stringify({ id: maxId + 2, ts, stage: 'health_check', status: 'completed', msg: 'Backend started successfully' }),
+    JSON.stringify({ id: maxId + 3, ts, stage: 'done', status: 'completed', msg: 'Update complete' }),
+  ];
+
+  try {
+    const existing = await readFile(filePath, 'utf8');
+    await writeFile(filePath, existing + lines.join('\n') + '\n');
+  } catch (err) {
+    logger.error({ err }, 'Failed to write synthetic completion events');
+  }
+}
+
 /** Check if a deployment might still be running from before this process started. */
 export async function detectInFlightDeploy() {
   const stages = await readAllProgress();
   if (stages.length === 0) return;
 
   const last = stages[stages.length - 1];
-  // If the progress file exists and doesn't end with 'done', a deploy was interrupted
-  if (last.stage !== 'done') {
-    // Check how recent the last event is
-    const age = Date.now() - new Date(last.ts).getTime();
-    if (age < 5 * 60_000) {
-      // Less than 5 minutes old — deployment might still be running
-      updateInProgress = true;
-      updateStartedAt = stages[0]?.ts ?? new Date().toISOString();
-      logger.info('Detected in-flight deployment from before restart');
-      startProgressTailing();
-    }
-  } else {
-    // Deploy completed before we started — clear the in-progress flag
+
+  // If the progress file ends with 'done', deploy completed before restart
+  if (last.stage === 'done') {
     updateInProgress = false;
+    return;
   }
+
+  const age = Date.now() - new Date(last.ts).getTime();
+  if (age >= 5 * 60_000) {
+    // Stale progress file (> 5 min old) — not an active deploy
+    return;
+  }
+
+  // Find the last non-log stage event
+  const lastNonLog = [...stages].reverse().find((s) => s.status !== 'log');
+
+  // deploy.sh runs inside the backend container. When it calls
+  // `docker compose up -d`, the container restarts — killing deploy.sh before
+  // it can write the remaining stages (health_check, verify, done). If we just
+  // started and the last meaningful stage is "restart" running, the deploy
+  // SUCCEEDED — this very process starting is the proof it worked.
+  if (lastNonLog?.stage === 'restart' && lastNonLog.status === 'running') {
+    logger.info('Post-deploy startup: deploy.sh was killed by the container restart it triggered — marking deploy as complete');
+    await appendSyntheticCompletion(stages);
+    updateInProgress = false;
+    return;
+  }
+
+  // Otherwise, a deploy was genuinely interrupted at an earlier stage
+  updateInProgress = true;
+  updateStartedAt = stages[0]?.ts ?? new Date().toISOString();
+  logger.info('Detected in-flight deployment from before restart');
+  startProgressTailing();
 }
 
 // ---------------------------------------------------------------------------
