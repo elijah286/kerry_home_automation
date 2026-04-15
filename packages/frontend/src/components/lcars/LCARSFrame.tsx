@@ -2,7 +2,7 @@
 
 import { useTheme } from '@/providers/ThemeProvider';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect, useCallback, useMemo, type CSSProperties, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
 import { clsx } from 'clsx';
 import { LCARSSidebar } from './LCARSSidebar';
 import { LCARSStartup } from './LCARSStartup';
@@ -26,7 +26,7 @@ import { PinElevationControls } from '../layout/PinElevationControls';
 import { AssistantHeaderButton, MapLayersHeaderButton, LCARSAssistantInsetSync } from '../ChatBot';
 import { LCARSFrameProvider } from './LCARSFrameContext';
 import { FooterSlotProvider, useFooterSlot } from './LCARSFooterSlotContext';
-import { useLCARSSounds } from './LCARSSounds';
+import { useLCARSSounds, type SoundType } from './LCARSSounds';
 import { useLcarsLogAutoScrollNudge } from './useLcarsLogAutoScrollNudge';
 import { LCARSPanelCorner } from './LCARSPanelFrame';
 
@@ -593,6 +593,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         <button
           type="button"
           onClick={() => setTerminalOpen(!terminalOpen)}
+          data-sound={terminalOpen ? 'statusOff' : 'statusOn'}
           className={`lcars-chrome-item${hasRecentLogError ? ' system-status-log-error-alert' : ''}`}
           aria-label={hasRecentLogError ? 'Status — recent error in system log' : 'Status'}
           style={{
@@ -631,7 +632,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
       <div style={{ width: FOOTER_BAR_GAP_PX, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
       <MapLayersHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} />
       <div style={{ width: FOOTER_BAR_GAP_PX, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
-      <AssistantHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} />
+      <AssistantHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} data-sound="sidebar" />
       <div style={{ width: FOOTER_BAR_GAP_PX, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
       <div
         style={{
@@ -676,11 +677,20 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
     ],
   );
 
+  /* Play console warning sound when a new error appears in the status log */
+  const prevHasError = useRef(false);
+  useEffect(() => {
+    if (hasRecentLogError && !prevHasError.current) playSound('error');
+    prevHasError.current = hasRecentLogError;
+  }, [hasRecentLogError, playSound]);
+
   const handleFrameClick = useCallback((e: React.MouseEvent) => {
     const el = e.target as HTMLElement;
-    if (el.closest('button, a, .lcars-nav-block, .lcars-btn')) {
-      playSound('beep');
-    }
+    const btn = el.closest('button, a, .lcars-nav-block, .lcars-btn') as HTMLElement | null;
+    if (!btn) return;
+    /* Buttons can declare their own sound via data-sound; default is 'beep'. */
+    const custom = btn.dataset.sound as SoundType | undefined;
+    playSound(custom || 'beep');
   }, [playSound]);
 
   if (showStartup) return <LCARSStartup onDismiss={() => setShowStartup(false)} />;
@@ -1049,6 +1059,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
                 <button
                   type="button"
                   onClick={() => setTerminalOpen(!terminalOpen)}
+                  data-sound={terminalOpen ? 'statusOff' : 'statusOn'}
                   className={`lcars-chrome-item${hasRecentLogError ? ' system-status-log-error-alert' : ''}`}
                   aria-label={hasRecentLogError ? 'Status — recent error in system log' : 'Status'}
                   style={{
@@ -1087,7 +1098,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
               <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
               <MapLayersHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} />
               <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
-              <AssistantHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} />
+              <AssistantHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} data-sound="sidebar" />
               <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
               <div
                 style={{

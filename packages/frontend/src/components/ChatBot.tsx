@@ -160,10 +160,12 @@ export function AssistantHeaderButton({
   variant = 'default',
   className,
   style,
+  'data-sound': dataSound,
 }: {
   variant?: 'default' | 'lcars';
   className?: string;
   style?: CSSProperties;
+  'data-sound'?: string;
 }) {
   const { open, setOpen, rightPanelMode, setRightPanelMode } = useAssistant();
 
@@ -188,6 +190,7 @@ export function AssistantHeaderButton({
     <button
       type="button"
       onClick={onClick}
+      data-sound={dataSound}
       aria-label={
         open
           ? rightPanelMode === 'timers' || rightPanelMode === 'map_layers'
@@ -237,10 +240,12 @@ export function MapLayersHeaderButton({
   variant = 'default',
   className,
   style,
+  'data-sound': dataSound,
 }: {
   variant?: 'default' | 'lcars';
   className?: string;
   style?: CSSProperties;
+  'data-sound'?: string;
 }) {
   const pathname = usePathname();
   const { open, setOpen, rightPanelMode, setRightPanelMode } = useAssistant();
@@ -268,6 +273,7 @@ export function MapLayersHeaderButton({
     <button
       type="button"
       onClick={onClick}
+      data-sound={dataSound}
       aria-label={
         open && rightPanelMode === 'map_layers' ? 'Close map layers' : 'Open map layers'
       }

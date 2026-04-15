@@ -4,7 +4,7 @@ export { LCARSElbow } from './LCARSElbow';
 export { LCARSSidebar } from './LCARSSidebar';
 export { LCARSStartup } from './LCARSStartup';
 export { AlertProvider, LCARSAlertBanner, useAlert } from './LCARSAlertOverlay';
-export { LCARSSoundsProvider, useLCARSSounds } from './LCARSSounds';
+export { LCARSSoundsProvider, useLCARSSounds, type SoundType } from './LCARSSounds';
 export { LCARSVariantProvider, useLCARSVariant } from './LCARSVariantProvider';
 export { LCARS_COLORS, LCARS_PALETTES } from './colors';
 export type { LCARSPalette } from './colors';

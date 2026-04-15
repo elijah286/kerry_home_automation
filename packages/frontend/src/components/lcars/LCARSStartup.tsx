@@ -5,6 +5,7 @@ import { APP_VERSION_LABEL } from '@/lib/appVersion';
 import { LCARS_COLORS } from './colors';
 import { FederationEmblem } from './FederationEmblem';
 import { LCARSElbow } from './LCARSElbow';
+import { useLCARSSounds } from './LCARSSounds';
 
 const BOOT_LINES_TAIL = [
   'INITIALIZING SUBSPACE PROTOCOLS…',
@@ -87,6 +88,10 @@ function BootChrome() {
 export function LCARSStartup({ onDismiss }: { onDismiss?: () => void }) {
   const [visibleLines, setVisibleLines] = useState(0);
   const [barWidth, setBarWidth] = useState(0);
+  const { play } = useLCARSSounds();
+
+  /* Play the computer-work beep as the boot sequence starts */
+  useEffect(() => { play('loading'); }, [play]);
 
   useEffect(() => {
     const lineTimers: NodeJS.Timeout[] = [];

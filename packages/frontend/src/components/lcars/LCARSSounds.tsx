@@ -8,7 +8,80 @@ import { useAlert } from './LCARSAlertOverlay';
 /** TNG red alert / klaxon — https://www.trekcore.com/audio/redalertandklaxons/tng_red_alert1.mp3 (mirrored in public/audio). */
 const RED_ALERT_KLAXON_SRC = '/audio/tng_red_alert1.mp3';
 
-type SoundType = 'beep' | 'chirp' | 'deny' | 'alert' | 'hail' | 'scan' | 'process';
+/**
+ * Sound types available to the LCARS UI.
+ *
+ * Legacy names (`beep`, `chirp`, `deny`, `alert`, `hail`, `scan`, `process`)
+ * are preserved for backward compat — existing call-sites (bridge page, settings
+ * page) keep working unchanged.  New names map 1:1 to the TrekCore MP3s.
+ */
+export type SoundType =
+  | 'beep'      // default button press        → computerbeep_5.mp3
+  | 'chirp'     // light confirmation           → computerbeep_5.mp3
+  | 'deny'      // denied / invalid action      → consolewarning.mp3
+  | 'alert'     // warning tone                 → consolewarning.mp3
+  | 'hail'      // incoming notification        → computerbeep_24.mp3
+  | 'scan'      // sweep / processing           → computer_work_beep.mp3
+  | 'process'   // multi-step processing        → computer_work_beep.mp3
+  | 'error'     // critical error in status log → consolewarning.mp3
+  | 'statusOn'  // status viewer opened         → computerbeep_16.mp3
+  | 'statusOff' // status viewer closed         → computerbeep_20.mp3
+  | 'sidebar'   // right panel (assistant) open → computerbeep_24.mp3
+  | 'loading';  // boot / loading screen        → computer_work_beep.mp3
+
+/** Map every SoundType to a public audio file path. */
+const SOUND_FILES: Record<SoundType, string> = {
+  beep:      '/audio/computerbeep_5.mp3',
+  chirp:     '/audio/computerbeep_5.mp3',
+  deny:      '/audio/consolewarning.mp3',
+  alert:     '/audio/consolewarning.mp3',
+  hail:      '/audio/computerbeep_24.mp3',
+  scan:      '/audio/computer_work_beep.mp3',
+  process:   '/audio/computer_work_beep.mp3',
+  error:     '/audio/consolewarning.mp3',
+  statusOn:  '/audio/computerbeep_16.mp3',
+  statusOff: '/audio/computerbeep_20.mp3',
+  sidebar:   '/audio/computerbeep_24.mp3',
+  loading:   '/audio/computer_work_beep.mp3',
+};
+
+/** Default volume for each sound (0–1). */
+const SOUND_VOLUME: Partial<Record<SoundType, number>> = {
+  beep:      0.25,
+  chirp:     0.25,
+  error:     0.35,
+  deny:      0.35,
+  alert:     0.35,
+  loading:   0.30,
+};
+const DEFAULT_VOLUME = 0.30;
+
+/* ---------- Preload & playback helpers ---------- */
+
+/** Pre-decoded template elements keyed by file path. */
+const preloaded = new Map<string, HTMLAudioElement>();
+
+function ensurePreloaded() {
+  if (typeof window === 'undefined') return;
+  const paths = new Set(Object.values(SOUND_FILES));
+  for (const src of paths) {
+    if (preloaded.has(src)) continue;
+    const a = new Audio(src);
+    a.preload = 'auto';
+    preloaded.set(src, a);
+  }
+}
+
+/** Play a short MP3 once.  Clones the template so overlapping plays work fine. */
+function playFile(src: string, volume: number) {
+  const template = preloaded.get(src);
+  if (!template) return;
+  const a = template.cloneNode() as HTMLAudioElement;
+  a.volume = volume;
+  void a.play().catch(() => {});
+}
+
+/* ---------- Context ---------- */
 
 interface SoundsContextValue {
   enabled: boolean;
@@ -26,76 +99,21 @@ export function useLCARSSounds() {
   return useContext(SoundsContext);
 }
 
-// Generate LCARS-like tones using Web Audio API
-function createTone(
-  ctx: AudioContext,
-  frequency: number,
-  duration: number,
-  type: OscillatorType = 'sine',
-  volume: number = 0.15,
-  delay: number = 0,
-) {
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(frequency, ctx.currentTime + delay);
-  gain.gain.setValueAtTime(0, ctx.currentTime + delay);
-  gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + delay + 0.01);
-  gain.gain.linearRampToValueAtTime(0, ctx.currentTime + delay + duration);
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start(ctx.currentTime + delay);
-  osc.stop(ctx.currentTime + delay + duration);
-}
-
-const SOUND_DEFS: Record<SoundType, (ctx: AudioContext) => void> = {
-  beep: (ctx) => {
-    createTone(ctx, 1200, 0.08, 'sine', 0.12);
-  },
-  chirp: (ctx) => {
-    createTone(ctx, 800, 0.06, 'sine', 0.1);
-    createTone(ctx, 1600, 0.06, 'sine', 0.1, 0.06);
-  },
-  deny: (ctx) => {
-    createTone(ctx, 300, 0.15, 'square', 0.08);
-  },
-  alert: (ctx) => {
-    createTone(ctx, 880, 0.2, 'sine', 0.15);
-    createTone(ctx, 440, 0.2, 'sine', 0.15, 0.25);
-    createTone(ctx, 880, 0.2, 'sine', 0.15, 0.5);
-  },
-  hail: (ctx) => {
-    createTone(ctx, 523, 0.12, 'sine', 0.1);
-    createTone(ctx, 659, 0.12, 'sine', 0.1, 0.12);
-    createTone(ctx, 784, 0.15, 'sine', 0.1, 0.24);
-  },
-  scan: (ctx) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(200, ctx.currentTime);
-    osc.frequency.linearRampToValueAtTime(2000, ctx.currentTime + 0.5);
-    gain.gain.setValueAtTime(0.08, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.5);
-  },
-  process: (ctx) => {
-    for (let i = 0; i < 4; i++) {
-      createTone(ctx, 600 + i * 200, 0.04, 'sine', 0.06, i * 0.06);
-    }
-  },
-};
+/* ---------- Provider ---------- */
 
 export function LCARSSoundsProvider({ children }: { children: ReactNode }) {
   const { activeTheme } = useTheme();
   const { alertLevel } = useAlert();
   const { user, uiPreferences, uiPreferenceLocks, patchUiPreferences } = useAuth();
   const [enabled, setEnabledState] = useState(false);
-  const ctxRef = useRef<AudioContext | null>(null);
   const redKlaxonRef = useRef<HTMLAudioElement | null>(null);
+
+  /* Preload MP3s once on mount */
+  useEffect(() => {
+    ensurePreloaded();
+  }, []);
+
+  /* ---- Persist enabled preference ---- */
 
   useEffect(() => {
     if (user) {
@@ -114,6 +132,8 @@ export function LCARSSoundsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem('lcars-sounds', String(enabled));
   }, [enabled]);
+
+  /* ---- Red alert klaxon (preserved exactly) ---- */
 
   useEffect(() => {
     const reduce =
@@ -143,6 +163,8 @@ export function LCARSSoundsProvider({ children }: { children: ReactNode }) {
     return stop;
   }, [alertLevel, enabled, activeTheme]);
 
+  /* ---- Setter (admin-lockable) ---- */
+
   const setEnabled = useCallback(
     (v: boolean) => {
       if (user && uiPreferenceLocks.lcarsSoundsEnabled) return;
@@ -154,19 +176,15 @@ export function LCARSSoundsProvider({ children }: { children: ReactNode }) {
     [user, uiPreferenceLocks.lcarsSoundsEnabled, patchUiPreferences],
   );
 
+  /* ---- Play ---- */
+
   const play = useCallback(
     (sound: SoundType) => {
       if (!enabled || activeTheme !== 'lcars') return;
-      try {
-        if (!ctxRef.current) {
-          ctxRef.current = new AudioContext();
-        }
-        const ctx = ctxRef.current;
-        if (ctx.state === 'suspended') ctx.resume();
-        SOUND_DEFS[sound]?.(ctx);
-      } catch {
-        // Web Audio not available
-      }
+      const src = SOUND_FILES[sound];
+      if (!src) return;
+      const vol = SOUND_VOLUME[sound] ?? DEFAULT_VOLUME;
+      playFile(src, vol);
     },
     [enabled, activeTheme],
   );
