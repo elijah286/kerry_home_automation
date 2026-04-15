@@ -1,8 +1,8 @@
 {
   "version": "v3.14.45",
-  "sha": "638a494f808668d41007d382402f55621510d70b",
-  "shaShort": "638a494",
-  "timestamp": "2026-04-15T16:39:32Z",
+  "sha": "ee1ab68a0e8d92a8055678a8ed483fc7afc22e6c",
+  "shaShort": "ee1ab68",
+  "timestamp": "2026-04-15T16:53:25Z",
   "images": {
     "backend": "ghcr.io/elijah286/ha-backend:v3.14.45",
     "frontend": "ghcr.io/elijah286/ha-frontend:v3.14.45",
