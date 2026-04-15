@@ -1,9 +1,9 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
-import { BottomNav } from './BottomNav';
 import { AssistantProvider } from '../ChatBot';
 import { CookingTimersProvider } from '@/providers/CookingTimersProvider';
 import { useConnected } from '@/hooks/useWebSocket';
@@ -21,22 +21,20 @@ function AppShellMain({
   collapsed,
   mounted,
   isMdUp,
+  onOpenMobileNav,
 }: {
   children: ReactNode;
   collapsed: boolean;
   mounted: boolean;
   isMdUp: boolean;
+  onOpenMobileNav: () => void;
 }) {
   const terminalBottom = useSystemTerminalBottomInset();
   const sidebarWidth = mounted ? (collapsed ? 56 : 224) : 224;
 
   const paddingBottom = useMemo(() => {
-    if (!isMdUp) {
-      if (terminalBottom > 0) return 64 + terminalBottom;
-      return 64;
-    }
     return terminalBottom > 0 ? terminalBottom : 0;
-  }, [isMdUp, terminalBottom]);
+  }, [terminalBottom]);
 
   return (
     <main
@@ -47,7 +45,7 @@ function AppShellMain({
       }}
     >
       <style>{`@media (min-width: 768px) { main { margin-left: var(--sidebar-w, 224px); } }`}</style>
-      <AppHeaderBar />
+      <AppHeaderBar onOpenMobileNav={onOpenMobileNav} />
       {children}
     </main>
   );
@@ -56,8 +54,10 @@ function AppShellMain({
 export function AppShell({ children }: { children: ReactNode }) {
   const connected = useConnected();
   const { activeTheme } = useTheme();
+  const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const isMdUp = useMediaQuery('(min-width: 768px)');
 
   useEffect(() => {
@@ -66,6 +66,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     setMounted(true);
   }, []);
 
+  /* Auto-close mobile nav on route change */
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
   const handleToggle = () => {
     setCollapsed((prev) => {
       const next = !prev;
@@ -73,6 +78,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       return next;
     });
   };
+
+  const openMobileNav = useCallback(() => setMobileNavOpen(true), []);
+  const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
 
   const isLCARS = activeTheme === 'lcars';
 
@@ -92,16 +100,31 @@ export function AppShell({ children }: { children: ReactNode }) {
           sidebarOffsetPx={terminalLeftOffset}
           terminalDockPlacement="top"
         >
-          <LCARSFrame collapsed={collapsed} onToggle={handleToggle}>
+          <LCARSFrame
+            collapsed={collapsed}
+            onToggle={handleToggle}
+            mobileNavOpen={mobileNavOpen}
+            setMobileNavOpen={setMobileNavOpen}
+          >
             {children}
           </LCARSFrame>
         </SystemTerminalProvider>
       ) : (
         <SystemTerminalProvider sidebarOffsetPx={terminalLeftOffset}>
           <div className="min-h-screen">
-            <Sidebar connected={connected} collapsed={collapsed} onToggle={handleToggle} />
-            <BottomNav />
-            <AppShellMain collapsed={collapsed} mounted={mounted} isMdUp={isMdUp}>
+            <Sidebar
+              connected={connected}
+              collapsed={collapsed}
+              onToggle={handleToggle}
+              mobileOpen={mobileNavOpen}
+              onCloseMobile={closeMobileNav}
+            />
+            <AppShellMain
+              collapsed={collapsed}
+              mounted={mounted}
+              isMdUp={isMdUp}
+              onOpenMobileNav={openMobileNav}
+            >
               {children}
             </AppShellMain>
           </div>

@@ -15,6 +15,7 @@ import { loadIntegrationDebugFlags } from './integration-debug.js';
 import { migrateFromRedis } from './db/integration-config-store.js';
 import { historyWriter } from './db/history-writer.js';
 import * as entryStore from './db/integration-entry-store.js';
+import { startEventLogBridge } from './state/event-log-bridge.js';
 import { readFile } from 'node:fs/promises';
 import * as os from 'node:os';
 
@@ -195,6 +196,10 @@ async function main() {
   registry.register(new SenseIntegration());
   registry.register(new ScreensaverIntegration());
   registry.register(new HelpersIntegration());
+
+  // 9b. Bridge event bus → pino so integration health, device availability,
+  //     automation executions, and commands show in the System Terminal.
+  startEventLogBridge();
 
   await registry.startAll();
 

@@ -8,7 +8,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import {
   Cpu, ArrowLeft, RefreshCw, Loader2, Power, RotateCcw,
   HardDrive, MemoryStick, Activity, Terminal, AlertTriangle,
-  CheckCircle2,
+  CheckCircle2, Container, Circle, Heart,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -127,6 +127,245 @@ function ActionButton({ label, icon: Icon, state, onClick, danger, confirmLabel 
       )}
       {confirming ? (confirmLabel ?? 'Confirm?') : isSuccess ? 'Done' : label}
     </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Container management panel
+// ---------------------------------------------------------------------------
+
+interface ContainerInfo {
+  service: string;
+  containerId: string;
+  image: string;
+  status: string;
+  state: string;
+  health: string;
+  createdAt: string;
+  uptime: string;
+  healthDetail?: { Status: string; FailingStreak: number } | null;
+}
+
+function stateColor(state: string, health: string): string {
+  if (state === 'running' && (health === 'healthy' || health === 'none')) return 'var(--color-success)';
+  if (state === 'running' && health === 'unhealthy') return 'var(--color-danger)';
+  if (state === 'running' && health === 'starting') return 'var(--color-warning, #f59e0b)';
+  if (state === 'restarting') return 'var(--color-warning, #f59e0b)';
+  return 'var(--color-danger)';
+}
+
+function healthLabel(state: string, health: string): string {
+  if (state !== 'running') return state;
+  if (health === 'none') return 'running';
+  return health;
+}
+
+function ContainerPanel({
+  actionStates,
+  setAction,
+}: {
+  actionStates: Record<string, ActionState>;
+  setAction: (key: string, state: ActionState) => void;
+}) {
+  const { elevated } = useAuth();
+  const [containers, setContainers] = useState<ContainerInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const fetchContainers = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/system/containers`, { credentials: 'include' });
+      if (res.ok) {
+        const data = (await res.json()) as { containers: ContainerInfo[] };
+        setContainers(data.containers);
+        setError(false);
+      } else {
+        setError(true);
+      }
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchContainers();
+    const interval = setInterval(fetchContainers, 8000);
+    return () => clearInterval(interval);
+  }, [fetchContainers]);
+
+  const restartService = async (service: string) => {
+    const key = `restart-container-${service}`;
+    setAction(key, 'loading');
+    try {
+      const res = await fetch(`${API_BASE}/api/system/containers/${service}/restart`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      setAction(key, res.ok ? 'success' : 'error');
+    } catch {
+      setAction(key, 'error');
+    }
+  };
+
+  const rebuildAll = async () => {
+    setAction('rebuild-all', 'loading');
+    try {
+      const res = await fetch(`${API_BASE}/api/system/containers/rebuild`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      setAction('rebuild-all', res.ok || res.status === 202 ? 'success' : 'error');
+    } catch {
+      setAction('rebuild-all', 'error');
+    }
+  };
+
+  const as = (key: string): ActionState => actionStates[key] ?? 'idle';
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Container className="h-3.5 w-3.5" style={{ color: 'var(--color-accent)' }} />
+          <h2 className="text-sm font-medium">Docker Containers</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchContainers}
+            className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs border"
+            style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+          >
+            <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <p className="text-xs mb-3" style={{ color: 'var(--color-danger)' }}>
+          Failed to load container status. Make sure Docker is accessible.
+        </p>
+      )}
+
+      {loading && containers.length === 0 ? (
+        <div className="flex justify-center py-6">
+          <Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--color-text-muted)' }} />
+        </div>
+      ) : containers.length === 0 ? (
+        <p className="text-xs py-3 text-center" style={{ color: 'var(--color-text-muted)' }}>
+          No containers found.
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {containers.map((c) => {
+            const color = stateColor(c.state, c.health);
+            const label = healthLabel(c.state, c.health);
+            const restartKey = `restart-container-${c.service}`;
+            const restartState = as(restartKey);
+            const isRestarting = restartState === 'loading';
+
+            return (
+              <div
+                key={c.service}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5"
+                style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+              >
+                {/* Status dot */}
+                <Circle
+                  className="h-2.5 w-2.5 shrink-0"
+                  style={{ color, fill: color }}
+                />
+
+                {/* Service info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium">{c.service}</span>
+                    <span
+                      className="text-[10px] font-medium rounded-full px-1.5 py-0.5"
+                      style={{
+                        color,
+                        backgroundColor: `color-mix(in srgb, ${color} 12%, transparent)`,
+                      }}
+                    >
+                      {label}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[10px] font-mono truncate" style={{ color: 'var(--color-text-muted)' }}>
+                      {c.image.split('/').pop()?.split('@')[0] ?? c.image}
+                    </span>
+                    {c.state === 'running' && (
+                      <>
+                        <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>·</span>
+                        <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                          up {c.uptime}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Restart button (requires PIN elevation) */}
+                {elevated && (
+                  <button
+                    onClick={() => restartService(c.service)}
+                    disabled={isRestarting}
+                    title={`Restart ${c.service}`}
+                    className="shrink-0 flex items-center justify-center h-7 w-7 rounded-md border transition-colors disabled:opacity-50"
+                    style={{
+                      borderColor: restartState === 'success'
+                        ? 'var(--color-success)'
+                        : 'var(--color-border)',
+                      color: restartState === 'success'
+                        ? 'var(--color-success)'
+                        : 'var(--color-text-muted)',
+                    }}
+                  >
+                    {isRestarting ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : restartState === 'success' ? (
+                      <CheckCircle2 className="h-3 w-3" />
+                    ) : (
+                      <RotateCcw className="h-3 w-3" />
+                    )}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Rebuild all button — only when elevated */}
+      {elevated && containers.length > 0 && (
+        <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--color-border)' }}>
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: 'var(--color-warning, #f59e0b)' }} />
+            <div className="flex-1">
+              <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
+                Force-recreate all containers from their current images. The hub will be briefly unavailable.
+              </p>
+              <ActionButton
+                label="Rebuild All Containers"
+                icon={RefreshCw}
+                state={as('rebuild-all')}
+                onClick={rebuildAll}
+                danger
+                confirmLabel="Confirm rebuild"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!elevated && containers.length > 0 && (
+        <p className="text-[10px] mt-3 text-center" style={{ color: 'var(--color-text-muted)' }}>
+          Enter PIN to enable container restart and rebuild controls
+        </p>
+      )}
+    </Card>
   );
 }
 
@@ -318,6 +557,9 @@ export default function SystemPage() {
           />
         </div>
       </Card>
+
+      {/* Containers */}
+      <ContainerPanel actionStates={actionStates} setAction={setAction} />
 
       {/* Automations & Helpers */}
       <Card>

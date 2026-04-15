@@ -4,6 +4,8 @@ import { useTheme } from '@/providers/ThemeProvider';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, useCallback, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
 import { clsx } from 'clsx';
+import { Menu } from 'lucide-react';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { LCARSSidebar } from './LCARSSidebar';
 import { LCARSStartup } from './LCARSStartup';
 import { LCARSElbow } from './LCARSElbow';
@@ -130,9 +132,11 @@ interface LCARSFrameProps {
   children: ReactNode;
   collapsed: boolean;
   onToggle: () => void;
+  mobileNavOpen: boolean;
+  setMobileNavOpen: (open: boolean) => void;
 }
 
-export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
+export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMobileNavOpen }: LCARSFrameProps) {
   const { activeTheme } = useTheme();
   const connected = useConnected();
   const pathname = usePathname();
@@ -195,12 +199,17 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
     return () => clearTimeout(timer);
   }, []);
 
+  const isMobile = !useMediaQuery('(min-width: 768px)');
+
   if (activeTheme !== 'lcars') return <>{children}</>;
 
   const breadcrumbItems = getBreadcrumbItems(pathname ?? '/');
   const barW = collapsed ? BAR_W_COLLAPSED : BAR_W;
   const or = Math.min(OUTER_R, barW);
   const elbowW = barW + INNER_R;
+  /** Mobile-aware layout offsets — sidebar hidden on mobile, content/bars go full-width */
+  const mElbowW = isMobile ? 0 : elbowW;
+  const mContentLeft = isMobile ? CONTENT_EDGE : elbowW;
   const topElbowH = HEADER_H + or;
   const bottomElbowH = FOOTER_H + or;
 
@@ -655,10 +664,10 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
     () => ({
       contentTop: layoutContentTop,
       contentBottom,
-      contentLeft,
+      contentLeft: mContentLeft,
       contentRight: CONTENT_EDGE,
-      barW,
-      elbowW,
+      barW: isMobile ? 0 : barW,
+      elbowW: mElbowW,
       headerH: HEADER_H,
       footerH: FOOTER_H,
       showTopTerminal: !!showTopTerminal,
@@ -668,9 +677,10 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
     [
       layoutContentTop,
       contentBottom,
-      contentLeft,
+      mContentLeft,
+      isMobile,
       barW,
-      elbowW,
+      mElbowW,
       showTopTerminal,
       topChromeH,
       layoutMainChromeTop,
@@ -711,6 +721,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
       {showTopTerminal && !statusFullscreen && (
         <>
           {/* ===== SIDEBAR — yellow Status cap (entire block is the control; opens full-screen log) ===== */}
+          {!isMobile && (
           <button
             type="button"
             className="lcars-status-sidebar-cap lcars-sidebar-cap lcars-chrome-item"
@@ -746,10 +757,11 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
           >
             {collapsed ? 'STA' : 'Status'}
           </button>
+          )}
 
           {/* ===== STATUS BODY — log scroller + right filter sidebar ===== */}
           <SystemTerminalDock
-            sidebarOffsetPx={elbowW}
+            sidebarOffsetPx={mElbowW}
             onClose={() => setTerminalOpen(false)}
             placement="top"
             panelHeightPx={statusBodyH}
@@ -786,6 +798,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
                 }}
               />
               {/* Separator bottom-left elbow (skinny) — color matches sidebar cap for visual continuity */}
+              {!isMobile && (
               <div
                 className="lcars-elbow-status-separator"
                 style={{
@@ -808,6 +821,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
                   alertOutline={alertLevel === 'red'}
                 />
               </div>
+              )}
               {/* Skinny separator bar */}
               <div
                 className="lcars-status-footer-bar lcars-cascade-1"
@@ -815,7 +829,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
                   position: 'fixed',
                   top: topChromeH - STATUS_SEPARATOR_H,
                   right: 0,
-                  left: barW + INNER_R,
+                  left: mElbowW,
                   height: STATUS_SEPARATOR_H,
                   zIndex: 41,
                   display: 'flex',
@@ -855,6 +869,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
 
       {showTopTerminal && statusFullscreen && (
         <>
+          {!isMobile && (
           <button
             type="button"
             className="lcars-status-sidebar-cap lcars-sidebar-cap lcars-chrome-item"
@@ -889,8 +904,9 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
           >
             {collapsed ? 'STA' : 'Status'}
           </button>
+          )}
           <SystemTerminalDock
-            sidebarOffsetPx={elbowW}
+            sidebarOffsetPx={mElbowW}
             onClose={() => setTerminalOpen(false)}
             placement="top"
             panelHeightPx={fullscreenPanelH}
@@ -905,6 +921,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         </>
       )}
 
+      {!isMobile && (
       <div className="lcars-elbow-top" style={{
         position: 'fixed', top: layoutMainChromeTop, left: 0, zIndex: 44, lineHeight: 0,
         transition: 'top 0.2s ease-out, left 0.2s ease-in-out',
@@ -920,12 +937,13 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
           alertOutline={alertLevel === 'red'}
         />
       </div>
+      )}
 
       <div
         className="lcars-header-bar lcars-cascade-1"
         style={{
           position: 'fixed', top: layoutMainChromeTop, right: 0,
-          left: elbowW,
+          left: mElbowW,
           height: HEADER_H,
           zIndex: 41,
           display: 'flex',
@@ -943,6 +961,33 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
           />
         ) : (
           <>
+            {/* Mobile hamburger button */}
+            {isMobile && (
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen(true)}
+                className="lcars-chrome-item"
+                data-sound="beep"
+                style={{
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  alignSelf: 'stretch',
+                  paddingLeft: 10,
+                  paddingRight: 10,
+                  flexShrink: 0,
+                  background: colors.accent,
+                  color: colors.text,
+                  transition: 'background 0.3s ease',
+                }}
+                aria-label="Open navigation menu"
+              >
+                <Menu size={16} />
+              </button>
+            )}
+            {isMobile && <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />}
             <div
               className="lcars-chrome-item"
               style={{
@@ -1129,6 +1174,8 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
         )}
       </div>
 
+      {/* Vertical sidebar rail — hidden on mobile */}
+      {!isMobile && (
       <div
         className="lcars-vertical-rail lcars-chrome-item lcars-cascade-4"
         style={{
@@ -1141,9 +1188,7 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
           paddingLeft: 0,
           paddingRight: 0,
           background: lcarsVerticalRailGradient(colors),
-          /* Top only: bottom outer curve is the elbow SVG — bottomLeft radius here cut a notch above it */
           borderTopLeftRadius: or,
-          /* Heavy inset shadow made the nav column read narrower than the elbow stem */
           boxShadow: 'inset -2px 0 8px rgba(0,0,0,0.28)',
           transition: 'top 0.2s ease-out, width 0.2s ease-in-out, background 0.3s ease, box-shadow 0.3s ease',
           display: 'flex',
@@ -1161,7 +1206,10 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
           collapsed={collapsed}
         />
       </div>
+      )}
 
+      {/* Bottom-left elbow — hidden on mobile */}
+      {!isMobile && (
       <div className="lcars-elbow-bottom" style={{
         position: 'fixed', bottom: 0, left: 0, zIndex: 44, lineHeight: 0,
         transition: 'all 0.2s ease-in-out',
@@ -1177,10 +1225,11 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
           alertOutline={alertLevel === 'red'}
         />
       </div>
+      )}
 
       <div className="lcars-footer-bar lcars-cascade-6" style={{
         position: 'fixed', bottom: 0, right: 0,
-        left: elbowW,
+        left: mElbowW,
         height: FOOTER_H, zIndex: 41,
         transition: 'left 0.2s ease-in-out',
       }}>
@@ -1190,10 +1239,10 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
       <main className="lcars-content" style={{
         position: 'fixed',
         top: layoutContentTop,
-        left: contentLeft,
+        left: mContentLeft,
         right: CONTENT_EDGE,
         bottom: contentBottom,
-        padding: `12px ${CONTENT_EDGE + 6}px 16px ${FRAME_STRIPE_W + 14}px`,
+        padding: isMobile ? '12px 12px 16px 12px' : `12px ${CONTENT_EDGE + 6}px 16px ${FRAME_STRIPE_W + 14}px`,
         background: '#000',
         overflowX: 'hidden',
         overflowY: 'auto',
@@ -1216,6 +1265,39 @@ export function LCARSFrame({ children, collapsed, onToggle }: LCARSFrameProps) {
             animation: 'lcars-alert-pulse 1.5s ease-in-out infinite',
           }}
         />
+      )}
+
+      {/* ── Mobile LCARS sidebar drawer ── */}
+      {isMobile && (
+        <div
+          className={clsx('fixed inset-0', mobileNavOpen ? '' : 'pointer-events-none')}
+          style={{ zIndex: 200 }}
+        >
+          {/* Backdrop */}
+          <div
+            className={clsx(
+              'absolute inset-0 bg-black/70 transition-opacity duration-300',
+              mobileNavOpen ? 'opacity-100' : 'opacity-0',
+            )}
+            onClick={() => setMobileNavOpen(false)}
+            aria-hidden
+          />
+          {/* Drawer */}
+          <div
+            className={clsx(
+              'absolute inset-y-0 left-0 flex flex-col overflow-hidden transition-transform duration-300 ease-in-out',
+              mobileNavOpen ? 'translate-x-0' : '-translate-x-full',
+            )}
+            style={{ width: BAR_W, maxWidth: '75vw', background: '#000' }}
+          >
+            <LCARSSidebar
+              railWidthPx={BAR_W}
+              navStackOffsetPx={0}
+              onToggle={() => setMobileNavOpen(false)}
+              collapsed={false}
+            />
+          </div>
+        </div>
       )}
     </div>
     </LCARSFrameProvider>

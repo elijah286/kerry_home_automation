@@ -18,6 +18,7 @@ import { registerUserRoutes } from './user-routes.js';
 import { registerRolePermissionRoutes } from './role-permission-routes.js';
 import { registerInstallerRoutes } from './installer-routes.js';
 import { registerSystemRoutes } from './system-routes.js';
+import { registerContainerRoutes } from './container-routes.js';
 import { authenticate } from './auth.js';
 
 // Routes that don't require authentication
@@ -75,6 +76,7 @@ export async function createServer() {
   await registerCalendarRoutes(app);
   registerInstallerRoutes(app);
   registerSystemRoutes(app);
+  registerContainerRoutes(app);
 
   return app;
 }

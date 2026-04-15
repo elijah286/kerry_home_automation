@@ -3,7 +3,7 @@
 import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Menu } from 'lucide-react';
 import { clsx } from 'clsx';
 import { getBreadcrumbItems, type BreadcrumbItem } from '@/lib/appBreadcrumbs';
 import { AppVersionLabel } from './AppVersionLabel';
@@ -91,7 +91,7 @@ export function BreadcrumbTrail({
  * Sticky top bar with route breadcrumbs (non-LCARS shell). LCARS uses the same
  * trail inside `LCARSFrame` so themes can style `.lcars-breadcrumb-nav`.
  */
-export function AppHeaderBar() {
+export function AppHeaderBar({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const pathname = usePathname();
   const items = getBreadcrumbItems(pathname ?? '/');
   const {
@@ -109,7 +109,20 @@ export function AppHeaderBar() {
         borderColor: 'var(--color-border)',
       }}
     >
-      <BreadcrumbTrail items={items} variant="default" />
+      <div className="flex min-w-0 items-center gap-2">
+        {onOpenMobileNav && (
+          <button
+            type="button"
+            onClick={onOpenMobileNav}
+            className="flex md:hidden shrink-0 items-center justify-center rounded-lg p-1.5 -ml-1.5 transition-colors"
+            style={{ color: 'var(--color-text)' }}
+            aria-label="Open navigation menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
+        <BreadcrumbTrail items={items} variant="default" />
+      </div>
       <div className="flex shrink-0 items-center gap-2">
         <PinElevationControls variant="default" />
         {canUseTerminal && (

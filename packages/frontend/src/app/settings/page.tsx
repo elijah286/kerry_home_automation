@@ -47,7 +47,7 @@ const groups: { title?: string; items: SettingsItem[] }[] = [
         href: '/settings/system',
         icon: Server,
         label: 'System health',
-        description: 'CPU, memory, disk, service restarts, and reloads',
+        description: 'CPU, memory, disk, Docker containers, and service controls',
         adminOnly: true,
       },
       {
