@@ -4,10 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/components/ui/Card';
 import { useAuth } from '@/providers/AuthProvider';
 import type { User, UserRole, UiColorMode, UiPreferencesAdminPatch } from '@ha/shared';
-import { USER_ROLES, Permission, PERMISSION_LABELS } from '@ha/shared';
+import { USER_ROLES, Permission, PERMISSION_LABELS, canHavePin } from '@ha/shared';
 import { themes } from '@/lib/themes';
 import {
-  Users, Plus, Trash2, Shield, Monitor, UserIcon, Baby,
+  Users, Plus, Trash2, Shield, Monitor, UserIcon, Baby, UserCheck,
   Pencil, ArrowLeft, Loader2, Check, X, ShieldCheck,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -18,6 +18,7 @@ const API_BASE = typeof window !== 'undefined'
 
 const ROLE_META: Record<UserRole, { label: string; icon: typeof Shield; description: string }> = {
   admin: { label: 'Admin', icon: Shield, description: 'Full access to everything' },
+  parent: { label: 'Parent', icon: UserCheck, description: 'Household manager with elevation PIN' },
   user: { label: 'User', icon: UserIcon, description: 'Standard household member' },
   kiosk: { label: 'Kiosk', icon: Monitor, description: 'Wall panel / tablet display' },
   child: { label: 'Child', icon: Baby, description: 'Limited access for kids' },
@@ -340,22 +341,23 @@ export default function UsersPage() {
                 {...(!editingUser && { required: true })}
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                Elevation PIN (4–6 digits){editingUser ? ' — leave blank to keep' : ''}
-              </label>
-              <input
-                type="password"
-                inputMode="numeric"
-                maxLength={6}
-                value={formPin}
-                onChange={(e) => setFormPin(e.target.value.replace(/\D/g, ''))}
-                className="w-full rounded-lg px-3 py-2 text-sm tracking-widest outline-none"
-                style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
-                {...(!editingUser && { required: true })}
-                placeholder="••••"
-              />
-            </div>
+            {canHavePin(formRole) && (
+              <div className="space-y-1">
+                <label className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  Elevation PIN (4–6 digits){editingUser ? ' — leave blank to keep' : ''}
+                </label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={formPin}
+                  onChange={(e) => setFormPin(e.target.value.replace(/\D/g, ''))}
+                  className="w-full rounded-lg px-3 py-2 text-sm tracking-widest outline-none"
+                  style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+                  placeholder="••••"
+                />
+              </div>
+            )}
             <div className="space-y-1">
               <label className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Role</label>
               <div className="flex gap-2 flex-wrap">

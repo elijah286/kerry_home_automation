@@ -8,8 +8,16 @@ import type {
   UiPreferenceLocks,
 } from './ui-preferences.js';
 
-export const USER_ROLES = ['admin', 'user', 'kiosk', 'child'] as const;
+export const USER_ROLES = ['admin', 'parent', 'user', 'kiosk', 'child'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
+
+/** Roles that can set a PIN and use it to elevate any session's privileges. */
+export const PIN_ELIGIBLE_ROLES: readonly UserRole[] = ['admin', 'parent'] as const;
+
+/** Whether the given role is allowed to have a PIN for privilege elevation. */
+export function canHavePin(role: string): boolean {
+  return PIN_ELIGIBLE_ROLES.includes(role as UserRole);
+}
 
 export interface User {
   id: string;
@@ -38,6 +46,8 @@ export interface AuthSessionResponse {
   elevated?: boolean;
   /** Seconds remaining in the elevation window (counts down; refreshed by API activity) */
   elevatedSecondsRemaining?: number;
+  /** True when at least one admin/parent has a PIN — any session can be elevated. */
+  pinElevationAvailable?: boolean;
 }
 
 export type LoginResponse = AuthSessionResponse;
@@ -92,6 +102,15 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 /** Default permissions per role — used as fallback when no DB overrides exist */
 export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: Object.values(Permission),
+  parent: [
+    Permission.ViewDevices,
+    Permission.SendCommands,
+    Permission.ViewCameras,
+    Permission.ManageAutomations,
+    Permission.ManageAreas,
+    Permission.RenameDevices,
+    Permission.ViewSystemTerminal,
+  ],
   user: [
     Permission.ViewDevices,
     Permission.SendCommands,

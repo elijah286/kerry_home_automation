@@ -5,7 +5,7 @@
 import type { FastifyInstance } from 'fastify';
 import bcrypt from 'bcrypt';
 import type { User, CreateUserRequest, UpdateUserRequest, UserRole, UiPreferences } from '@ha/shared';
-import { USER_ROLES, UI_PREFERENCE_KEYS } from '@ha/shared';
+import { USER_ROLES, UI_PREFERENCE_KEYS, canHavePin } from '@ha/shared';
 import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
 import { authenticate, requireRole } from './auth.js';
@@ -72,20 +72,27 @@ export function registerUserRoutes(app: FastifyInstance): void {
   app.post<{ Body: CreateUserRequest }>('/api/users', { preHandler: adminOnly }, async (req, reply) => {
     const { username, displayName, password, pin, role } = req.body;
 
-    if (!username || !displayName || !password || pin === undefined || pin === '') {
-      return reply.code(400).send({ error: 'username, displayName, password, and pin are required' });
-    }
-
-    if (!isValidPinFormat(pin)) {
-      return reply.code(400).send({ error: 'PIN must be 4–6 digits' });
+    if (!username || !displayName || !password) {
+      return reply.code(400).send({ error: 'username, displayName, and password are required' });
     }
 
     if (!USER_ROLES.includes(role)) {
       return reply.code(400).send({ error: 'Invalid role' });
     }
 
+    // PIN is only allowed for admin/parent roles
+    let pinHash: string | null = null;
+    if (pin && pin.trim()) {
+      if (!canHavePin(role)) {
+        return reply.code(400).send({ error: 'Only admin and parent accounts can have an elevation PIN' });
+      }
+      if (!isValidPinFormat(pin)) {
+        return reply.code(400).send({ error: 'PIN must be 4–6 digits' });
+      }
+      pinHash = await bcrypt.hash(pin.trim(), SALT_ROUNDS);
+    }
+
     const hash = await bcrypt.hash(password, SALT_ROUNDS);
-    const pinHash = await bcrypt.hash(pin.trim(), SALT_ROUNDS);
 
     try {
       const { rows } = await query<UserRow>(
@@ -134,9 +141,15 @@ export function registerUserRoutes(app: FastifyInstance): void {
       params.push(hash);
     }
 
+    // Determine the effective role (new role if changing, else current)
+    const effectiveRole = role ?? (await query<{ role: string }>('SELECT role FROM users WHERE id = $1', [id]))
+      .rows[0]?.role;
+
     if (pin !== undefined) {
       if (pin === '') {
         sets.push('pin_hash = NULL');
+      } else if (!canHavePin(effectiveRole)) {
+        return reply.code(400).send({ error: 'Only admin and parent accounts can have an elevation PIN' });
       } else if (!isValidPinFormat(pin)) {
         return reply.code(400).send({ error: 'PIN must be 4–6 digits' });
       } else {
@@ -144,6 +157,11 @@ export function registerUserRoutes(app: FastifyInstance): void {
         sets.push(`pin_hash = $${i++}`);
         params.push(ph);
       }
+    }
+
+    // If role is changing to a non-PIN-eligible role, clear any existing PIN
+    if (role && !canHavePin(role) && pin === undefined) {
+      sets.push('pin_hash = NULL');
     }
 
     if (uiPreferencesAdmin !== undefined) {

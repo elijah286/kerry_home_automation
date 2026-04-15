@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { User, LogOut, Palette, ChevronRight, Settings } from 'lucide-react';
 import { useAuth } from '@/providers/AuthProvider';
+import { canHavePin } from '@ha/shared';
 
 export default function AccountSettingsPage() {
   const router = useRouter();
@@ -54,88 +55,90 @@ export default function AccountSettingsPage() {
         </p>
       </div>
 
-      <div
-        className="rounded-[var(--radius)] border p-4 space-y-3"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-card)' }}
-      >
-        <div>
-          <p className="text-sm font-medium">Elevation PIN</p>
-          <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            {hasPin
-              ? 'Use this 4–6 digit PIN in the header to unlock full access for 30 seconds after your last action.'
-              : 'Set a PIN to use quick elevation in the header instead of typing your full password.'}
-          </p>
-        </div>
-        <form
-          className="space-y-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setPinError('');
-            setPinSaving(true);
-            void setAccountPin(pinPassword, newPin)
-              .then(() => {
-                setPinPassword('');
-                setNewPin('');
-              })
-              .catch((err) => setPinError((err as Error).message))
-              .finally(() => setPinSaving(false));
-          }}
+      {canHavePin(user.role) && (
+        <div
+          className="rounded-[var(--radius)] border p-4 space-y-3"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-card)' }}
         >
-          <div className="space-y-1">
-            <label className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              Account password
-            </label>
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={pinPassword}
-              onChange={(e) => setPinPassword(e.target.value)}
-              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-              style={{
-                backgroundColor: 'var(--color-bg-secondary)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text)',
-              }}
-              required
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              {hasPin ? 'New PIN (4–6 digits)' : 'PIN (4–6 digits)'}
-            </label>
-            <input
-              type="password"
-              inputMode="numeric"
-              pattern="\d*"
-              autoComplete="off"
-              maxLength={6}
-              value={newPin}
-              onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-              className="w-full rounded-lg px-3 py-2 text-sm tracking-widest outline-none"
-              style={{
-                backgroundColor: 'var(--color-bg-secondary)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text)',
-              }}
-              required
-              placeholder="••••"
-            />
-          </div>
-          {pinError && (
-            <p className="text-xs" style={{ color: 'var(--color-danger)' }}>
-              {pinError}
+          <div>
+            <p className="text-sm font-medium">Elevation PIN</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+              {hasPin
+                ? 'Use this 4–6 digit PIN to unlock full access for 30 seconds on any device.'
+                : 'Set a PIN to quickly elevate privileges on any device — including child and kiosk sessions.'}
             </p>
-          )}
-          <button
-            type="submit"
-            disabled={pinSaving || newPin.length < 4}
-            className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
-            style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
+          </div>
+          <form
+            className="space-y-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setPinError('');
+              setPinSaving(true);
+              void setAccountPin(pinPassword, newPin)
+                .then(() => {
+                  setPinPassword('');
+                  setNewPin('');
+                })
+                .catch((err) => setPinError((err as Error).message))
+                .finally(() => setPinSaving(false));
+            }}
           >
-            {pinSaving ? 'Saving…' : hasPin ? 'Update PIN' : 'Save PIN'}
-          </button>
-        </form>
-      </div>
+            <div className="space-y-1">
+              <label className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                Account password
+              </label>
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={pinPassword}
+                onChange={(e) => setPinPassword(e.target.value)}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-text)',
+                }}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                {hasPin ? 'New PIN (4–6 digits)' : 'PIN (4–6 digits)'}
+              </label>
+              <input
+                type="password"
+                inputMode="numeric"
+                pattern="\d*"
+                autoComplete="off"
+                maxLength={6}
+                value={newPin}
+                onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+                className="w-full rounded-lg px-3 py-2 text-sm tracking-widest outline-none"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-text)',
+                }}
+                required
+                placeholder="••••"
+              />
+            </div>
+            {pinError && (
+              <p className="text-xs" style={{ color: 'var(--color-danger)' }}>
+                {pinError}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={pinSaving || newPin.length < 4}
+              className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+              style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
+            >
+              {pinSaving ? 'Saving…' : hasPin ? 'Update PIN' : 'Save PIN'}
+            </button>
+          </form>
+        </div>
+      )}
 
       <div
         className="rounded-[var(--radius)] border overflow-hidden"

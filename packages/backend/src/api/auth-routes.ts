@@ -5,7 +5,7 @@
 import type { FastifyInstance } from 'fastify';
 import bcrypt from 'bcrypt';
 import type { LoginRequest, UserRole, UiPreferences } from '@ha/shared';
-import { UI_PREFERENCE_KEYS } from '@ha/shared';
+import { UI_PREFERENCE_KEYS, canHavePin, PIN_ELIGIBLE_ROLES } from '@ha/shared';
 import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
 import { appConfig } from '../config.js';
@@ -23,6 +23,16 @@ import {
   isValidPinFormat,
   startPinElevation,
 } from '../lib/pin-elevation.js';
+
+/** True when at least one enabled admin/parent has a PIN set — any session can be elevated. */
+async function isPinElevationAvailable(): Promise<boolean> {
+  const rolePlaceholders = PIN_ELIGIBLE_ROLES.map((_, i) => `$${i + 1}`).join(', ');
+  const { rows } = await query<{ count: string }>(
+    `SELECT COUNT(*) AS count FROM users WHERE role IN (${rolePlaceholders}) AND pin_hash IS NOT NULL AND enabled = true`,
+    [...PIN_ELIGIBLE_ROLES],
+  );
+  return parseInt(rows[0]?.count ?? '0', 10) > 0;
+}
 
 const SESSION_SELECT = `SELECT id, username, display_name, password_hash, role, enabled, created_at,
   ui_preferences, ui_preferences_admin, (pin_hash IS NOT NULL) AS has_pin FROM users`;
@@ -77,7 +87,9 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     // Set httpOnly cookie
     reply.header('Set-Cookie', `ha_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${appConfig.auth.sessionTtlDays * 24 * 60 * 60}`);
 
-    return authSessionFromRow(userRow, { elevated: false, elevatedSecondsRemaining: 0 });
+    const resp = authSessionFromRow(userRow, { elevated: false, elevatedSecondsRemaining: 0 });
+    resp.pinElevationAvailable = await isPinElevationAvailable();
+    return resp;
   });
 
   // POST /api/auth/logout
@@ -99,13 +111,16 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       [req.user!.id],
     );
 
-    return authSessionFromRow(rows[0], {
+    const resp = authSessionFromRow(rows[0], {
       elevated: req.elevated ?? false,
       elevatedSecondsRemaining: req.elevationTtlSeconds ?? 0,
     });
+    resp.pinElevationAvailable = await isPinElevationAvailable();
+    return resp;
   });
 
-  // POST /api/auth/pin — verify PIN and start elevation window for this session
+  // POST /api/auth/pin — verify PIN against all admin/parent PINs and elevate the current session.
+  // Any user can submit a PIN (e.g. a child on a kiosk), but only admin/parent PINs are accepted.
   app.post<{ Body: { pin?: string } }>('/api/auth/pin', { preHandler: [authenticate] }, async (req, reply) => {
     const raw = req.body?.pin ?? '';
     const pin = typeof raw === 'string' ? raw.trim() : '';
@@ -113,18 +128,24 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       return reply.code(400).send({ error: 'PIN must be 4–6 digits' });
     }
 
-    const { rows } = await query<{ pin_hash: string | null }>(
-      'SELECT pin_hash FROM users WHERE id = $1',
-      [req.user!.id],
+    // Check the submitted PIN against all admin/parent users who have a PIN set
+    const rolePlaceholders = PIN_ELIGIBLE_ROLES.map((_, i) => `$${i + 1}`).join(', ');
+    const { rows: pinRows } = await query<{ pin_hash: string }>(
+      `SELECT pin_hash FROM users WHERE role IN (${rolePlaceholders}) AND pin_hash IS NOT NULL AND enabled = true`,
+      [...PIN_ELIGIBLE_ROLES],
     );
-    if (rows.length === 0 || !rows[0].pin_hash) {
-      return reply
-        .code(400)
-        .send({ error: 'No PIN configured for this account. Set one under Account settings.' });
+    if (pinRows.length === 0) {
+      return reply.code(400).send({ error: 'No elevation PINs configured. An admin or parent must set a PIN first.' });
     }
 
-    const ok = await bcrypt.compare(pin, rows[0].pin_hash);
-    if (!ok) {
+    let matched = false;
+    for (const row of pinRows) {
+      if (await bcrypt.compare(pin, row.pin_hash)) {
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
       return reply.code(401).send({ error: 'Invalid PIN' });
     }
 
@@ -139,11 +160,15 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     return authSessionFromRow(userRows[0], { elevated: true, elevatedSecondsRemaining: ttl });
   });
 
-  // PATCH /api/auth/me/pin — set or change PIN (requires account password)
+  // PATCH /api/auth/me/pin — set or change PIN (admin/parent only, requires account password)
   app.patch<{ Body: { password?: string; pin?: string } }>(
     '/api/auth/me/pin',
     { preHandler: [authenticate] },
     async (req, reply) => {
+      if (!canHavePin(req.user!.role)) {
+        return reply.code(403).send({ error: 'Only admin and parent accounts can set an elevation PIN' });
+      }
+
       const rawPin = req.body?.pin ?? '';
       const pin = typeof rawPin === 'string' ? rawPin.trim() : '';
       const password = req.body?.password ?? '';

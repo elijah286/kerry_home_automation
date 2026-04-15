@@ -35,6 +35,8 @@ interface AuthContextValue {
   /** Seconds remaining (from server; polled while elevated) */
   elevatedSecondsRemaining: number;
   hasPin: boolean;
+  /** True when at least one admin/parent has a PIN set — any session can be elevated. */
+  pinElevationAvailable: boolean;
   submitPin: (pin: string) => Promise<void>;
   setAccountPin: (password: string, pin: string) => Promise<void>;
   refreshSession: () => Promise<void>;
@@ -49,12 +51,14 @@ function applySessionToState(
   setUiPreferenceLocks: (l: UiPreferenceLocks) => void,
   setElevated: (b: boolean) => void,
   setElevatedSecondsRemaining: (n: number) => void,
+  setPinElevationAvailable: (b: boolean) => void,
 ) {
   setUser(data.user);
   setUiPreferences(data.uiPreferences ?? {});
   setUiPreferenceLocks(data.uiPreferenceLocks ?? {});
   setElevated(data.elevated ?? false);
   setElevatedSecondsRemaining(data.elevatedSecondsRemaining ?? 0);
+  setPinElevationAvailable(data.pinElevationAvailable ?? false);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -64,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [uiPreferenceLocks, setUiPreferenceLocks] = useState<UiPreferenceLocks>({});
   const [elevated, setElevated] = useState(false);
   const [elevatedSecondsRemaining, setElevatedSecondsRemaining] = useState(0);
+  const [pinElevationAvailable, setPinElevationAvailable] = useState(false);
 
   const refreshSession = useCallback(async () => {
     const api = getApiBase();
@@ -77,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUiPreferenceLocks,
       setElevated,
       setElevatedSecondsRemaining,
+      setPinElevationAvailable,
     );
   }, []);
 
@@ -96,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUiPreferenceLocks,
           setElevated,
           setElevatedSecondsRemaining,
+          setPinElevationAvailable,
         );
         return fetch(`${api}/api/role-permissions`, { credentials: 'include' })
           .then((r) => (r.ok ? r.json() : null))
@@ -154,6 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUiPreferenceLocks,
       setElevated,
       setElevatedSecondsRemaining,
+      setPinElevationAvailable,
     );
   }, []);
 
@@ -187,6 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUiPreferenceLocks,
       setElevated,
       setElevatedSecondsRemaining,
+      setPinElevationAvailable,
     );
   }, []);
 
@@ -210,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUiPreferenceLocks,
       setElevated,
       setElevatedSecondsRemaining,
+      setPinElevationAvailable,
     );
   }, []);
 
@@ -233,6 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUiPreferenceLocks,
       setElevated,
       setElevatedSecondsRemaining,
+      setPinElevationAvailable,
     );
   }, []);
 
@@ -264,6 +275,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         elevated,
         elevatedSecondsRemaining,
         hasPin,
+        pinElevationAvailable,
         submitPin,
         setAccountPin,
         refreshSession,
