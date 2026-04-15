@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 import type { User, UserRole, Permission, AuthSessionResponse, UiPreferences, UiPreferenceLocks } from '@ha/shared';
 import { ROLE_PERMISSIONS } from '@ha/shared';
 import { getApiBase } from '@/lib/api-base';
+import { useSessionRefresh } from '@/hooks/useWebSocket';
 
 function isLikelyNetworkFailure(e: unknown): boolean {
   if (e instanceof TypeError) return true;
@@ -134,8 +135,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(id);
   }, [user, elevated, refreshSession]);
 
-  // Slow poll (30s) for kiosk/child sessions so admin appearance
-  // changes (theme, magnification, etc.) propagate without a refresh.
+  // Slow poll (30s) for kiosk/child sessions as a fallback in case
+  // the WebSocket push is missed.
   useEffect(() => {
     if (!user || elevated) return;
     if (user.role !== 'kiosk' && user.role !== 'child') return;
@@ -144,6 +145,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, 30_000);
     return () => window.clearInterval(id);
   }, [user, elevated, refreshSession]);
+
+  // Instant refresh when admin changes this user's settings (appearance,
+  // role, etc.) — pushed via WebSocket so kiosks update immediately.
+  useSessionRefresh(user?.id, refreshSession);
 
   const login = useCallback(async (username: string, password: string) => {
     const api = getApiBase();

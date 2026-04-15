@@ -25,7 +25,8 @@ export type WsServerMessage =
   | { type: 'device_updated'; device: DeviceState }
   | { type: 'device_removed'; deviceId: string }
   | { type: 'integration_health'; id: IntegrationId; health: IntegrationHealth }
-  | { type: 'automation_executed'; automationId: string; executionId: string; status: AutomationExecutionStatus; triggeredAt: number };
+  | { type: 'automation_executed'; automationId: string; executionId: string; status: AutomationExecutionStatus; triggeredAt: number }
+  | { type: 'session_refresh'; userId: string };
 
 export type WsClientMessage =
   | { type: 'ping' };

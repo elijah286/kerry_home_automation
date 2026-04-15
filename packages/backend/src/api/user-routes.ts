@@ -11,6 +11,7 @@ import { logger } from '../logger.js';
 import { authenticate, requireRole } from './auth.js';
 import { applyAdminPreferencesPatch } from '../lib/ui-preferences.js';
 import { isValidPinFormat } from '../lib/pin-elevation.js';
+import { eventBus } from '../state/event-bus.js';
 
 function asRecord(v: unknown): Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
@@ -197,6 +198,10 @@ export function registerUserRoutes(app: FastifyInstance): void {
     if (enabled === false) {
       await query('DELETE FROM sessions WHERE user_id = $1', [id]);
     }
+
+    // Notify connected clients so the affected user picks up changes immediately
+    // (appearance overrides, role change, etc.)
+    eventBus.emit('session_refresh', { userId: id });
 
     logger.info({ userId: id }, 'User updated');
     return { user: toUser(rows[0]) };

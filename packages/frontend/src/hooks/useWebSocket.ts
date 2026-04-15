@@ -6,6 +6,8 @@ import { getWsBase } from '@/lib/api-base';
 
 type Listener = () => void;
 
+type SessionRefreshCallback = (userId: string) => void;
+
 class DeviceStore {
   private devices = new Map<string, DeviceState>();
   private integrations: Record<string, IntegrationHealth> = {};
@@ -18,6 +20,9 @@ class DeviceStore {
   private deviceRevision = 0;
   private integrationRevision = 0;
   private connectionRevision = 0;
+
+  /** External callback invoked when a session_refresh message arrives */
+  onSessionRefresh: SessionRefreshCallback | null = null;
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -56,6 +61,9 @@ class DeviceStore {
         this.integrations = { ...this.integrations, [msg.id]: msg.health };
         this.integrationRevision++;
         break;
+      case 'session_refresh':
+        this.onSessionRefresh?.(msg.userId);
+        return; // No device state change — skip notify
     }
     this.notify();
   }
@@ -153,4 +161,22 @@ export function useConnected(): boolean {
   );
 
   return store.connected;
+}
+
+/**
+ * Register a callback that fires when the server pushes a session_refresh
+ * for the given userId. Used by AuthProvider to re-fetch preferences when
+ * an admin changes appearance overrides, role, etc.
+ */
+export function useSessionRefresh(userId: string | undefined, onRefresh: () => void): void {
+  useEffect(() => {
+    connectWs();
+    if (!userId) return;
+    const prev = store.onSessionRefresh;
+    store.onSessionRefresh = (targetId) => {
+      if (targetId === userId) onRefresh();
+      prev?.(targetId);
+    };
+    return () => { store.onSessionRefresh = prev; };
+  }, [userId, onRefresh]);
 }

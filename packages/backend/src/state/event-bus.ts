@@ -26,12 +26,17 @@ interface AutomationExecutedEvent {
   triggeredAt: number;
 }
 
+interface SessionRefreshEvent {
+  userId: string;
+}
+
 type EventMap = {
   device_updated: [DeviceUpdatedEvent];
   device_removed: [DeviceRemovedEvent];
   integration_health: [IntegrationHealthEvent];
   command: [DeviceCommand];
   automation_executed: [AutomationExecutedEvent];
+  session_refresh: [SessionRefreshEvent];
 };
 
 class TypedEventBus {
