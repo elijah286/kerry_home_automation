@@ -71,7 +71,7 @@ export function LogIntegrationFilterPanel({
       style={{
         ...fixedStyle,
         width: PANEL_W,
-        backgroundColor: '#000',
+        backgroundColor: 'var(--color-bg)',
         borderColor: 'var(--color-border)',
       }}
       role="dialog"
@@ -123,7 +123,7 @@ export function LogIntegrationFilterPanel({
             type="checkbox"
             checked={filterActive ? selected.includes(SYSTEM_LOG_SOURCE_ID) : true}
             onChange={() => toggle(SYSTEM_LOG_SOURCE_ID)}
-            className="rounded border shrink-0"
+            className="rounded shrink-0 accent-[var(--color-accent)]"
           />
           <span>System (no integration tag)</span>
         </label>
@@ -137,7 +137,7 @@ export function LogIntegrationFilterPanel({
               type="checkbox"
               checked={filterActive ? selected.includes(src.id) : true}
               onChange={() => toggle(src.id)}
-              className="rounded border shrink-0"
+              className="rounded shrink-0 accent-[var(--color-accent)]"
             />
             <span className="truncate">{src.name}</span>
           </label>
@@ -152,7 +152,7 @@ export function LogIntegrationFilterPanel({
               type="checkbox"
               checked={filterActive ? selected.includes(info.id) : true}
               onChange={() => toggle(info.id)}
-              className="rounded border shrink-0"
+              className="rounded shrink-0 accent-[var(--color-accent)]"
             />
             <span className="truncate">{info.name}</span>
           </label>

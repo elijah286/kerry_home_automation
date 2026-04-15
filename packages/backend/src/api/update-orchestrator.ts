@@ -156,16 +156,14 @@ function startProgressTailing() {
         if (!event) return;
         broadcastSSE(event);
 
-        // Mirror deploy events into pino so they appear in the System Terminal.
+        // Mirror deploy events into pino so they stream live in the System Terminal.
         // Tag with integration: 'software-update' for filtering.
         const logCtx = { integration: 'software-update', stage: event.stage };
         const logMsg = `[${event.stage}] ${event.msg}`;
         if (event.status === 'failed') {
           logger.error(logCtx, logMsg);
-        } else if (event.status === 'completed' || event.status === 'running') {
-          logger.info(logCtx, logMsg);
         } else {
-          logger.debug(logCtx, logMsg);
+          logger.info(logCtx, logMsg);
         }
 
         // Detect completion

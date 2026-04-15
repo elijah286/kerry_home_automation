@@ -6,15 +6,12 @@ import {
   ArrowLeft,
   Check,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Download,
   Loader2,
   RefreshCw,
   AlertTriangle,
   XCircle,
   RotateCcw,
-  Terminal,
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { useAuth } from '@/providers/AuthProvider';
@@ -175,28 +172,15 @@ function DeployProgress({
   events: ProgressEvent[];
   isConnected: boolean;
 }) {
-  const [logsExpanded, setLogsExpanded] = useState(false);
-  const logEndRef = useRef<HTMLDivElement>(null);
-
-  // Determine the status of each stage
+  // Determine the status of each stage (skip 'log' lines — those go to the system terminal)
   const stageStatuses = new Map<string, 'pending' | 'running' | 'completed' | 'failed'>();
   for (const stage of STAGE_ORDER) stageStatuses.set(stage, 'pending');
 
-  const logLines: ProgressEvent[] = [];
   for (const ev of events) {
-    if (ev.status === 'log') {
-      logLines.push(ev);
-    } else {
+    if (ev.status !== 'log') {
       stageStatuses.set(ev.stage, ev.status === 'running' ? 'running' : ev.status === 'completed' ? 'completed' : 'failed');
     }
   }
-
-  // Auto-scroll logs
-  useEffect(() => {
-    if (logsExpanded && logEndRef.current) {
-      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [logLines.length, logsExpanded]);
 
   const lastEvent = events[events.length - 1];
   const isDone = lastEvent?.stage === 'done';
@@ -274,41 +258,6 @@ function DeployProgress({
         </div>
       )}
 
-      {/* Expandable log viewer */}
-      {logLines.length > 0 && (
-        <div>
-          <button
-            type="button"
-            onClick={() => setLogsExpanded((v) => !v)}
-            className="flex items-center gap-1.5 text-xs font-medium"
-            style={{ color: 'var(--color-text-muted)' }}
-          >
-            <Terminal className="h-3.5 w-3.5" />
-            {logLines.length} log {logLines.length === 1 ? 'line' : 'lines'}
-            {logsExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          </button>
-          {logsExpanded && (
-            <div
-              className="mt-2 rounded-lg border p-2 max-h-48 overflow-auto font-mono text-[11px] leading-relaxed"
-              style={{
-                borderColor: 'var(--color-border)',
-                backgroundColor: 'var(--color-bg)',
-                color: 'var(--color-text-secondary)',
-              }}
-            >
-              {logLines.map((ev) => (
-                <div key={ev.id} className="whitespace-pre-wrap break-all">
-                  <span style={{ color: 'var(--color-text-muted)' }}>
-                    [{ev.stage}]
-                  </span>{' '}
-                  {ev.msg}
-                </div>
-              ))}
-              <div ref={logEndRef} />
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
