@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { AddEntryDialog } from '@/components/AddEntryDialog';
 import {
-  Puzzle, Loader2, Plus, Pencil, Trash2, RefreshCw,
+  Puzzle, Loader2, Plus, Pencil, Trash2, RefreshCw, Power,
   ChevronLeft, ChevronDown, ChevronRight, Save, MapPin,
   Cpu, Wifi, WifiOff, AlertTriangle,
 } from 'lucide-react';
@@ -521,6 +521,7 @@ function InstanceCard({
   onEdit,
   onDelete,
   onRebuild,
+  onToggleEnabled,
 }: {
   entry: IntegrationEntry;
   integrationId: string;
@@ -534,6 +535,7 @@ function InstanceCard({
   onEdit: (entry: IntegrationEntry) => void;
   onDelete: (entryId: string) => void;
   onRebuild: (entryId: string) => void;
+  onToggleEnabled: (entryId: string, enabled: boolean) => void;
 }) {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
@@ -602,6 +604,15 @@ function InstanceCard({
 
         {/* Action buttons */}
         <div className="flex items-center gap-1 shrink-0 ml-1">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleEnabled(entry.id, !entry.enabled); }}
+            className="rounded-md p-1.5 transition-colors hover:bg-[var(--color-bg-hover)]"
+            aria-label={entry.enabled ? 'Disable instance' : 'Enable instance'}
+            title={entry.enabled ? 'Disable instance' : 'Enable instance'}
+          >
+            <Power className="h-3.5 w-3.5" style={{ color: entry.enabled ? 'var(--color-success)' : 'var(--color-text-muted)' }} />
+          </button>
           {providesDevices && (
             <button
               type="button"
@@ -777,6 +788,16 @@ export default function IntegrationDetailPage() {
     }
   }, [data?.info.providesDevices, loadData]);
 
+  const handleToggleEnabled = async (entryId: string, enabled: boolean) => {
+    await fetch(`${getApiBase()}/api/integrations/${integrationId}/entries/${entryId}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    loadData();
+  };
+
   const handleDeleteEntry = async (entryId: string) => {
     await fetch(`${getApiBase()}/api/integrations/${integrationId}/entries/${entryId}`, { method: 'DELETE', credentials: 'include' });
     loadData();
@@ -934,6 +955,7 @@ export default function IntegrationDetailPage() {
             onEdit={(e) => { setEditingEntry(e); setEditDialogOpen(true); }}
             onDelete={handleDeleteEntry}
             onRebuild={handleRebuildEntry}
+            onToggleEnabled={handleToggleEnabled}
           />
         ))}
 

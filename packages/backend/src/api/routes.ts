@@ -604,13 +604,27 @@ export function registerRoutes(app: FastifyInstance): void {
         }
       }
 
+      const nowEnabled = req.body.enabled ?? existing.enabled;
+
       await entryStore.saveEntry({
         ...existing,
         label: req.body.label ?? existing.label,
         config: mergedConfig,
-        enabled: req.body.enabled ?? existing.enabled,
+        enabled: nowEnabled,
       });
-      logger.info({ integration: id, entryId: req.params.entryId }, 'Integration entry updated');
+      logger.info({ integration: id, entryId: req.params.entryId, enabled: nowEnabled }, 'Integration entry updated');
+
+      // If entry was just disabled, remove its devices from the state store
+      // so they disappear immediately from the dashboard.
+      if (existing.enabled && !nowEnabled) {
+        const entryDevices = stateStore.getByIntegration(id);
+        for (const d of entryDevices) {
+          if (d.id.includes(req.params.entryId)) {
+            stateStore.remove(d.id);
+          }
+        }
+        logger.info({ integration: id, entryId: req.params.entryId }, 'Removed devices for disabled entry');
+      }
 
       // Auto-restart so updated config takes effect
       try { await registry.restart(id); } catch (err) {
