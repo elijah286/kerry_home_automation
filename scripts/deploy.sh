@@ -240,6 +240,11 @@ REMOTE_SHA=$(ha_git rev-parse origin/main)
 if [ "$CURRENT_SHA" = "$REMOTE_SHA" ]; then
   emit_log "pull_code" "Already at latest commit (${CURRENT_SHA:0:7})"
 else
+  # Reset any build artifacts (tsconfig.tsbuildinfo, etc.) that could block pull
+  if ! ha_git diff --quiet 2>/dev/null; then
+    emit_log "pull_code" "Cleaning dirty working tree before pull"
+    ha_git checkout -- . 2>/dev/null || true
+  fi
   emit_log "pull_code" "Pulling ${CURRENT_SHA:0:7} → ${REMOTE_SHA:0:7}"
   if ! ha_git pull origin main --quiet 2>&1; then
     fix_git_owner
