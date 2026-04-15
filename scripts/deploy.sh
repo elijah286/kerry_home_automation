@@ -266,9 +266,13 @@ emit "pull_images" "running" "Pulling pre-built Docker images..."
 
 IMAGES_PULLED=false
 if [ "$BUILD_FALLBACK" = false ] && [ -f "$MANIFEST" ]; then
-  BACKEND_IMG=$(node -e "console.log(require('$MANIFEST').images.backend)" 2>/dev/null || echo "")
-  FRONTEND_IMG=$(node -e "console.log(require('$MANIFEST').images.frontend)" 2>/dev/null || echo "")
-  ROBOROCK_IMG=$(node -e "console.log(require('$MANIFEST').images['roborock-bridge'])" 2>/dev/null || echo "")
+  # Parse image names from manifest using grep — more reliable than node -e
+  # which can fail silently inside containers due to module resolution issues.
+  BACKEND_IMG=$(grep -o '"backend"[[:space:]]*:[[:space:]]*"[^"]*"' "$MANIFEST" | head -1 | grep -o '"[^"]*"$' | tr -d '"')
+  FRONTEND_IMG=$(grep -o '"frontend"[[:space:]]*:[[:space:]]*"[^"]*"' "$MANIFEST" | head -1 | grep -o '"[^"]*"$' | tr -d '"')
+  ROBOROCK_IMG=$(grep -o '"roborock-bridge"[[:space:]]*:[[:space:]]*"[^"]*"' "$MANIFEST" | head -1 | grep -o '"[^"]*"$' | tr -d '"')
+
+  emit_log "pull_images" "Manifest images: backend=$BACKEND_IMG frontend=$FRONTEND_IMG roborock=$ROBOROCK_IMG"
 
   if [ -n "$BACKEND_IMG" ] && [ -n "$FRONTEND_IMG" ]; then
     PULL_FAILED=false
@@ -452,7 +456,7 @@ if docker run -d \
   --network host \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$APP:/app" \
-  -v "$DOCKER_CFG_HOST:/root/.docker:ro" \
+  -v "$DOCKER_CFG_HOST:/root/.docker" \
   $STANDBY_MOUNTS \
   -e "DEPLOY_AGENT_STAGE_ID=$STAGE_ID" \
   --restart no \

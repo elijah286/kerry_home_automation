@@ -359,6 +359,13 @@ export async function detectInFlightDeploy() {
     return;
   }
 
+  // If the last meaningful event was a failure, the deploy is done — not in-flight.
+  if (lastNonLog?.status === 'failed') {
+    logger.info({ stage: lastNonLog.stage }, 'Previous deploy failed — not resuming');
+    updateInProgress = false;
+    return;
+  }
+
   // Otherwise, a deploy was genuinely interrupted at an earlier stage
   updateInProgress = true;
   updateStartedAt = stages[0]?.ts ?? new Date().toISOString();
