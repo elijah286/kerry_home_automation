@@ -35,8 +35,15 @@ declare module 'fastify' {
     elevated?: boolean;
     /** Seconds left in elevation window (0 when not elevated) */
     elevationTtlSeconds?: number;
+    /** True when request was forwarded from the cloud proxy tunnel */
+    isTunnelRequest?: boolean;
   }
 }
+
+// -- Tunnel auth internal nonce -----------------------------------------------
+// Per-process random token used by the tunnel client when injecting requests.
+// External HTTP callers cannot know this value, so x-tunnel-user cannot be spoofed.
+export const TUNNEL_INTERNAL_NONCE = crypto.randomBytes(32).toString('hex');
 
 function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -56,6 +63,33 @@ export function hashSessionToken(token: string): string {
 
 /** Validates JWT from cookie or Authorization header. Can be used as Fastify preHandler or called directly. */
 export async function authenticate(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  // Tunnel-forwarded requests: the tunnel client sets x-tunnel-internal with the
+  // per-process nonce and x-tunnel-user with the remote user's identity.
+  const tunnelNonce = req.headers['x-tunnel-internal'] as string | undefined;
+  const tunnelUserRaw = req.headers['x-tunnel-user'] as string | undefined;
+  if (tunnelNonce && tunnelNonce === TUNNEL_INTERNAL_NONCE && tunnelUserRaw) {
+    try {
+      const tu = JSON.parse(tunnelUserRaw) as {
+        id: string;
+        email: string;
+        display_name: string;
+        role: string;
+      };
+      req.user = {
+        id: `tunnel:${tu.id}`,
+        username: tu.display_name || tu.email,
+        role: (tu.role === 'admin' ? 'admin' : tu.role === 'guest' ? 'guest' : 'member') as UserRole,
+      };
+      req.isTunnelRequest = true;
+      // Tunnel users get elevated by default (the proxy already authenticated them)
+      req.elevated = tu.role === 'admin';
+      req.elevationTtlSeconds = 0;
+      return;
+    } catch {
+      // Fall through to normal auth
+    }
+  }
+
   // Extract token from cookie or header
   const cookieHeader = req.headers.cookie ?? '';
   const cookieMatch = cookieHeader.match(/(?:^|;\s*)ha_token=([^;]+)/);

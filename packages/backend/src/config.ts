@@ -71,5 +71,12 @@ export const appConfig = {
     updateScriptPath:
       (process.env.HA_UPDATE_SCRIPT ?? '/opt/home-automation/scripts/update.sh').replace(/\/$/, ''),
   },
+
+  /** Cloud proxy tunnel — set PROXY_URL + TUNNEL_SECRET to enable remote access. */
+  tunnel: {
+    proxyUrl: (process.env.PROXY_URL ?? '').trim(),
+    tunnelSecret: (process.env.TUNNEL_SECRET ?? '').trim(),
+    homeId: (process.env.HOME_ID ?? 'home-1').trim(),
+  },
 } as const;
 

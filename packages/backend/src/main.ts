@@ -51,6 +51,7 @@ import { HelpersIntegration } from './integrations/helpers/index.js';
 import { automationEngine } from './automations/engine.js';
 import { loadRolePermissions } from './api/role-permission-routes.js';
 import { detectInFlightDeploy } from './api/update-orchestrator.js';
+import { tunnelClient } from './tunnel/client.js';
 
 const REDIS_STATE_KEY = 'ha4:device_state';
 
@@ -209,9 +210,21 @@ async function main() {
   // 10. Start automation engine
   await automationEngine.start();
 
+  // 11. Connect to cloud proxy tunnel (if configured)
+  if (appConfig.tunnel.proxyUrl && appConfig.tunnel.tunnelSecret) {
+    await tunnelClient.start(server, {
+      proxyUrl: appConfig.tunnel.proxyUrl,
+      tunnelSecret: appConfig.tunnel.tunnelSecret,
+      homeId: appConfig.tunnel.homeId,
+    });
+  } else {
+    logger.info('Tunnel not configured (set PROXY_URL and TUNNEL_SECRET to enable remote access)');
+  }
+
   // Graceful shutdown
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutting down');
+    tunnelClient.stop();
     automationEngine.stop();
     historyWriter.stop();
     await registry.stopAll();

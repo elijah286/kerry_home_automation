@@ -9,3 +9,4 @@ export * from './automations.js';
 export * from './auth.js';
 export * from './ui-preferences.js';
 export * from './helpers.js';
+export * from './tunnel.js';
