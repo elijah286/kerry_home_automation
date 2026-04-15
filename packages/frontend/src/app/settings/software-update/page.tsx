@@ -20,6 +20,7 @@ import { Card } from '@/components/ui/Card';
 import { useAuth } from '@/providers/AuthProvider';
 import { getApiBase } from '@/lib/api-base';
 import { signalServerTransitionPending } from '@/lib/server-transition';
+import { useSystemTerminal } from '@/providers/SystemTerminalProvider';
 
 const API = getApiBase();
 
@@ -318,6 +319,7 @@ function DeployProgress({
 
 export default function SoftwareUpdatePage() {
   const { isAdmin, loading } = useAuth();
+  const { openWithSourceFilter } = useSystemTerminal();
   const [check, setCheck] = useState<CheckResponse | null>(null);
   const [checkLoading, setCheckLoading] = useState(false);
 
@@ -472,6 +474,9 @@ export default function SoftwareUpdatePage() {
     setDeploying(true);
     setDeployEvents([]);
     setDeployError(null);
+
+    // Open system terminal filtered to deploy logs
+    openWithSourceFilter('software-update');
 
     // Signal the overlay that an update is starting
     signalServerTransitionPending('update');

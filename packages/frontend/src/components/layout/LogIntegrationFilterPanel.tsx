@@ -4,6 +4,17 @@ import type { CSSProperties } from 'react';
 import { KNOWN_INTEGRATIONS } from '@ha/shared';
 import { SYSTEM_LOG_SOURCE_ID } from '@/providers/SystemTerminalProvider';
 
+/** Non-integration log sources that appear in the filter panel. */
+const EXTRA_SOURCES = [
+  { id: 'software-update', name: 'Software Update' },
+] as const;
+
+const ALL_SOURCE_IDS = [
+  SYSTEM_LOG_SOURCE_ID,
+  ...EXTRA_SOURCES.map((s) => s.id),
+  ...KNOWN_INTEGRATIONS.map((i) => i.id),
+];
+
 const PANEL_W = 220;
 
 export function logIntegrationFilterPanelWidthPx(): number {
@@ -35,7 +46,7 @@ export function LogIntegrationFilterPanel({
 
   const toggle = (id: string) => {
     if (whitelist === null) {
-      setWhitelist([SYSTEM_LOG_SOURCE_ID, ...KNOWN_INTEGRATIONS.map((i) => i.id)].filter((x) => x !== id));
+      setWhitelist(ALL_SOURCE_IDS.filter((x) => x !== id));
       return;
     }
     if (whitelist.includes(id)) {
@@ -46,7 +57,7 @@ export function LogIntegrationFilterPanel({
   };
 
   const selectAll = () => {
-    setWhitelist([SYSTEM_LOG_SOURCE_ID, ...KNOWN_INTEGRATIONS.map((i) => i.id)]);
+    setWhitelist([...ALL_SOURCE_IDS]);
   };
 
   const clearFilter = () => {
@@ -116,6 +127,21 @@ export function LogIntegrationFilterPanel({
           />
           <span>System (no integration tag)</span>
         </label>
+        {EXTRA_SOURCES.map((src) => (
+          <label
+            key={src.id}
+            className={`flex items-center gap-2 cursor-pointer ${isLcars ? 'text-[9px] font-mono' : 'text-xs'}`}
+            style={{ color: 'var(--color-text)' }}
+          >
+            <input
+              type="checkbox"
+              checked={filterActive ? selected.includes(src.id) : true}
+              onChange={() => toggle(src.id)}
+              className="rounded border shrink-0"
+            />
+            <span className="truncate">{src.name}</span>
+          </label>
+        ))}
         {KNOWN_INTEGRATIONS.map((info) => (
           <label
             key={info.id}

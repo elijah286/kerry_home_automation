@@ -67,6 +67,8 @@ interface SystemTerminalContextValue {
   setLogIntegrationFilterPanelOpen: (v: boolean) => void;
   /** First open of the filter panel: seed checklist with all integrations + system. */
   initLogIntegrationWhitelistIfNeeded: () => void;
+  /** Open the terminal pre-filtered to a specific source (e.g. 'software-update'). */
+  openWithSourceFilter: (source: string) => void;
 }
 
 const SystemTerminalContext = createContext<SystemTerminalContextValue | null>(null);
@@ -121,7 +123,7 @@ export function SystemTerminalProvider({
   const initLogIntegrationWhitelistIfNeeded = useCallback(() => {
     setLogIntegrationWhitelistState((prev) => {
       if (prev !== null) return prev;
-      const all = [SYSTEM_LOG_SOURCE_ID, ...KNOWN_INTEGRATIONS.map((i) => i.id)];
+      const all = [SYSTEM_LOG_SOURCE_ID, 'software-update', ...KNOWN_INTEGRATIONS.map((i) => i.id)];
       try {
         localStorage.setItem(STORAGE_LOG_INTEGRATION_WHITELIST, JSON.stringify(all));
       } catch {
@@ -129,6 +131,16 @@ export function SystemTerminalProvider({
       }
       return all;
     });
+  }, []);
+
+  const openWithSourceFilter = useCallback((source: string) => {
+    setLogIntegrationWhitelistState([source]);
+    try {
+      localStorage.setItem(STORAGE_LOG_INTEGRATION_WHITELIST, JSON.stringify([source]));
+    } catch { /* ignore */ }
+    setLogFilter('all');
+    setOpen(true);
+    setLogAutoScroll(true);
   }, []);
 
   useEffect(() => {
@@ -207,6 +219,7 @@ export function SystemTerminalProvider({
       logIntegrationFilterPanelOpen,
       setLogIntegrationFilterPanelOpen,
       initLogIntegrationWhitelistIfNeeded,
+      openWithSourceFilter,
     }),
     [
       canUse,
@@ -226,6 +239,7 @@ export function SystemTerminalProvider({
       setLogIntegrationWhitelist,
       logIntegrationFilterPanelOpen,
       initLogIntegrationWhitelistIfNeeded,
+      openWithSourceFilter,
     ],
   );
 

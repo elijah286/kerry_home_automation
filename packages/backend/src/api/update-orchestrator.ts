@@ -156,10 +156,22 @@ function startProgressTailing() {
         if (!event) return;
         broadcastSSE(event);
 
+        // Mirror deploy events into pino so they appear in the System Terminal.
+        // Tag with integration: 'software-update' for filtering.
+        const logCtx = { integration: 'software-update', stage: event.stage };
+        const logMsg = `[${event.stage}] ${event.msg}`;
+        if (event.status === 'failed') {
+          logger.error(logCtx, logMsg);
+        } else if (event.status === 'completed' || event.status === 'running') {
+          logger.info(logCtx, logMsg);
+        } else {
+          logger.debug(logCtx, logMsg);
+        }
+
         // Detect completion
         if (event.stage === 'done' && (event.status === 'completed' || event.status === 'failed')) {
           updateInProgress = false;
-          logger.info({ version: updateTargetVersion, status: event.status }, 'Deployment finished');
+          logger.info({ integration: 'software-update', version: updateTargetVersion, status: event.status }, 'Deployment finished');
         }
       });
 

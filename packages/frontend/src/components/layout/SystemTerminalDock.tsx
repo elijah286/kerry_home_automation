@@ -4,7 +4,7 @@ import Link from 'next/link';
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clsx } from 'clsx';
-import { X, AlertTriangle, Info, AlertOctagon, ListTree, Braces, Maximize2, Minimize2 } from 'lucide-react';
+import { X, AlertTriangle, Info, AlertOctagon, ListTree, Braces, Maximize2, Minimize2, Filter } from 'lucide-react';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
@@ -207,7 +207,7 @@ export function SystemTerminalDock({
   const lcarsTop = isLCARS && placement === 'top';
 
   const filterPanelW = logIntegrationFilterPanelWidthPx();
-  const showIntegrationFilterPanel = statusLcarsFullscreen && logIntegrationFilterPanelOpen;
+  const showIntegrationFilterPanel = logIntegrationFilterPanelOpen;
   const dockLeftShift = showIntegrationFilterPanel ? filterPanelW : 0;
 
   const panelFixedStyle: CSSProperties =
@@ -377,16 +377,21 @@ export function SystemTerminalDock({
               {logDetailStyle === 'terminal' ? 'Digest' : 'Lines'}
             </span>
           </button>
-          {placement === 'bottom' && statusLcarsFullscreen && (
+          {placement === 'bottom' && (
             <button
               type="button"
               onClick={() => {
                 initLogIntegrationWhitelistIfNeeded();
-                setLogIntegrationFilterPanelOpen(true);
+                setLogIntegrationFilterPanelOpen(!logIntegrationFilterPanelOpen);
               }}
               aria-pressed={logIntegrationFilterPanelOpen}
               aria-label="Filter log by integration"
-              className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
+              className={clsx(
+                'flex shrink-0 items-center gap-1 text-xs font-medium transition-colors',
+                isLCARS
+                  ? 'rounded-none px-2 py-0.5 font-mono text-[7px] font-bold uppercase tracking-tight'
+                  : 'rounded-md px-2 py-1',
+              )}
               style={{
                 backgroundColor:
                   logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
@@ -398,6 +403,7 @@ export function SystemTerminalDock({
                     : 'var(--color-text-secondary)',
               }}
             >
+              {!isLCARS && <Filter className="h-3.5 w-3.5 opacity-90" />}
               <span className="hidden sm:inline">Sources</span>
             </button>
           )}
