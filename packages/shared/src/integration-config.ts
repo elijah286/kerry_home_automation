@@ -191,12 +191,6 @@ export const KNOWN_INTEGRATIONS: IntegrationInfo[] = [
         type: 'text',
         placeholder: 'Same email as Roborock app',
       },
-      {
-        key: 'cloud_session',
-        label: 'Cloud session blob',
-        type: 'password',
-        placeholder: 'Use “Send code” + “Connect” below — do not paste manually',
-      },
     ],
   },
   {
