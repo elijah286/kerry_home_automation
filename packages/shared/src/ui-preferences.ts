@@ -22,6 +22,8 @@ export interface UiPreferences {
   colorMode?: UiColorMode;
   activeTheme?: string;
   fontSize?: number;
+  /** Page-level zoom factor (1 = 100%, 1.5 = 150%, etc.) */
+  magnification?: number;
   lcarsVariant?: string;
   lcarsSoundsEnabled?: boolean;
 }
@@ -35,6 +37,7 @@ export const UI_PREFERENCE_KEYS: (keyof UiPreferences)[] = [
   'colorMode',
   'activeTheme',
   'fontSize',
+  'magnification',
   'lcarsVariant',
   'lcarsSoundsEnabled',
 ];

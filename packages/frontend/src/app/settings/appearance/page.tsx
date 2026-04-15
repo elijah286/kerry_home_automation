@@ -18,6 +18,7 @@ function lockedKeysText(locks: UiPreferenceLocks): string {
     colorMode: 'Color mode',
     activeTheme: 'Theme',
     fontSize: 'Font size',
+    magnification: 'Magnification',
     lcarsVariant: 'LCARS variant',
     lcarsSoundsEnabled: 'LCARS sounds',
   };
@@ -41,6 +42,16 @@ const fontSizes = [
   { value: 18, label: 'Extra Large' },
 ];
 
+const magnificationLevels = [
+  { value: 0.75, label: '75%' },
+  { value: 1, label: '100%' },
+  { value: 1.1, label: '110%' },
+  { value: 1.25, label: '125%' },
+  { value: 1.5, label: '150%' },
+  { value: 1.75, label: '175%' },
+  { value: 2, label: '200%' },
+];
+
 export default function AppearancePage() {
   const router = useRouter();
   const { hasPermission, uiPreferenceLocks, user } = useAuth();
@@ -48,7 +59,7 @@ export default function AppearancePage() {
     user && Object.keys(uiPreferenceLocks).length > 0 ? lockedKeysText(uiPreferenceLocks) : '';
   const { showNavButton, setShowNavButton } = useSystemTerminal();
   const canConfigTerminal = hasPermission(Permission.ViewSystemTerminal);
-  const { theme, setTheme, activeTheme, setActiveTheme, fontSize, setFontSize } = useTheme();
+  const { theme, setTheme, activeTheme, setActiveTheme, fontSize, setFontSize, magnification, setMagnification } = useTheme();
   const { enabled: soundsEnabled, setEnabled: setSoundsEnabled, play } = useLCARSSounds();
   const { variant: lcarsVariant, setVariant: setLcarsVariant } = useLCARSVariant();
 
@@ -149,6 +160,32 @@ export default function AppearancePage() {
                 backgroundColor: fontSize === value ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
                 color: fontSize === value ? '#fff' : 'var(--color-text-secondary)',
                 borderColor: fontSize === value ? 'var(--color-accent)' : 'var(--color-border)',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {/* Magnification */}
+      <Card>
+        <h2 className="text-sm font-medium mb-1">Magnification</h2>
+        <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
+          Zoom the entire interface — useful for wall panels and kiosks
+        </p>
+        <div className="flex gap-2 flex-wrap">
+          {magnificationLevels.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              disabled={!!uiPreferenceLocks.magnification}
+              onClick={() => setMagnification(value)}
+              className="rounded-md px-4 py-2 text-sm font-medium transition-colors border disabled:opacity-45 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: magnification === value ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                color: magnification === value ? '#fff' : 'var(--color-text-secondary)',
+                borderColor: magnification === value ? 'var(--color-accent)' : 'var(--color-border)',
               }}
             >
               {label}

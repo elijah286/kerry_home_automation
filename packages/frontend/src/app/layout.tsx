@@ -14,6 +14,7 @@ import { AlertProvider } from '@/components/lcars/LCARSAlertOverlay';
 import { LCARSSoundsProvider } from '@/components/lcars/LCARSSounds';
 import { LCARSVariantProvider } from '@/components/lcars/LCARSVariantProvider';
 import { UpdateInProgressOverlay } from '@/components/layout/UpdateInProgressOverlay';
+import { VersionGuard } from '@/components/layout/VersionGuard';
 
 export const metadata: Metadata = {
   title: 'HomeOS',
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <LCARSVariantProvider>
                 <LCARSSoundsProvider>
                   <UpdateInProgressOverlay />
+                  <VersionGuard />
                   <AuthGate>{children}</AuthGate>
                 </LCARSSoundsProvider>
               </LCARSVariantProvider>

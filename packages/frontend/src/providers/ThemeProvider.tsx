@@ -14,6 +14,8 @@ interface ThemeContextValue {
   setActiveTheme: (id: string) => void;
   fontSize: number;
   setFontSize: (size: number) => void;
+  magnification: number;
+  setMagnification: (level: number) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
@@ -24,6 +26,8 @@ const ThemeContext = createContext<ThemeContextValue>({
   setActiveTheme: () => {},
   fontSize: 14,
   setFontSize: () => {},
+  magnification: 1,
+  setMagnification: () => {},
 });
 
 export function useTheme() {
@@ -61,11 +65,12 @@ function applyThemeVariables(themeId: string, resolved: 'light' | 'dark') {
   root.setAttribute('data-active-theme', themeId);
 }
 
-function applyVisualState(mode: ThemeMode, themeId: string, fontSize: number) {
+function applyVisualState(mode: ThemeMode, themeId: string, fontSize: number, magnification = 1) {
   const r = resolveTheme(mode);
   document.documentElement.setAttribute('data-theme', r);
   document.documentElement.setAttribute('data-active-theme', themeId);
   document.documentElement.style.setProperty('--font-size-base', `${fontSize}px`);
+  document.documentElement.style.setProperty('zoom', magnification !== 1 ? String(magnification) : '');
   applyThemeVariables(themeId, r);
   return r;
 }
@@ -76,6 +81,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [resolved, setResolved] = useState<'light' | 'dark'>('dark');
   const [activeTheme, setActiveThemeState] = useState('default');
   const [fontSize, setFontSizeState] = useState(14);
+  const [magnification, setMagnificationState] = useState(1);
 
   useEffect(() => {
     if (loading) return;
@@ -84,32 +90,38 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       const savedMode = localStorage.getItem('ha-theme') as ThemeMode | null;
       const savedTheme = localStorage.getItem('ha-active-theme') || 'default';
       const savedSize = Number(localStorage.getItem('ha-font-size')) || 14;
+      const savedMag = Number(localStorage.getItem('ha-magnification')) || 1;
       const mode = savedMode && ['light', 'dark', 'system'].includes(savedMode) ? savedMode : 'system';
-      const r = applyVisualState(mode, savedTheme, savedSize);
+      const r = applyVisualState(mode, savedTheme, savedSize, savedMag);
       setThemeState(mode);
       setResolved(r);
       setActiveThemeState(savedTheme);
       setFontSizeState(savedSize);
+      setMagnificationState(savedMag);
       return;
     }
 
     const mode = (uiPreferences.colorMode as ThemeMode | undefined) ?? 'system';
     const tid = uiPreferences.activeTheme ?? 'default';
     const fs = uiPreferences.fontSize ?? 14;
-    const r = applyVisualState(mode, tid, fs);
+    const mag = uiPreferences.magnification ?? 1;
+    const r = applyVisualState(mode, tid, fs, mag);
     setThemeState(mode);
     setResolved(r);
     setActiveThemeState(tid);
     setFontSizeState(fs);
+    setMagnificationState(mag);
     localStorage.setItem('ha-theme', mode);
     localStorage.setItem('ha-active-theme', tid);
     localStorage.setItem('ha-font-size', String(fs));
+    localStorage.setItem('ha-magnification', String(mag));
   }, [
     loading,
     user,
     uiPreferences.colorMode,
     uiPreferences.activeTheme,
     uiPreferences.fontSize,
+    uiPreferences.magnification,
   ]);
 
   useEffect(() => {
@@ -168,8 +180,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [user, uiPreferenceLocks.fontSize, patchUiPreferences],
   );
 
+  const setMagnification = useCallback(
+    (level: number) => {
+      if (user && uiPreferenceLocks.magnification) return;
+      setMagnificationState(level);
+      localStorage.setItem('ha-magnification', String(level));
+      document.documentElement.style.setProperty('zoom', level !== 1 ? String(level) : '');
+      if (user && !uiPreferenceLocks.magnification) {
+        void patchUiPreferences({ magnification: level });
+      }
+    },
+    [user, uiPreferenceLocks.magnification, patchUiPreferences],
+  );
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, resolved, activeTheme, setActiveTheme, fontSize, setFontSize }}>
+    <ThemeContext.Provider value={{ theme, setTheme, resolved, activeTheme, setActiveTheme, fontSize, setFontSize, magnification, setMagnification }}>
       {children}
     </ThemeContext.Provider>
   );

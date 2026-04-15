@@ -125,11 +125,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
+  // Fast poll (1s) during PIN elevation to count down the timer
   useEffect(() => {
     if (!user || !elevated) return;
     const id = window.setInterval(() => {
       void refreshSession();
     }, 1000);
+    return () => window.clearInterval(id);
+  }, [user, elevated, refreshSession]);
+
+  // Slow poll (30s) for kiosk/child sessions so admin appearance
+  // changes (theme, magnification, etc.) propagate without a refresh.
+  useEffect(() => {
+    if (!user || elevated) return;
+    if (user.role !== 'kiosk' && user.role !== 'child') return;
+    const id = window.setInterval(() => {
+      void refreshSession();
+    }, 30_000);
     return () => window.clearInterval(id);
   }, [user, elevated, refreshSession]);
 

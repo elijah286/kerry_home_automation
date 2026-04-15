@@ -50,6 +50,7 @@ export default function UsersPage() {
   const [adminColorMode, setAdminColorMode] = useState<string>('');
   const [adminTheme, setAdminTheme] = useState<string>('');
   const [adminFontSize, setAdminFontSize] = useState<string>('');
+  const [adminMagnification, setAdminMagnification] = useState<string>('');
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -90,6 +91,7 @@ export default function UsersPage() {
     setAdminColorMode('');
     setAdminTheme('');
     setAdminFontSize('');
+    setAdminMagnification('');
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -149,6 +151,11 @@ export default function UsersPage() {
       } else if (prev?.fontSize != null) {
         uiPreferencesAdmin.fontSize = null;
       }
+      if (adminMagnification) {
+        uiPreferencesAdmin.magnification = parseFloat(adminMagnification);
+      } else if (prev?.magnification != null) {
+        uiPreferencesAdmin.magnification = null;
+      }
       if (Object.keys(uiPreferencesAdmin).length > 0) {
         body.uiPreferencesAdmin = uiPreferencesAdmin;
       }
@@ -207,6 +214,7 @@ export default function UsersPage() {
     setAdminColorMode(adm?.colorMode ?? '');
     setAdminTheme(adm?.activeTheme ?? '');
     setAdminFontSize(adm?.fontSize != null ? String(adm.fontSize) : '');
+    setAdminMagnification(adm?.magnification != null ? String(adm.magnification) : '');
   };
 
   const clearAdminAppearanceOverrides = async () => {
@@ -226,6 +234,7 @@ export default function UsersPage() {
             colorMode: null,
             activeTheme: null,
             fontSize: null,
+            magnification: null,
             lcarsVariant: null,
             lcarsSoundsEnabled: null,
           },
@@ -391,7 +400,7 @@ export default function UsersPage() {
                 <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
                   Optional. Forced values replace this user&apos;s own appearance settings until cleared.
                 </p>
-                <div className="grid gap-2 sm:grid-cols-3">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="space-y-1">
                     <label className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>Color mode</label>
                     <select
@@ -433,6 +442,24 @@ export default function UsersPage() {
                       <option value="14">14px</option>
                       <option value="16">16px</option>
                       <option value="18">18px</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>Magnification</label>
+                    <select
+                      value={adminMagnification}
+                      onChange={(e) => setAdminMagnification(e.target.value)}
+                      className="w-full rounded-lg px-2 py-1.5 text-xs outline-none"
+                      style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+                    >
+                      <option value="">No override</option>
+                      <option value="0.75">75%</option>
+                      <option value="1">100%</option>
+                      <option value="1.1">110%</option>
+                      <option value="1.25">125%</option>
+                      <option value="1.5">150%</option>
+                      <option value="1.75">175%</option>
+                      <option value="2">200%</option>
                     </select>
                   </div>
                 </div>

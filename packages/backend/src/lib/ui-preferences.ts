@@ -49,6 +49,10 @@ export function validateFontSize(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v) && v >= 10 && v <= 28;
 }
 
+export function validateMagnification(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 0.5 && v <= 3;
+}
+
 const LCARS_VARIANT_RE = /^[a-z0-9][a-z0-9-]{0,30}$/;
 
 export function validateLcarsVariant(v: unknown): v is string {
@@ -98,6 +102,15 @@ export function sanitizeUserUiPreferencesPatch(body: unknown): {
       invalid.push('fontSize');
     }
   }
+  if ('magnification' in o) {
+    if (o.magnification === undefined) {
+      /* skip */
+    } else if (validateMagnification(o.magnification)) {
+      patch.magnification = o.magnification;
+    } else {
+      invalid.push('magnification');
+    }
+  }
   if ('lcarsVariant' in o) {
     if (o.lcarsVariant === undefined) {
       /* skip */
@@ -139,6 +152,7 @@ export function applyAdminPreferencesPatch(
     if (key === 'colorMode' && validateColorMode(v)) admin.colorMode = v;
     else if (key === 'activeTheme' && validateActiveTheme(v)) admin.activeTheme = v;
     else if (key === 'fontSize' && validateFontSize(v)) admin.fontSize = v;
+    else if (key === 'magnification' && validateMagnification(v)) admin.magnification = v;
     else if (key === 'lcarsVariant' && validateLcarsVariant(v)) admin.lcarsVariant = v;
     else if (key === 'lcarsSoundsEnabled' && validateSounds(v)) admin.lcarsSoundsEnabled = v;
   }
