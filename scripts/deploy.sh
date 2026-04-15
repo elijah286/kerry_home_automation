@@ -383,16 +383,26 @@ emit() {
 sleep 3
 
 # --- Restart all services ---
+# Compose up may partially succeed (some containers start, others fail).
+# Capture output but do NOT abort — let healthy services keep running.
 COUT=$(mktemp)
-if ! $COMPOSE_CMD DEPLOY_UP_ARGS >"$COUT" 2>&1; then
+$COMPOSE_CMD DEPLOY_UP_ARGS >"$COUT" 2>&1
+COMPOSE_EXIT=$?
+if [ "$COMPOSE_EXIT" -ne 0 ]; then
   _err=$(tail -10 "$COUT" | tr '\n' ' ')
-  emit "restart" "log" "compose error: $_err"
-  emit "restart" "failed" "Docker compose failed during restart"
-  rm -f "$COUT"
-  emit "done" "failed" "Deploy failed — compose error"
-  exit 1
+  emit "restart" "log" "compose warning (exit $COMPOSE_EXIT): $_err"
+  emit "restart" "log" "Continuing — healthy services should still be running"
 fi
 rm -f "$COUT"
+
+# Report per-container status so the user can see exactly what's running
+emit "restart" "log" "Container status after restart:"
+for svc in postgres redis go2rtc roborock-bridge backend frontend; do
+  _state=$(docker ps -a --filter "label=com.docker.compose.service=$svc" --format "{{.Status}}" 2>/dev/null | head -1)
+  [ -z "$_state" ] && _state="not found"
+  emit "restart" "log" "  $svc: $_state"
+done
+
 emit "restart" "completed" "Services restarted"
 
 # --- Health check (24 attempts x 5s = 120s) ---
@@ -413,6 +423,13 @@ if [ "$HEALTHY" -eq 1 ]; then
   emit "health_check" "completed" "All services healthy"
 else
   emit "health_check" "failed" "Health check failed after 120s"
+  # Surface logs from unhealthy containers for debugging
+  for svc in backend postgres redis; do
+    _cid=$(docker ps -a --filter "label=com.docker.compose.service=$svc" --format "{{.ID}}" 2>/dev/null | head -1)
+    [ -z "$_cid" ] && continue
+    emit "health_check" "log" "--- $svc logs (last 15 lines) ---"
+    docker logs "$_cid" 2>&1 | tail -15 | while IFS= read -r line; do emit "health_check" "log" "$line"; done
+  done
   emit "done" "failed" "Deploy failed — backend did not become healthy"
   exit 1
 fi
