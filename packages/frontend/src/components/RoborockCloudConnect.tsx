@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Loader2, Mail } from 'lucide-react';
 import type { ConfigField } from '@ha/shared';
-import { getApiBase } from '@/lib/api-base';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
 /** Which Roborock entry fields to show based on local vs cloud mode. */
 export function filterRoborockConfigFields(
@@ -68,9 +68,8 @@ export function RoborockCloudConnect({ email, onSessionReady }: Props) {
     setHintKind('muted');
     const api = getApiBase();
     try {
-      const res = await fetch(`${api}/api/roborock/request-code`, {
+      const res = await apiFetch(`${api}/api/roborock/request-code`, {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),
       });
@@ -105,9 +104,8 @@ export function RoborockCloudConnect({ email, onSessionReady }: Props) {
     setHintKind('muted');
     const api = getApiBase();
     try {
-      const res = await fetch(`${api}/api/roborock/login`, {
+      const res = await apiFetch(`${api}/api/roborock/login`, {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), code: code.trim() }),
       });

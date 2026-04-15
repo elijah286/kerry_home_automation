@@ -19,7 +19,7 @@ import {
 } from '@/components/icons/IntegrationIcons';
 import type { DeviceState, IntegrationHealth, IntegrationInfo, IntegrationEntry } from '@ha/shared';
 
-import { getApiBase } from '@/lib/api-base';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
 const INTEGRATION_ICONS: Record<string, React.ElementType> = {
   lutron: LutronIcon,
@@ -295,7 +295,7 @@ export default function IntegrationsPage() {
   }, [searchParams, router]);
 
   const loadIntegrations = useCallback(() => {
-    fetch(`${getApiBase()}/api/integrations`, { credentials: 'include' })
+    apiFetch(`${getApiBase()}/api/integrations`)
       .then((r) => {
         if (!r.ok) throw new Error(`${r.status}`);
         return r.json();

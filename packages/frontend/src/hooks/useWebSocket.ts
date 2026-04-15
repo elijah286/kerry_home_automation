@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import type { DeviceState, IntegrationHealth, WsServerMessage } from '@ha/shared';
-import { getWsBase } from '@/lib/api-base';
+import { getWsBase, isRemoteAccess } from '@/lib/api-base';
 
 type Listener = () => void;
 
@@ -100,7 +100,19 @@ let retryTimer: ReturnType<typeof setTimeout> | null = null;
 function connectWs(): void {
   if (ws && ws.readyState <= WebSocket.OPEN) return;
 
-  ws = new WebSocket(`${getWsBase()}/ws`);
+  let wsUrl = `${getWsBase()}/ws`;
+
+  // In remote mode, pass the Supabase token as a query param for proxy auth
+  if (isRemoteAccess()) {
+    const token = typeof window !== 'undefined'
+      ? localStorage.getItem('ha_remote_token')
+      : null;
+    if (token) {
+      wsUrl += `?token=${encodeURIComponent(token)}`;
+    }
+  }
+
+  ws = new WebSocket(wsUrl);
 
   ws.onopen = () => {
     retryCount = 0;

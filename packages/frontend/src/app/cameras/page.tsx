@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, memo } from 'react';
 import { X } from 'lucide-react';
-import { getApiBase, getWsBase } from '@/lib/api-base';
+import { getApiBase, getWsBase, apiFetch } from '@/lib/api-base';
 
 // ---------------------------------------------------------------------------
 // MSE stream — fMP4 over WebSocket (invisible until frames actually play)
@@ -316,8 +316,7 @@ function WebRTCStream({
     pc.createOffer()
       .then((offer) => pc.setLocalDescription(offer))
       .then(() =>
-        fetch(`${getApiBase()}/api/cameras/${encodeURIComponent(name)}/webrtc`, {
-          credentials: 'include',
+        apiFetch(`${getApiBase()}/api/cameras/${encodeURIComponent(name)}/webrtc`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/sdp' },
           body: pc.localDescription!.sdp,
@@ -630,7 +629,7 @@ export default function CamerasPage() {
   const [recovering, setRecovering] = useState(false);
 
   const loadCameras = () => {
-    fetch(`${getApiBase()}/api/cameras`, { credentials: 'include' })
+    apiFetch(`${getApiBase()}/api/cameras`)
       .then((r) => {
         if (!r.ok) throw new Error('bad status');
         return r.json();
@@ -655,7 +654,7 @@ export default function CamerasPage() {
 
   const onRecover = () => {
     setRecovering(true);
-    fetch(`${getApiBase()}/api/cameras/recover`, { method: 'POST', credentials: 'include' })
+    apiFetch(`${getApiBase()}/api/cameras/recover`, { method: 'POST' })
       .finally(() => {
         setRecovering(false);
         loadCameras();

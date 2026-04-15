@@ -6,10 +6,9 @@ import { useCommand } from '@/hooks/useCommand';
 import { ButtonSpinner } from '@/components/ui/ButtonSpinner';
 import { Badge } from '@/components/ui/Badge';
 import { Battery, Home, Map as MapIcon, Play, Pause, Volume2 } from 'lucide-react';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
+const API_BASE = getApiBase();
 
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'default'> = {
   cleaning: 'success',
@@ -44,9 +43,8 @@ export function VacuumControl({ device }: { device: VacuumState }) {
 
     (async () => {
       try {
-        const res = await fetch(
+        const res = await apiFetch(
           `${API_BASE}/api/roborock/map?deviceId=${encodeURIComponent(device.id)}&t=${device.mapUpdatedAt}`,
-          { credentials: 'include' },
         );
         if (cancelled) return;
         if (!res.ok) {

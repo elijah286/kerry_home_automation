@@ -6,10 +6,9 @@ import { Card } from '@/components/ui/Card';
 import { ArrowLeft, Clock, Loader2, Search, EyeOff, Eye } from 'lucide-react';
 import type { DeviceState } from '@ha/shared';
 import { Select } from '@/components/ui/Select';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
+const API_BASE = getApiBase();
 
 interface DeviceHistorySettings {
   device_id: string;
@@ -37,9 +36,9 @@ export default function HistorySettingsPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`${API_BASE}/api/settings`, { credentials: 'include' }).then((r) => r.json()),
-      fetch(`${API_BASE}/api/devices`, { credentials: 'include' }).then((r) => r.json()),
-      fetch(`${API_BASE}/api/device-settings/history`, { credentials: 'include' }).then((r) => r.json()),
+      apiFetch(`${API_BASE}/api/settings`).then((r) => r.json()),
+      apiFetch(`${API_BASE}/api/devices`).then((r) => r.json()),
+      apiFetch(`${API_BASE}/api/device-settings/history`).then((r) => r.json()),
     ])
       .then(([settingsData, devicesData, historyData]) => {
         const days = (settingsData as { settings: Record<string, unknown> }).settings.history_retention_days;
@@ -61,8 +60,7 @@ export default function HistorySettingsPage() {
     setGlobalRetention(days);
     setSaving('global');
     try {
-      await fetch(`${API_BASE}/api/settings/history_retention_days`, {
-        credentials: 'include',
+      await apiFetch(`${API_BASE}/api/settings/history_retention_days`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ value: days }),
@@ -78,8 +76,7 @@ export default function HistorySettingsPage() {
   ) => {
     setSaving(deviceId);
     try {
-      await fetch(`${API_BASE}/api/devices/${encodeURIComponent(deviceId)}/settings`, {
-        credentials: 'include',
+      await apiFetch(`${API_BASE}/api/devices/${encodeURIComponent(deviceId)}/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(update),

@@ -17,10 +17,9 @@ import { DeviceFieldHistoryContent } from '@/components/DeviceFieldHistoryConten
 import { SlidePanel } from '@/components/ui/SlidePanel';
 import { formatFieldPath } from '@/lib/object-path';
 import type { CoverState, DeviceState, GarageDoorState, NetworkDeviceState, WeatherState } from '@ha/shared';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
+const API_BASE = getApiBase();
 
 interface Area { id: string; name: string; }
 
@@ -38,8 +37,8 @@ function DeviceSettings({ deviceId }: { deviceId: string }) {
 
   useEffect(() => {
     Promise.all([
-      fetch(`${API_BASE}/api/devices/${encodeURIComponent(deviceId)}/settings`, { credentials: 'include' }).then((r) => r.json()),
-      fetch(`${API_BASE}/api/areas`, { credentials: 'include' }).then((r) => r.json()),
+      apiFetch(`${API_BASE}/api/devices/${encodeURIComponent(deviceId)}/settings`).then((r) => r.json()),
+      apiFetch(`${API_BASE}/api/areas`).then((r) => r.json()),
     ])
       .then(([settingsData, areasData]: [{ settings: { history_retention_days: number | null; display_name: string | null; area_id: string | null; aliases: string[] } }, { areas: Area[] }]) => {
         setRetentionDays(settingsData.settings.history_retention_days);
@@ -55,8 +54,7 @@ function DeviceSettings({ deviceId }: { deviceId: string }) {
   const saveSetting = async (body: Record<string, unknown>) => {
     setSaving(true);
     try {
-      await fetch(`${API_BASE}/api/devices/${encodeURIComponent(deviceId)}/settings`, {
-        credentials: 'include',
+      await apiFetch(`${API_BASE}/api/devices/${encodeURIComponent(deviceId)}/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

@@ -246,9 +246,25 @@ class TunnelClient {
     }
   }
 
-  // -- HTTP request relay (proxy → Fastify inject) ----------------------------
+  // -- HTTP request relay (proxy → Fastify inject / frontend fetch) -----------
+
+  /** Port of the local Next.js frontend server. */
+  private static FRONTEND_PORT = parseInt(process.env.FRONTEND_PORT ?? '3001', 10);
 
   private async handleHttpRequest(
+    msg: TunnelMessage & { type: 'http_request' },
+  ): Promise<void> {
+    const isFrontend = msg.headers['x-tunnel-target'] === 'frontend';
+
+    if (isFrontend) {
+      await this.handleFrontendRequest(msg);
+    } else {
+      await this.handleApiRequest(msg);
+    }
+  }
+
+  /** Forward API requests into the local Fastify server via inject(). */
+  private async handleApiRequest(
     msg: TunnelMessage & { type: 'http_request' },
   ): Promise<void> {
     if (!this.app) return;
@@ -267,7 +283,6 @@ class TunnelClient {
 
       if (msg.body) {
         injectOpts.payload = msg.body;
-        // Ensure content-type is set for body requests
         if (!headers['content-type']) {
           headers['content-type'] = 'application/json';
         }
@@ -292,13 +307,64 @@ class TunnelClient {
         body: response.payload,
       });
     } catch (err) {
-      logger.error({ err, path: msg.path }, 'Failed to inject tunnel HTTP request');
+      logger.error({ err, path: msg.path }, 'Failed to inject tunnel API request');
       this.send({
         type: 'http_response',
         id: msg.id,
         status: 500,
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ error: 'internal tunnel error' }),
+      });
+    }
+  }
+
+  /** Forward frontend requests to the local Next.js server via HTTP. */
+  private async handleFrontendRequest(
+    msg: TunnelMessage & { type: 'http_request' },
+  ): Promise<void> {
+    try {
+      const url = `http://127.0.0.1:${TunnelClient.FRONTEND_PORT}${msg.path}`;
+      const fetchHeaders: Record<string, string> = { ...msg.headers };
+      delete fetchHeaders['x-tunnel-target'];
+      delete fetchHeaders['x-tunnel-internal'];
+
+      const fetchOpts: RequestInit = {
+        method: msg.method,
+        headers: fetchHeaders,
+        signal: AbortSignal.timeout(15_000),
+      };
+
+      if (msg.body && msg.method !== 'GET' && msg.method !== 'HEAD') {
+        fetchOpts.body = msg.body;
+      }
+
+      const res = await fetch(url, fetchOpts);
+
+      const responseHeaders: Record<string, string> = {};
+      res.headers.forEach((value, key) => {
+        const lower = key.toLowerCase();
+        if (lower !== 'transfer-encoding' && lower !== 'connection') {
+          responseHeaders[key] = value;
+        }
+      });
+
+      const body = await res.text();
+
+      this.send({
+        type: 'http_response',
+        id: msg.id,
+        status: res.status,
+        headers: responseHeaders,
+        body,
+      });
+    } catch (err) {
+      logger.error({ err, path: msg.path }, 'Failed to proxy tunnel frontend request');
+      this.send({
+        type: 'http_response',
+        id: msg.id,
+        status: 502,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ error: 'frontend not reachable' }),
       });
     }
   }

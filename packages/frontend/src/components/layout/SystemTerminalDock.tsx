@@ -19,7 +19,7 @@ import {
   formatTerminalTimestamp,
 } from '@/lib/logDisplay';
 import { getLogInvestigationLinks } from '@/lib/logInvestigation';
-import { getApiBase } from '@/lib/api-base';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
 const API_BASE = getApiBase();
 
@@ -134,7 +134,7 @@ export function SystemTerminalDock({
   // Initial snapshot
   useEffect(() => {
     let cancelled = false;
-    fetch(`${API_BASE}/api/system/logs`, { credentials: 'include' })
+    apiFetch(`${API_BASE}/api/system/logs`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data: { entries: LogEntry[] }) => {
         if (!cancelled) setEntries(data.entries ?? []);

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/AuthProvider';
-import { getApiBase } from '@/lib/api-base';
+import { getApiBase, isRemoteAccess } from '@/lib/api-base';
 import { Loader2 } from 'lucide-react';
 
 /** How often to poll /api/health while backend is down (ms). */
@@ -16,6 +16,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const remote = typeof window !== 'undefined' && isRemoteAccess();
 
   // Backend reachability: null = checking (initial probe), true = reachable, false = offline
   const [backendUp, setBackendUp] = useState<boolean | null>(null);
@@ -105,17 +106,17 @@ export default function LoginPage() {
             HomeOS
           </h1>
           <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-            Sign in to continue
+            {remote ? 'Sign in with your remote access account' : 'Sign in to continue'}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
-              Username
+              {remote ? 'Email' : 'Username'}
             </label>
             <input
-              type="text"
+              type={remote ? 'email' : 'text'}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full rounded-lg px-3 py-2 text-sm outline-none"
@@ -125,7 +126,7 @@ export default function LoginPage() {
                 color: 'var(--color-text)',
               }}
               autoFocus
-              autoComplete="username"
+              autoComplete={remote ? 'email' : 'username'}
             />
           </div>
 

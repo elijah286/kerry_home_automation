@@ -8,10 +8,9 @@ import {
   MapPin, Plus, Pencil, Trash2, Loader2, ArrowLeft, Check, X, Cpu,
 } from 'lucide-react';
 import Link from 'next/link';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
+const API_BASE = getApiBase();
 
 interface Area {
   id: string;
@@ -29,7 +28,7 @@ export default function AreasPage() {
   const [editName, setEditName] = useState('');
 
   const loadAreas = useCallback(() => {
-    fetch(`${API_BASE}/api/areas`, { credentials: 'include' })
+    apiFetch(`${API_BASE}/api/areas`)
       .then((r) => r.json())
       .then((data: { areas: Area[] }) => setAreas(data.areas))
       .catch(() => {})
@@ -41,7 +40,7 @@ export default function AreasPage() {
   const createArea = async () => {
     const name = newName.trim();
     if (!name) return;
-    await fetch(`${API_BASE}/api/areas`, { credentials: 'include',
+    await apiFetch(`${API_BASE}/api/areas`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
@@ -53,7 +52,7 @@ export default function AreasPage() {
   const updateArea = async (id: string) => {
     const name = editName.trim();
     if (!name) return;
-    await fetch(`${API_BASE}/api/areas/${id}`, { credentials: 'include',
+    await apiFetch(`${API_BASE}/api/areas/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
@@ -63,7 +62,7 @@ export default function AreasPage() {
   };
 
   const deleteArea = async (id: string) => {
-    await fetch(`${API_BASE}/api/areas/${id}`, { credentials: 'include', method: 'DELETE' });
+    await apiFetch(`${API_BASE}/api/areas/${id}`, { method: 'DELETE' });
     loadAreas();
   };
 

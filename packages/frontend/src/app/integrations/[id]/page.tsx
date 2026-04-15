@@ -22,7 +22,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import type { EntrySaveDetail } from '@/components/AddEntryDialog';
 import { RoborockCloudConnect, filterRoborockConfigFields } from '@/components/RoborockCloudConnect';
 import { devicesForIntegrationEntry } from '@/lib/device-instance';
-import { getApiBase } from '@/lib/api-base';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
 function IntegrationDebugLoggingCard({ integrationId }: { integrationId: string }) {
   const { hasPermission } = useAuth();
@@ -33,7 +33,7 @@ function IntegrationDebugLoggingCard({ integrationId }: { integrationId: string 
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${getApiBase()}/api/integrations/debug-logging`, { credentials: 'include' })
+    apiFetch(`${getApiBase()}/api/integrations/debug-logging`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d: { flags?: Record<string, boolean> }) => {
         if (!cancelled) setEnabled(d.flags?.[integrationId] === true);
@@ -56,9 +56,8 @@ function IntegrationDebugLoggingCard({ integrationId }: { integrationId: string 
     setErr(null);
     try {
       const next = !enabled;
-      const res = await fetch(`${getApiBase()}/api/integrations/${integrationId}/debug-logging`, {
+      const res = await apiFetch(`${getApiBase()}/api/integrations/${integrationId}/debug-logging`, {
         method: 'PUT',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: next }),
       });
@@ -127,7 +126,7 @@ function UnifiDiagnosticsCard() {
   const load = useCallback(() => {
     setLoading(true);
     setErr(null);
-    fetch(`${getApiBase()}/api/cameras/diagnostics`, { credentials: 'include' })
+    apiFetch(`${getApiBase()}/api/cameras/diagnostics`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: { entries?: UnifiDiagEntry[] }) => setEntries(d.entries ?? []))
       .catch((e) => {
@@ -293,8 +292,7 @@ function NewInstanceCard({
     setSaveError(null);
     setSaving(true);
     try {
-      const res = await fetch(`${getApiBase()}/api/integrations/${integrationId}/entries`, {
-        credentials: 'include',
+      const res = await apiFetch(`${getApiBase()}/api/integrations/${integrationId}/entries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ label, config: values }),
@@ -335,7 +333,7 @@ function NewInstanceCard({
 
   const useHomeLocation = async () => {
     try {
-      const res = await fetch(`${getApiBase()}/api/settings`, { credentials: 'include' });
+      const res = await apiFetch(`${getApiBase()}/api/settings`);
       const data = await res.json();
       const s = data.settings as Record<string, unknown>;
       if (typeof s.home_latitude === 'number' && typeof s.home_longitude === 'number') {
@@ -737,7 +735,7 @@ export default function IntegrationDetailPage() {
   devicesRef.current = devices;
 
   const loadData = useCallback(() => {
-    fetch(`${getApiBase()}/api/integrations`, { credentials: 'include' })
+    apiFetch(`${getApiBase()}/api/integrations`)
       .then((r) => r.json())
       .then((d: { integrations: Record<string, IntegrationData> }) => {
         const found = d.integrations[integrationId];
@@ -789,9 +787,8 @@ export default function IntegrationDetailPage() {
   }, [data?.info.providesDevices, loadData]);
 
   const handleToggleEnabled = async (entryId: string, enabled: boolean) => {
-    await fetch(`${getApiBase()}/api/integrations/${integrationId}/entries/${entryId}`, {
+    await apiFetch(`${getApiBase()}/api/integrations/${integrationId}/entries/${entryId}`, {
       method: 'PUT',
-      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled }),
     });
@@ -799,14 +796,14 @@ export default function IntegrationDetailPage() {
   };
 
   const handleDeleteEntry = async (entryId: string) => {
-    await fetch(`${getApiBase()}/api/integrations/${integrationId}/entries/${entryId}`, { method: 'DELETE', credentials: 'include' });
+    await apiFetch(`${getApiBase()}/api/integrations/${integrationId}/entries/${entryId}`, { method: 'DELETE' });
     loadData();
   };
 
   const handleRebuildEntry = async (entryId: string) => {
     setRebuildingEntryId(entryId);
     try {
-      await fetch(`${getApiBase()}/api/integrations/${integrationId}/entries/${entryId}/rebuild`, { method: 'POST', credentials: 'include' });
+      await apiFetch(`${getApiBase()}/api/integrations/${integrationId}/entries/${entryId}/rebuild`, { method: 'POST' });
       loadData();
     } finally {
       setRebuildingEntryId(null);
@@ -816,7 +813,7 @@ export default function IntegrationDetailPage() {
   const handleRestart = async () => {
     setRestarting(true);
     try {
-      await fetch(`${getApiBase()}/api/integrations/${integrationId}/restart`, { method: 'POST', credentials: 'include' });
+      await apiFetch(`${getApiBase()}/api/integrations/${integrationId}/restart`, { method: 'POST' });
       loadData();
     } finally {
       setRestarting(false);
@@ -826,7 +823,7 @@ export default function IntegrationDetailPage() {
   const handleRebuild = async () => {
     setRebuilding(true);
     try {
-      await fetch(`${getApiBase()}/api/integrations/${integrationId}/rebuild`, { method: 'POST', credentials: 'include' });
+      await apiFetch(`${getApiBase()}/api/integrations/${integrationId}/rebuild`, { method: 'POST' });
       loadData();
     } finally {
       setRebuilding(false);

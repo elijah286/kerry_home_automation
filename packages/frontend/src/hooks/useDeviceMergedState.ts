@@ -2,10 +2,9 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import type { DeviceState } from '@ha/shared';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
+const API_BASE = getApiBase();
 
 /**
  * Prefer whichever snapshot is newer (WebSocket vs REST GET /api/devices/:id).
@@ -19,7 +18,7 @@ export function useDeviceMergedState(deviceId: string | undefined, liveDevice: D
     if (!deviceId) return;
     setLoading(true);
     setError(null);
-    fetch(`${API_BASE}/api/devices/${encodeURIComponent(deviceId)}`, { credentials: 'include' })
+    apiFetch(`${API_BASE}/api/devices/${encodeURIComponent(deviceId)}`)
       .then(async (r) => {
         if (!r.ok) throw new Error(r.status === 404 ? 'Not found' : `HTTP ${r.status}`);
         return r.json() as Promise<{ device: DeviceState }>;

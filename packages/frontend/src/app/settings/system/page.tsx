@@ -11,10 +11,9 @@ import {
   CheckCircle2, Container, Circle, Heart,
 } from 'lucide-react';
 import Link from 'next/link';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
+const API_BASE = getApiBase();
 
 interface SystemStats {
   cpu: { percent: number; cores: number; model: string };
@@ -174,7 +173,7 @@ function ContainerPanel({
 
   const fetchContainers = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/system/containers`, { credentials: 'include' });
+      const res = await apiFetch(`${API_BASE}/api/system/containers`);
       if (res.ok) {
         const data = (await res.json()) as { containers: ContainerInfo[] };
         setContainers(data.containers);
@@ -199,9 +198,8 @@ function ContainerPanel({
     const key = `restart-container-${service}`;
     setAction(key, 'loading');
     try {
-      const res = await fetch(`${API_BASE}/api/system/containers/${service}/restart`, {
+      const res = await apiFetch(`${API_BASE}/api/system/containers/${service}/restart`, {
         method: 'POST',
-        credentials: 'include',
       });
       setAction(key, res.ok ? 'success' : 'error');
     } catch {
@@ -212,9 +210,8 @@ function ContainerPanel({
   const rebuildAll = async () => {
     setAction('rebuild-all', 'loading');
     try {
-      const res = await fetch(`${API_BASE}/api/system/containers/rebuild`, {
+      const res = await apiFetch(`${API_BASE}/api/system/containers/rebuild`, {
         method: 'POST',
-        credentials: 'include',
       });
       setAction('rebuild-all', res.ok || res.status === 202 ? 'success' : 'error');
     } catch {
@@ -388,7 +385,7 @@ export default function SystemPage() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/system/stats`, { credentials: 'include' });
+      const res = await apiFetch(`${API_BASE}/api/system/stats`);
       if (res.ok) {
         setStats(await res.json() as SystemStats);
         setStatsError(false);
@@ -403,7 +400,7 @@ export default function SystemPage() {
   const fetchLog = useCallback(async () => {
     setLogLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/system/update-log`, { credentials: 'include' });
+      const res = await apiFetch(`${API_BASE}/api/system/update-log`);
       if (res.ok) {
         const data = await res.json() as { lines: string[] };
         setLogLines(data.lines);
@@ -424,9 +421,8 @@ export default function SystemPage() {
   const runAction = async (key: string, path: string) => {
     setAction(key, 'loading');
     try {
-      const res = await fetch(`${API_BASE}${path}`, {
+      const res = await apiFetch(`${API_BASE}${path}`, {
         method: 'POST',
-        credentials: 'include',
       });
       if (res.ok) {
         setAction(key, 'success');

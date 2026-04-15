@@ -8,10 +8,9 @@ import {
   CheckCircle2, XCircle, RefreshCw, Ban,
 } from 'lucide-react';
 import Link from 'next/link';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
+const API_BASE = getApiBase();
 
 /** Survives client-side navigation, refresh, and new tabs on the same origin. */
 const JOB_STORAGE_KEY = 'ha-server-installer-job-id';
@@ -158,7 +157,7 @@ export default function ServerInstallerPage() {
   const fetchArtifacts = useCallback(async () => {
     setArtifactsLoading(true);
     try {
-      const r = await fetch(`${API_BASE}/api/installer/artifacts`, { credentials: 'include' });
+      const r = await apiFetch(`${API_BASE}/api/installer/artifacts`);
       if (!r.ok) return;
       const data = (await r.json()) as { items: InstallerArtifact[] };
       setArtifacts(data.items ?? []);
@@ -177,7 +176,7 @@ export default function ServerInstallerPage() {
       try {
         let id: string | null = localStorage.getItem(JOB_STORAGE_KEY);
         if (!id) {
-          const r = await fetch(`${API_BASE}/api/installer/active`, { credentials: 'include' });
+          const r = await apiFetch(`${API_BASE}/api/installer/active`);
           if (r.ok) {
             const a = await r.json() as { active: boolean; jobId?: string };
             if (a.active && a.jobId) id = a.jobId;
@@ -185,7 +184,7 @@ export default function ServerInstallerPage() {
         }
         if (!id) return;
 
-        const st = await fetch(`${API_BASE}/api/installer/status/${id}`, { credentials: 'include' });
+        const st = await apiFetch(`${API_BASE}/api/installer/status/${id}`);
         if (!st.ok) {
           persistInstallerJobId(null);
           return;
@@ -245,7 +244,7 @@ export default function ServerInstallerPage() {
 
     es.onopen = () => {
       // Catch terminal state if the first `data:` line was missed or connection opened late.
-      void fetch(`${API_BASE}/api/installer/status/${jobId}`, { credentials: 'include' })
+      void apiFetch(`${API_BASE}/api/installer/status/${jobId}`)
         .then((r) => (r.ok ? r.json() as Promise<StatusResponse> : null))
         .then((data) => { if (data) applyJobStatus(data); })
         .catch(() => { /* ignore */ });
@@ -263,7 +262,7 @@ export default function ServerInstallerPage() {
 
     es.onerror = () => {
       // SSE connection dropped — poll once to check if already finished
-      void fetch(`${API_BASE}/api/installer/status/${jobId}`, { credentials: 'include' })
+      void apiFetch(`${API_BASE}/api/installer/status/${jobId}`)
         .then((r) => (r.ok ? r.json() as Promise<StatusResponse> : null))
         .then((data) => { if (data) applyJobStatus(data); })
         .catch(() => { /* will retry via browser SSE reconnect */ });
@@ -281,7 +280,7 @@ export default function ServerInstallerPage() {
     const id = jobId;
 
     const tick = (): void => {
-      void fetch(`${API_BASE}/api/installer/status/${id}`, { credentials: 'include' })
+      void apiFetch(`${API_BASE}/api/installer/status/${id}`)
         .then((r) => (r.ok ? r.json() as Promise<StatusResponse> : null))
         .then((data) => { if (data) applyJobStatus(data); })
         .catch(() => { /* ignore */ });
@@ -307,10 +306,9 @@ export default function ServerInstallerPage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/installer/start`, {
+      const res = await apiFetch(`${API_BASE}/api/installer/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ hostname, username, password, sshPublicKey: sshPublicKey || undefined }),
       });
 
@@ -324,7 +322,7 @@ export default function ServerInstallerPage() {
       persistInstallerJobId(data.jobId);
       setAttachedToExistingRun(Boolean(data.alreadyRunning));
       if (data.alreadyRunning) {
-        const st = await fetch(`${API_BASE}/api/installer/status/${data.jobId}`, { credentials: 'include' });
+        const st = await apiFetch(`${API_BASE}/api/installer/status/${data.jobId}`);
         if (st.ok) {
           const s = (await st.json()) as StatusResponse;
           setProgress(s.progress);
@@ -359,9 +357,8 @@ export default function ServerInstallerPage() {
     setBuildActionError('');
     setCancelling(true);
     try {
-      const res = await fetch(`${API_BASE}/api/installer/cancel/${jobId}`, {
+      const res = await apiFetch(`${API_BASE}/api/installer/cancel/${jobId}`, {
         method: 'POST',
-        credentials: 'include',
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({})) as { error?: string };

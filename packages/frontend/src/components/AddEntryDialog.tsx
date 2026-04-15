@@ -5,7 +5,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { X, Loader2, Save, MapPin } from 'lucide-react';
 import type { ConfigField, IntegrationEntry } from '@ha/shared';
 import { RoborockCloudConnect, filterRoborockConfigFields } from '@/components/RoborockCloudConnect';
-import { getApiBase } from '@/lib/api-base';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
 export type EntrySaveDetail =
   | { kind: 'created'; entryId: string }
@@ -79,8 +79,7 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
     setSaving(true);
     try {
       if (entry) {
-        const res = await fetch(`${getApiBase()}/api/integrations/${integrationId}/entries/${entry.id}`, {
-          credentials: 'include',
+        const res = await apiFetch(`${getApiBase()}/api/integrations/${integrationId}/entries/${entry.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ label, config: values }),
@@ -93,8 +92,7 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
         onSaved({ kind: 'updated', entryId: entry.id });
         onClose();
       } else {
-        const res = await fetch(`${getApiBase()}/api/integrations/${integrationId}/entries`, {
-          credentials: 'include',
+        const res = await apiFetch(`${getApiBase()}/api/integrations/${integrationId}/entries`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ label, config: values }),
@@ -163,7 +161,7 @@ export function AddEntryDialog({ open, onClose, integrationId, integrationName, 
                 type="button"
                 onClick={async () => {
                   try {
-                    const res = await fetch(`${getApiBase()}/api/settings`, { credentials: 'include' });
+                    const res = await apiFetch(`${getApiBase()}/api/settings`);
                     const data = await res.json();
                     const s = data.settings as Record<string, unknown>;
                     if (typeof s.home_latitude === 'number' && typeof s.home_longitude === 'number') {

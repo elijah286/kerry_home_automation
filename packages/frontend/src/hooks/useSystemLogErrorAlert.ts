@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getApiBase } from '@/lib/api-base';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
 /** How long a log error/fatal counts for the sliding window. */
 const ERROR_WINDOW_MS = 5 * 60 * 1000;
@@ -78,7 +78,7 @@ export function useSystemLogErrorAlert(enabled: boolean, terminalOpen: boolean):
       setLastErrorTs(max > 0 ? max : null);
     };
 
-    fetch(`${base}/api/system/logs`, { credentials: 'include' })
+    apiFetch(`${base}/api/system/logs`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { entries?: LogEntryWire[] } | null) => {
         if (cancelled || !data?.entries) return;

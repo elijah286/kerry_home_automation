@@ -4,10 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { ArrowLeft, Bot, Loader2, Eye, EyeOff, Check, Zap, CircleAlert } from 'lucide-react';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
+const API_BASE = getApiBase();
 
 export default function LlmSettingsPage() {
   const router = useRouter();
@@ -21,7 +20,7 @@ export default function LlmSettingsPage() {
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/settings/llm_api_key`, { credentials: 'include' })
+    apiFetch(`${API_BASE}/api/settings/llm_api_key`)
       .then((r) => r.json())
       .then((data: { value?: string }) => {
         if (data.value) {
@@ -39,10 +38,9 @@ export default function LlmSettingsPage() {
     setSaving(true);
     setSaved(false);
     try {
-      const res = await fetch(`${API_BASE}/api/settings/llm_api_key`, {
+      const res = await apiFetch(`${API_BASE}/api/settings/llm_api_key`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ value: apiKey }),
       });
       if (!res.ok) throw new Error('Save failed');
@@ -57,10 +55,9 @@ export default function LlmSettingsPage() {
   const remove = async () => {
     setSaving(true);
     try {
-      await fetch(`${API_BASE}/api/settings/llm_api_key`, {
+      await apiFetch(`${API_BASE}/api/settings/llm_api_key`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ value: '' }),
       });
       setApiKey('');
@@ -74,9 +71,8 @@ export default function LlmSettingsPage() {
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await fetch(`${API_BASE}/api/chat/test`, {
+      const res = await apiFetch(`${API_BASE}/api/chat/test`, {
         method: 'POST',
-        credentials: 'include',
       });
       const data = await res.json();
       if (res.ok) {

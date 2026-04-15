@@ -37,7 +37,7 @@ import { useCookingTimers, formatCookingTimer } from '@/providers/CookingTimersP
 import { clsx } from 'clsx';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useLocationsMap } from '@/providers/LocationsMapContext';
-import { getApiBase } from '@/lib/api-base';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -663,10 +663,9 @@ function AssistantRightPanel() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${getApiBase()}/api/chat`, {
+      const res = await apiFetch(`${getApiBase()}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ messages: newMessages }),
       });
 

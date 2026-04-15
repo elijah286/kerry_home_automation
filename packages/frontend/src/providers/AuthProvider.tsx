@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { User, UserRole, Permission, AuthSessionResponse, UiPreferences, UiPreferenceLocks } from '@ha/shared';
 import { ROLE_PERMISSIONS } from '@ha/shared';
-import { getApiBase } from '@/lib/api-base';
+import { getApiBase, isRemoteAccess } from '@/lib/api-base';
 import { useSessionRefresh } from '@/hooks/useWebSocket';
 
 function isLikelyNetworkFailure(e: unknown): boolean {
@@ -19,6 +19,44 @@ function apiReachabilityHint(api: string): string {
     return `Cannot reach the API at ${api}. Start the backend (npm run dev) or set NEXT_PUBLIC_API_URL to the correct origin.`;
   }
   return `Cannot reach the hub at ${api}. The service may still be starting after an update or reboot. If this continues, check Docker or the server (SSH).`;
+}
+
+// -- Remote access token management ------------------------------------------
+
+const REMOTE_TOKEN_KEY = 'ha_remote_token';
+const REMOTE_REFRESH_KEY = 'ha_remote_refresh';
+
+function getRemoteToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(REMOTE_TOKEN_KEY);
+}
+
+function setRemoteTokens(token: string, refresh: string): void {
+  localStorage.setItem(REMOTE_TOKEN_KEY, token);
+  localStorage.setItem(REMOTE_REFRESH_KEY, refresh);
+}
+
+function clearRemoteTokens(): void {
+  localStorage.removeItem(REMOTE_TOKEN_KEY);
+  localStorage.removeItem(REMOTE_REFRESH_KEY);
+}
+
+/** Build fetch options with proper auth for local (cookie) or remote (Bearer token) mode. */
+export function authFetchOpts(extra?: RequestInit): RequestInit {
+  const remote = typeof window !== 'undefined' && isRemoteAccess();
+  const opts: RequestInit = { ...extra };
+  if (remote) {
+    const token = getRemoteToken();
+    if (token) {
+      opts.headers = {
+        ...(opts.headers as Record<string, string> | undefined),
+        Authorization: `Bearer ${token}`,
+      };
+    }
+  } else {
+    opts.credentials = 'include';
+  }
+  return opts;
 }
 
 interface AuthContextValue {
@@ -73,6 +111,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshSession = useCallback(async () => {
     const api = getApiBase();
+    const remote = typeof window !== 'undefined' && isRemoteAccess();
+    if (remote) {
+      // Remote mode — use /auth/me on the proxy with Bearer token
+      const token = getRemoteToken();
+      if (!token) return;
+      const res = await fetch(`${api}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { user: any };
+      // Map proxy user response to AuthSessionResponse shape
+      setUser({
+        id: data.user.id,
+        username: data.user.display_name || data.user.email,
+        displayName: data.user.display_name,
+        role: data.user.role,
+        enabled: true,
+        hasPin: false,
+      } as User);
+      return;
+    }
     const res = await fetch(`${api}/api/auth/me`, { credentials: 'include' });
     if (!res.ok) return;
     const data = (await res.json()) as AuthSessionResponse;
@@ -90,6 +149,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check existing session on mount, then load role permissions
   useEffect(() => {
     const api = getApiBase();
+    const remote = typeof window !== 'undefined' && isRemoteAccess();
+
+    if (remote) {
+      // Remote mode — check Supabase token from localStorage
+      const token = getRemoteToken();
+      if (!token) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      fetch(`${api}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => {
+          if (!r.ok) throw new Error('Not authenticated');
+          return r.json();
+        })
+        .then((data: { user: any }) => {
+          setUser({
+            id: data.user.id,
+            username: data.user.display_name || data.user.email,
+            displayName: data.user.display_name,
+            role: data.user.role,
+            enabled: true,
+            hasPin: false,
+          } as User);
+        })
+        .catch(() => {
+          clearRemoteTokens();
+          setUser(null);
+        })
+        .finally(() => setLoading(false));
+      return;
+    }
+
+    // Local mode — check JWT cookie
     fetch(`${api}/api/auth/me`, { credentials: 'include' })
       .then((r) => {
         if (!r.ok) throw new Error('Not authenticated');
@@ -150,15 +245,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // role, etc.) — pushed via WebSocket so kiosks update immediately.
   useSessionRefresh(user?.id, refreshSession);
 
-  const login = useCallback(async (username: string, password: string) => {
+  const login = useCallback(async (usernameOrEmail: string, password: string) => {
     const api = getApiBase();
+    const remote = typeof window !== 'undefined' && isRemoteAccess();
+
+    if (remote) {
+      // Remote mode — authenticate via proxy's Supabase endpoint
+      let res: Response;
+      try {
+        res = await fetch(`${api}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: usernameOrEmail, password }),
+        });
+      } catch (e) {
+        if (isLikelyNetworkFailure(e)) {
+          throw new Error('Cannot reach the remote proxy. Check your internet connection.');
+        }
+        throw e instanceof Error ? e : new Error(String(e));
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? 'Login failed');
+      }
+      const data = (await res.json()) as {
+        token: string;
+        refresh_token: string;
+        user: { id: string; email: string; display_name: string; role: string };
+      };
+      setRemoteTokens(data.token, data.refresh_token);
+      setUser({
+        id: data.user.id,
+        username: data.user.display_name || data.user.email,
+        displayName: data.user.display_name,
+        role: data.user.role as UserRole,
+        enabled: true,
+        hasPin: false,
+      } as User);
+      return;
+    }
+
+    // Local mode — authenticate via backend JWT
     let res: Response;
     try {
       res = await fetch(`${api}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: usernameOrEmail, password }),
       });
     } catch (e) {
       if (isLikelyNetworkFailure(e)) {
@@ -184,10 +318,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     const api = getApiBase();
-    await fetch(`${api}/api/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
-    }).catch(() => {});
+    const remote = typeof window !== 'undefined' && isRemoteAccess();
+    if (remote) {
+      const token = getRemoteToken();
+      await fetch(`${api}/auth/logout`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).catch(() => {});
+      clearRemoteTokens();
+    } else {
+      await fetch(`${api}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      }).catch(() => {});
+    }
     setUser(null);
     setUiPreferences({});
     setUiPreferenceLocks({});

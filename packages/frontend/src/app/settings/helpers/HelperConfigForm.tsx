@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { HelperDefinition, HelperType, DeviceState } from '@ha/shared';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
 interface Props {
   type: HelperType;
@@ -14,8 +15,8 @@ interface Props {
 function useDeviceList() {
   const [devices, setDevices] = useState<DeviceState[]>([]);
   useEffect(() => {
-    const base = typeof window !== 'undefined' ? `http://${window.location.hostname}:3000` : 'http://localhost:3000';
-    fetch(`${base}/api/devices`, { credentials: 'include' })
+    const base = getApiBase();
+    apiFetch(`${base}/api/devices`)
       .then((r) => r.json())
       .then((d) => setDevices(d))
       .catch(() => {});

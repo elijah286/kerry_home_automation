@@ -29,10 +29,9 @@ import {
 } from '@/lib/api';
 import type { Alarm, AlarmCreate, AlarmDeviceAction, Automation, DeviceState } from '@ha/shared';
 import { Select } from '@/components/ui/Select';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
+const API_BASE = getApiBase();
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -316,7 +315,7 @@ export default function AlarmsPage() {
     try {
       const [alarmRes, devRes, autoRes] = await Promise.all([
         getAlarms(),
-        fetch(`${API_BASE}/api/devices`, { credentials: 'include' }).then((r) => r.json()) as Promise<{ devices: DeviceState[] }>,
+        apiFetch(`${API_BASE}/api/devices`).then((r) => r.json()) as Promise<{ devices: DeviceState[] }>,
         getAutomations(),
       ]);
       setAlarms(alarmRes.alarms);

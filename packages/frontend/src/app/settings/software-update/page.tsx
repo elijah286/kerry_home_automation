@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { useAuth } from '@/providers/AuthProvider';
-import { getApiBase } from '@/lib/api-base';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 import { signalServerTransitionPending } from '@/lib/server-transition';
 import { useSystemTerminal } from '@/providers/SystemTerminalProvider';
 
@@ -290,7 +290,7 @@ export default function SoftwareUpdatePage() {
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch(`${API}/api/system/update/status`, { credentials: 'include' });
+        const r = await apiFetch(`${API}/api/system/update/status`);
         if (!r.ok || cancelled) return;
         const status = (await r.json()) as UpdateStatus;
         if (status.inProgress) {
@@ -353,7 +353,7 @@ export default function SoftwareUpdatePage() {
         // safety net, poll the status endpoint after a short delay.
         if (ev.status === 'failed' && ev.stage !== 'done' && ev.stage !== 'log') {
           setTimeout(() => {
-            fetch(`${API}/api/system/update/status`, { credentials: 'include' })
+            apiFetch(`${API}/api/system/update/status`)
               .then((r) => (r.ok ? r.json() : null))
               .then((status: UpdateStatus | null) => {
                 if (!status) return;
@@ -383,7 +383,7 @@ export default function SoftwareUpdatePage() {
         reconnectTimerRef.current = setTimeout(() => {
           if (!deployingRef.current) return; // deploy finished or was never started
 
-          fetch(`${API}/api/system/update/status`, { credentials: 'include' })
+          apiFetch(`${API}/api/system/update/status`)
             .then((r) => {
               if (!r.ok) throw new Error(`HTTP ${r.status}`);
               return r.json();
@@ -423,7 +423,7 @@ export default function SoftwareUpdatePage() {
     setCheckLoading(true);
     setDeployError(null);
     try {
-      const r = await fetch(`${API}/api/system/update/check`, { credentials: 'include' });
+      const r = await apiFetch(`${API}/api/system/update/check`);
       const j = (await r.json()) as CheckResponse;
       if (!r.ok) {
         setCheck({ checkSupported: false, error: (j as { error?: string }).error ?? r.statusText });
@@ -452,9 +452,8 @@ export default function SoftwareUpdatePage() {
     signalServerTransitionPending('update');
 
     try {
-      const r = await fetch(`${API}/api/system/update/apply`, {
+      const r = await apiFetch(`${API}/api/system/update/apply`, {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ buildFallback: options?.buildFallback }),
       });
@@ -479,9 +478,8 @@ export default function SoftwareUpdatePage() {
     signalServerTransitionPending('update');
 
     try {
-      const r = await fetch(`${API}/api/system/update/rollback`, {
+      const r = await apiFetch(`${API}/api/system/update/rollback`, {
         method: 'POST',
-        credentials: 'include',
       });
       const j = (await r.json()) as { ok?: boolean; error?: string };
       if (!r.ok || !j.ok) {

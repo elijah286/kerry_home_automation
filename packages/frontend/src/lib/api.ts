@@ -1,14 +1,37 @@
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
+import { getApiBase, isRemoteAccess } from './api-base';
+
+function getRemoteToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('ha_remote_token');
+}
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    ...options,
-  });
+  const base = getApiBase();
+  const remote = typeof window !== 'undefined' && isRemoteAccess();
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string> | undefined),
+  };
+
+  const fetchOpts: RequestInit = { ...options, headers };
+
+  if (remote) {
+    const token = getRemoteToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  } else {
+    fetchOpts.credentials = 'include';
+  }
+
+  const res = await fetch(`${base}${path}`, fetchOpts);
+
   if (res.status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+    if (remote) {
+      localStorage.removeItem('ha_remote_token');
+      localStorage.removeItem('ha_remote_refresh');
+    }
     window.location.href = '/login';
     throw new Error('Session expired');
   }

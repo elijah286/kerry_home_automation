@@ -11,10 +11,9 @@ import {
   Pencil, ArrowLeft, Loader2, Check, X, ShieldCheck,
 } from 'lucide-react';
 import Link from 'next/link';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
+const API_BASE = getApiBase();
 
 const ROLE_META: Record<UserRole, { label: string; icon: typeof Shield; description: string }> = {
   admin: { label: 'Admin', icon: Shield, description: 'Full access to everything' },
@@ -54,7 +53,7 @@ export default function UsersPage() {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/users`, { credentials: 'include' });
+      const res = await apiFetch(`${API_BASE}/api/users`);
       if (res.ok) {
         const data = (await res.json()) as { users: User[] };
         setUsers(data.users);
@@ -65,7 +64,7 @@ export default function UsersPage() {
 
   const fetchPermissions = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/role-permissions`, { credentials: 'include' });
+      const res = await apiFetch(`${API_BASE}/api/role-permissions`);
       if (res.ok) {
         const data = (await res.json()) as { roles: Record<string, Permission[]> };
         setRolePermissions(data.roles);
@@ -99,10 +98,9 @@ export default function UsersPage() {
     setSaving(true);
     setFormError('');
     try {
-      const res = await fetch(`${API_BASE}/api/users`, {
+      const res = await apiFetch(`${API_BASE}/api/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           username: formUsername,
           displayName: formDisplayName,
@@ -160,10 +158,9 @@ export default function UsersPage() {
         body.uiPreferencesAdmin = uiPreferencesAdmin;
       }
 
-      const res = await fetch(`${API_BASE}/api/users/${editingUser.id}`, {
+      const res = await apiFetch(`${API_BASE}/api/users/${editingUser.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(body),
       });
       if (!res.ok) {
@@ -182,9 +179,8 @@ export default function UsersPage() {
   const handleDelete = async (userId: string) => {
     if (!confirm('Delete this user? This cannot be undone.')) return;
     try {
-      await fetch(`${API_BASE}/api/users/${userId}`, {
+      await apiFetch(`${API_BASE}/api/users/${userId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
       fetchUsers();
     } catch { /* ignore */ }
@@ -192,10 +188,9 @@ export default function UsersPage() {
 
   const handleToggleEnabled = async (u: User) => {
     try {
-      await fetch(`${API_BASE}/api/users/${u.id}`, {
+      await apiFetch(`${API_BASE}/api/users/${u.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ enabled: !u.enabled }),
       });
       fetchUsers();
@@ -223,10 +218,9 @@ export default function UsersPage() {
     setSaving(true);
     setFormError('');
     try {
-      const res = await fetch(`${API_BASE}/api/users/${editingUser.id}`, {
+      const res = await apiFetch(`${API_BASE}/api/users/${editingUser.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           displayName: editingUser.displayName,
           role: editingUser.role,
@@ -266,10 +260,9 @@ export default function UsersPage() {
     setPermissionsSaving(role);
 
     try {
-      const res = await fetch(`${API_BASE}/api/role-permissions/${role}`, {
+      const res = await apiFetch(`${API_BASE}/api/role-permissions/${role}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ permissions: updated }),
       });
       if (!res.ok) {

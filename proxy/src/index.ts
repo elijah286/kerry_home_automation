@@ -7,6 +7,7 @@ import { registerHealthRoutes } from './routes/health.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerProxyRoutes } from './routes/proxy.js';
 import { registerSignalingRoutes } from './routes/signaling.js';
+import { registerFrontendRoutes } from './routes/frontend.js';
 import { tunnelManager } from './tunnel/manager.js';
 import { setupClientWebSocket } from './ws/client-handler.js';
 
@@ -20,6 +21,8 @@ async function main(): Promise<void> {
   await registerAuthRoutes(app);
   await registerSignalingRoutes(app);
   await registerProxyRoutes(app);
+  // Frontend catch-all must be registered LAST (it matches all unhandled paths)
+  await registerFrontendRoutes(app);
 
   const address = await app.listen({ port: config.port, host: config.host });
   logger.info({ address }, 'Proxy server listening');

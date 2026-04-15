@@ -5,16 +5,15 @@ import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { ArrowLeft, MapPin, Search, Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 
-const API_BASE = typeof window !== 'undefined'
-  ? `http://${window.location.hostname}:3000`
-  : 'http://localhost:3000';
+const API_BASE = getApiBase();
 
 // Dynamically import the map component (Leaflet requires window)
 const LocationMap = dynamic(() => import('./LocationMap'), { ssr: false });
 
 async function saveSetting(key: string, value: unknown) {
-  await fetch(`${API_BASE}/api/settings/${key}`, { credentials: 'include',
+  await apiFetch(`${API_BASE}/api/settings/${key}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ value }),
@@ -42,7 +41,7 @@ export default function LocationPage() {
 
   // Load saved location
   useEffect(() => {
-    fetch(`${API_BASE}/api/settings`, { credentials: 'include' })
+    apiFetch(`${API_BASE}/api/settings`)
       .then((r) => r.json())
       .then((data: { settings: Record<string, unknown> }) => {
         const s = data.settings;
