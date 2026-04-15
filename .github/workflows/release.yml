@@ -176,6 +176,7 @@ jobs:
           git add deploy/release-manifest.json
           git diff --cached --quiet && exit 0
           git commit -m "ci: update release manifest for ${{ steps.version.outputs.tag }}"
+          git pull --rebase origin main || true
           git push
 
       # -- GitHub Release (only for new versions) --

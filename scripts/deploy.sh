@@ -276,25 +276,32 @@ if [ "$BUILD_FALLBACK" = false ] && [ -f "$MANIFEST" ]; then
   emit_log "pull_images" "Manifest images: backend=$BACKEND_IMG frontend=$FRONTEND_IMG roborock=$ROBOROCK_IMG"
 
   if [ -n "$BACKEND_IMG" ] && [ -n "$FRONTEND_IMG" ]; then
-    PULL_FAILED=false
+    PULL_OK=0
+    PULL_TOTAL=0
 
     for img_name in "$BACKEND_IMG" "$FRONTEND_IMG" "$ROBOROCK_IMG"; do
       [ -z "$img_name" ] && continue
+      PULL_TOTAL=$((PULL_TOTAL + 1))
       emit_log "pull_images" "Pulling $img_name"
-      if ! docker pull "$img_name" 2>&1 | tail -3 | while IFS= read -r line; do emit_log "pull_images" "$line"; done; then
-        emit_log "pull_images" "Failed to pull $img_name"
-        PULL_FAILED=true
-        break
+      if docker pull "$img_name" 2>&1 | tail -3 | while IFS= read -r line; do emit_log "pull_images" "$line"; done; then
+        PULL_OK=$((PULL_OK + 1))
+      else
+        emit_log "pull_images" "Failed to pull $img_name — will use local build for this service"
       fi
     done
 
-    if [ "$PULL_FAILED" = false ]; then
+    # Set .env tags for whichever images were successfully pulled.
+    # Compose will use pulled images where available and build the rest.
+    if [ "$PULL_OK" -gt 0 ]; then
       IMAGES_PULLED=true
-      # Write image tags to .env for docker compose
-      set_env_var "HA_BACKEND_IMAGE" "$BACKEND_IMG"
-      set_env_var "HA_FRONTEND_IMAGE" "$FRONTEND_IMG"
-      [ -n "$ROBOROCK_IMG" ] && set_env_var "HA_ROBOROCK_IMAGE" "$ROBOROCK_IMG"
-      emit "pull_images" "completed" "All images pulled from registry"
+      docker image inspect "$BACKEND_IMG" >/dev/null 2>&1 && set_env_var "HA_BACKEND_IMAGE" "$BACKEND_IMG"
+      docker image inspect "$FRONTEND_IMG" >/dev/null 2>&1 && set_env_var "HA_FRONTEND_IMAGE" "$FRONTEND_IMG"
+      [ -n "$ROBOROCK_IMG" ] && docker image inspect "$ROBOROCK_IMG" >/dev/null 2>&1 && set_env_var "HA_ROBOROCK_IMAGE" "$ROBOROCK_IMG"
+      if [ "$PULL_OK" -eq "$PULL_TOTAL" ]; then
+        emit "pull_images" "completed" "All images pulled from registry"
+      else
+        emit "pull_images" "completed" "$PULL_OK/$PULL_TOTAL images pulled (rest will build locally)"
+      fi
     fi
   fi
 fi
