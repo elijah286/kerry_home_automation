@@ -106,19 +106,21 @@ export const KNOWN_INTEGRATIONS: IntegrationInfo[] = [
     id: 'unifi',
     name: 'UniFi Protect',
     description:
-      'Ubiquiti cameras via UniFi Protect — streams via go2rtc. Set go2rtc URL to an address the backend can reach (usually the LAN IP of the PC or NVR running go2rtc). localhost only works when go2rtc runs on the same machine as the backend; it is wrong when the backend runs in Docker or on another host than go2rtc.',
+      'Ubiquiti cameras via UniFi Protect. Enter your controller credentials and cameras are discovered automatically. Streams are proxied through go2rtc for WebRTC/MSE playback.',
     providesDevices: true,
     supportsMultipleEntries: true,
     configFields: [
+      { key: 'protect_host', label: 'UniFi Protect IP', type: 'text', placeholder: '192.168.1.1', required: true },
+      { key: 'username', label: 'Username', type: 'text', required: true },
+      { key: 'password', label: 'Password', type: 'password', required: true },
       {
         key: 'go2rtc_url',
-        label: 'go2rtc URL',
+        label: 'go2rtc URL (advanced)',
         type: 'text',
         placeholder: 'http://go2rtc:1984',
         defaultValue: 'http://go2rtc:1984',
         required: false,
       },
-      { key: 'protect_host', label: 'UniFi Protect IP', type: 'text', placeholder: '192.168.1.1' },
     ],
   },
   {

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// UniFi Protect integration: cameras via go2rtc
-// Each integration entry = one go2rtc instance / Protect controller
+// UniFi Protect integration: auto-discover cameras from Protect API,
+// configure go2rtc dynamically, stream via go2rtc.
 // ---------------------------------------------------------------------------
 
 import type { DeviceCommand, IntegrationHealth, CameraState, ConnectionState } from '@ha/shared';
@@ -9,29 +9,28 @@ import { stateStore } from '../../state/store.js';
 import { logger } from '../../logger.js';
 import { eventBus } from '../../state/event-bus.js';
 import * as entryStore from '../../db/integration-entry-store.js';
+import { ProtectClient, type DiscoveredCamera } from './protect-client.js';
 
-const POLL_INTERVAL_MS = 10_000; // poll every 10s for fresher snapshots
+const POLL_INTERVAL_MS = 10_000;
 
-/** Default when `go2rtc_url` is omitted — Docker service name (override with LAN IP if go2rtc is elsewhere). */
+/** Default go2rtc URL when none is provided — Docker service name. */
 export const UNIFI_DEFAULT_GO2RTC_URL = 'http://go2rtc:1984';
 
-/** Trim and strip trailing slashes so fetch URLs match go2rtc consistently. */
 function normalizeGo2rtcBaseUrl(url: string): string {
   const t = url.trim();
   if (!t) return t;
   return t.replace(/\/+$/, '');
 }
 
-/** Effective go2rtc base URL from saved entry config (defaults if blank). */
 export function resolveGo2rtcConfigUrl(config: Record<string, string>): string {
   const raw = config.go2rtc_url?.trim();
   if (raw) return normalizeGo2rtcBaseUrl(raw);
   return UNIFI_DEFAULT_GO2RTC_URL;
 }
 
-/** If go2rtc was down at startup, re-attempt entry init on this interval. */
+/** Retry failed entries on this interval. */
 const RETRY_FAILED_ENTRY_MS = 45_000;
-/** Re-fetch `/api/streams` so new cameras appear and recovered go2rtc repopulates after empty startup. */
+/** Re-sync cameras from Protect + go2rtc. */
 const REDISCOVER_STREAMS_MS = 120_000;
 
 interface CameraInfo {
@@ -46,6 +45,10 @@ interface EntryContext {
   protectHost: string;
   cameras: CameraInfo[];
   pollTimer: ReturnType<typeof setInterval> | null;
+  /** Protect API client — null when no credentials (legacy go2rtc-only mode). */
+  protectClient: ProtectClient | null;
+  /** Cameras discovered from Protect (used to re-populate go2rtc after restart). */
+  discoveredCameras: DiscoveredCamera[];
 }
 
 export class UniFiIntegration implements Integration {
@@ -56,7 +59,7 @@ export class UniFiIntegration implements Integration {
   private retryTimer: ReturnType<typeof setInterval> | null = null;
   private rediscoverTimer: ReturnType<typeof setInterval> | null = null;
 
-  /** Cached JPEG snapshots per camera name — updated every poll cycle */
+  /** Cached JPEG snapshots per camera name */
   private snapshotCache = new Map<string, { buffer: Buffer; timestamp: number }>();
 
   async start(): Promise<void> {
@@ -71,17 +74,11 @@ export class UniFiIntegration implements Integration {
 
     for (const entry of dbEntries) {
       if (!entry.enabled) continue;
-      const go2rtcUrl = resolveGo2rtcConfigUrl(entry.config);
-
       try {
-        await this.initEntry(entry.id, go2rtcUrl, entry.config.protect_host ?? '');
+        await this.initEntry(entry);
       } catch (err) {
         logger.error({ err, entryId: entry.id }, 'UniFi entry init failed');
         this.lastError = String(err);
-        logger.warn(
-          { entryId: entry.id, go2rtcUrl: normalizeGo2rtcBaseUrl(go2rtcUrl) },
-          'If this persists: use the LAN IP of the host running go2rtc (reachable from the backend). localhost only works when go2rtc is on the same machine as the backend.',
-        );
       }
     }
 
@@ -93,29 +90,20 @@ export class UniFiIntegration implements Integration {
       this.emitHealth('error');
     }
 
-    const hasUnifiConfig = dbEntries.some((e) => e.enabled);
-    if (hasUnifiConfig) {
-      // go2rtc often starts after the backend — retry soon, then on an interval.
+    const hasEnabled = dbEntries.some((e) => e.enabled);
+    if (hasEnabled) {
       setTimeout(() => void this.retryMissingEntries(), 5_000);
       this.retryTimer = setInterval(() => void this.retryMissingEntries(), RETRY_FAILED_ENTRY_MS);
-      this.rediscoverTimer = setInterval(() => void this.refreshAllEntryStreams(), REDISCOVER_STREAMS_MS);
+      this.rediscoverTimer = setInterval(() => void this.refreshAllEntries(), REDISCOVER_STREAMS_MS);
     }
   }
 
-  /**
-   * Re-run discovery for entries that failed init (go2rtc was offline) and refresh stream lists
-   * from go2rtc. Safe to call from HTTP for a manual "recover" button.
-   */
   async recoverCameras(): Promise<{ ok: boolean; cameraCount: number }> {
     await this.retryMissingEntries();
-    await this.refreshAllEntryStreams();
+    await this.refreshAllEntries();
     return { ok: true, cameraCount: this.getCameraNames().length };
   }
 
-  /**
-   * Live probe of each saved go2rtc URL (from DB), for troubleshooting when the server sees no streams
-   * but the same config works on a developer laptop.
-   */
   async getCameraDiagnostics(): Promise<
     Array<{
       entryId: string;
@@ -127,6 +115,8 @@ export class UniFiIntegration implements Integration {
       streamNames: string[];
       error?: string;
       hint?: string;
+      autoDiscovery: boolean;
+      protectCameraCount?: number;
     }>
   > {
     const dbEntries = await entryStore.getEntries('unifi');
@@ -140,11 +130,14 @@ export class UniFiIntegration implements Integration {
       streamNames: string[];
       error?: string;
       hint?: string;
+      autoDiscovery: boolean;
+      protectCameraCount?: number;
     }> = [];
 
     for (const entry of dbEntries) {
       if (!entry.enabled) continue;
       const base = resolveGo2rtcConfigUrl(entry.config);
+      const hasCredentials = Boolean(entry.config.username && entry.config.password);
       let reachable = false;
       let httpStatus: number | undefined;
       let streamCount = 0;
@@ -169,13 +162,11 @@ export class UniFiIntegration implements Integration {
       let hint: string | undefined;
       if (/localhost|127\.0\.0\.1/i.test(base)) {
         hint =
-          'This URL uses localhost — it targets the machine running the **backend**, not your laptop. If go2rtc runs elsewhere or the backend is in Docker, set go2rtc_url to that host\'s LAN IP.';
+          'This URL uses localhost — it targets the machine running the backend, not your laptop. If go2rtc runs elsewhere or the backend is in Docker, use the host LAN IP.';
       }
-      if (reachable && streamCount === 0) {
-        hint =
-          (hint ? `${hint} ` : '') +
-          'go2rtc responded but listed no streams — configure inputs (e.g. RTSP from UniFi Protect) in go2rtc on this server.';
-      }
+
+      const ctx = this.entries.get(entry.id);
+      const protectCameraCount = ctx?.discoveredCameras.length;
 
       out.push({
         entryId: entry.id,
@@ -187,13 +178,14 @@ export class UniFiIntegration implements Integration {
         streamNames: streamNames.slice(0, 24),
         error: reachable ? undefined : error,
         hint,
+        autoDiscovery: hasCredentials,
+        protectCameraCount,
       });
     }
 
     return out;
   }
 
-  /** Entries configured in DB but not yet successfully initialized (go2rtc unreachable at startup). */
   async getPendingEntryCount(): Promise<number> {
     const dbEntries = await entryStore.getEntries('unifi');
     let n = 0;
@@ -204,19 +196,183 @@ export class UniFiIntegration implements Integration {
     return n;
   }
 
+  // ---------------------------------------------------------------------------
+  // Entry initialization
+  // ---------------------------------------------------------------------------
+
+  private async initEntry(entry: { id: string; config: Record<string, string> }): Promise<void> {
+    const go2rtcUrl = normalizeGo2rtcBaseUrl(resolveGo2rtcConfigUrl(entry.config));
+    const protectHost = entry.config.protect_host?.trim() ?? '';
+    const username = entry.config.username?.trim() ?? '';
+    const password = entry.config.password ?? '';
+    const hasCredentials = Boolean(username && password && protectHost);
+
+    const ctx: EntryContext = {
+      entryId: entry.id,
+      go2rtcUrl,
+      protectHost,
+      cameras: [],
+      pollTimer: null,
+      protectClient: null,
+      discoveredCameras: [],
+    };
+
+    if (hasCredentials) {
+      // Auto-discovery: Protect API → go2rtc → cameras
+      ctx.protectClient = new ProtectClient(protectHost, username, password);
+      await ctx.protectClient.login();
+
+      const discovered = await ctx.protectClient.discoverCameras();
+      ctx.discoveredCameras = discovered;
+
+      logger.info(
+        { entryId: entry.id, cameras: discovered.length, protectHost },
+        'UniFi Protect: discovered cameras',
+      );
+
+      if (discovered.length === 0) {
+        this.lastError = 'UniFi Protect returned no cameras';
+        logger.warn({ entryId: entry.id }, this.lastError);
+      }
+
+      // Push streams to go2rtc
+      await this.syncStreamsToGo2rtc(ctx, discovered);
+    } else {
+      // Legacy mode: just query go2rtc for existing streams
+      logger.info(
+        { entryId: entry.id, go2rtcUrl },
+        'UniFi: no Protect credentials — using go2rtc stream list only',
+      );
+    }
+
+    // Discover from go2rtc (includes auto-added streams + any pre-configured YAML streams)
+    const streams = await this.discoverStreams(go2rtcUrl);
+    const cameras: CameraInfo[] = streams.map((name) => ({
+      name,
+      entryId: entry.id,
+      deviceId: `unifi.${entry.id}.${name}`,
+    }));
+
+    ctx.cameras = cameras;
+    this.entries.set(entry.id, ctx);
+
+    logger.info(
+      { entryId: entry.id, cameras: cameras.length, go2rtcUrl },
+      'UniFi cameras registered from go2rtc',
+    );
+
+    if (cameras.length === 0 && !hasCredentials) {
+      this.lastError =
+        'go2rtc returned no streams. Add UniFi Protect credentials for auto-discovery, or configure streams in go2rtc manually.';
+      logger.warn({ entryId: entry.id, go2rtcUrl }, this.lastError);
+    } else {
+      this.lastError = null;
+    }
+
+    // Register device states
+    for (const cam of cameras) {
+      stateStore.update(this.makeCameraState(cam, go2rtcUrl, true));
+    }
+
+    // Start snapshot polling
+    void this.pollCameras(ctx);
+    ctx.pollTimer = setInterval(() => void this.pollCameras(ctx), POLL_INTERVAL_MS);
+  }
+
+  // ---------------------------------------------------------------------------
+  // go2rtc stream management
+  // ---------------------------------------------------------------------------
+
+  private async syncStreamsToGo2rtc(ctx: EntryContext, cameras: DiscoveredCamera[]): Promise<void> {
+    // Get current go2rtc streams
+    let currentStreams: string[] = [];
+    try {
+      currentStreams = await this.discoverStreams(ctx.go2rtcUrl);
+    } catch {
+      logger.warn({ entryId: ctx.entryId }, 'go2rtc unreachable — will retry on next cycle');
+      return;
+    }
+
+    const currentSet = new Set(currentStreams);
+
+    // Add new/updated streams
+    for (const cam of cameras) {
+      try {
+        await this.go2rtcPutStream(ctx.go2rtcUrl, cam.streamName, cam.rtspUrl);
+        if (!currentSet.has(cam.streamName)) {
+          logger.info(
+            { entryId: ctx.entryId, stream: cam.streamName },
+            'UniFi: added camera stream to go2rtc',
+          );
+        }
+      } catch (err) {
+        logger.warn(
+          { err, entryId: ctx.entryId, stream: cam.streamName },
+          'UniFi: failed to add stream to go2rtc',
+        );
+      }
+    }
+
+    // Remove streams that no longer exist in Protect (only streams we manage)
+    const discoveredNames = new Set(cameras.map((c) => c.streamName));
+    const previousNames = new Set(ctx.discoveredCameras.map((c) => c.streamName));
+    for (const name of previousNames) {
+      if (!discoveredNames.has(name)) {
+        try {
+          await this.go2rtcDeleteStream(ctx.go2rtcUrl, name);
+          logger.info(
+            { entryId: ctx.entryId, stream: name },
+            'UniFi: removed camera stream from go2rtc (no longer in Protect)',
+          );
+        } catch {
+          // Best effort
+        }
+      }
+    }
+  }
+
+  private async go2rtcPutStream(baseUrl: string, name: string, rtspUrl: string): Promise<void> {
+    const url = `${baseUrl}/api/streams?name=${encodeURIComponent(name)}&src=${encodeURIComponent(rtspUrl)}`;
+    const res = await fetch(url, { method: 'PUT', signal: AbortSignal.timeout(8_000) });
+    if (!res.ok) {
+      throw new Error(`go2rtc PUT stream failed: ${res.status}`);
+    }
+  }
+
+  private async go2rtcDeleteStream(baseUrl: string, name: string): Promise<void> {
+    const url = `${baseUrl}/api/streams?src=${encodeURIComponent(name)}`;
+    await fetch(url, { method: 'DELETE', signal: AbortSignal.timeout(8_000) }).catch(() => {});
+  }
+
+  // ---------------------------------------------------------------------------
+  // Retry & refresh
+  // ---------------------------------------------------------------------------
+
   private async retryMissingEntries(): Promise<void> {
     const dbEntries = await entryStore.getEntries('unifi');
     let anySuccess = false;
     for (const entry of dbEntries) {
       if (!entry.enabled) continue;
-      const go2rtcUrl = resolveGo2rtcConfigUrl(entry.config);
-      if (this.entries.has(entry.id)) continue;
+      if (this.entries.has(entry.id)) {
+        // Entry exists — check if go2rtc has our streams (handles go2rtc restart)
+        const ctx = this.entries.get(entry.id)!;
+        if (ctx.discoveredCameras.length > 0 && ctx.cameras.length === 0) {
+          try {
+            await this.syncStreamsToGo2rtc(ctx, ctx.discoveredCameras);
+            await this.refreshEntryFromGo2rtc(ctx);
+            anySuccess = true;
+          } catch {
+            // Will retry next cycle
+          }
+        }
+        continue;
+      }
       try {
-        await this.initEntry(entry.id, go2rtcUrl, entry.config.protect_host ?? '');
+        await this.initEntry(entry);
         anySuccess = true;
         this.lastError = null;
       } catch (err) {
-        logger.warn({ err, entryId: entry.id }, 'UniFi entry init retry failed (will try again)');
+        logger.warn({ err, entryId: entry.id }, 'UniFi entry init retry failed');
         this.lastError = String(err);
       }
     }
@@ -226,15 +382,45 @@ export class UniFiIntegration implements Integration {
     }
   }
 
-  private async refreshAllEntryStreams(): Promise<void> {
-    await Promise.allSettled([...this.entries.values()].map((ctx) => this.refreshEntryStreams(ctx)));
+  private async refreshAllEntries(): Promise<void> {
+    await Promise.allSettled([...this.entries.values()].map((ctx) => this.refreshEntry(ctx)));
   }
 
   /**
-   * Merge go2rtc's current stream list into this entry. Adds new cameras, removes ones gone from go2rtc.
-   * If go2rtc returns an empty list while we already had streams, keep the old list (protect against transient API glitches).
+   * Full refresh: re-discover from Protect (if available) → sync go2rtc → update devices.
    */
-  private async refreshEntryStreams(ctx: EntryContext): Promise<void> {
+  private async refreshEntry(ctx: EntryContext): Promise<void> {
+    if (ctx.protectClient && !ctx.protectClient.badCredentials) {
+      try {
+        const cameras = await ctx.protectClient.discoverCameras();
+        await this.syncStreamsToGo2rtc(ctx, cameras);
+        ctx.discoveredCameras = cameras;
+      } catch (err) {
+        // Session expired — re-login and retry once
+        if (err instanceof Error && (err as { status?: number }).status === 401) {
+          try {
+            await ctx.protectClient.login();
+            const cameras = await ctx.protectClient.discoverCameras();
+            await this.syncStreamsToGo2rtc(ctx, cameras);
+            ctx.discoveredCameras = cameras;
+          } catch (retryErr) {
+            logger.warn({ err: retryErr, entryId: ctx.entryId }, 'UniFi Protect re-auth failed');
+          }
+        } else {
+          logger.warn({ err, entryId: ctx.entryId }, 'UniFi Protect camera refresh failed');
+        }
+      }
+    }
+
+    await this.refreshEntryFromGo2rtc(ctx);
+  }
+
+  /**
+   * Refresh the camera list from go2rtc's current streams.
+   * Adds new cameras, removes deleted ones. If go2rtc returns empty while
+   * we had streams, keeps the old list (protects against transient glitches).
+   */
+  private async refreshEntryFromGo2rtc(ctx: EntryContext): Promise<void> {
     let streams: string[];
     try {
       streams = await this.discoverStreams(ctx.go2rtcUrl);
@@ -242,11 +428,24 @@ export class UniFiIntegration implements Integration {
       logger.warn({ err, entryId: ctx.entryId }, 'go2rtc stream list refresh failed');
       return;
     }
+
     if (streams.length === 0 && ctx.cameras.length > 0) {
-      logger.warn({ entryId: ctx.entryId }, 'go2rtc returned no streams — keeping previous camera list');
-      return;
+      // go2rtc might have restarted — try to re-push our streams
+      if (ctx.discoveredCameras.length > 0) {
+        await this.syncStreamsToGo2rtc(ctx, ctx.discoveredCameras);
+        try {
+          streams = await this.discoverStreams(ctx.go2rtcUrl);
+        } catch {
+          return;
+        }
+      }
+      if (streams.length === 0) {
+        logger.warn({ entryId: ctx.entryId }, 'go2rtc returned no streams — keeping previous list');
+        return;
+      }
     }
 
+    // Update camera list
     const nextNames = new Set(streams);
     for (const cam of ctx.cameras) {
       if (!nextNames.has(cam.name)) {
@@ -267,40 +466,9 @@ export class UniFiIntegration implements Integration {
     void this.pollCameras(ctx);
   }
 
-  private async initEntry(entryId: string, go2rtcUrl: string, protectHost: string): Promise<void> {
-    const base = normalizeGo2rtcBaseUrl(go2rtcUrl);
-    const streams = await this.discoverStreams(base);
-    const cameras: CameraInfo[] = streams.map((name) => ({
-      name,
-      entryId,
-      deviceId: `unifi.${entryId}.${name}`,
-    }));
-
-    logger.info({ entryId, cameras: cameras.length, go2rtcUrl: base }, 'UniFi cameras discovered from go2rtc');
-
-    if (cameras.length === 0) {
-      const msg =
-        'go2rtc returned no streams — use a go2rtc URL reachable from this backend (try the host LAN IP instead of localhost) and ensure streams are configured in go2rtc.';
-      this.lastError = msg;
-      logger.warn({ entryId, go2rtcUrl: base }, msg);
-    } else {
-      this.lastError = null;
-    }
-
-    const ctx: EntryContext = { entryId, go2rtcUrl: base, protectHost, cameras, pollTimer: null };
-    this.entries.set(entryId, ctx);
-
-    // Register initial camera devices and fetch first snapshots
-    for (const cam of cameras) {
-      stateStore.update(this.makeCameraState(cam, base, true));
-    }
-
-    // Initial snapshot fetch (parallel, don't block startup)
-    void this.pollCameras(ctx);
-
-    // Start polling
-    ctx.pollTimer = setInterval(() => void this.pollCameras(ctx), POLL_INTERVAL_MS);
-  }
+  // ---------------------------------------------------------------------------
+  // Snapshot polling & device state
+  // ---------------------------------------------------------------------------
 
   private async discoverStreams(go2rtcBaseUrl: string): Promise<string[]> {
     const res = await fetch(`${go2rtcBaseUrl}/api/streams`, { signal: AbortSignal.timeout(12_000) });
@@ -346,12 +514,10 @@ export class UniFiIntegration implements Integration {
     );
   }
 
-  /** Get cached snapshot JPEG for a camera. Returns null if not cached. */
   getCachedSnapshot(name: string): { buffer: Buffer; timestamp: number } | null {
     return this.snapshotCache.get(name) ?? null;
   }
 
-  /** Get the go2rtc URL for a camera name (for WebSocket proxying). */
   getGo2rtcUrl(name: string): string | null {
     for (const ctx of this.entries.values()) {
       if (ctx.cameras.some((c) => c.name === name)) {
@@ -361,7 +527,6 @@ export class UniFiIntegration implements Integration {
     return null;
   }
 
-  /** Get all known camera names across all entries. */
   getCameraNames(): string[] {
     const names: string[] = [];
     for (const ctx of this.entries.values()) {

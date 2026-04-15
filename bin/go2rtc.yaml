@@ -11,22 +11,7 @@ webrtc:
     - stun:stun.l.google.com:19302
   ice_servers:
     - urls: [stun:stun.l.google.com:19302, stun:stun1.l.google.com:19302]
-streams:
-  back_door:
-    - rtsp://192.168.68.1:7447/3cIcHC3cpdoMniTI
-  living_room:
-    - rtsp://192.168.68.1:7447/tnAiIBd70OgDcC3m
-  garage:
-    - rtsp://192.168.68.1:7447/BcDIPpkhSXp56xD5
-  backyard:
-    - rtsp://192.168.68.1:7447/oYkPFn5Mm5FQH7SX
-  street:
-    - rtsp://192.168.68.1:7447/WpZCSvTRaYB4k3BH
-  driveway:
-    - rtsp://192.168.68.1:7447/ZLMFgKg7tkMc9aBo
-  game_room:
-    - rtsp://192.168.68.1:7447/pflaRUqV46I6Kbw1
-  pool:
-    - rtsp://192.168.68.1:7447/1GgeJL3nXcUR48Oa
-  front_porch:
-    - rtsp://192.168.68.1:7447/cDVW0905MYhZyFKE
+
+# Streams are configured automatically by the backend when UniFi Protect
+# credentials are provided. Manual entries can still be added here if needed.
+streams: {}
