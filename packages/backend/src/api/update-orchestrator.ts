@@ -285,10 +285,10 @@ export async function getUpdateStatus(): Promise<UpdateStatus> {
 /**
  * Append synthetic completion stages to the progress file.
  *
- * deploy.sh runs inside the backend container. When it executes
- * `docker compose up -d`, the container restarts and kills deploy.sh before it
- * can write the health_check / verify / done stages. This function fills in
- * those missing stages so the frontend sees a completed deploy.
+ * The deploy-agent sidecar normally writes real health_check / done events.
+ * This function is a timeout-based fallback (3 min) in case the sidecar
+ * crashes or is removed before completing. It fills in the missing stages
+ * so the frontend sees a completed (or failed) deploy.
  */
 async function appendSyntheticCompletion(stages: ProgressEvent[]) {
   const filePath = progressFilePath();
@@ -331,15 +331,31 @@ export async function detectInFlightDeploy() {
   // Find the last non-log stage event
   const lastNonLog = [...stages].reverse().find((s) => s.status !== 'log');
 
-  // deploy.sh runs inside the backend container. When it calls
-  // `docker compose up -d`, the container restarts — killing deploy.sh before
-  // it can write the remaining stages (health_check, verify, done). If we just
-  // started and the last meaningful stage is "restart" running, the deploy
-  // SUCCEEDED — this very process starting is the proof it worked.
+  // deploy.sh launches a sidecar container ("deploy agent") that writes real
+  // health_check and done events to the progress file. If the last meaningful
+  // stage is "restart" running, the sidecar should be alive and writing progress.
+  // Wait up to 3 minutes for real completion; fall back to synthetic if needed.
   if (lastNonLog?.stage === 'restart' && lastNonLog.status === 'running') {
-    logger.info('Post-deploy startup: deploy.sh was killed by the container restart it triggered — marking deploy as complete');
-    await appendSyntheticCompletion(stages);
-    updateInProgress = false;
+    logger.info(
+      'Post-deploy startup: deploy agent sidecar should be writing progress — '
+      + 'waiting up to 3 min for real completion events',
+    );
+    updateInProgress = true;
+    updateStartedAt = stages[0]?.ts ?? new Date().toISOString();
+    startProgressTailing();
+
+    // Safety net: if the sidecar hasn't written a "done" event within 3 min,
+    // assume it crashed and write synthetic completion so the UI isn't stuck.
+    const SIDECAR_TIMEOUT_MS = 3 * 60_000;
+    setTimeout(async () => {
+      const currentStages = await readAllProgress();
+      const currentLast = currentStages[currentStages.length - 1];
+      if (currentLast?.stage === 'done') return; // sidecar completed — no action needed
+      logger.warn('Deploy sidecar did not complete within 3 minutes — writing synthetic completion');
+      await appendSyntheticCompletion(currentStages);
+      updateInProgress = false;
+    }, SIDECAR_TIMEOUT_MS);
+
     return;
   }
 

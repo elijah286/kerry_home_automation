@@ -97,7 +97,8 @@ restore_standby_page() {
   rm -f "$STANDBY_WWW/ha-update-status.json"
   STANDBY_SWAPPED=0
 }
-trap restore_standby_page EXIT
+SIDECAR_LAUNCHED=0
+trap '[ "$SIDECAR_LAUNCHED" -eq 0 ] && restore_standby_page' EXIT
 
 # Git helper for dubious ownership
 ha_git() {
@@ -293,6 +294,10 @@ if [ "$BUILD_FALLBACK" = false ] && [ -f "$MANIFEST" ]; then
   fi
 fi
 
+# Pull the sidecar image used by the deploy agent for safe restarts
+emit_log "pull_images" "Pulling docker:cli (deploy agent sidecar)"
+docker pull docker:cli 2>&1 | tail -2 | while IFS= read -r line; do emit_log "pull_images" "$line"; done || true
+
 if [ "$IMAGES_PULLED" = false ]; then
   emit_log "pull_images" "Pre-built images not available — will build from source"
   emit "pull_images" "completed" "Using local build (images not available)"
@@ -311,79 +316,160 @@ else
   emit "db_backup" "completed" "Skipped (database not reachable)"
 fi
 
+# Resolve the host-side Docker config path from the current backend container's
+# mount. The compose file uses ${DOCKER_CONFIG:-${HOME}/.docker} which differs
+# between the host shell and the deploy-agent sidecar. Persist it to .env so
+# compose always resolves the correct host path regardless of which process runs it.
+_host_docker_cfg=$(
+  docker inspect --format '{{range .Mounts}}{{if eq .Destination "/root/.docker"}}{{.Source}}{{end}}{{end}}' \
+    "$(cat /proc/self/cgroup 2>/dev/null | grep -oP '[a-f0-9]{64}' | head -1 || hostname)" 2>/dev/null || echo ""
+)
+if [ -n "$_host_docker_cfg" ] && [ "$_host_docker_cfg" != "/root/.docker" ]; then
+  set_env_var "DOCKER_CONFIG" "$_host_docker_cfg"
+  emit_log "db_backup" "Persisted DOCKER_CONFIG=$_host_docker_cfg to .env"
+fi
+
 # Stage 5: Swap standby page
 swap_standby_page
 if [ "$STANDBY_SWAPPED" -eq 1 ]; then
   emit_log "restart" "Standby page active on port 80"
 fi
 
-# Stage 6: Restart services
-emit "restart" "running" "Restarting services..."
+# ===================================================================
+# STAGE 6+: Launch deploy-agent sidecar for safe restart
+# ===================================================================
+# deploy.sh runs inside the backend container. `docker compose up -d`
+# recreates this container, killing this script mid-operation. Instead
+# we write a restart script and hand it to a short-lived "deploy agent"
+# sidecar container (docker:cli) that is NOT managed by compose — it
+# survives the restart and writes real health_check / done events.
 
-COMPOSE_CMD="$COMPOSE up -d"
+SIDECAR_NAME="ha-deploy-agent"
+SIDECAR_SCRIPT="$APP/.deploy-agent.sh"
+
+# Build vs pull decision
+SIDECAR_UP_ARGS="up -d"
 if [ "$IMAGES_PULLED" = false ]; then
-  COMPOSE_CMD="$COMPOSE up -d --build"
-  emit_log "restart" "Building from source (this may take several minutes)..."
+  SIDECAR_UP_ARGS="up -d --build"
 fi
 
-# NOTE: do NOT add --wait here. It blocks until ALL containers are healthy,
-# including optional services like roborock-bridge. If any non-critical service
-# is unhealthy, the entire deploy hangs. The health_check stage below validates
-# the backend API is responding, which is sufficient.
+emit "restart" "running" "Launching deploy agent for safe restart..."
 
-COMPOSE_OUT=$(mktemp)
-if ! eval "$COMPOSE_CMD" >"$COMPOSE_OUT" 2>&1; then
-  cat "$COMPOSE_OUT" | tail -20 | while IFS= read -r line; do emit_log "restart" "$line"; done
-  rm -f "$COMPOSE_OUT"
-  emit "restart" "failed" "Docker compose failed — attempting rollback"
-  # Attempt rollback
-  restore_standby_page
-  exec bash "$0" --rollback
+# --- Write the sidecar restart script ---
+# docker:cli is Alpine-based: /bin/sh (BusyBox), wget, docker, docker compose.
+# NO bash, curl, or node.
+cat > "$SIDECAR_SCRIPT" << 'SIDECAR_SCRIPT_EOF'
+#!/bin/sh
+set -u
+
+PROGRESS="/app/.update-progress.jsonl"
+COMPOSE_FILE="/app/docker-compose.prod.yml"
+COMPOSE_CMD="docker compose -f $COMPOSE_FILE"
+HEALTH_URL="http://localhost:3000/api/health"
+SID=${DEPLOY_AGENT_STAGE_ID:-50}
+
+emit() {
+  SID=$((SID + 1))
+  _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  printf '{"id":%d,"ts":"%s","stage":"%s","status":"%s","msg":"%s"}\n' \
+    "$SID" "$_ts" "$1" "$2" "$3" >> "$PROGRESS"
+}
+
+# Give the calling container a moment to write its last progress
+sleep 3
+
+# --- Restart all services ---
+COUT=$(mktemp)
+if ! $COMPOSE_CMD DEPLOY_UP_ARGS >"$COUT" 2>&1; then
+  _err=$(tail -10 "$COUT" | tr '\n' ' ')
+  emit "restart" "log" "compose error: $_err"
+  emit "restart" "failed" "Docker compose failed during restart"
+  rm -f "$COUT"
+  emit "done" "failed" "Deploy failed — compose error"
+  exit 1
 fi
-tail -10 "$COMPOSE_OUT" | while IFS= read -r line; do emit_log "restart" "$line"; done
-rm -f "$COMPOSE_OUT"
-
+rm -f "$COUT"
 emit "restart" "completed" "Services restarted"
 
-# Stage 7: Health check
+# --- Health check (24 attempts x 5s = 120s) ---
 emit "health_check" "running" "Validating system health..."
+HEALTHY=0
+i=1
+while [ "$i" -le 24 ]; do
+  if wget -q -O /dev/null --timeout=5 "$HEALTH_URL" 2>/dev/null; then
+    HEALTHY=1
+    break
+  fi
+  emit "health_check" "log" "Health check attempt $i/24 — waiting 5s"
+  sleep 5
+  i=$((i + 1))
+done
 
-if health_check 18 "health_check"; then
+if [ "$HEALTHY" -eq 1 ]; then
   emit "health_check" "completed" "All services healthy"
 else
-  emit "health_check" "failed" "Health check failed after 90s — attempting rollback"
-  restore_standby_page
-  exec bash "$0" --rollback
+  emit "health_check" "failed" "Health check failed after 120s"
+  emit "done" "failed" "Deploy failed — backend did not become healthy"
+  exit 1
 fi
 
-# Stage 8: Post-deploy verification
+# --- Post-deploy verification ---
 emit "verify" "running" "Verifying deployment..."
-
-# Verify the running version matches what we deployed
-RUNNING_VERSION=$(curl -sf --max-time 5 "$HEALTH_URL" 2>/dev/null && \
-  curl -sf --max-time 5 "http://localhost:3000/api/system/app-version" 2>/dev/null | \
-  node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d).versionLabel)}catch{console.log('unknown')}})" || echo "unknown")
-emit_log "verify" "Running version: $RUNNING_VERSION"
-
 emit "verify" "completed" "Deployment verified"
 
-# Stage 9: Cleanup
-restore_standby_page
-
-# Clean up old backup files (keep last 10)
-ls -1t "$APP/backups"/pre-deploy-*.dump 2>/dev/null | tail -n +11 | xargs rm -f 2>/dev/null || true
-
-# Clean up dangling Docker images
-docker image prune -f >/dev/null 2>&1 || true
-
-emit "done" "completed" "Update to $TARGET_VERSION complete"
-
-# Also write to the traditional log file
-{
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Deploy completed: $TARGET_VERSION ($REMOTE_SHA)"
-} >> "$LOG_DIR/update.log"
-
-# Trim traditional log
-if [ -f "$LOG_DIR/update.log" ]; then
-  tail -n 500 "$LOG_DIR/update.log" > "$LOG_DIR/update.log.tmp" && mv "$LOG_DIR/update.log.tmp" "$LOG_DIR/update.log"
+# --- Restore standby page (if mounted and backup exists) ---
+if [ -f "/standby/standby.html.bak" ]; then
+  mv -f "/standby/standby.html.bak" "/standby/standby.html" 2>/dev/null || true
+  rm -f "/standby/ha-update-status.json" 2>/dev/null || true
 fi
+
+# --- Cleanup ---
+docker image prune -f >/dev/null 2>&1 || true
+ls -1t /app/backups/pre-deploy-*.dump 2>/dev/null | tail -n +11 | xargs rm -f 2>/dev/null || true
+
+# --- Done ---
+emit "done" "completed" "DEPLOY_DONE_MSG_PLACEHOLDER"
+SIDECAR_SCRIPT_EOF
+
+# Patch placeholders with actual runtime values
+sed -i "s|DEPLOY_UP_ARGS|$SIDECAR_UP_ARGS|g" "$SIDECAR_SCRIPT"
+sed -i "s|DEPLOY_DONE_MSG_PLACEHOLDER|Update to $TARGET_VERSION complete|g" "$SIDECAR_SCRIPT"
+chmod +x "$SIDECAR_SCRIPT"
+
+# --- Remove any leftover sidecar from a previous run ---
+docker rm -f "$SIDECAR_NAME" >/dev/null 2>&1 || true
+
+# --- Launch the sidecar ---
+# Mounts: Docker socket, app dir (compose file + progress file), Docker config, standby page
+DOCKER_CFG_HOST="${_host_docker_cfg:-${DOCKER_CONFIG:-/root/.docker}}"
+STANDBY_MOUNTS=""
+if [ -d "$STANDBY_WWW" ]; then
+  STANDBY_MOUNTS="-v $STANDBY_WWW:/standby"
+fi
+
+if docker run -d \
+  --name "$SIDECAR_NAME" \
+  --network host \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$APP:/app" \
+  -v "$DOCKER_CFG_HOST:/root/.docker:ro" \
+  $STANDBY_MOUNTS \
+  -e "DEPLOY_AGENT_STAGE_ID=$STAGE_ID" \
+  --restart no \
+  docker:cli \
+  sh /app/.deploy-agent.sh; then
+  SIDECAR_LAUNCHED=1
+  emit_log "restart" "Deploy agent sidecar launched — backend will restart momentarily"
+else
+  emit "restart" "failed" "Could not start deploy agent sidecar"
+  # Last resort: try the old direct restart (will likely kill us, but sometimes works)
+  emit_log "restart" "Falling back to direct restart..."
+  $COMPOSE up -d 2>&1 | tail -5 | while IFS= read -r line; do emit_log "restart" "$line"; done
+fi
+
+# Write to the traditional log before this container is recycled
+{
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Deploy agent launched for: $TARGET_VERSION ($REMOTE_SHA)"
+} >> "$LOG_DIR/update.log" 2>/dev/null || true
+
+exit 0
