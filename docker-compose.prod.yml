@@ -24,7 +24,7 @@ services:
     image: alexxit/go2rtc:latest
     restart: unless-stopped
     volumes:
-      - ./services/go2rtc/go2rtc.yaml:/config/go2rtc.yaml:ro
+      - ./services/go2rtc:/config:ro
     expose:
       - "1984"
       - "8554"
