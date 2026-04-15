@@ -12,8 +12,8 @@ import * as entryStore from '../../db/integration-entry-store.js';
 
 const POLL_INTERVAL_MS = 10_000; // poll every 10s for fresher snapshots
 
-/** Default when `go2rtc_url` is omitted — same host as backend (override with LAN IP if go2rtc is elsewhere). */
-export const UNIFI_DEFAULT_GO2RTC_URL = 'http://localhost:1984';
+/** Default when `go2rtc_url` is omitted — Docker service name (override with LAN IP if go2rtc is elsewhere). */
+export const UNIFI_DEFAULT_GO2RTC_URL = 'http://go2rtc:1984';
 
 /** Trim and strip trailing slashes so fetch URLs match go2rtc consistently. */
 function normalizeGo2rtcBaseUrl(url: string): string {

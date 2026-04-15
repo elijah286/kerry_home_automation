@@ -20,6 +20,22 @@ services:
       timeout: 5s
       retries: 5
 
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    restart: unless-stopped
+    volumes:
+      - ./services/go2rtc/go2rtc.yaml:/config/go2rtc.yaml:ro
+    expose:
+      - "1984"
+      - "8554"
+      - "8555"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:1984/api/streams"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   roborock-bridge:
     image: ${HA_ROBOROCK_IMAGE:-ghcr.io/elijah286/ha-roborock-bridge:latest}
     build:
@@ -87,6 +103,8 @@ services:
       # Started only: if the bridge fails its healthcheck after a rebuild, the hub API would never start.
       # Roborock can recover once the bridge is healthy; login and the rest of HomeOS should not depend on it.
       roborock-bridge:
+        condition: service_started
+      go2rtc:
         condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
