@@ -179,10 +179,10 @@ if [ "$ROLLBACK" = true ]; then
     exit 1
   fi
 
-  local_sha=$(node -e "console.log(require('$PREV_STATE_FILE').sha)" 2>/dev/null || echo "")
-  prev_backend=$(node -e "console.log(require('$PREV_STATE_FILE').backendImage)" 2>/dev/null || echo "")
-  prev_frontend=$(node -e "console.log(require('$PREV_STATE_FILE').frontendImage)" 2>/dev/null || echo "")
-  prev_roborock=$(node -e "console.log(require('$PREV_STATE_FILE').roborockImage)" 2>/dev/null || echo "")
+  local_sha=$(grep -o '"sha"[[:space:]]*:[[:space:]]*"[^"]*"' "$PREV_STATE_FILE" | head -1 | grep -o '"[^"]*"$' | tr -d '"')
+  prev_backend=$(grep -o '"backendImage"[[:space:]]*:[[:space:]]*"[^"]*"' "$PREV_STATE_FILE" | head -1 | grep -o '"[^"]*"$' | tr -d '"')
+  prev_frontend=$(grep -o '"frontendImage"[[:space:]]*:[[:space:]]*"[^"]*"' "$PREV_STATE_FILE" | head -1 | grep -o '"[^"]*"$' | tr -d '"')
+  prev_roborock=$(grep -o '"roborockImage"[[:space:]]*:[[:space:]]*"[^"]*"' "$PREV_STATE_FILE" | head -1 | grep -o '"[^"]*"$' | tr -d '"')
 
   cd "$APP"
 
@@ -255,7 +255,8 @@ fix_git_owner
 MANIFEST="$APP/deploy/release-manifest.json"
 TARGET_VERSION="unknown"
 if [ -f "$MANIFEST" ]; then
-  TARGET_VERSION=$(node -e "console.log(require('$MANIFEST').version)" 2>/dev/null || echo "unknown")
+  TARGET_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$MANIFEST" | head -1 | grep -o '"[^"]*"$' | tr -d '"')
+  [ -z "$TARGET_VERSION" ] && TARGET_VERSION="unknown"
   emit_log "pull_code" "Release manifest version: $TARGET_VERSION"
 fi
 

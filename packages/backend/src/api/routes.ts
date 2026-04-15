@@ -65,7 +65,23 @@ export function registerRoutes(app: FastifyInstance): void {
     },
   );
 
-  app.get('/api/health', async () => ({ ok: true, time: Date.now() }));
+  app.get('/api/health', async (_req, reply) => {
+    // Verify critical dependencies so Docker/deploy health checks are meaningful.
+    // If postgres or redis are down, report unhealthy — the sidecar will keep
+    // retrying instead of declaring the deploy "complete" prematurely.
+    const checks: Record<string, boolean> = { postgres: false, redis: false };
+    try {
+      await query('SELECT 1');
+      checks.postgres = true;
+    } catch { /* unhealthy */ }
+    try {
+      await redis.ping();
+      checks.redis = true;
+    } catch { /* unhealthy */ }
+
+    const ok = checks.postgres && checks.redis;
+    return reply.status(ok ? 200 : 503).send({ ok, time: Date.now(), checks });
+  });
 
   // Camera snapshot — serve from backend cache (instant), fallback to live fetch from integration
   app.get<{ Params: { name: string } }>('/api/cameras/:name/snapshot', async (req, reply) => {

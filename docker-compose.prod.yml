@@ -100,12 +100,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      # Started only: if the bridge fails its healthcheck after a rebuild, the hub API would never start.
-      # Roborock can recover once the bridge is healthy; login and the rest of HomeOS should not depend on it.
-      roborock-bridge:
-        condition: service_started
-      go2rtc:
-        condition: service_started
+      # Non-critical services: backend starts regardless of their state.
+      # If they crash or restart-loop, the backend (and the rest of the system)
+      # keeps running. Their status is visible in Settings → Docker.
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
       interval: 10s
