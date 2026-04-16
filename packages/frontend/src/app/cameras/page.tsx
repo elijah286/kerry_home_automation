@@ -257,6 +257,9 @@ function MSEStream({
 const WEBRTC_BASE_DELAY  = 2_000;
 const WEBRTC_MAX_BACKOFF = 45_000;
 
+const WEBRTC_PROGRESS_CHECK_MS = 5_000;
+const WEBRTC_STALL_MS          = 12_000;
+
 function WebRTCStream({
   name,
   onPlaying,
@@ -294,6 +297,9 @@ function WebRTCStream({
     if (!video) return;
 
     let disposed = false;
+    let progressInterval: ReturnType<typeof setInterval> | null = null;
+    let lastCurrentTime = -1;
+    let lastProgressTime = 0;
 
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -304,6 +310,12 @@ function WebRTCStream({
 
     pc.ontrack = (ev) => {
       if (ev.streams[0]) video.srcObject = ev.streams[0];
+    };
+
+    const goOffline = () => {
+      playingRef.current = false;
+      setVisible(false);
+      onOfflineRef.current?.();
     };
 
     const scheduleRetry = () => {
@@ -346,9 +358,7 @@ function WebRTCStream({
         retriesRef.current = 0;
       }
       if (s === 'failed') {
-        playingRef.current = false;
-        setVisible(false);
-        onOfflineRef.current?.();
+        goOffline();
         scheduleRetry();
       }
     };
@@ -368,17 +378,13 @@ function WebRTCStream({
         iceDisconnectTimerRef.current = setTimeout(() => {
           iceDisconnectTimerRef.current = null;
           if (disposed || pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') return;
-          playingRef.current = false;
-          setVisible(false);
-          onOfflineRef.current?.();
+          goOffline();
           try { pc.close(); } catch { /* ignore */ }
           scheduleRetry();
         }, 8_000);
       }
       if (ice === 'failed') {
-        playingRef.current = false;
-        setVisible(false);
-        onOfflineRef.current?.();
+        goOffline();
         scheduleRetry();
       }
     };
@@ -389,6 +395,32 @@ function WebRTCStream({
         retriesRef.current = 0;
         setVisible(true);
         onPlayingRef.current?.();
+
+        // Video-progress watchdog: reconnect if currentTime freezes for >12 s.
+        lastCurrentTime  = video.currentTime;
+        lastProgressTime = Date.now();
+
+        progressInterval = setInterval(() => {
+          if (disposed) return;
+
+          if (video.paused) {
+            void video.play().catch(() => {});
+            lastProgressTime = Date.now();
+            return;
+          }
+
+          const ct  = video.currentTime;
+          const now = Date.now();
+          if (ct > lastCurrentTime) {
+            lastCurrentTime  = ct;
+            lastProgressTime = now;
+          } else if (now - lastProgressTime > WEBRTC_STALL_MS) {
+            // Video frozen — tear down and retry.
+            goOffline();
+            try { pc.close(); } catch { /* ignore */ }
+            scheduleRetry();
+          }
+        }, WEBRTC_PROGRESS_CHECK_MS);
       }
     };
     video.addEventListener('playing', onPlayingHandler, { once: true });
@@ -398,6 +430,7 @@ function WebRTCStream({
       playingRef.current = false;
       setVisible(false);
       onOfflineRef.current?.();
+      if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
       if (iceDisconnectTimerRef.current) {
         clearTimeout(iceDisconnectTimerRef.current);
         iceDisconnectTimerRef.current = null;
@@ -533,7 +566,6 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
   const [snapRev,       setSnapRev]       = useState(0);
   const [webrtcPlaying, setWebrtcPlaying] = useState(false);
   const [snapError,     setSnapError]     = useState(false);
-  const [mjpegError,    setMjpegError]    = useState(false);
   const frame = useLCARSFrame();
 
   useEffect(() => {
@@ -542,19 +574,17 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
 
+  // Snapshot polling — provides updating stills every 2 s until WebRTC takes over.
   useEffect(() => {
     if (webrtcPlaying) return;
-    const t = window.setInterval(() => setSnapRev((n) => n + 1), 3000);
+    const t = window.setInterval(() => setSnapRev((n) => n + 1), 2000);
     return () => window.clearInterval(t);
   }, [webrtcPlaying]);
 
   useEffect(() => {
     setSnapError(false);
-    setMjpegError(false);
     setWebrtcPlaying(false);
   }, [cam.name]);
-
-  const showFallbackHint = snapError && mjpegError;
 
   // In LCARS mode, constrain to the content area (inside header/footer/sidebar).
   // In other themes, cover the full viewport.
@@ -573,21 +603,15 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
   return (
     <div className="flex flex-col bg-black" style={overlayStyle}>
       <div className="relative flex-1">
+        {/* Snapshot fallback — always visible underneath WebRTC so it shows
+            immediately when WebRTC stalls or hasn't connected yet. */}
         {!webrtcPlaying && (
-          <>
-            <img
-              src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapRev}${authQueryParam(true)}`}
-              alt={cam.label}
-              className="absolute inset-0 z-[1] h-full w-full object-contain"
-              onError={() => setSnapError(true)}
-            />
-            <img
-              src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/mjpeg${authQueryParam()}`}
-              alt=""
-              className="absolute inset-0 z-[2] h-full w-full object-contain"
-              onError={() => setMjpegError(true)}
-            />
-          </>
+          <img
+            src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapRev}${authQueryParam(true)}`}
+            alt={cam.label}
+            className="absolute inset-0 z-[1] h-full w-full object-contain"
+            onError={() => setSnapError(true)}
+          />
         )}
 
         <WebRTCStream
@@ -611,9 +635,9 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
           <span className="text-[11px] text-white/60">
             {webrtcPlaying
               ? 'Live (WebRTC)'
-              : showFallbackHint
+              : snapError
                 ? 'No stream — check UniFi / go2rtc and backend logs'
-                : 'Live (MJPEG) · upgrading to WebRTC if available…'}
+                : 'Snapshots (2s) · upgrading to WebRTC…'}
           </span>
         </div>
       </div>
