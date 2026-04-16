@@ -3,7 +3,7 @@ builder = "dockerfile"
 dockerfilePath = "proxy/Dockerfile"
 
 [deploy]
-startCommand = "node dist/index.js"
+startCommand = "node dist/proxy/src/index.js"
 healthcheckPath = "/health"
 healthcheckTimeout = 10
 restartPolicyType = "on_failure"

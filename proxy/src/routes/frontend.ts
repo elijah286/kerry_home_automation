@@ -17,15 +17,10 @@ const RESERVED_PREFIXES = ['/api/', '/auth/', '/tunnel'];
 const RESERVED_EXACT = new Set(['/health', '/ws']);
 
 export async function registerFrontendRoutes(app: FastifyInstance): Promise<void> {
-  // Catch-all for frontend pages and static assets (JS/CSS/images/fonts)
-  app.all('*', async (req, reply) => {
+  // Use setNotFoundHandler so we don't conflict with existing route methods
+  // (app.all('*') would collide with the proxy's app.all('/api/*') on OPTIONS).
+  app.setNotFoundHandler(async (req, reply) => {
     const path = req.url.split('?')[0];
-
-    // Skip paths handled by other modules
-    if (RESERVED_EXACT.has(path)) return reply.callNotFound();
-    for (const prefix of RESERVED_PREFIXES) {
-      if (path.startsWith(prefix)) return reply.callNotFound();
-    }
 
     if (!tunnelManager.isConnected()) {
       return reply
