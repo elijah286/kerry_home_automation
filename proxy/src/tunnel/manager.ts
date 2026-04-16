@@ -25,8 +25,8 @@ class TunnelManager {
 
   private wsMessageListeners = new Set<(msg: TunnelMessage) => void>();
 
-  init(server: HttpServer): void {
-    this.wss = new WebSocketServer({ server, path: '/tunnel' });
+  init(_server: HttpServer): void {
+    this.wss = new WebSocketServer({ noServer: true });
 
     this.wss.on('connection', (ws) => {
       if (this.tunnel && this.tunnel.readyState === WebSocket.OPEN) {
@@ -94,6 +94,13 @@ class TunnelManager {
           this.pongTimer = null;
         }
       });
+    });
+  }
+
+  /** Handle an HTTP upgrade routed here by the central upgrade dispatcher. */
+  handleUpgrade(request: import('node:http').IncomingMessage, socket: import('node:stream').Duplex, head: Buffer): void {
+    this.wss!.handleUpgrade(request, socket, head, (ws) => {
+      this.wss!.emit('connection', ws, request);
     });
   }
 

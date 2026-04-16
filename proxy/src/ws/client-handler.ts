@@ -26,8 +26,18 @@ function extractTokenFromUrl(req: IncomingMessage): string | null {
   }
 }
 
-export function setupClientWebSocket(server: HttpServer): void {
-  const wss = new WebSocketServer({ server, path: '/ws' });
+let clientWss: WebSocketServer | null = null;
+
+/** Handle an HTTP upgrade routed here by the central upgrade dispatcher. */
+export function handleClientUpgrade(request: IncomingMessage, socket: import('node:stream').Duplex, head: Buffer): void {
+  clientWss!.handleUpgrade(request, socket, head, (ws) => {
+    clientWss!.emit('connection', ws, request);
+  });
+}
+
+export function setupClientWebSocket(_server: HttpServer): void {
+  const wss = new WebSocketServer({ noServer: true });
+  clientWss = wss;
 
   const removeTunnelListener = tunnelManager.onMessage((msg: TunnelMessage) => {
     if (msg.type === 'ws_message') {

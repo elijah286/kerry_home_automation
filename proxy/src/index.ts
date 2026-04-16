@@ -9,7 +9,7 @@ import { registerProxyRoutes } from './routes/proxy.js';
 import { registerSignalingRoutes } from './routes/signaling.js';
 import { registerFrontendRoutes } from './routes/frontend.js';
 import { tunnelManager } from './tunnel/manager.js';
-import { setupClientWebSocket } from './ws/client-handler.js';
+import { setupClientWebSocket, handleClientUpgrade } from './ws/client-handler.js';
 
 async function main(): Promise<void> {
   const app = Fastify({ logger: false });
@@ -29,6 +29,19 @@ async function main(): Promise<void> {
 
   tunnelManager.init(app.server);
   setupClientWebSocket(app.server);
+
+  // Central upgrade dispatcher — avoids attaching multiple WSS instances to the
+  // same HTTP server, which causes frame corruption (RSV1 bit conflicts).
+  app.server.on('upgrade', (request, socket, head) => {
+    const { pathname } = new URL(request.url ?? '/', 'http://localhost');
+    if (pathname === '/tunnel') {
+      tunnelManager.handleUpgrade(request, socket, head);
+    } else if (pathname === '/ws') {
+      handleClientUpgrade(request, socket, head);
+    } else {
+      socket.destroy();
+    }
+  });
 
   logger.info('Tunnel and client WebSocket handlers initialized');
 }
