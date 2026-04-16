@@ -327,6 +327,9 @@ class TunnelClient {
       const fetchHeaders: Record<string, string> = { ...msg.headers };
       delete fetchHeaders['x-tunnel-target'];
       delete fetchHeaders['x-tunnel-internal'];
+      // Don't ask Next.js for compressed responses — the body travels as text
+      // through the tunnel, so compression just wastes CPU on both ends.
+      delete fetchHeaders['accept-encoding'];
 
       const fetchOpts: RequestInit = {
         method: msg.method,
@@ -343,9 +346,16 @@ class TunnelClient {
       const responseHeaders: Record<string, string> = {};
       res.headers.forEach((value, key) => {
         const lower = key.toLowerCase();
-        if (lower !== 'transfer-encoding' && lower !== 'connection') {
-          responseHeaders[key] = value;
-        }
+        // Skip hop-by-hop and encoding headers — Node's fetch already
+        // decompresses the body, so forwarding content-encoding/length
+        // would cause the browser to double-decompress or miscount bytes.
+        if (
+          lower === 'transfer-encoding' ||
+          lower === 'connection' ||
+          lower === 'content-encoding' ||
+          lower === 'content-length'
+        ) return;
+        responseHeaders[key] = value;
       });
 
       const body = await res.text();
