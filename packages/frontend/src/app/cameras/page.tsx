@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef, memo } from 'react';
+import { useState, useEffect, useRef, memo, type CSSProperties } from 'react';
 import { X } from 'lucide-react';
 import { getApiBase, getWsBase, apiFetch, authQueryParam } from '@/lib/api-base';
+import { useLCARSFrame } from '@/components/lcars/LCARSFrameContext';
 
 // ---------------------------------------------------------------------------
 // MSE stream — fMP4 over WebSocket (invisible until frames actually play)
@@ -533,6 +534,7 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
   const [webrtcPlaying, setWebrtcPlaying] = useState(false);
   const [snapError,     setSnapError]     = useState(false);
   const [mjpegError,    setMjpegError]    = useState(false);
+  const frame = useLCARSFrame();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -554,8 +556,22 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
 
   const showFallbackHint = snapError && mjpegError;
 
+  // In LCARS mode, constrain to the content area (inside header/footer/sidebar).
+  // In other themes, cover the full viewport.
+  const overlayStyle: CSSProperties = frame
+    ? {
+        position: 'fixed',
+        top: frame.contentTop,
+        left: frame.contentLeft,
+        right: frame.contentRight,
+        bottom: frame.contentBottom,
+        zIndex: 40,
+        borderRadius: 8,
+      }
+    : { position: 'fixed', inset: 0, zIndex: 50 };
+
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black">
+    <div className="flex flex-col bg-black" style={overlayStyle}>
       <div className="relative flex-1">
         {!webrtcPlaying && (
           <>
