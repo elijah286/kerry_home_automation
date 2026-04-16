@@ -80,16 +80,7 @@ This value will be set as `TUNNEL_SECRET` on both Railway and the home backend.
 ### Create the proxy service
 
 1. Click **New Service > GitHub Repo** (or use the already-connected repo)
-2. In the service settings:
-
-| Setting | Value |
-|---|---|
-| **Root Directory** | `/` (repo root — needed for npm workspace install) |
-| **Builder** | Dockerfile |
-| **Dockerfile Path** | `proxy/Dockerfile` |
-| **Start Command** | `node dist/index.js` |
-
-Alternatively, Railway will auto-detect `proxy/railway.toml` if it is in the repo root. You can move `proxy/railway.toml` to the repo root to use this.
+2. Railway auto-detects `railway.toml` at the repo root, which configures the Dockerfile builder and health checks. No manual settings needed.
 
 ### Set environment variables
 
