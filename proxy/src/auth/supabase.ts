@@ -43,7 +43,9 @@ export async function verifySupabaseToken(token: string): Promise<VerifiedUser |
         .update(`${header}.${payload}`)
         .digest('base64url');
 
-      if (expected !== signature) return null;
+      // If HMAC doesn't match, the token may use a different algorithm
+      // (e.g. ES256 with Supabase's new ECC keys). Fall through to API.
+      if (expected !== signature) throw new Error('HMAC mismatch, trying API fallback');
 
       const decoded = JSON.parse(
         Buffer.from(payload, 'base64url').toString('utf-8'),
