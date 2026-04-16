@@ -24,10 +24,12 @@ function MSEStream({
   name,
   onPlaying,
   onOffline,
+  contain,
 }: {
   name: string;
   onPlaying?: () => void;
   onOffline?: () => void;
+  contain?: boolean;
 }) {
   const videoRef     = useRef<HTMLVideoElement>(null);
   const onPlayingRef = useRef(onPlaying);
@@ -244,7 +246,7 @@ function MSEStream({
       autoPlay
       muted
       playsInline
-      className="pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-300"
+      className={`pointer-events-none absolute inset-0 h-full w-full transition-opacity duration-300 ${contain ? 'object-contain' : 'object-cover'}`}
       style={{ zIndex: 2, opacity: visible ? 1 : 0 }}
     />
   );
@@ -563,9 +565,9 @@ const CameraTile = memo(function CameraTile({
 // ---------------------------------------------------------------------------
 
 function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => void }) {
-  const [snapRev,       setSnapRev]       = useState(0);
-  const [webrtcPlaying, setWebrtcPlaying] = useState(false);
-  const [snapError,     setSnapError]     = useState(false);
+  const [snapRev,      setSnapRev]      = useState(0);
+  const [msePlaying,   setMsePlaying]   = useState(false);
+  const [snapError,    setSnapError]    = useState(false);
   const frame = useLCARSFrame();
 
   useEffect(() => {
@@ -574,16 +576,16 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  // Snapshot polling — provides updating stills every 2 s until WebRTC takes over.
+  // Snapshot polling — provides updating stills every 2 s until MSE takes over.
   useEffect(() => {
-    if (webrtcPlaying) return;
+    if (msePlaying) return;
     const t = window.setInterval(() => setSnapRev((n) => n + 1), 2000);
     return () => window.clearInterval(t);
-  }, [webrtcPlaying]);
+  }, [msePlaying]);
 
   useEffect(() => {
     setSnapError(false);
-    setWebrtcPlaying(false);
+    setMsePlaying(false);
   }, [cam.name]);
 
   // In LCARS mode, constrain to the content area (inside header/footer/sidebar).
@@ -603,9 +605,9 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
   return (
     <div className="flex flex-col bg-black" style={overlayStyle}>
       <div className="relative flex-1">
-        {/* Snapshot fallback — always visible underneath WebRTC so it shows
-            immediately when WebRTC stalls or hasn't connected yet. */}
-        {!webrtcPlaying && (
+        {/* Snapshot fallback — always visible underneath MSE so it shows
+            immediately when MSE stalls or hasn't connected yet. */}
+        {!msePlaying && (
           <img
             src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapRev}${authQueryParam(true)}`}
             alt={cam.label}
@@ -614,10 +616,11 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
           />
         )}
 
-        <WebRTCStream
+        <MSEStream
           name={cam.name}
-          onPlaying={() => setWebrtcPlaying(true)}
-          onOffline={() => setWebrtcPlaying(false)}
+          contain
+          onPlaying={() => setMsePlaying(true)}
+          onOffline={() => setMsePlaying(false)}
         />
 
         <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-4 py-3">
@@ -633,11 +636,11 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/60 to-transparent px-4 py-3">
           <span className="text-[11px] text-white/60">
-            {webrtcPlaying
-              ? 'Live (WebRTC)'
+            {msePlaying
+              ? 'Live'
               : snapError
                 ? 'No stream — check UniFi / go2rtc and backend logs'
-                : 'Snapshots (2s) · upgrading to WebRTC…'}
+                : 'Snapshots (2s) · connecting…'}
           </span>
         </div>
       </div>
