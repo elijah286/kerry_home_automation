@@ -1,6 +1,7 @@
 export const config = {
   port: parseInt(process.env.PORT ?? '3000', 10),
-  host: process.env.HOST ?? '0.0.0.0',
+  // Always bind 0.0.0.0 — Railway sets HOST=127.0.0.1 which blocks external traffic
+  host: '0.0.0.0',
   supabase: {
     url: process.env.SUPABASE_URL ?? '',
     anonKey: process.env.SUPABASE_ANON_KEY ?? '',
