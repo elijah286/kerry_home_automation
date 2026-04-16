@@ -9,13 +9,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { DashboardDoc } from '@ha/shared';
+import { LayoutDashboard, Plus, Pencil, Trash2 } from 'lucide-react';
 import {
   createDashboard,
   deleteDashboard,
   listDashboards,
 } from '@/lib/api-dashboards';
 import { useAuth } from '@/providers/AuthProvider';
-import { token } from '@/lib/tokens';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { PrimaryButton, GhostIconButton } from '@/components/ui/Button';
+import { SettingsRow, SettingsRowGroup } from '@/components/ui/SettingsRow';
 
 export default function DashboardsListPage() {
   const router = useRouter();
@@ -67,32 +70,26 @@ export default function DashboardsListPage() {
 
   return (
     <div className="mx-auto max-w-3xl p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold" style={{ color: token('--color-text') }}>
-          Dashboards
-        </h1>
-        {isAdmin && (
-          <button
-            type="button"
-            onClick={handleCreate}
-            className="rounded px-3 py-1 text-sm"
-            style={{
-              background: token('--color-accent'),
-              color: token('--color-bg'),
-            }}
-          >
-            New dashboard
-          </button>
-        )}
-      </div>
+      <PageHeader
+        icon={LayoutDashboard}
+        title="Dashboards"
+        subtitle="View and manage dashboards"
+        actions={
+          isAdmin ? (
+            <PrimaryButton icon={Plus} onClick={handleCreate}>
+              New dashboard
+            </PrimaryButton>
+          ) : null
+        }
+      />
 
       {error && (
         <div
-          className="mb-3 rounded p-3 text-sm"
+          className="mb-3 rounded-[var(--radius)] p-3 text-sm"
           style={{
-            background: token('--color-bg-card'),
-            color: token('--color-danger'),
-            border: `1px solid ${token('--color-border')}`,
+            background: 'var(--color-bg-card)',
+            color: 'var(--color-danger)',
+            border: '1px solid var(--color-border)',
           }}
         >
           {error}
@@ -100,63 +97,47 @@ export default function DashboardsListPage() {
       )}
 
       {loading ? (
-        <p className="text-sm" style={{ color: token('--color-text-muted') }}>Loading…</p>
+        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Loading…</p>
       ) : docs.length === 0 ? (
-        <p className="text-sm" style={{ color: token('--color-text-muted') }}>
+        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
           No dashboards yet.
         </p>
       ) : (
-        <ul className="flex flex-col gap-2" role="list">
+        <SettingsRowGroup>
           {docs.map((d) => (
-            <li
+            <SettingsRow
               key={d.id}
-              className="flex items-center gap-3 rounded p-3"
-              style={{
-                background: token('--color-bg-card'),
-                border: `1px solid ${token('--color-border')}`,
-              }}
-            >
-              <div className="flex-1">
-                <a
-                  href={`/dashboards/${d.path}`}
-                  className="font-medium"
-                  style={{ color: token('--color-text') }}
-                >
-                  {d.title}
-                </a>
-                <p className="text-xs" style={{ color: token('--color-text-muted') }}>
-                  /{d.path} · rev {d.revision} · {d.owner.kind}
-                </p>
-              </div>
-              {isAdmin && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/dashboards/${d.path}/edit`)}
-                    className="rounded px-2 py-1 text-xs"
-                    style={{
-                      background: token('--color-bg-secondary'),
-                      color: token('--color-text'),
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(d)}
-                    className="rounded px-2 py-1 text-xs"
-                    style={{
-                      background: token('--color-bg-secondary'),
-                      color: token('--color-danger'),
-                    }}
-                  >
-                    Delete
-                  </button>
-                </>
-              )}
-            </li>
+              icon={LayoutDashboard}
+              label={d.title}
+              description={`/${d.path} · rev ${d.revision} · ${d.owner.kind}`}
+              onClick={() => router.push(`/dashboards/${d.path}`)}
+              hideChevron={isAdmin}
+              extras={
+                isAdmin ? (
+                  <>
+                    <GhostIconButton
+                      icon={Pencil}
+                      aria-label={`Edit ${d.title}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/dashboards/${d.path}/edit`);
+                      }}
+                    />
+                    <GhostIconButton
+                      icon={Trash2}
+                      tone="danger"
+                      aria-label={`Delete ${d.title}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(d);
+                      }}
+                    />
+                  </>
+                ) : null
+              }
+            />
           ))}
-        </ul>
+        </SettingsRowGroup>
       )}
     </div>
   );

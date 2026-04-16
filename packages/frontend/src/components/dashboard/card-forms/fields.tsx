@@ -3,19 +3,14 @@
 // ---------------------------------------------------------------------------
 // Small, uncontrolled-style field primitives for card-type form editors.
 //
-// Every input is uniform in appearance: same padding, same tokenized border,
-// same label treatment. A per-card form composes these — it does not roll its
-// own inputs so that a spacing or theme tweak here flows everywhere.
+// Chrome-consistent: inputs use the shared <Input>/<Textarea> recipe from
+// components/ui so a theme/spacing tweak there flows through every card form.
 // ---------------------------------------------------------------------------
 
 import { type ReactNode } from 'react';
-import { token } from '@/lib/tokens';
-
-const inputStyle = {
-  background: 'var(--color-bg-secondary)',
-  color: 'var(--color-text)',
-  border: `1px solid ${token('--color-border')}`,
-} as const;
+import { Plus, X } from 'lucide-react';
+import { Input, Textarea } from '@/components/ui/Input';
+import { GhostIconButton } from '@/components/ui/Button';
 
 /** Label + helper wrapper used by every field primitive. */
 export function FieldShell({
@@ -28,11 +23,18 @@ export function FieldShell({
   children: ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-0.5 text-xs" style={{ color: token('--color-text-muted') }}>
-      {label && <span>{label}</span>}
+    <label className="flex flex-col gap-1">
+      {label && (
+        <span
+          className="text-xs font-medium"
+          style={{ color: 'var(--color-text-secondary, var(--color-text-muted))' }}
+        >
+          {label}
+        </span>
+      )}
       {children}
       {hint && (
-        <span className="text-[10px]" style={{ color: token('--color-text-muted') }}>
+        <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
           {hint}
         </span>
       )}
@@ -55,13 +57,12 @@ export function TextField({
 }) {
   return (
     <FieldShell label={label} hint={hint}>
-      <input
+      <Input
         type="text"
+        size="sm"
         value={value ?? ''}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value)}
-        className="rounded px-2 py-1 text-sm"
-        style={inputStyle}
       />
     </FieldShell>
   );
@@ -82,13 +83,13 @@ export function TextAreaField({
 }) {
   return (
     <FieldShell label={label} hint={hint}>
-      <textarea
+      <Textarea
+        size="sm"
+        mono
         value={value ?? ''}
         rows={rows}
         spellCheck={false}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded px-2 py-1 font-mono text-xs"
-        style={inputStyle}
       />
     </FieldShell>
   );
@@ -113,8 +114,9 @@ export function NumberField({
 }) {
   return (
     <FieldShell label={label} hint={hint}>
-      <input
+      <Input
         type="number"
+        size="sm"
         value={value ?? ''}
         min={min}
         max={max}
@@ -127,8 +129,6 @@ export function NumberField({
             if (Number.isFinite(n)) onChange(n);
           }
         }}
-        className="rounded px-2 py-1 text-sm"
-        style={inputStyle}
       />
     </FieldShell>
   );
@@ -146,14 +146,19 @@ export function CheckboxField({
   onChange: (next: boolean) => void;
 }) {
   return (
-    <label className="flex items-center gap-2 text-xs" style={{ color: token('--color-text-muted') }}>
+    <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text)' }}>
       <input
         type="checkbox"
         checked={!!value}
         onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4"
       />
       <span>{label}</span>
-      {hint && <span style={{ opacity: 0.7 }}>— {hint}</span>}
+      {hint && (
+        <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+          — {hint}
+        </span>
+      )}
     </label>
   );
 }
@@ -178,10 +183,7 @@ export function SegmentedField<T extends string>({
 }) {
   return (
     <FieldShell label={label} hint={hint}>
-      <div
-        className="flex flex-wrap gap-1 rounded p-0.5"
-        style={{ background: token('--color-bg-secondary') }}
-      >
+      <div className="flex flex-wrap gap-1.5">
         {options.map((opt) => {
           const selected = value === opt.value;
           return (
@@ -189,10 +191,12 @@ export function SegmentedField<T extends string>({
               key={opt.value}
               type="button"
               onClick={() => onChange(opt.value)}
-              className="rounded px-2 py-0.5 text-xs"
+              className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
               style={{
-                background: selected ? token('--color-accent') : 'transparent',
-                color: selected ? token('--color-bg') : token('--color-text-muted'),
+                background: selected ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                color: selected ? '#fff' : 'var(--color-text)',
+                border: '1px solid',
+                borderColor: selected ? 'var(--color-accent)' : 'var(--color-border)',
               }}
             >
               {opt.label}
@@ -221,19 +225,19 @@ export function EntityField({
 }) {
   return (
     <FieldShell label={label ?? 'Entity'} hint={hint}>
-      <input
+      <Input
         type="text"
+        size="sm"
+        mono
         value={value ?? ''}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded px-2 py-1 font-mono text-xs"
-        style={inputStyle}
       />
     </FieldShell>
   );
 }
 
-/** Comma-separated string list <-> string[]. */
+/** Repeating list of entity-id strings. */
 export function EntityListField({
   label,
   value,
@@ -248,46 +252,41 @@ export function EntityListField({
   const items = value ?? [];
   return (
     <FieldShell label={label ?? 'Entities'} hint={minItems > 0 ? `At least ${minItems}.` : undefined}>
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         {items.map((it, i) => (
-          <div key={i} className="flex gap-1">
-            <input
+          <div key={i} className="flex items-center gap-1.5">
+            <Input
               type="text"
+              size="sm"
+              mono
               value={it}
               onChange={(e) => {
                 const next = items.slice();
                 next[i] = e.target.value;
                 onChange(next);
               }}
-              className="flex-1 rounded px-2 py-1 font-mono text-xs"
-              style={inputStyle}
             />
-            <button
-              type="button"
-              onClick={() => onChange(items.filter((_, j) => j !== i))}
-              disabled={items.length <= minItems}
-              className="rounded px-2 text-xs"
-              style={{
-                color: token('--color-danger'),
-                opacity: items.length <= minItems ? 0.4 : 1,
-              }}
+            <GhostIconButton
+              icon={X}
+              tone="danger"
               aria-label="Remove entity"
-            >
-              ×
-            </button>
+              disabled={items.length <= minItems}
+              onClick={() => onChange(items.filter((_, j) => j !== i))}
+            />
           </div>
         ))}
         <button
           type="button"
           onClick={() => onChange([...items, ''])}
-          className="self-start rounded px-2 py-0.5 text-[11px]"
+          className="inline-flex items-center gap-1.5 self-start rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
           style={{
-            background: token('--color-bg-secondary'),
-            color: token('--color-text-muted'),
-            border: `1px dashed ${token('--color-border')}`,
+            background: 'var(--color-bg-secondary)',
+            color: 'var(--color-text)',
+            border: '1px dashed var(--color-border)',
           }}
         >
-          + Add entity
+          <Plus className="h-3.5 w-3.5" />
+          Add entity
         </button>
       </div>
     </FieldShell>
@@ -307,8 +306,8 @@ export function FieldGroup({
     <div className="flex flex-col gap-2">
       {title && (
         <div
-          className="text-[11px] uppercase tracking-wide"
-          style={{ color: token('--color-text-muted') }}
+          className="text-[11px] font-medium uppercase tracking-wider"
+          style={{ color: 'var(--color-text-muted)' }}
         >
           {title}
         </div>

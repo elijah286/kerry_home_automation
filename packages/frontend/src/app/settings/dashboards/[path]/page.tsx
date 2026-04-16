@@ -11,12 +11,14 @@
 import { useCallback, useEffect, useState, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, LayoutDashboard, Save } from 'lucide-react';
+import { LayoutDashboard, Save, Pencil } from 'lucide-react';
 import type { DashboardDoc, User, UserRole, PermissionQuery } from '@ha/shared';
 import { USER_ROLES } from '@ha/shared';
 import { loadDashboard, updateDashboard } from '@/lib/api-dashboards';
 import { getApiBase, apiFetch } from '@/lib/api-base';
 import { useAuth } from '@/providers/AuthProvider';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { PrimaryButton, SecondaryButton } from '@/components/ui/Button';
 
 const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
@@ -131,44 +133,24 @@ export default function DashboardAccessPage({ params }: { params: Promise<{ path
 
   return (
     <div className="mx-auto max-w-2xl p-4 lg:p-6">
-      <div className="mb-5 flex items-center gap-3">
-        <Link
-          href="/settings/dashboards"
-          className="rounded-md p-1.5 transition-colors hover:bg-[var(--color-bg-hover)]"
-          aria-label="Back to dashboards"
-          style={{ color: 'var(--color-text-muted)' }}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div
-          className="flex h-9 w-9 items-center justify-center rounded-lg"
-          style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}
-        >
-          <LayoutDashboard className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-semibold">{doc?.title ?? path}</h1>
-          <p className="truncate text-xs" style={{ color: 'var(--color-text-muted)' }}>
-            /dashboards/{path}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => router.push(`/dashboards/${path}/edit`)}
-          className="rounded-md px-3 py-1.5 text-xs"
-          style={{
-            background: 'var(--color-bg-secondary)',
-            color: 'var(--color-text)',
-            border: '1px solid var(--color-border)',
-          }}
-        >
-          Edit layout
-        </button>
-      </div>
+      <PageHeader
+        icon={LayoutDashboard}
+        title={doc?.title ?? path}
+        subtitle={`/dashboards/${path}`}
+        back="/settings/dashboards"
+        actions={
+          <SecondaryButton
+            icon={Pencil}
+            onClick={() => router.push(`/dashboards/${path}/edit`)}
+          >
+            Edit layout
+          </SecondaryButton>
+        }
+      />
 
       {error && (
         <div
-          className="mb-4 rounded p-3 text-sm"
+          className="mb-4 rounded-[var(--radius)] p-3 text-sm"
           style={{
             background: 'var(--color-bg-card)',
             color: 'var(--color-danger)',
@@ -188,7 +170,9 @@ export default function DashboardAccessPage({ params }: { params: Promise<{ path
             className="rounded-[var(--radius)] border p-4"
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-card)' }}
           >
-            <h2 className="mb-2 text-sm font-semibold">Sidebar</h2>
+            <h2 className="mb-2 text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+              Sidebar
+            </h2>
             <label className="flex cursor-pointer items-center gap-3">
               <input
                 type="checkbox"
@@ -197,7 +181,9 @@ export default function DashboardAccessPage({ params }: { params: Promise<{ path
                 className="h-4 w-4"
               />
               <div>
-                <p className="text-sm font-medium">Show this dashboard in the sidebar</p>
+                <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+                  Show this dashboard in the sidebar
+                </p>
                 <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                   When off, the dashboard is still reachable at its URL but is omitted from navigation.
                 </p>
@@ -210,34 +196,40 @@ export default function DashboardAccessPage({ params }: { params: Promise<{ path
             className="rounded-[var(--radius)] border p-4"
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-card)' }}
           >
-            <h2 className="mb-3 text-sm font-semibold">Who can access</h2>
+            <h2 className="mb-3 text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+              Who can access
+            </h2>
 
-            <div className="mb-4 flex gap-2">
-              {(['everyone', 'restricted'] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMode(m)}
-                  className="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-                  style={{
-                    background: mode === m ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                    color: mode === m ? 'var(--color-bg)' : 'var(--color-text)',
-                    border: '1px solid var(--color-border)',
-                  }}
-                >
-                  {m === 'everyone' ? 'Everyone' : 'Restricted'}
-                </button>
-              ))}
+            <div className="mb-4 flex flex-wrap gap-1.5">
+              {(['everyone', 'restricted'] as const).map((m) => {
+                const selected = mode === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMode(m)}
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+                    style={{
+                      background: selected ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                      color: selected ? '#fff' : 'var(--color-text)',
+                      border: '1px solid',
+                      borderColor: selected ? 'var(--color-accent)' : 'var(--color-border)',
+                    }}
+                  >
+                    {m === 'everyone' ? 'Everyone' : 'Restricted'}
+                  </button>
+                );
+              })}
             </div>
 
             {mode === 'restricted' && (
               <div className="space-y-4">
                 {/* Roles */}
                 <div>
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
+                  <p className="mb-2 text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
                     By role (any)
                   </p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {USER_ROLES.map((role) => {
                       const active = selectedRoles.includes(role);
                       return (
@@ -245,11 +237,12 @@ export default function DashboardAccessPage({ params }: { params: Promise<{ path
                           key={role}
                           type="button"
                           onClick={() => toggleRole(role)}
-                          className="rounded-md px-3 py-1.5 text-xs"
+                          className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
                           style={{
                             background: active ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                            color: active ? 'var(--color-bg)' : 'var(--color-text)',
-                            border: '1px solid var(--color-border)',
+                            color: active ? '#fff' : 'var(--color-text)',
+                            border: '1px solid',
+                            borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
                           }}
                         >
                           {ROLE_LABELS[role]}
@@ -262,7 +255,7 @@ export default function DashboardAccessPage({ params }: { params: Promise<{ path
                 {/* Users */}
                 {users.length > 0 && (
                   <div>
-                    <p className="mb-2 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
+                    <p className="mb-2 text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-muted)' }}>
                       By specific user
                     </p>
                     <div className="space-y-1">
@@ -271,7 +264,7 @@ export default function DashboardAccessPage({ params }: { params: Promise<{ path
                         return (
                           <label
                             key={u.id}
-                            className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-[var(--color-bg-hover)]"
+                            className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--color-bg-hover)]"
                           >
                             <input
                               type="checkbox"
@@ -279,7 +272,9 @@ export default function DashboardAccessPage({ params }: { params: Promise<{ path
                               onChange={() => toggleUser(u.id)}
                               className="h-4 w-4"
                             />
-                            <span className="text-sm">{u.displayName}</span>
+                            <span className="text-sm" style={{ color: 'var(--color-text)' }}>
+                              {u.displayName}
+                            </span>
                             <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                               @{u.username} · {u.role}
                             </span>
@@ -299,7 +294,9 @@ export default function DashboardAccessPage({ params }: { params: Promise<{ path
                     className="h-4 w-4"
                   />
                   <div>
-                    <p className="text-sm font-medium">Require PIN elevation</p>
+                    <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+                      Require PIN elevation
+                    </p>
                     <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                       Users must enter their elevation PIN each session before viewing.
                     </p>
@@ -315,31 +312,16 @@ export default function DashboardAccessPage({ params }: { params: Promise<{ path
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-2">
-            <Link
-              href="/settings/dashboards"
-              className="rounded-md px-3 py-1.5 text-sm"
-              style={{
-                background: 'var(--color-bg-secondary)',
-                color: 'var(--color-text)',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              Cancel
+            <Link href="/settings/dashboards">
+              <SecondaryButton>Cancel</SecondaryButton>
             </Link>
-            <button
-              type="button"
+            <PrimaryButton
+              icon={Save}
               onClick={() => void handleSave()}
               disabled={saving}
-              className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium"
-              style={{
-                background: 'var(--color-accent)',
-                color: 'var(--color-bg)',
-                opacity: saving ? 0.6 : 1,
-              }}
             >
-              <Save className="h-3.5 w-3.5" />
               {saving ? 'Saving…' : 'Save changes'}
-            </button>
+            </PrimaryButton>
           </div>
         </div>
       )}

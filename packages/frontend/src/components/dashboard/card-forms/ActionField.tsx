@@ -9,7 +9,6 @@
 
 import type { Action } from '@ha/shared';
 import { EntityField, SegmentedField, TextField, FieldShell } from './fields';
-import { token } from '@/lib/tokens';
 
 const ACTION_OPTIONS = [
   { value: 'none', label: 'None' },
@@ -61,10 +60,10 @@ export function ActionField({
   return (
     <FieldShell label={label}>
       <div
-        className="flex flex-col gap-2 rounded p-2"
+        className="flex flex-col gap-3 rounded-lg p-3"
         style={{
-          background: token('--color-bg-secondary'),
-          border: `1px solid ${token('--color-border')}`,
+          background: 'var(--color-bg)',
+          border: '1px solid var(--color-border)',
         }}
       >
         <SegmentedField<ActionType>
@@ -162,8 +161,8 @@ export function ActionField({
           <button
             type="button"
             onClick={() => onChange(undefined)}
-            className="self-start text-[11px] underline"
-            style={{ color: token('--color-text-muted') }}
+            className="self-start text-[11px] font-medium transition-colors hover:underline"
+            style={{ color: 'var(--color-text-muted)' }}
           >
             Clear action
           </button>

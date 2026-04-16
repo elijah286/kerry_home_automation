@@ -19,7 +19,6 @@
 import type { DashboardDoc, DashboardSection } from '@ha/shared';
 import { CardRenderer, CardHandlersProvider } from '@/components/cards';
 import type { DeviceCommandHandlers } from '@/hooks/useDeviceCommand';
-import { token } from '@/lib/tokens';
 
 interface DashboardViewProps {
   doc: DashboardDoc;
@@ -31,7 +30,7 @@ export function DashboardView({ doc, handlers = {} }: DashboardViewProps) {
     <CardHandlersProvider handlers={handlers}>
       <div className="min-h-full px-4 py-4 lg:px-6 lg:py-6" data-dashboard-path={doc.path}>
         {doc.title && (
-          <h1 className="mb-4 text-2xl font-semibold" style={{ color: token('--color-text') }}>
+          <h1 className="mb-4 text-lg font-semibold" style={{ color: 'var(--color-text)' }}>
             {doc.title}
           </h1>
         )}
@@ -81,15 +80,18 @@ function DashboardBody({ doc }: { doc: DashboardDoc }) {
 function SectionColumn({ section }: { section: DashboardSection }) {
   return (
     <div
-      className="flex flex-col gap-3 rounded-lg p-3"
+      className="flex flex-col gap-3 rounded-[var(--radius)] p-4"
       style={{
-        background: token('--color-bg-secondary'),
-        border: `1px solid ${token('--color-border')}`,
+        background: 'var(--color-bg-secondary)',
+        border: '1px solid var(--color-border)',
       }}
       data-section-id={section.id}
     >
       {section.title && (
-        <h2 className="text-base font-medium" style={{ color: token('--color-text') }}>
+        <h2
+          className="text-xs font-medium uppercase tracking-wider"
+          style={{ color: 'var(--color-text-muted)' }}
+        >
           {section.title}
         </h2>
       )}
@@ -103,11 +105,11 @@ function SectionColumn({ section }: { section: DashboardSection }) {
 function EmptyState() {
   return (
     <div
-      className="rounded-lg p-6 text-sm"
+      className="rounded-[var(--radius)] p-6 text-sm"
       style={{
-        background: token('--color-bg-card'),
-        color: token('--color-text-muted'),
-        border: `1px dashed ${token('--color-border')}`,
+        background: 'var(--color-bg-card)',
+        color: 'var(--color-text-muted)',
+        border: '1px dashed var(--color-border)',
       }}
     >
       This dashboard has no cards yet. Use the editor to add some.

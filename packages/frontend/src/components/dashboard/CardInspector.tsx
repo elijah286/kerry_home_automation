@@ -8,7 +8,8 @@
 // ---------------------------------------------------------------------------
 
 import type { CardDescriptor } from '@ha/shared';
-import { token } from '@/lib/tokens';
+import { Trash2, X } from 'lucide-react';
+import { GhostIconButton } from '@/components/ui/Button';
 import { CardForm } from './card-forms';
 
 interface CardInspectorProps {
@@ -21,33 +22,40 @@ interface CardInspectorProps {
 export function CardInspector({ card, onChange, onClose, onDelete }: CardInspectorProps) {
   return (
     <div
-      className="flex flex-col gap-3 rounded p-3"
+      className="flex flex-col gap-3 rounded-[var(--radius)] p-4"
       style={{
-        background: token('--color-bg-card'),
-        border: `1px solid ${token('--color-border')}`,
+        background: 'var(--color-bg-card)',
+        border: '1px solid var(--color-border)',
       }}
     >
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-sm" style={{ color: token('--color-text') }}>
-          {card.type}
-        </span>
-        <div className="flex gap-2">
-          <button
-            type="button"
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+            Edit card
+          </span>
+          <span
+            className="rounded-md px-2 py-0.5 font-mono text-[11px]"
+            style={{
+              background: 'var(--color-bg-secondary)',
+              color: 'var(--color-text-muted)',
+              border: '1px solid var(--color-border)',
+            }}
+          >
+            {card.type}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <GhostIconButton
+            icon={Trash2}
+            tone="danger"
+            aria-label="Delete card"
             onClick={onDelete}
-            className="rounded px-2 py-0.5 text-xs"
-            style={{ color: token('--color-danger') }}
-          >
-            Delete
-          </button>
-          <button
-            type="button"
+          />
+          <GhostIconButton
+            icon={X}
+            aria-label="Close inspector"
             onClick={onClose}
-            className="rounded px-2 py-0.5 text-xs"
-            style={{ color: token('--color-text-muted') }}
-          >
-            Close
-          </button>
+          />
         </div>
       </div>
 

@@ -20,7 +20,8 @@ import {
   type CardDescriptor,
   type CardType,
 } from '@ha/shared';
-import { token } from '@/lib/tokens';
+import { PrimaryButton, SecondaryButton } from '@/components/ui/Button';
+import { Textarea } from '@/components/ui/Input';
 import {
   CheckboxField,
   EntityField,
@@ -79,10 +80,10 @@ export function CardForm({ card, onChange }: CardFormProps) {
           <button
             type="button"
             onClick={() => setForceYaml((v) => !v)}
-            className="text-[11px] underline"
-            style={{ color: token('--color-text-muted') }}
+            className="text-[11px] font-medium transition-colors hover:underline"
+            style={{ color: 'var(--color-text-muted)' }}
           >
-            {showYaml ? 'Back to form' : 'Edit as YAML'}
+            {showYaml ? '← Back to form' : 'Edit as YAML'}
           </button>
         )}
       </div>
@@ -375,7 +376,7 @@ function EntityListForm({ card, onChange }: { card: Extract<CardDescriptor, { ty
     <FieldGroup>
       <TextField label="Title" value={card.title} onChange={(title) => patch({ title })} />
       {anyRich && (
-        <p className="text-[11px]" style={{ color: token('--color-warning') }}>
+        <p className="text-[11px]" style={{ color: 'var(--color-warning)' }}>
           Some rows have custom name/icon overrides. Edit via YAML to preserve them.
         </p>
       )}
@@ -518,7 +519,7 @@ function StackForm({ card, onChange }: { card: Extract<CardDescriptor, { type: '
           { value: 'lg', label: 'lg' },
         ]}
       />
-      <p className="text-[11px]" style={{ color: token('--color-text-muted') }}>
+      <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
         {card.children.length} child{card.children.length === 1 ? '' : 'ren'}. Children are
         edited as YAML for now.
       </p>
@@ -555,49 +556,27 @@ function YamlFallback({ card, onChange }: CardFormProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-[11px]" style={{ color: token('--color-text-muted') }}>
+      <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
         No structured form for <code>{card.type}</code> yet — falling back to YAML.
       </p>
-      <textarea
+      <Textarea
+        size="sm"
+        mono
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         spellCheck={false}
         rows={Math.min(20, draft.split('\n').length + 1)}
-        className="w-full rounded p-2 font-mono text-xs"
-        style={{
-          background: token('--color-bg-secondary'),
-          color: token('--color-text'),
-          border: `1px solid ${token('--color-border')}`,
-        }}
       />
       {error && (
-        <p className="text-xs" style={{ color: token('--color-danger') }}>
+        <p className="text-xs" style={{ color: 'var(--color-danger)' }}>
           {error}
         </p>
       )}
       <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => { setDraft(yamlText); setError(null); }}
-          className="rounded px-3 py-1 text-xs"
-          style={{
-            background: token('--color-bg-secondary'),
-            color: token('--color-text'),
-          }}
-        >
+        <SecondaryButton onClick={() => { setDraft(yamlText); setError(null); }}>
           Revert
-        </button>
-        <button
-          type="button"
-          onClick={apply}
-          className="rounded px-3 py-1 text-xs"
-          style={{
-            background: token('--color-accent'),
-            color: token('--color-bg'),
-          }}
-        >
-          Apply YAML
-        </button>
+        </SecondaryButton>
+        <PrimaryButton onClick={apply}>Apply YAML</PrimaryButton>
       </div>
     </div>
   );

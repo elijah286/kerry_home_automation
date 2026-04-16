@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import type { DashboardDoc } from '@ha/shared';
+import { Pencil } from 'lucide-react';
 import { loadDashboard } from '@/lib/api-dashboards';
 import { DashboardView } from '@/components/dashboard/DashboardView';
 import { useAuth } from '@/providers/AuthProvider';
-import { token } from '@/lib/tokens';
+import { SecondaryButton } from '@/components/ui/Button';
 
 export default function DashboardPage() {
   const { path } = useParams<{ path: string }>();
@@ -29,11 +30,11 @@ export default function DashboardPage() {
     return (
       <div className="p-6">
         <div
-          className="rounded-lg p-4 text-sm"
+          className="rounded-[var(--radius)] p-4 text-sm"
           style={{
-            background: token('--color-bg-card'),
-            color: token('--color-danger'),
-            border: `1px solid ${token('--color-border')}`,
+            background: 'var(--color-bg-card)',
+            color: 'var(--color-danger)',
+            border: '1px solid var(--color-border)',
           }}
         >
           Failed to load dashboard &quot;{path}&quot;: {error}
@@ -44,7 +45,7 @@ export default function DashboardPage() {
 
   if (!doc) {
     return (
-      <div className="p-6 text-sm" style={{ color: token('--color-text-muted') }}>
+      <div className="p-6 text-sm" style={{ color: 'var(--color-text-muted)' }}>
         Loading…
       </div>
     );
@@ -54,18 +55,12 @@ export default function DashboardPage() {
     <div>
       {user?.role === 'admin' && (
         <div className="flex justify-end px-4 pt-4 lg:px-6">
-          <button
-            type="button"
+          <SecondaryButton
+            icon={Pencil}
             onClick={() => router.push(`/dashboards/${doc.path}/edit`)}
-            className="rounded px-3 py-1 text-xs"
-            style={{
-              background: token('--color-bg-secondary'),
-              color: token('--color-text'),
-              border: `1px solid ${token('--color-border')}`,
-            }}
           >
             Edit
-          </button>
+          </SecondaryButton>
         </div>
       )}
       <DashboardView

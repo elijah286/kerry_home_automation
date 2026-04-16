@@ -6,16 +6,16 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import type { DashboardDoc } from '@ha/shared';
+import { Pencil } from 'lucide-react';
 import { loadDashboard } from '@/lib/api-dashboards';
 import { DashboardEditor } from '@/components/dashboard/DashboardEditor';
 import { useAuth } from '@/providers/AuthProvider';
-import { token } from '@/lib/tokens';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 export default function DashboardEditPage() {
   const { path } = useParams<{ path: string }>();
-  const router = useRouter();
   const { user } = useAuth();
 
   const [doc, setDoc] = useState<DashboardDoc | null>(null);
@@ -32,7 +32,7 @@ export default function DashboardEditPage() {
 
   if (user && user.role !== 'admin') {
     return (
-      <div className="p-6 text-sm" style={{ color: token('--color-danger') }}>
+      <div className="p-6 text-sm" style={{ color: 'var(--color-danger)' }}>
         Only administrators can edit dashboards.
       </div>
     );
@@ -42,11 +42,11 @@ export default function DashboardEditPage() {
     return (
       <div className="p-6">
         <div
-          className="rounded-lg p-4 text-sm"
+          className="rounded-[var(--radius)] p-4 text-sm"
           style={{
-            background: token('--color-bg-card'),
-            color: token('--color-danger'),
-            border: `1px solid ${token('--color-border')}`,
+            background: 'var(--color-bg-card)',
+            color: 'var(--color-danger)',
+            border: '1px solid var(--color-border)',
           }}
         >
           Failed to load &quot;{path}&quot;: {error}
@@ -57,7 +57,7 @@ export default function DashboardEditPage() {
 
   if (!doc) {
     return (
-      <div className="p-6 text-sm" style={{ color: token('--color-text-muted') }}>
+      <div className="p-6 text-sm" style={{ color: 'var(--color-text-muted)' }}>
         Loading…
       </div>
     );
@@ -65,15 +65,13 @@ export default function DashboardEditPage() {
 
   return (
     <div>
-      <div className="flex items-center gap-2 px-4 pt-4 lg:px-6">
-        <button
-          type="button"
-          onClick={() => router.push(`/dashboards/${doc.path}`)}
-          className="text-xs underline"
-          style={{ color: token('--color-text-muted') }}
-        >
-          ← Back to dashboard
-        </button>
+      <div className="px-4 pt-4 lg:px-6">
+        <PageHeader
+          icon={Pencil}
+          title={`Edit ${doc.title}`}
+          subtitle={`/${doc.path} · rev ${doc.revision}`}
+          back={`/dashboards/${doc.path}`}
+        />
       </div>
       <DashboardEditor
         initialDoc={doc}

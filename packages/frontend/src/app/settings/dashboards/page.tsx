@@ -14,10 +14,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ChevronRight, EyeOff, Eye, LayoutDashboard } from 'lucide-react';
+import { EyeOff, Eye, LayoutDashboard } from 'lucide-react';
 import type { DashboardDoc } from '@ha/shared';
 import { listDashboards, updateDashboard } from '@/lib/api-dashboards';
 import { useAuth } from '@/providers/AuthProvider';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { SettingsRow, SettingsRowGroup } from '@/components/ui/SettingsRow';
+import { GhostIconButton } from '@/components/ui/Button';
 
 function visibilityLabel(doc: DashboardDoc): string {
   const v = doc.visibility;
@@ -78,31 +81,16 @@ export default function DashboardsSettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl p-4 lg:p-6">
-      <div className="mb-5 flex items-center gap-3">
-        <Link
-          href="/settings"
-          className="rounded-md p-1.5 transition-colors hover:bg-[var(--color-bg-hover)]"
-          aria-label="Back to settings"
-          style={{ color: 'var(--color-text-muted)' }}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <div
-          className="flex h-9 w-9 items-center justify-center rounded-lg"
-          style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}
-        >
-          <LayoutDashboard className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
-        </div>
-        <h1 className="text-lg font-semibold">Dashboards</h1>
-      </div>
-
-      <p className="mb-4 text-sm" style={{ color: 'var(--color-text-muted)' }}>
-        Control who can view each dashboard and whether it shows up in the sidebar. Click a row to edit access.
-      </p>
+      <PageHeader
+        icon={LayoutDashboard}
+        title="Dashboards"
+        subtitle="Control who can view each dashboard and whether it shows up in the sidebar. Click a row to edit access."
+        back="/settings"
+      />
 
       {error && (
         <div
-          className="mb-4 rounded p-3 text-sm"
+          className="mb-4 rounded-[var(--radius)] p-3 text-sm"
           style={{
             background: 'var(--color-bg-card)',
             color: 'var(--color-danger)',
@@ -131,61 +119,34 @@ export default function DashboardsSettingsPage() {
           .
         </div>
       ) : (
-        <div
-          className="rounded-[var(--radius)] border overflow-hidden"
-          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-card)' }}
-        >
-          {docs.map((doc, i) => {
+        <SettingsRowGroup>
+          {docs.map((doc) => {
             const hidden = doc.hiddenFromSidebar ?? false;
             const isToggling = togglingPath === doc.path;
             return (
-              <div
+              <SettingsRow
                 key={doc.id}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--color-bg-hover)]"
-                style={i < docs.length - 1 ? { borderBottom: '1px solid var(--color-border)' } : undefined}
-              >
-                <button
-                  type="button"
-                  onClick={() => router.push(`/settings/dashboards/${doc.path}`)}
-                  className="flex flex-1 items-center gap-3 text-left"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{doc.title}</p>
-                    <p className="truncate text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                      /{doc.path} · {visibilityLabel(doc)}
-                    </p>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void handleToggleSidebar(doc);
-                  }}
-                  disabled={isToggling}
-                  title={hidden ? 'Hidden from sidebar — click to show' : 'Visible in sidebar — click to hide'}
-                  className="rounded-md p-1.5 transition-colors hover:bg-[var(--color-bg-secondary)]"
-                  style={{
-                    color: hidden ? 'var(--color-text-muted)' : 'var(--color-accent)',
-                    opacity: isToggling ? 0.4 : 1,
-                  }}
-                  aria-label={hidden ? 'Show in sidebar' : 'Hide from sidebar'}
-                >
-                  {hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => router.push(`/settings/dashboards/${doc.path}`)}
-                  className="shrink-0"
-                  aria-label={`Edit ${doc.title}`}
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
+                icon={LayoutDashboard}
+                label={doc.title}
+                description={`/${doc.path} · ${visibilityLabel(doc)}`}
+                onClick={() => router.push(`/settings/dashboards/${doc.path}`)}
+                extras={
+                  <GhostIconButton
+                    icon={hidden ? EyeOff : Eye}
+                    tone={hidden ? 'default' : 'accent'}
+                    disabled={isToggling}
+                    aria-label={hidden ? 'Show in sidebar' : 'Hide from sidebar'}
+                    title={hidden ? 'Hidden from sidebar — click to show' : 'Visible in sidebar — click to hide'}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleToggleSidebar(doc);
+                    }}
+                  />
+                }
+              />
             );
           })}
-        </div>
+        </SettingsRowGroup>
       )}
     </div>
   );

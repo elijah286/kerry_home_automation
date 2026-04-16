@@ -28,11 +28,13 @@ import {
   type DashboardDoc,
   type DashboardSection,
 } from '@ha/shared';
+import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { DashboardView } from './DashboardView';
 import { CardPalette } from './CardPalette';
 import { CardInspector } from './CardInspector';
 import { updateDashboard } from '@/lib/api-dashboards';
-import { token } from '@/lib/tokens';
+import { PrimaryButton, SecondaryButton, GhostIconButton } from '@/components/ui/Button';
+import { Input, Textarea } from '@/components/ui/Input';
 
 interface DashboardEditorProps {
   initialDoc: DashboardDoc;
@@ -259,11 +261,11 @@ export function DashboardEditor({ initialDoc, onSaved }: DashboardEditorProps) {
 
       {error && (
         <div
-          className="rounded p-2 text-sm"
+          className="rounded-[var(--radius)] p-3 text-sm"
           style={{
-            background: token('--color-bg-card'),
-            color: token('--color-danger'),
-            border: `1px solid ${token('--color-border')}`,
+            background: 'var(--color-bg-card)',
+            color: 'var(--color-danger)',
+            border: '1px solid var(--color-border)',
           }}
         >
           {error}
@@ -272,40 +274,25 @@ export function DashboardEditor({ initialDoc, onSaved }: DashboardEditorProps) {
 
       {mode === 'yaml' ? (
         <div className="flex flex-col gap-2">
-          <textarea
+          <Textarea
             value={yamlText}
             onChange={(e) => setYamlText(e.target.value)}
             spellCheck={false}
             rows={30}
-            className="w-full rounded p-3 font-mono text-xs"
-            style={{
-              background: token('--color-bg-card'),
-              color: token('--color-text'),
-              border: `1px solid ${token('--color-border')}`,
-            }}
+            mono
           />
           {yamlError && (
-            <p className="text-xs" style={{ color: token('--color-danger') }}>
+            <p className="text-xs" style={{ color: 'var(--color-danger)' }}>
               {yamlError}
             </p>
           )}
           <div className="flex justify-end gap-2">
-            <button
-              type="button"
+            <SecondaryButton
               onClick={() => { setYamlText(yamlDraft); setYamlError(null); }}
-              className="rounded px-3 py-1 text-sm"
-              style={{ background: token('--color-bg-secondary'), color: token('--color-text') }}
             >
               Revert
-            </button>
-            <button
-              type="button"
-              onClick={handleYamlApply}
-              className="rounded px-3 py-1 text-sm"
-              style={{ background: token('--color-accent'), color: token('--color-bg') }}
-            >
-              Apply YAML
-            </button>
+            </SecondaryButton>
+            <PrimaryButton onClick={handleYamlApply}>Apply YAML</PrimaryButton>
           </div>
         </div>
       ) : (
@@ -333,14 +320,17 @@ export function DashboardEditor({ initialDoc, onSaved }: DashboardEditorProps) {
             )}
           </div>
           <div>
-            <h3 className="mb-2 text-sm font-medium" style={{ color: token('--color-text-muted') }}>
+            <h3
+              className="mb-2 text-[11px] font-medium uppercase tracking-wider"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
               Preview
             </h3>
             <div
-              className="rounded"
+              className="rounded-[var(--radius)] overflow-hidden"
               style={{
-                background: token('--color-bg'),
-                border: `1px dashed ${token('--color-border')}`,
+                background: 'var(--color-bg)',
+                border: '1px dashed var(--color-border)',
               }}
             >
               <DashboardView doc={doc} />
@@ -382,47 +372,42 @@ function Toolbar({
 }) {
   return (
     <div
-      className="flex items-center gap-2 rounded p-2"
+      className="flex items-center gap-2 rounded-[var(--radius)] p-2"
       style={{
-        background: token('--color-bg-card'),
-        border: `1px solid ${token('--color-border')}`,
+        background: 'var(--color-bg-card)',
+        border: '1px solid var(--color-border)',
       }}
     >
-      <div className="flex rounded" style={{ background: token('--color-bg-secondary') }}>
-        {(['structural', 'yaml'] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => onModeChange(m)}
-            className="rounded px-3 py-1 text-xs"
-            style={{
-              background: mode === m ? token('--color-accent') : 'transparent',
-              color: mode === m ? token('--color-bg') : token('--color-text-muted'),
-            }}
-          >
-            {m === 'structural' ? 'Structural' : 'Raw YAML'}
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-1.5">
+        {(['structural', 'yaml'] as const).map((m) => {
+          const selected = mode === m;
+          return (
+            <button
+              key={m}
+              type="button"
+              onClick={() => onModeChange(m)}
+              className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+              style={{
+                background: selected ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                color: selected ? '#fff' : 'var(--color-text)',
+                border: '1px solid',
+                borderColor: selected ? 'var(--color-accent)' : 'var(--color-border)',
+              }}
+            >
+              {m === 'structural' ? 'Structural' : 'Raw YAML'}
+            </button>
+          );
+        })}
       </div>
       <div className="ml-auto flex items-center gap-2">
         {dirty && (
-          <span className="text-xs" style={{ color: token('--color-warning') }}>
+          <span className="text-xs" style={{ color: 'var(--color-warning)' }}>
             Unsaved changes
           </span>
         )}
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={saving || !dirty}
-          className="rounded px-3 py-1 text-sm"
-          style={{
-            background: token('--color-accent'),
-            color: token('--color-bg'),
-            opacity: saving || !dirty ? 0.5 : 1,
-          }}
-        >
+        <PrimaryButton onClick={onSave} disabled={saving || !dirty}>
           {saving ? 'Saving…' : 'Save'}
-        </button>
+        </PrimaryButton>
       </div>
     </div>
   );
@@ -439,74 +424,73 @@ function Metadata({
 }) {
   return (
     <div
-      className="flex flex-col gap-2 rounded p-3"
+      className="flex flex-col gap-2 rounded-[var(--radius)] p-4"
       style={{
-        background: token('--color-bg-card'),
-        border: `1px solid ${token('--color-border')}`,
+        background: 'var(--color-bg-card)',
+        border: '1px solid var(--color-border)',
       }}
     >
-      <label className="text-xs" style={{ color: token('--color-text-muted') }}>
-        Title
-        <input
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+          Title
+        </span>
+        <Input
           type="text"
+          size="sm"
           value={doc.title}
           onChange={(e) => onChange((prev) => ({ ...prev, title: e.target.value }))}
-          className="mt-0.5 w-full rounded px-2 py-1 text-sm"
-          style={{
-            background: token('--color-bg-secondary'),
-            color: token('--color-text'),
-            border: `1px solid ${token('--color-border')}`,
-          }}
         />
       </label>
-      <label className="text-xs" style={{ color: token('--color-text-muted') }}>
-        Icon (mdi:* or emoji)
-        <input
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+          Icon (mdi:* or emoji)
+        </span>
+        <Input
           type="text"
+          size="sm"
           value={doc.icon ?? ''}
           onChange={(e) =>
             onChange((prev) => ({ ...prev, icon: e.target.value || undefined }))
           }
-          className="mt-0.5 w-full rounded px-2 py-1 text-sm"
-          style={{
-            background: token('--color-bg-secondary'),
-            color: token('--color-text'),
-            border: `1px solid ${token('--color-border')}`,
-          }}
         />
       </label>
-      <div className="flex gap-3 text-xs" style={{ color: token('--color-text-muted') }}>
-        <label className="flex-1">
-          Layout
-          <div
-            className="mt-0.5 flex rounded"
-            style={{ background: token('--color-bg-secondary') }}
-          >
-            {(['sections', 'stack', 'panel'] as const).map((type) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() =>
-                  onChange((prev) => ({ ...prev, layout: { ...prev.layout, type } }))
-                }
-                className="flex-1 rounded px-2 py-1 text-xs"
-                style={{
-                  background:
-                    doc.layout.type === type ? token('--color-accent') : 'transparent',
-                  color:
-                    doc.layout.type === type ? token('--color-bg') : token('--color-text-muted'),
-                }}
-              >
-                {type}
-              </button>
-            ))}
+      <div className="flex gap-3">
+        <label className="flex flex-1 flex-col gap-1">
+          <span className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+            Layout
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {(['sections', 'stack', 'panel'] as const).map((type) => {
+              const selected = doc.layout.type === type;
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() =>
+                    onChange((prev) => ({ ...prev, layout: { ...prev.layout, type } }))
+                  }
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+                  style={{
+                    background: selected ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                    color: selected ? '#fff' : 'var(--color-text)',
+                    border: '1px solid',
+                    borderColor: selected ? 'var(--color-accent)' : 'var(--color-border)',
+                  }}
+                >
+                  {type}
+                </button>
+              );
+            })}
           </div>
         </label>
         {doc.layout.type === 'sections' && (
-          <label className="w-24">
-            Max columns
-            <input
+          <label className="flex w-24 flex-col gap-1">
+            <span className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+              Max columns
+            </span>
+            <Input
               type="number"
+              size="sm"
               min={1}
               max={6}
               value={doc.layout.maxColumns}
@@ -516,12 +500,6 @@ function Metadata({
                   layout: { ...prev.layout, maxColumns: Number(e.target.value) || 1 },
                 }))
               }
-              className="mt-0.5 w-full rounded px-2 py-1 text-sm"
-              style={{
-                background: token('--color-bg-secondary'),
-                color: token('--color-text'),
-                border: `1px solid ${token('--color-border')}`,
-              }}
             />
           </label>
         )}
@@ -632,13 +610,15 @@ function SectionList({
           <button
             type="button"
             onClick={onAddSection}
-            className="rounded border-dashed px-3 py-2 text-xs"
+            className="inline-flex items-center gap-1.5 self-start rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
             style={{
-              border: `1px dashed ${token('--color-border')}`,
-              color: token('--color-text-muted'),
+              background: 'var(--color-bg-secondary)',
+              color: 'var(--color-text)',
+              border: '1px dashed var(--color-border)',
             }}
           >
-            + Add section
+            <Plus className="h-3.5 w-3.5" />
+            Add section
           </button>
         </>
       ) : (
@@ -692,7 +672,7 @@ function DropZone({
         height: active ? 8 : 2,
         margin: '2px 0',
         borderRadius: 2,
-        background: highlighted ? token('--color-accent') : 'transparent',
+        background: highlighted ? 'var(--color-accent)' : 'transparent',
         transition: 'background 120ms, height 120ms',
       }}
     />
@@ -783,10 +763,10 @@ function SectionBlock({
       />
 
       <div
-        className="flex flex-col gap-2 rounded p-3"
+        className="flex flex-col gap-2 rounded-[var(--radius)] p-3"
         style={{
-          background: token('--color-bg-card'),
-          border: `1px solid ${token('--color-border')}`,
+          background: 'var(--color-bg-card)',
+          border: '1px solid var(--color-border)',
         }}
       >
         <div
@@ -800,37 +780,28 @@ function SectionBlock({
           title="Drag to reorder section"
           style={{ cursor: 'grab' }}
         >
-          <span
+          <GripVertical
+            className="h-3.5 w-3.5 shrink-0"
+            style={{ color: 'var(--color-text-muted)' }}
             aria-hidden
-            className="text-xs select-none"
-            style={{ color: token('--color-text-muted') }}
-          >
-            ⠿
-          </span>
-          <input
+          />
+          <Input
             type="text"
+            size="sm"
             value={section.title ?? ''}
             onChange={(e) => onRename(e.target.value)}
             placeholder="Section title"
-            className="flex-1 rounded px-2 py-1 text-sm"
-            style={{
-              background: token('--color-bg-secondary'),
-              color: token('--color-text'),
-              border: `1px solid ${token('--color-border')}`,
-            }}
             // Inputs are draggable by default from the parent; block it so text
             // selection works normally.
             draggable={false}
             onDragStart={(e) => e.stopPropagation()}
           />
-          <button
-            type="button"
+          <GhostIconButton
+            icon={Trash2}
+            tone="danger"
+            aria-label={`Remove section ${section.title ?? ''}`}
             onClick={onRemove}
-            className="rounded px-2 py-0.5 text-xs"
-            style={{ color: token('--color-danger') }}
-          >
-            Remove
-          </button>
+          />
         </div>
 
         <ul className="flex flex-col gap-0.5" role="list">
@@ -854,7 +825,7 @@ function SectionBlock({
             return (
               <Fragment key={card.id ?? `${card.type}-${ci}`}>
                 <li
-                  className="flex items-center gap-2 rounded px-2 py-1"
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
                   draggable
                   onDragStart={(e) => {
                     e.dataTransfer.effectAllowed = 'move';
@@ -862,24 +833,22 @@ function SectionBlock({
                   }}
                   onDragEnd={onEndDrag}
                   style={{
-                    background: isSelected ? token('--color-bg-secondary') : 'transparent',
-                    border: `1px solid ${isSelected ? token('--color-accent') : 'transparent'}`,
+                    background: isSelected ? 'var(--color-bg-secondary)' : 'transparent',
+                    border: `1px solid ${isSelected ? 'var(--color-accent)' : 'transparent'}`,
                     opacity: isDragged ? 0.4 : 1,
                     cursor: 'grab',
                   }}
                 >
-                  <span
+                  <GripVertical
+                    className="h-3.5 w-3.5 shrink-0"
+                    style={{ color: 'var(--color-text-muted)' }}
                     aria-hidden
-                    className="text-xs select-none"
-                    style={{ color: token('--color-text-muted') }}
-                  >
-                    ⠿
-                  </span>
+                  />
                   <button
                     type="button"
                     onClick={() => onSelectCard(isSelected ? null : sel)}
                     className="flex-1 text-left text-xs"
-                    style={{ color: token('--color-text') }}
+                    style={{ color: 'var(--color-text)' }}
                     draggable={false}
                     onDragStart={(e) => e.stopPropagation()}
                   >
@@ -904,13 +873,15 @@ function SectionBlock({
         <button
           type="button"
           onClick={onAddCard}
-          className="rounded border-dashed px-2 py-1 text-xs"
+          className="inline-flex items-center gap-1.5 self-start rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
           style={{
-            border: `1px dashed ${token('--color-border')}`,
-            color: token('--color-text-muted'),
+            background: 'var(--color-bg-secondary)',
+            color: 'var(--color-text)',
+            border: '1px dashed var(--color-border)',
           }}
         >
-          + Add card to this section
+          <Plus className="h-3.5 w-3.5" />
+          Add card to this section
         </button>
       </div>
     </>
@@ -938,10 +909,10 @@ function TopLevelCards({
     drag?.kind === 'card' && drag.sectionIndex === null;
   return (
     <div
-      className="flex flex-col gap-2 rounded p-3"
+      className="flex flex-col gap-2 rounded-[var(--radius)] p-3"
       style={{
-        background: token('--color-bg-card'),
-        border: `1px solid ${token('--color-border')}`,
+        background: 'var(--color-bg-card)',
+        border: '1px solid var(--color-border)',
       }}
     >
       <ul className="flex flex-col gap-0.5" role="list">
@@ -962,7 +933,7 @@ function TopLevelCards({
           return (
             <Fragment key={card.id ?? `${card.type}-${i}`}>
               <li
-                className="flex items-center gap-2 rounded px-2 py-1"
+                className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
                 draggable
                 onDragStart={(e) => {
                   e.dataTransfer.effectAllowed = 'move';
@@ -970,24 +941,22 @@ function TopLevelCards({
                 }}
                 onDragEnd={onEndDrag}
                 style={{
-                  background: isSelected ? token('--color-bg-secondary') : 'transparent',
-                  border: `1px solid ${isSelected ? token('--color-accent') : 'transparent'}`,
+                  background: isSelected ? 'var(--color-bg-secondary)' : 'transparent',
+                  border: `1px solid ${isSelected ? 'var(--color-accent)' : 'transparent'}`,
                   opacity: isDragged ? 0.4 : 1,
                   cursor: 'grab',
                 }}
               >
-                <span
+                <GripVertical
+                  className="h-3.5 w-3.5 shrink-0"
+                  style={{ color: 'var(--color-text-muted)' }}
                   aria-hidden
-                  className="text-xs select-none"
-                  style={{ color: token('--color-text-muted') }}
-                >
-                  ⠿
-                </span>
+                />
                 <button
                   type="button"
                   onClick={() => onSelectCard(i)}
                   className="flex-1 text-left text-xs"
-                  style={{ color: token('--color-text') }}
+                  style={{ color: 'var(--color-text)' }}
                   draggable={false}
                   onDragStart={(e) => e.stopPropagation()}
                 >
@@ -1010,13 +979,15 @@ function TopLevelCards({
       <button
         type="button"
         onClick={onAddCard}
-        className="rounded border-dashed px-2 py-1 text-xs"
+        className="inline-flex items-center gap-1.5 self-start rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
         style={{
-          border: `1px dashed ${token('--color-border')}`,
-          color: token('--color-text-muted'),
+          background: 'var(--color-bg-secondary)',
+          color: 'var(--color-text)',
+          border: '1px dashed var(--color-border)',
         }}
       >
-        + Add card
+        <Plus className="h-3.5 w-3.5" />
+        Add card
       </button>
     </div>
   );
