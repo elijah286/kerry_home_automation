@@ -46,7 +46,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       return reply.code(400).send({ error: 'Username and password required' });
     }
 
-    const { rows } = await query<SessionUserRow>(`${SESSION_SELECT} WHERE username = $1`, [username]);
+    const { rows } = await query<SessionUserRow>(`${SESSION_SELECT} WHERE LOWER(username) = LOWER($1)`, [username]);
 
     if (rows.length === 0) {
       return reply.code(401).send({ error: 'Invalid credentials' });
