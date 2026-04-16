@@ -3,12 +3,19 @@
 // ---------------------------------------------------------------------------
 // Card palette — modal picker listing every card type the editor can add.
 // Hands a freshly-constructed CardDescriptor back to the caller.
+//
+// Uses Radix Dialog so the overlay + escape handling come for free and match
+// the rest of the chrome. The "native select forbidden" rule only applies to
+// dropdowns, not full-screen pickers, which is why this is a grid.
 // ---------------------------------------------------------------------------
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { X } from 'lucide-react';
 import { CARD_TYPES, type CardDescriptor, type CardType } from '@ha/shared';
 import { CARD_TYPE_LABELS, createCardOfType } from '@/lib/dashboard-editor/card-factory';
-import { token } from '@/lib/tokens';
+import { Input } from '@/components/ui/Input';
+import { GhostIconButton } from '@/components/ui/Button';
 
 interface CardPaletteProps {
   open: boolean;
@@ -18,6 +25,12 @@ interface CardPaletteProps {
 
 export function CardPalette({ open, onClose, onPick }: CardPaletteProps) {
   const [query, setQuery] = useState('');
+
+  // Reset the search box each time the palette opens so previous queries
+  // don't persist across unrelated add-card intents.
+  useEffect(() => {
+    if (open) setQuery('');
+  }, [open]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -32,8 +45,6 @@ export function CardPalette({ open, onClose, onPick }: CardPaletteProps) {
     });
   }, [query]);
 
-  if (!open) return null;
-
   const handlePick = (type: CardType) => {
     try {
       const card = createCardOfType(type);
@@ -44,80 +55,76 @@ export function CardPalette({ open, onClose, onPick }: CardPaletteProps) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.6)' }}
-      role="dialog"
-      aria-modal="true"
-      onClick={onClose}
-    >
-      <div
-        className="max-h-[80vh] w-full max-w-xl overflow-auto rounded-lg p-4"
-        style={{
-          background: token('--color-bg-card'),
-          border: `1px solid ${token('--color-border')}`,
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold" style={{ color: token('--color-text') }}>
-            Add a card
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded px-2 py-1 text-sm"
-            style={{ color: token('--color-text-muted') }}
-          >
-            Close
-          </button>
-        </div>
-
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search card types…"
-          className="mb-3 w-full rounded px-2 py-1 text-sm"
-          style={{
-            background: token('--color-bg-secondary'),
-            color: token('--color-text'),
-            border: `1px solid ${token('--color-border')}`,
-          }}
+    <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay
+          className="fixed inset-0 z-40"
+          style={{ background: 'rgba(0,0,0,0.6)' }}
         />
+        <Dialog.Content
+          className="fixed left-1/2 top-1/2 z-50 w-full max-w-xl -translate-x-1/2 -translate-y-1/2 rounded-[var(--radius)] p-5 shadow-2xl focus:outline-none"
+          style={{
+            background: 'var(--color-bg-card)',
+            border: '1px solid var(--color-border)',
+            maxHeight: 'calc(100vh - 4rem)',
+            overflowY: 'auto',
+          }}
+        >
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <Dialog.Title
+              className="text-lg font-semibold"
+              style={{ color: 'var(--color-text)' }}
+            >
+              Add a card
+            </Dialog.Title>
+            <Dialog.Close asChild>
+              <GhostIconButton icon={X} aria-label="Close palette" />
+            </Dialog.Close>
+          </div>
 
-        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="list">
-          {filtered.map((t) => {
-            const meta = CARD_TYPE_LABELS[t];
-            return (
-              <li key={t}>
-                <button
-                  type="button"
-                  onClick={() => handlePick(t)}
-                  className="w-full rounded p-2 text-left"
-                  style={{
-                    background: token('--color-bg-secondary'),
-                    border: `1px solid ${token('--color-border')}`,
-                  }}
-                >
-                  <div className="text-sm font-medium" style={{ color: token('--color-text') }}>
-                    {meta.label}
-                  </div>
-                  <div className="text-xs" style={{ color: token('--color-text-muted') }}>
-                    {meta.description}
-                  </div>
-                  <div
-                    className="mt-1 font-mono text-[10px]"
-                    style={{ color: token('--color-text-muted') }}
+          <Input
+            type="search"
+            size="sm"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search card types…"
+            className="mb-3"
+            autoFocus
+          />
+
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="list">
+            {filtered.map((t) => {
+              const meta = CARD_TYPE_LABELS[t];
+              return (
+                <li key={t}>
+                  <button
+                    type="button"
+                    onClick={() => handlePick(t)}
+                    className="w-full rounded-lg p-3 text-left transition-colors hover:bg-[var(--color-bg-hover)]"
+                    style={{
+                      background: 'var(--color-bg-secondary)',
+                      border: '1px solid var(--color-border)',
+                    }}
                   >
-                    {t}
-                  </div>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    </div>
+                    <div className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+                      {meta.label}
+                    </div>
+                    <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                      {meta.description}
+                    </div>
+                    <div
+                      className="mt-1 font-mono text-[10px]"
+                      style={{ color: 'var(--color-text-muted)' }}
+                    >
+                      {t}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
