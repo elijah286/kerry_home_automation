@@ -54,6 +54,11 @@ export async function registerProxyRoutes(app: FastifyInstance): Promise<void> {
           reply.header(key, value);
         }
       }
+
+      // Decode base64-encoded binary responses (images, etc.)
+      if (response.bodyEncoding === 'base64' && response.body) {
+        return reply.send(Buffer.from(response.body, 'base64'));
+      }
       return reply.send(response.body ?? '');
     } catch (err) {
       logger.error({ err, path, method }, 'Tunnel HTTP proxy error');

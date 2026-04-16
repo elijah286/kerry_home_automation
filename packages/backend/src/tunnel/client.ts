@@ -301,12 +301,28 @@ class TunnelClient {
         }
       }
 
+      // Binary responses (images, etc.) must be base64-encoded to survive
+      // JSON serialization through the tunnel WebSocket.
+      const contentType = responseHeaders['content-type'] ?? '';
+      const isBinary = /^(image|audio|video|application\/octet-stream|application\/pdf)/i.test(contentType);
+
+      let body: string;
+      let bodyEncoding: 'base64' | undefined;
+      if (isBinary) {
+        body = response.rawPayload.toString('base64');
+        bodyEncoding = 'base64';
+      } else {
+        body = response.payload;
+        bodyEncoding = undefined;
+      }
+
       this.send({
         type: 'http_response',
         id: msg.id,
         status: response.statusCode,
         headers: responseHeaders,
-        body: response.payload,
+        body,
+        bodyEncoding,
       });
     } catch (err) {
       logger.error({ err, path: msg.path }, 'Failed to inject tunnel API request');

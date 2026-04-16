@@ -48,6 +48,8 @@ interface TunnelHttpResponse {
   status: number;
   headers: Record<string, string>;
   body?: string;
+  /** When 'base64', body is base64-encoded binary data that must be decoded before sending. */
+  bodyEncoding?: 'base64';
 }
 
 interface TunnelPing {
