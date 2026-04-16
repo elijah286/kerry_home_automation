@@ -8,6 +8,7 @@ const antonio = Antonio({
   display: 'swap',
 });
 import { ThemeProvider } from '@/providers/ThemeProvider';
+import { CapabilitiesProvider } from '@/providers/CapabilitiesProvider';
 import { AuthProvider } from '@/providers/AuthProvider';
 import { AuthGate } from '@/components/layout/AuthGate';
 import { AlertProvider } from '@/components/lcars/LCARSAlertOverlay';
@@ -15,6 +16,7 @@ import { LCARSSoundsProvider } from '@/components/lcars/LCARSSounds';
 import { LCARSVariantProvider } from '@/components/lcars/LCARSVariantProvider';
 import { UpdateInProgressOverlay } from '@/components/layout/UpdateInProgressOverlay';
 import { VersionGuard } from '@/components/layout/VersionGuard';
+import { ToastProvider } from '@/components/notifications/ToastProvider';
 
 export const metadata: Metadata = {
   title: 'HomeOS',
@@ -27,15 +29,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <AuthProvider>
           <ThemeProvider>
-            <AlertProvider>
-              <LCARSVariantProvider>
-                <LCARSSoundsProvider>
-                  <UpdateInProgressOverlay />
-                  <VersionGuard />
-                  <AuthGate>{children}</AuthGate>
-                </LCARSSoundsProvider>
-              </LCARSVariantProvider>
-            </AlertProvider>
+            <CapabilitiesProvider>
+              <AlertProvider>
+                <LCARSVariantProvider>
+                  <LCARSSoundsProvider>
+                    <UpdateInProgressOverlay />
+                    <VersionGuard />
+                    <ToastProvider />
+                    <AuthGate>{children}</AuthGate>
+                  </LCARSSoundsProvider>
+                </LCARSVariantProvider>
+              </AlertProvider>
+            </CapabilitiesProvider>
           </ThemeProvider>
         </AuthProvider>
       </body>

@@ -14,6 +14,7 @@ import { runMigrations } from './db/migrate.js';
 import { loadIntegrationDebugFlags } from './integration-debug.js';
 import { migrateFromRedis } from './db/integration-config-store.js';
 import { historyWriter } from './db/history-writer.js';
+import { startNotificationSweeper } from './notifications/service.js';
 import * as entryStore from './db/integration-entry-store.js';
 import { startEventLogBridge } from './state/event-log-bridge.js';
 import { readFile } from 'node:fs/promises';
@@ -167,6 +168,9 @@ async function main() {
 
   // 8. Start state history writer
   historyWriter.start();
+
+  // 8b. Start notification cleanup sweep (auto-resolve expired rows, drop old ones)
+  startNotificationSweeper();
 
   // 9. Register and start all integrations (they no-op if no entries configured)
   registry.register(new LutronIntegration());

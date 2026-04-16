@@ -1,0 +1,354 @@
+# Seed "home" dashboard — approximates the user's existing Home Assistant
+# main dashboard: 4-column layout with Modes + Presence + Notifications on
+# the left, Access + Cleaning + Security in the center-left, Weather +
+# Climate + Controls in the center-right, Energy + Vehicles on the right.
+#
+# Entity ids reference the current integration naming scheme. Cards bound to
+# a device that does not yet exist will render a muted "missing-entity"
+# fallback via EntityBoundary, so this file is safe to ship even when half
+# the devices are still being onboarded.
+id: home-00000000-0000-0000-0000-000000000001
+path: home
+title: Home
+icon: mdi:home
+owner:
+  kind: system
+createdBy: system
+layout:
+  type: sections
+  maxColumns: 4
+  dense: false
+
+sections:
+  # -------------------------------------------------------------------------
+  # Column 1 — Modes, Presence, Notifications
+  # -------------------------------------------------------------------------
+  - id: modes
+    cards:
+      - type: horizontal-stack
+        gap: sm
+        children:
+          - type: button
+            name: Guest Mode
+            icon: "👥"
+            tapAction:
+              type: fire-helper
+              helperId: helpers.guest_mode
+              op: toggle
+          - type: button
+            name: Vacation
+            icon: "✈️"
+            tapAction:
+              type: fire-helper
+              helperId: helpers.vacation_mode
+              op: toggle
+          - type: button
+            name: Upstairs Vacant
+            icon: "🏠"
+            tapAction:
+              type: fire-helper
+              helperId: helpers.upstairs_vacant
+              op: toggle
+
+      - type: button
+        name: Keep House On
+        icon: "⏻"
+        tapAction:
+          type: fire-helper
+          helperId: helpers.keep_house_on
+          op: toggle
+
+      - type: heading
+        text: Presence
+        style: subtitle
+
+      - type: entity-list
+        entities:
+          - helpers.presence_mode
+          - presence.person.elijah
+          - presence.person.partner
+          - presence.person.child_1
+          - presence.person.child_2
+          - presence.person.child_3
+
+      - type: heading
+        text: Recent notifications
+        style: subtitle
+
+      - type: notification-inbox
+        title: ""
+        maxRows: 6
+        includeResolved: false
+
+  # -------------------------------------------------------------------------
+  # Column 2 — Access + Cleaning + Motion + Security
+  # -------------------------------------------------------------------------
+  - id: access
+    cards:
+      - type: heading
+        text: Access
+        style: title
+
+      - type: horizontal-stack
+        gap: sm
+        children:
+          - type: button
+            name: Front Door
+            icon: "🚪"
+            tapAction:
+              type: more-info
+              entity: zwave.entry1.lock.front_door
+          - type: button
+            name: Back Door Lock
+            icon: "🔒"
+            tapAction:
+              type: more-info
+              entity: zwave.entry1.lock.back_door
+
+      - type: horizontal-stack
+        gap: sm
+        children:
+          - type: button
+            name: Outside Garage
+            icon: "🏠"
+            tapAction:
+              type: more-info
+              entity: meross.entry1.garage.outside
+          - type: button
+            name: Inside Garage
+            icon: "🏚️"
+            tapAction:
+              type: more-info
+              entity: meross.entry1.garage.inside
+
+      - type: heading
+        text: Cleaning
+        style: title
+
+      - type: horizontal-stack
+        gap: sm
+        children:
+          - type: button
+            name: Clean
+            icon: "🧹"
+            tapAction:
+              type: command
+              deviceId: roborock.entry1.vacuum
+              command: start
+          - type: button
+            name: Configure
+            icon: "⚙️"
+            tapAction:
+              type: navigate
+              path: /settings/vacuum
+          - type: button
+            name: Auto Run
+            icon: "🕒"
+            tapAction:
+              type: fire-helper
+              helperId: helpers.vacuum_auto_run
+              op: toggle
+
+      - type: heading
+        text: Motion Based Lighting
+        style: title
+
+      - type: horizontal-stack
+        gap: sm
+        children:
+          - type: button
+            name: Auto On
+            icon: "🚶"
+            tapAction:
+              type: fire-helper
+              helperId: helpers.motion_auto_on
+              op: toggle
+          - type: button
+            name: Auto Off
+            icon: "🚷"
+            tapAction:
+              type: fire-helper
+              helperId: helpers.motion_auto_off
+              op: toggle
+          - type: button
+            name: See Status
+            icon: "📋"
+            tapAction:
+              type: navigate
+              path: /automations
+
+      - type: heading
+        text: Security
+        style: title
+
+      - type: button
+        name: Security
+        icon: "🛡️"
+        tapAction:
+          type: navigate
+          path: /alarms
+
+  # -------------------------------------------------------------------------
+  # Column 3 — Weather, Climate, Controls
+  # -------------------------------------------------------------------------
+  - id: climate
+    cards:
+      - type: heading
+        text: Weather
+        style: title
+
+      # Placeholder until the weather card component ships; renders a muted
+      # markdown tile without breaking the layout.
+      - type: markdown
+        content: |
+          **Weather card coming soon.**
+          Forecast + 5-day outlook will render here once the weather card
+          component lands.
+
+      - type: heading
+        text: Climate
+        style: title
+
+      - type: horizontal-stack
+        gap: sm
+        children:
+          - type: sensor-value
+            entity: ecobee.entry1.thermostat.main_floor
+            name: Main Floor
+            format: temperature
+          - type: sensor-value
+            entity: ecobee.entry1.thermostat.upstairs
+            name: Upstairs
+            format: temperature
+
+      - type: heading
+        text: Controls
+        style: title
+
+      - type: horizontal-stack
+        gap: sm
+        children:
+          - type: button
+            name: Rooms
+            icon: "🏠"
+            tapAction:
+              type: navigate
+              path: /areas
+          - type: button
+            name: A/V
+            icon: "📺"
+            tapAction:
+              type: navigate
+              path: /dashboards/media
+          - type: button
+            name: Bedjet
+            icon: "🛏️"
+            tapAction:
+              type: navigate
+              path: /dashboards/bedjet
+
+      - type: horizontal-stack
+        gap: sm
+        children:
+          - type: button
+            name: Cameras
+            icon: "📷"
+            tapAction:
+              type: navigate
+              path: /dashboards/cameras
+          - type: button
+            name: Wake-Up
+            icon: "⏰"
+            tapAction:
+              type: navigate
+              path: /dashboards/wakeup
+          - type: button
+            name: Climate
+            icon: "🌡️"
+            tapAction:
+              type: navigate
+              path: /dashboards/climate
+
+      - type: horizontal-stack
+        gap: sm
+        children:
+          - type: button
+            name: Network
+            icon: "🌐"
+            tapAction:
+              type: navigate
+              path: /dashboards/network
+          - type: button
+            name: Power
+            icon: "⚡"
+            tapAction:
+              type: navigate
+              path: /dashboards/power
+          - type: button
+            name: Pool
+            icon: "🏊"
+            tapAction:
+              type: navigate
+              path: /dashboards/pool
+
+  # -------------------------------------------------------------------------
+  # Column 4 — Energy, Solar, Vehicles
+  # -------------------------------------------------------------------------
+  - id: energy
+    cards:
+      - type: heading
+        text: Powerwall
+        style: title
+
+      - type: horizontal-stack
+        gap: sm
+        children:
+          - type: sensor-value
+            entity: tesla.entry1.site.powerwall_peak
+            name: Peak
+            format: percent
+          - type: sensor-value
+            entity: tesla.entry1.site.powerwall_current
+            name: Current
+            format: percent
+
+      - type: heading
+        text: Energy flow
+        style: subtitle
+
+      - type: entity-list
+        entities:
+          - tesla.entry1.site.solar_power
+          - tesla.entry1.site.grid_power
+          - tesla.entry1.site.battery_power
+          - tesla.entry1.site.home_power
+          - tesla.entry1.site.battery_percent
+
+      - type: heading
+        text: Percent from Solar
+        style: subtitle
+
+      - type: sensor-value
+        entity: tesla.entry1.site.solar_percent
+        name: Solar share
+        format: percent
+        style: big
+
+      - type: heading
+        text: Vehicles
+        style: title
+
+      - type: horizontal-stack
+        gap: sm
+        children:
+          - type: sensor-value
+            entity: tesla.entry1.vehicle.enterprise
+            name: Enterprise
+            format: percent
+          - type: sensor-value
+            entity: tesla.entry1.vehicle.voyager
+            name: Voyager
+            format: percent
+
+pinned: true
+revision: 0

@@ -9,4 +9,8 @@ export * from './automations.js';
 export * from './auth.js';
 export * from './ui-preferences.js';
 export * from './helpers.js';
+export * from './notifications.js';
 export * from './tunnel.js';
+export * from './cards/index.js';
+export * from './dashboards/index.js';
+export * from './themes/index.js';

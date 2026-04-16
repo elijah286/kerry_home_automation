@@ -8,6 +8,8 @@ import type { WsServerMessage } from '@ha/shared';
 import { stateStore } from '../state/store.js';
 import { eventBus } from '../state/event-bus.js';
 import { registry } from '../integrations/registry.js';
+import { notificationBus } from '../notifications/bus.js';
+import { notificationService } from '../notifications/service.js';
 import { logger } from '../logger.js';
 
 const clients = new Set<WebSocket>();
@@ -43,6 +45,20 @@ export function registerWebSocket(app: FastifyInstance): void {
     broadcast({ type: 'session_refresh', userId });
   });
 
+  // Notifications: per-client audience filtering happens on the frontend — the
+  // REST list endpoint enforces visibility, but the WS push goes to everyone
+  // and the client drops rows that fail `isVisible`. This keeps the WS layer
+  // stateless while still hiding sensitive notifications from non-admin users.
+  notificationBus.on('created', (n) => {
+    broadcast({ type: 'notification_created', notification: n });
+  });
+  notificationBus.on('updated', (n) => {
+    broadcast({ type: 'notification_updated', notification: n });
+  });
+  notificationBus.on('removed', (id) => {
+    broadcast({ type: 'notification_removed', id });
+  });
+
   app.get('/ws', { websocket: true }, (socket) => {
     clients.add(socket);
     logger.info({ clients: clients.size }, 'WebSocket client connected');
@@ -54,6 +70,13 @@ export function registerWebSocket(app: FastifyInstance): void {
       integrations: registry.getHealthAll(),
     };
     socket.send(JSON.stringify(snapshot));
+
+    // And the current notification set; the client merges with device state.
+    void notificationService.list().then((notifications) => {
+      if (socket.readyState !== socket.OPEN) return;
+      const msg: WsServerMessage = { type: 'notifications_snapshot', notifications };
+      socket.send(JSON.stringify(msg));
+    });
 
     socket.on('close', () => {
       clients.delete(socket);

@@ -19,6 +19,8 @@ import { UniFiIntegration } from '../integrations/unifi/index.js';
 import WebSocket from 'ws';
 import { registerChatRoutes } from './chat.js';
 import { registerHelperRoutes } from './helpers-routes.js';
+import { registerDashboardRoutes } from './dashboard-routes.js';
+import { registerNotificationRoutes } from './notification-routes.js';
 import { registerScreensaverRoutes } from './screensaver-routes.js';
 import { registerRoborockRoutes } from './roborock-routes.js';
 import { requirePermission, requireRole } from './auth.js';
@@ -37,6 +39,8 @@ const GO2RTC_MSE_REQUEST = JSON.stringify({
 export function registerRoutes(app: FastifyInstance): void {
   registerChatRoutes(app);
   registerHelperRoutes(app);
+  registerDashboardRoutes(app);
+  registerNotificationRoutes(app);
   registerScreensaverRoutes(app);
   registerRoborockRoutes(app);
 

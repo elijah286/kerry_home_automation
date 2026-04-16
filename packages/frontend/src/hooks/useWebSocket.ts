@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import type { DeviceState, IntegrationHealth, WsServerMessage } from '@ha/shared';
 import { getWsBase, isRemoteAccess } from '@/lib/api-base';
+import { notificationStore } from '@/lib/notifications/store';
 
 type Listener = () => void;
 
@@ -64,6 +65,16 @@ class DeviceStore {
       case 'session_refresh':
         this.onSessionRefresh?.(msg.userId);
         return; // No device state change — skip notify
+      case 'notifications_snapshot':
+        notificationStore.replaceAll(msg.notifications);
+        return;
+      case 'notification_created':
+      case 'notification_updated':
+        notificationStore.upsert(msg.notification);
+        return;
+      case 'notification_removed':
+        notificationStore.remove(msg.id);
+        return;
     }
     this.notify();
   }
@@ -92,6 +103,16 @@ class DeviceStore {
 }
 
 const store = new DeviceStore();
+
+/**
+ * Internal: shared DeviceStore singleton. Exported for the narrow-scope hooks
+ * in `useDevice.ts` / `useDevices.ts` / `useDeviceCommand.ts`. Card code should
+ * not touch this directly — use the hooks instead so renders stay fine-grained.
+ */
+export const __deviceStore = store;
+
+/** Ensure the WebSocket is connected. Safe to call repeatedly. */
+export function ensureWsConnected(): void { connectWs(); }
 
 let ws: WebSocket | null = null;
 let retryCount = 0;
