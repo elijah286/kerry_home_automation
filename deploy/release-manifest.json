@@ -1,12 +1,12 @@
 {
-  "version": "v3.14.66",
-  "sha": "39a16cab30a5bbd94413935ed699418b4aeff05a",
-  "shaShort": "39a16ca",
-  "timestamp": "2026-04-16T04:32:01Z",
+  "version": "v3.14.67",
+  "sha": "98bb9523d86ee3ad29b2ea46e97b1eb4f3384270",
+  "shaShort": "98bb952",
+  "timestamp": "2026-04-16T04:39:18Z",
   "images": {
-    "backend": "ghcr.io/elijah286/ha-backend:v3.14.66",
-    "frontend": "ghcr.io/elijah286/ha-frontend:v3.14.66",
-    "roborock-bridge": "ghcr.io/elijah286/ha-roborock-bridge:v3.14.66",
-    "proxy": "ghcr.io/elijah286/ha-proxy:v3.14.66"
+    "backend": "ghcr.io/elijah286/ha-backend:v3.14.67",
+    "frontend": "ghcr.io/elijah286/ha-frontend:v3.14.67",
+    "roborock-bridge": "ghcr.io/elijah286/ha-roborock-bridge:v3.14.67",
+    "proxy": "ghcr.io/elijah286/ha-proxy:v3.14.67"
   }
 }
