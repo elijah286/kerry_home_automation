@@ -19,6 +19,43 @@ export interface BridgeStatusResult {
   status: RoborockStatus | null;
 }
 
+export interface BridgeConsumables {
+  main_brush_work_time: number | null;
+  side_brush_work_time: number | null;
+  filter_work_time: number | null;
+  sensor_dirty_time: number | null;
+  strainer_work_times?: number | null;
+  dust_collection_work_times?: number | null;
+  cleaning_brush_work_times?: number | null;
+}
+
+export interface BridgeCleanSummary {
+  clean_time: number | null;
+  clean_area: number | null;
+  clean_count: number | null;
+  dust_collection_count?: number | null;
+}
+
+export interface BridgeRoom {
+  id: number;
+  name: string;
+  center_x?: number | null;
+  center_y?: number | null;
+}
+
+export interface BridgeCommandOptions {
+  fanSpeed?: number;
+  consumable?: string;
+  roomIds?: number[];
+  mopMode?: string | number;
+  mopIntensity?: string | number;
+  dndEnabled?: boolean;
+  childLock?: boolean;
+  volume?: number;
+  zones?: number[][];
+  target?: [number, number];
+}
+
 function bridgeHeaders(): Record<string, string> {
   const secret = roborockBridgeSettings.secret;
   return {
@@ -155,7 +192,7 @@ export async function bridgeCommand(
   sessionToken: string,
   duid: string,
   action: string,
-  opts?: { fanSpeed?: number },
+  opts?: BridgeCommandOptions,
 ): Promise<void> {
   log.info(
     { duid: duid.slice(0, 12), action },
@@ -166,6 +203,15 @@ export async function bridgeCommand(
     duid,
     action,
     fan_speed: opts?.fanSpeed,
+    consumable: opts?.consumable,
+    room_ids: opts?.roomIds,
+    mop_mode: opts?.mopMode,
+    mop_intensity: opts?.mopIntensity,
+    dnd_enabled: opts?.dndEnabled,
+    child_lock: opts?.childLock,
+    volume: opts?.volume,
+    zones: opts?.zones,
+    target: opts?.target,
   });
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { detail?: string };
@@ -178,10 +224,64 @@ export async function bridgeCommand(
   );
 }
 
+export async function bridgeConsumables(
+  sessionToken: string,
+  duid: string,
+): Promise<BridgeConsumables | null> {
+  const res = await bridgeFetch('/v1/consumables', {
+    session_token: sessionToken,
+    duid,
+  });
+  if (!res.ok) {
+    log.debug({ duid: duid.slice(0, 12), status: res.status }, 'Roborock: consumables fetch failed');
+    return null;
+  }
+  return res.json() as Promise<BridgeConsumables>;
+}
+
+export async function bridgeCleanSummary(
+  sessionToken: string,
+  duid: string,
+): Promise<BridgeCleanSummary | null> {
+  const res = await bridgeFetch('/v1/clean-summary', {
+    session_token: sessionToken,
+    duid,
+  });
+  if (!res.ok) {
+    log.debug({ duid: duid.slice(0, 12), status: res.status }, 'Roborock: clean summary fetch failed');
+    return null;
+  }
+  return res.json() as Promise<BridgeCleanSummary>;
+}
+
+export async function bridgeRooms(
+  sessionToken: string,
+  duid: string,
+): Promise<BridgeRoom[]> {
+  const res = await bridgeFetch('/v1/rooms', {
+    session_token: sessionToken,
+    duid,
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as { rooms?: BridgeRoom[] };
+  return data.rooms ?? [];
+}
+
+export async function bridgeRenderMap(
+  mapBase64: string,
+): Promise<Buffer | null> {
+  const res = await bridgeFetch('/v1/render-map', { map_b64: mapBase64 }, 30_000);
+  if (!res.ok) return null;
+  const data = (await res.json()) as { map_png_b64: string | null };
+  if (!data.map_png_b64) return null;
+  return Buffer.from(data.map_png_b64, 'base64');
+}
+
 export interface BridgeMapResult {
   transport: string;
   local_ip: string | null;
   png: Buffer | null;
+  rooms: BridgeRoom[];
 }
 
 export async function bridgeMap(
@@ -201,10 +301,11 @@ export async function bridgeMap(
   const data = (await res.json()) as {
     transport: string;
     map_png_b64: string | null;
+    rooms?: BridgeRoom[];
   };
   const png =
     data.map_png_b64 && data.map_png_b64.length > 0
       ? Buffer.from(data.map_png_b64, 'base64')
       : null;
-  return { transport: data.transport, local_ip: null, png };
+  return { transport: data.transport, local_ip: null, png, rooms: data.rooms ?? [] };
 }

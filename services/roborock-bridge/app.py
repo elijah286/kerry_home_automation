@@ -135,6 +135,20 @@ class SessionDuidBody(SessionBody):
 class CommandBody(SessionDuidBody):
     action: str
     fan_speed: Optional[int] = None
+    consumable: Optional[str] = None
+    room_ids: Optional[list[int]] = None
+    mop_mode: Optional[str] = None
+    mop_intensity: Optional[str] = None
+    dnd_enabled: Optional[bool] = None
+    child_lock: Optional[bool] = None
+    volume: Optional[int] = None
+    zones: Optional[list[list[int]]] = None
+    target: Optional[list[int]] = None
+
+
+class RenderMapBody(BaseModel):
+    """Render raw map bytes (base64) to PNG without needing a session."""
+    map_b64: str = Field(..., min_length=16)
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +197,33 @@ async def _get_device_status(device: Any, timeout: float = 25.0) -> dict[str, An
         "clean_time": _safe_int(d, "clean_time", 0),
         "error_code": _safe_int(d, "error_code", 0),
         "msg_ver": _safe_int(d, "msg_ver", 1),
+        "water_box_status": _safe_int_opt(d, "water_box_status"),
+        "mop_attached": _safe_int_opt(d, "mop_attached"),
+        "water_shortage_status": _safe_int_opt(d, "water_shortage_status"),
+        "dock_error_status": _safe_int_opt(d, "dock_error_status"),
+        "water_box_mode": _safe_int_opt(d, "water_box_mode"),
+        "mop_mode": _safe_int_opt(d, "mop_mode"),
+        "dnd_enabled": _safe_int_opt(d, "dnd_enabled"),
+        "lock_status": _safe_int_opt(d, "lock_status"),
     }
+
+
+def _safe_int_opt(d: dict, key: str) -> Optional[int]:
+    """Like _safe_int, but returns None if the key is missing or unparseable."""
+    v = d.get(key)
+    if v is None:
+        camel = key.replace("_", "")
+        for k in d:
+            if k.replace("_", "").lower() == camel.lower():
+                v = d[k]
+                break
+    if v is None:
+        return None
+    v = _enum_value(v)
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
 
 
 def _normalize_status(raw: Any) -> dict[str, Any] | None:
@@ -419,6 +459,19 @@ async def vacuum_status(body: SessionDuidBody):
     }
 
 
+def _safe_get_cmd(name: str) -> Any:
+    """Look up a RoborockCommand by name, tolerating library version differences."""
+    return getattr(RoborockCommand, name, None)
+
+
+CONSUMABLE_RESET_MAP = {
+    "main_brush": "main_brush_work_time",
+    "side_brush": "side_brush_work_time",
+    "filter": "filter_work_time",
+    "sensor": "sensor_dirty_time",
+}
+
+
 @secure.post("/v1/command")
 async def vacuum_command(body: CommandBody):
     s = _get_session(body.session_token)
@@ -451,6 +504,104 @@ async def vacuum_command(body: CommandBody):
                     device.send(RoborockCommand.APP_START, [{"use_new_map": 1}]),
                     timeout=20.0,
                 )
+        elif action == "reset_consumable":
+            reset_cmd = _safe_get_cmd("RESET_CONSUMABLE")
+            if reset_cmd is None:
+                raise HTTPException(status_code=501, detail="reset_consumable not supported by this python-roborock build")
+            key = CONSUMABLE_RESET_MAP.get(body.consumable or "")
+            if not key:
+                raise HTTPException(status_code=400, detail=f"Unknown consumable: {body.consumable}")
+            await asyncio.wait_for(device.send(reset_cmd, [key]), timeout=20.0)
+        elif action == "segment_clean":
+            seg_cmd = _safe_get_cmd("APP_SEGMENT_CLEAN")
+            if seg_cmd is None:
+                raise HTTPException(status_code=501, detail="segment_clean not supported")
+            if not body.room_ids:
+                raise HTTPException(status_code=400, detail="room_ids required")
+            await asyncio.wait_for(device.send(seg_cmd, body.room_ids), timeout=20.0)
+        elif action == "zone_clean":
+            zone_cmd = _safe_get_cmd("APP_ZONED_CLEAN")
+            if zone_cmd is None:
+                raise HTTPException(status_code=501, detail="zone_clean not supported")
+            if not body.zones:
+                raise HTTPException(status_code=400, detail="zones required")
+            await asyncio.wait_for(device.send(zone_cmd, body.zones), timeout=20.0)
+        elif action == "goto_target":
+            goto_cmd = _safe_get_cmd("APP_GOTO_TARGET")
+            if goto_cmd is None:
+                raise HTTPException(status_code=501, detail="goto_target not supported")
+            if not body.target or len(body.target) != 2:
+                raise HTTPException(status_code=400, detail="target must be [x, y]")
+            await asyncio.wait_for(device.send(goto_cmd, list(body.target)), timeout=20.0)
+        elif action == "set_mop_mode":
+            mop_cmd = _safe_get_cmd("SET_MOP_MODE")
+            if mop_cmd is None:
+                raise HTTPException(status_code=501, detail="set_mop_mode not supported")
+            mode = body.mop_mode
+            if mode is None:
+                raise HTTPException(status_code=400, detail="mop_mode required")
+            # Accept either int or name
+            param: Any
+            try:
+                param = int(mode)
+            except (TypeError, ValueError):
+                param = mode
+            await asyncio.wait_for(device.send(mop_cmd, [param]), timeout=20.0)
+        elif action == "set_mop_intensity":
+            intensity_cmd = _safe_get_cmd("SET_WATER_BOX_CUSTOM_MODE")
+            if intensity_cmd is None:
+                raise HTTPException(status_code=501, detail="set_mop_intensity not supported")
+            val = body.mop_intensity
+            if val is None:
+                raise HTTPException(status_code=400, detail="mop_intensity required")
+            try:
+                param = int(val)
+            except (TypeError, ValueError):
+                param = val
+            await asyncio.wait_for(device.send(intensity_cmd, [param]), timeout=20.0)
+        elif action == "set_dnd":
+            if body.dnd_enabled:
+                dnd_set = _safe_get_cmd("SET_DND_TIMER")
+                if dnd_set is None:
+                    raise HTTPException(status_code=501, detail="set_dnd not supported")
+                # Default DND window 22:00–08:00 when enabling without a caller-provided window
+                await asyncio.wait_for(device.send(dnd_set, [22, 0, 8, 0]), timeout=20.0)
+            else:
+                dnd_close = _safe_get_cmd("CLOSE_DND_TIMER")
+                if dnd_close is None:
+                    raise HTTPException(status_code=501, detail="close_dnd not supported")
+                await asyncio.wait_for(device.send(dnd_close), timeout=20.0)
+        elif action == "set_child_lock":
+            lock_cmd = _safe_get_cmd("SET_CHILD_LOCK_STATUS")
+            if lock_cmd is None:
+                raise HTTPException(status_code=501, detail="set_child_lock not supported")
+            await asyncio.wait_for(
+                device.send(lock_cmd, [{"lock_status": 1 if body.child_lock else 0}]),
+                timeout=20.0,
+            )
+        elif action == "set_volume":
+            vol_cmd = _safe_get_cmd("CHANGE_SOUND_VOLUME")
+            if vol_cmd is None:
+                raise HTTPException(status_code=501, detail="set_volume not supported")
+            if body.volume is None:
+                raise HTTPException(status_code=400, detail="volume required")
+            v = max(0, min(100, int(body.volume)))
+            await asyncio.wait_for(device.send(vol_cmd, [v]), timeout=20.0)
+        elif action == "start_dust_collection":
+            dust_cmd = _safe_get_cmd("APP_START_COLLECT_DUST")
+            if dust_cmd is None:
+                raise HTTPException(status_code=501, detail="start_dust_collection not supported")
+            await asyncio.wait_for(device.send(dust_cmd), timeout=20.0)
+        elif action == "start_mop_wash":
+            wash_cmd = _safe_get_cmd("APP_START_WASH")
+            if wash_cmd is None:
+                raise HTTPException(status_code=501, detail="start_mop_wash not supported")
+            await asyncio.wait_for(device.send(wash_cmd), timeout=20.0)
+        elif action == "stop_mop_wash":
+            wash_stop = _safe_get_cmd("APP_STOP_WASH")
+            if wash_stop is None:
+                raise HTTPException(status_code=501, detail="stop_mop_wash not supported")
+            await asyncio.wait_for(device.send(wash_stop), timeout=20.0)
         elif action in cmd_map:
             await asyncio.wait_for(device.send(cmd_map[action]), timeout=20.0)
         else:
@@ -490,13 +641,165 @@ async def vacuum_map(body: SessionDuidBody):
     png = raw_map_to_png(raw)
     is_local = getattr(device, "is_local_connected", False)
 
+    # Try to extract rooms from the parsed map segments
+    rooms: list[dict[str, Any]] = []
+    try:
+        from map_render import extract_rooms_from_map
+        rooms = extract_rooms_from_map(raw) or []
+    except Exception:
+        rooms = []
+
     if not png:
-        return {"transport": "local" if is_local else "cloud", "map_png_b64": None}
+        return {
+            "transport": "local" if is_local else "cloud",
+            "map_png_b64": None,
+            "rooms": rooms,
+        }
 
     return {
         "transport": "local" if is_local else "cloud",
         "map_png_b64": base64.b64encode(png).decode("ascii"),
+        "rooms": rooms,
     }
+
+
+# ---------------------------------------------------------------------------
+# Consumables / clean summary / rooms / render-map
+# ---------------------------------------------------------------------------
+
+
+def _to_plain_dict(raw: Any) -> dict[str, Any] | None:
+    """Best-effort convert a python-roborock dataclass/list/dict to a flat dict."""
+    if raw is None:
+        return None
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, list) and raw:
+        first = raw[0]
+        if isinstance(first, dict):
+            return first
+        raw = first
+    if hasattr(raw, "as_dict"):
+        try:
+            d = raw.as_dict()
+            if isinstance(d, dict):
+                return d
+        except Exception:
+            pass
+    if hasattr(raw, "__dict__"):
+        # dataclass instance
+        return {k: _enum_value(v) for k, v in vars(raw).items() if not k.startswith("_")}
+    return None
+
+
+@secure.post("/v1/consumables")
+async def vacuum_consumables(body: SessionDuidBody):
+    s = _get_session(body.session_token)
+    device = await s.manager.get_device(body.duid)
+    if device is None:
+        raise HTTPException(status_code=404, detail=f"Device {body.duid} not found")
+    cmd = _safe_get_cmd("GET_CONSUMABLE")
+    if cmd is None:
+        raise HTTPException(status_code=501, detail="get_consumable not supported")
+    try:
+        raw = await asyncio.wait_for(device.send(cmd), timeout=25.0)
+    except asyncio.TimeoutError as e:
+        raise HTTPException(status_code=504, detail="Consumables request timed out") from e
+    except RoborockException as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    d = _to_plain_dict(raw) or {}
+    return {
+        "main_brush_work_time": _safe_int_opt(d, "main_brush_work_time"),
+        "side_brush_work_time": _safe_int_opt(d, "side_brush_work_time"),
+        "filter_work_time": _safe_int_opt(d, "filter_work_time"),
+        "sensor_dirty_time": _safe_int_opt(d, "sensor_dirty_time"),
+        "strainer_work_times": _safe_int_opt(d, "strainer_work_times"),
+        "dust_collection_work_times": _safe_int_opt(d, "dust_collection_work_times"),
+        "cleaning_brush_work_times": _safe_int_opt(d, "cleaning_brush_work_times"),
+    }
+
+
+@secure.post("/v1/clean-summary")
+async def vacuum_clean_summary(body: SessionDuidBody):
+    s = _get_session(body.session_token)
+    device = await s.manager.get_device(body.duid)
+    if device is None:
+        raise HTTPException(status_code=404, detail=f"Device {body.duid} not found")
+    cmd = _safe_get_cmd("GET_CLEAN_SUMMARY")
+    if cmd is None:
+        raise HTTPException(status_code=501, detail="get_clean_summary not supported")
+    try:
+        raw = await asyncio.wait_for(device.send(cmd), timeout=25.0)
+    except asyncio.TimeoutError as e:
+        raise HTTPException(status_code=504, detail="Clean summary request timed out") from e
+    except RoborockException as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    # Library returns either a CleanSummary dataclass or list [total_time, total_area, total_count, [ids...]]
+    d = _to_plain_dict(raw)
+    if d is None and isinstance(raw, list) and len(raw) >= 3:
+        return {
+            "clean_time": _safe_int({"v": raw[0]}, "v"),
+            "clean_area": _safe_int({"v": raw[1]}, "v"),
+            "clean_count": _safe_int({"v": raw[2]}, "v"),
+        }
+    d = d or {}
+    return {
+        "clean_time": _safe_int_opt(d, "clean_time"),
+        "clean_area": _safe_int_opt(d, "clean_area"),
+        "clean_count": _safe_int_opt(d, "clean_count"),
+        "dust_collection_count": _safe_int_opt(d, "dust_collection_count"),
+    }
+
+
+@secure.post("/v1/rooms")
+async def vacuum_rooms(body: SessionDuidBody):
+    s = _get_session(body.session_token)
+    device = await s.manager.get_device(body.duid)
+    if device is None:
+        raise HTTPException(status_code=404, detail=f"Device {body.duid} not found")
+    cmd = _safe_get_cmd("GET_ROOM_MAPPING")
+    if cmd is None:
+        return {"rooms": []}
+    try:
+        raw = await asyncio.wait_for(device.send(cmd), timeout=25.0)
+    except asyncio.TimeoutError:
+        return {"rooms": []}
+    except RoborockException:
+        return {"rooms": []}
+
+    rooms: list[dict[str, Any]] = []
+    # Typical raw format is a list of [room_id, mapping_id] pairs
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, (list, tuple)) and len(item) >= 1:
+                try:
+                    rid = int(item[0])
+                except (TypeError, ValueError):
+                    continue
+                name = f"Room {rid}"
+                if len(item) >= 2 and item[1]:
+                    name = str(item[1])
+                rooms.append({"id": rid, "name": name})
+    return {"rooms": rooms}
+
+
+@secure.post("/v1/render-map")
+async def render_map_endpoint(body: RenderMapBody):
+    """Render raw map bytes to PNG (for the local miIO path)."""
+    try:
+        from map_render import raw_map_to_png
+    except ImportError as e:
+        raise HTTPException(status_code=503, detail=f"Map rendering dependencies missing: {e}") from e
+    try:
+        raw = base64.b64decode(body.map_b64)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid map_b64: {e}") from e
+    png = raw_map_to_png(raw)
+    if not png:
+        return {"map_png_b64": None}
+    return {"map_png_b64": base64.b64encode(png).decode("ascii")}
 
 
 app.include_router(secure)

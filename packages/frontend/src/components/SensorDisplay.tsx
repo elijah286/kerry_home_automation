@@ -3,13 +3,14 @@
 import { createElement } from 'react';
 import type { SensorState } from '@ha/shared';
 import { Badge } from '@/components/ui/Badge';
-import { Activity, Thermometer, Droplets, DoorOpen } from 'lucide-react';
+import { Activity, Thermometer, Droplets, DoorOpen, Wrench } from 'lucide-react';
 
 const SENSOR_ICONS: Record<string, React.ElementType> = {
   motion: Activity,
   temperature: Thermometer,
   humidity: Droplets,
   contact: DoorOpen,
+  consumable: Wrench,
 };
 
 export function SensorDisplay({ device }: { device: SensorState }) {

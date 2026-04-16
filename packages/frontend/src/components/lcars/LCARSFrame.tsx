@@ -4,7 +4,6 @@ import { useTheme } from '@/providers/ThemeProvider';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, useCallback, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
 import { clsx } from 'clsx';
-import { Menu } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { LCARSSidebar } from './LCARSSidebar';
 import { LCARSStartup } from './LCARSStartup';
@@ -41,6 +40,9 @@ export const OUTER_R = 50;
 export const INNER_R = 28;
 const FRAME_STRIPE_W = 4;
 export const CONTENT_EDGE = 10;
+/** Mobile LCARS: fixed tap strip + inset for main content (avoids crowding the header). */
+const MOBILE_LCARS_RAIL_TOUCH = 44;
+const MOBILE_LCARS_RAIL_VISUAL = 12;
 /** Right sidebar width for LCARS top status band — log panel is inset so lines do not run under filter pills. */
 const LCARS_STATUS_FILTER_RAIL_W = 200;
 /** Pull rail under elbows by 1px and paint elbows above — removes anti-alias gaps at seams */
@@ -207,9 +209,9 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
   const barW = collapsed ? BAR_W_COLLAPSED : BAR_W;
   const or = Math.min(OUTER_R, barW);
   const elbowW = barW + INNER_R;
-  /** Mobile-aware layout offsets — sidebar hidden on mobile, content/bars go full-width */
+  /** Mobile-aware layout offsets — sidebar hidden on mobile; thin tap rail + main inset */
   const mElbowW = isMobile ? 0 : elbowW;
-  const mContentLeft = isMobile ? CONTENT_EDGE : elbowW;
+  const mContentLeft = isMobile ? MOBILE_LCARS_RAIL_TOUCH : elbowW;
   const topElbowH = HEADER_H + or;
   const bottomElbowH = FOOTER_H + or;
 
@@ -244,7 +246,8 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
   const contentBottom = FOOTER_H + 2 + terminalInset;
   const statusFullscreen = statusLcarsFullscreen && showTopTerminal;
   /** Stacked header row (footer bar in header) only when the top status band is visible — not in main-column fullscreen. */
-  const useSplitStyleHeaderRow = useStackedStatusChrome && !statusFullscreen;
+  /** Stacked "footer in header" row is too dense on phones — use the standard mobile header there too */
+  const useSplitStyleHeaderRow = useStackedStatusChrome && !statusFullscreen && !isMobile;
   /** Main column top offset (below header bar) — matches `<main>` when the header strip is visible. */
   const MAIN_TOP = HEADER_H + 2;
   /** Fullscreen log uses main column below the normal header strip (breadcrumb bar stays visible). */
@@ -961,33 +964,6 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
           />
         ) : (
           <>
-            {/* Mobile hamburger button */}
-            {isMobile && (
-              <button
-                type="button"
-                onClick={() => setMobileNavOpen(true)}
-                className="lcars-chrome-item"
-                data-sound="beep"
-                style={{
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  alignSelf: 'stretch',
-                  paddingLeft: 10,
-                  paddingRight: 10,
-                  flexShrink: 0,
-                  background: colors.accent,
-                  color: colors.text,
-                  transition: 'background 0.3s ease',
-                }}
-                aria-label="Open navigation menu"
-              >
-                <Menu size={16} />
-              </button>
-            )}
-            {isMobile && <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />}
             <div
               className="lcars-chrome-item"
               style={{
@@ -1050,126 +1026,144 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
                 aria-hidden
               />
             </div>
-            <div
-              className="lcars-chrome-item"
-              style={{
-                display: 'flex',
-                alignItems: 'stretch',
-                alignSelf: 'stretch',
-                flexShrink: 0,
-                minHeight: HEADER_H,
-                background: colors.headerBar,
-                transition: 'background 0.3s ease',
-              }}
-            >
-              <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  alignSelf: 'stretch',
-                  paddingLeft: 8,
-                  paddingRight: 8,
-                  flexShrink: 0,
-                }}
-              >
+            {!isMobile && (
+              <>
                 <div
-                  className="lcars-status-led"
+                  className="lcars-chrome-item"
                   style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: 0,
-                    background: connected ? '#99cc66' : '#cc4444',
-                  }}
-                  aria-label={connected ? 'Connected' : 'Disconnected'}
-                  role="img"
-                />
-              </div>
-              <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  alignSelf: 'stretch',
-                  paddingLeft: 4,
-                  paddingRight: 4,
-                  flexShrink: 0,
-                  background: colors.headerBar,
-                }}
-              >
-                <PinElevationControls variant="lcars" lcarsTextColor={colors.text} lcarsAccentBg={colors.accent} />
-              </div>
-              <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
-              {canUseTerminal && (
-                <button
-                  type="button"
-                  onClick={() => setTerminalOpen(!terminalOpen)}
-                  data-sound={terminalOpen ? 'statusOff' : 'statusOn'}
-                  className={`lcars-chrome-item${hasRecentLogError ? ' system-status-log-error-alert' : ''}`}
-                  aria-label={hasRecentLogError ? 'Status — recent error in system log' : 'Status'}
-                  style={{
-                    ...(hasRecentLogError
-                      ? ({
-                          '--status-alert-base': terminalOpen ? colors.navActive : colors.headerBar,
-                          '--status-alert-fg-base': colors.text,
-                          '--status-alert-border-base': 'transparent',
-                        } as CSSProperties)
-                      : {}),
-                    border: 'none',
-                    cursor: 'pointer',
                     display: 'flex',
-                    alignItems: 'center',
+                    alignItems: 'stretch',
                     alignSelf: 'stretch',
-                    paddingLeft: 12,
-                    paddingRight: 12,
                     flexShrink: 0,
-                    background: hasRecentLogError
-                      ? undefined
-                      : terminalOpen
-                        ? colors.navActive
-                        : colors.headerBar,
-                    color: hasRecentLogError ? undefined : colors.text,
-                    fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
-                    fontWeight: 700,
-                    fontSize: 10,
-                    letterSpacing: '0.12em',
-                    textTransform: 'uppercase',
-                    transition: 'background 0.3s ease, color 0.3s ease',
+                    minHeight: HEADER_H,
+                    background: colors.headerBar,
+                    transition: 'background 0.3s ease',
                   }}
                 >
-                  Status
-                </button>
-              )}
-              <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
-              <MapLayersHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} />
-              <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
-              <AssistantHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} data-sound="sidebar" />
-              <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+                  <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      alignSelf: 'stretch',
+                      paddingLeft: 8,
+                      paddingRight: 8,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <div
+                      className="lcars-status-led"
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: 0,
+                        background: connected ? '#99cc66' : '#cc4444',
+                      }}
+                      aria-label={connected ? 'Connected' : 'Disconnected'}
+                      role="img"
+                    />
+                  </div>
+                  <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      alignSelf: 'stretch',
+                      paddingLeft: 4,
+                      paddingRight: 4,
+                      flexShrink: 0,
+                      background: colors.headerBar,
+                    }}
+                  >
+                    <PinElevationControls variant="lcars" lcarsTextColor={colors.text} lcarsAccentBg={colors.accent} />
+                  </div>
+                  <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+                  {canUseTerminal && (
+                    <button
+                      type="button"
+                      onClick={() => setTerminalOpen(!terminalOpen)}
+                      data-sound={terminalOpen ? 'statusOff' : 'statusOn'}
+                      className={`lcars-chrome-item${hasRecentLogError ? ' system-status-log-error-alert' : ''}`}
+                      aria-label={hasRecentLogError ? 'Status — recent error in system log' : 'Status'}
+                      style={{
+                        ...(hasRecentLogError
+                          ? ({
+                              '--status-alert-base': terminalOpen ? colors.navActive : colors.headerBar,
+                              '--status-alert-fg-base': colors.text,
+                              '--status-alert-border-base': 'transparent',
+                            } as CSSProperties)
+                          : {}),
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        alignSelf: 'stretch',
+                        paddingLeft: 12,
+                        paddingRight: 12,
+                        flexShrink: 0,
+                        background: hasRecentLogError
+                          ? undefined
+                          : terminalOpen
+                            ? colors.navActive
+                            : colors.headerBar,
+                        color: hasRecentLogError ? undefined : colors.text,
+                        fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
+                        fontWeight: 700,
+                        fontSize: 10,
+                        letterSpacing: '0.12em',
+                        textTransform: 'uppercase',
+                        transition: 'background 0.3s ease, color 0.3s ease',
+                      }}
+                    >
+                      Status
+                    </button>
+                  )}
+                  <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+                  <MapLayersHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} />
+                  <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+                  <AssistantHeaderButton variant="lcars" style={{ backgroundColor: colors.accent, color: colors.text }} data-sound="sidebar" />
+                  <div style={{ width: 3, flexShrink: 0, background: '#000', alignSelf: 'stretch' }} aria-hidden />
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      alignSelf: 'stretch',
+                      paddingLeft: 8,
+                      paddingRight: 10,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <AppVersionLabel variant="lcars" lcarsTextColor={colors.text} />
+                  </div>
+                </div>
+                <div
+                  className="lcars-chrome-item"
+                  style={{
+                    width: 12,
+                    alignSelf: 'stretch',
+                    minHeight: HEADER_H,
+                    background: colors.headerBar,
+                    borderRadius: 0,
+                    flexShrink: 0,
+                    transition: 'background 0.3s ease',
+                  }}
+                />
+              </>
+            )}
+            {isMobile && (
               <div
+                className="lcars-chrome-item"
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
+                  width: 12,
                   alignSelf: 'stretch',
-                  paddingLeft: 8,
-                  paddingRight: 10,
+                  minHeight: HEADER_H,
+                  background: colors.headerBar,
+                  borderRadius: 0,
                   flexShrink: 0,
+                  transition: 'background 0.3s ease',
                 }}
-              >
-                <AppVersionLabel variant="lcars" lcarsTextColor={colors.text} />
-              </div>
-            </div>
-            <div
-              className="lcars-chrome-item"
-              style={{
-                width: 12,
-                alignSelf: 'stretch',
-                minHeight: HEADER_H,
-                background: colors.headerBar,
-                borderRadius: 0,
-                flexShrink: 0,
-                transition: 'background 0.3s ease',
-              }}
-            />
+              />
+            )}
           </>
         )}
       </div>
@@ -1256,6 +1250,49 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
         {children}
       </main>
 
+      {/* Mobile: thin LCARS tap strip — toggles slide-out (nav + toolbar); keeps header uncluttered */}
+      {isMobile && !statusFullscreen && (
+        <button
+          type="button"
+          onClick={() => setMobileNavOpen(!mobileNavOpen)}
+          aria-expanded={mobileNavOpen}
+          aria-label={mobileNavOpen ? 'Close main menu' : 'Open main menu'}
+          className="lcars-chrome-item touch-manipulation"
+          data-sound="beep"
+          style={{
+            position: 'fixed',
+            left: 0,
+            top: layoutContentTop,
+            bottom: contentBottom,
+            width: MOBILE_LCARS_RAIL_TOUCH,
+            zIndex: 25,
+            border: 'none',
+            padding: 0,
+            margin: 0,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'stretch',
+            justifyContent: 'center',
+            background: 'transparent',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div
+            aria-hidden
+            style={{
+              marginTop: 4,
+              marginBottom: 4,
+              width: MOBILE_LCARS_RAIL_VISUAL,
+              flexShrink: 0,
+              borderRadius: 2,
+              alignSelf: 'stretch',
+              background: lcarsVerticalRailGradient(colors),
+              boxShadow: 'inset -1px 0 6px rgba(0,0,0,0.35)',
+            }}
+          />
+        </button>
+      )}
+
       {alertLevel === 'yellow' && (
         <div
           className="lcars-alert-vignette"
@@ -1285,17 +1322,83 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
           {/* Drawer */}
           <div
             className={clsx(
-              'absolute inset-y-0 left-0 flex flex-col overflow-hidden transition-transform duration-300 ease-in-out',
+              'absolute inset-y-0 left-0 flex max-h-full flex-col overflow-hidden transition-transform duration-300 ease-in-out',
               mobileNavOpen ? 'translate-x-0' : '-translate-x-full',
             )}
-            style={{ width: BAR_W, maxWidth: '75vw', background: '#000' }}
+            style={{
+              width: 'min(320px, 92vw)',
+              background: '#000',
+              boxShadow: '4px 0 24px rgba(0,0,0,0.45)',
+            }}
           >
-            <LCARSSidebar
-              railWidthPx={BAR_W}
-              navStackOffsetPx={0}
-              onToggle={() => setMobileNavOpen(false)}
-              collapsed={false}
-            />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <LCARSSidebar
+                railWidthPx={BAR_W}
+                navStackOffsetPx={0}
+                onToggle={() => setMobileNavOpen(false)}
+                collapsed={false}
+              />
+            </div>
+            <div className="shrink-0 border-t px-2 py-3" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
+              <div className="flex flex-col gap-2">
+                <PinElevationControls variant="lcars" lcarsTextColor={colors.text} lcarsAccentBg={colors.accent} />
+                {canUseTerminal && (
+                  <button
+                    type="button"
+                    onClick={() => setTerminalOpen(!terminalOpen)}
+                    data-sound={terminalOpen ? 'statusOff' : 'statusOn'}
+                    className={`lcars-chrome-item touch-manipulation${hasRecentLogError ? ' system-status-log-error-alert' : ''}`}
+                    aria-label={hasRecentLogError ? 'Status — recent error in system log' : 'Status'}
+                    style={{
+                      ...(hasRecentLogError
+                        ? ({
+                            '--status-alert-base': terminalOpen ? colors.navActive : colors.headerBar,
+                            '--status-alert-fg-base': colors.text,
+                            '--status-alert-border-base': 'transparent',
+                          } as CSSProperties)
+                        : {}),
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '100%',
+                      minHeight: 40,
+                      padding: '10px 12px',
+                      flexShrink: 0,
+                      background: hasRecentLogError
+                        ? undefined
+                        : terminalOpen
+                          ? colors.navActive
+                          : colors.headerBar,
+                      color: hasRecentLogError ? undefined : colors.text,
+                      fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
+                      fontWeight: 700,
+                      fontSize: 10,
+                      letterSpacing: '0.12em',
+                      textTransform: 'uppercase',
+                      transition: 'background 0.3s ease, color 0.3s ease',
+                    }}
+                  >
+                    Status
+                  </button>
+                )}
+                <MapLayersHeaderButton
+                  variant="lcars"
+                  style={{ backgroundColor: colors.accent, color: colors.text }}
+                  className="!min-w-0 !h-auto w-full min-h-[44px] shrink-0 justify-start"
+                />
+                <AssistantHeaderButton
+                  variant="lcars"
+                  style={{ backgroundColor: colors.accent, color: colors.text }}
+                  className="!min-w-0 !h-auto w-full min-h-[44px] shrink-0 justify-start"
+                  data-sound="sidebar"
+                />
+                <div className="flex justify-center pt-1">
+                  <AppVersionLabel variant="lcars" lcarsTextColor={colors.text} />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

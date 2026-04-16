@@ -656,15 +656,15 @@ export default function SoftwareUpdatePage() {
                   >
                     <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                     <span>
-                      The running container version could not be verified (pre-CI build).
-                      If you recently pushed new code, click <strong>Rebuild containers</strong> to apply it.
+                      Running image metadata was not read from the container (no <span className="font-mono">build-info.json</span> and no OCI labels).
+                      Git on the server can still match <span className="font-mono">origin/main</span>; use <strong>Re-sync from CI</strong> to pull the manifest images again without building from source.
                     </span>
                   </div>
                 )}
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => void runDeploy({ buildFallback: true })}
+                    onClick={() => void runDeploy()}
                     disabled={deploying}
                     className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border transition-colors disabled:opacity-50"
                     style={{
@@ -674,9 +674,29 @@ export default function SoftwareUpdatePage() {
                     }}
                   >
                     {deploying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                    Rebuild containers
+                    Re-sync from CI
                   </button>
                 </div>
+                <details className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  <summary className="cursor-pointer select-none hover:underline">Advanced: build from source on server</summary>
+                  <p className="mt-2">
+                    Only if CI images cannot be pulled. Runs the deploy script with <span className="font-mono">--build-fallback</span> (skips registry pull, compiles on the hub).
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void runDeploy({ buildFallback: true })}
+                    disabled={deploying}
+                    className="mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium border transition-colors disabled:opacity-50"
+                    style={{
+                      backgroundColor: 'var(--color-bg-secondary)',
+                      borderColor: 'var(--color-border)',
+                      color: 'var(--color-text-muted)',
+                    }}
+                  >
+                    {deploying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    Build from source (fallback)
+                  </button>
+                </details>
               </>
             ) : (
               <>

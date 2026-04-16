@@ -123,8 +123,44 @@ export type SprinklerCommand = {
 export type VacuumCommand = {
   type: 'vacuum';
   deviceId: string;
-  action: 'start' | 'stop' | 'pause' | 'return_dock' | 'find' | 'set_fan_speed';
+  action:
+    | 'start'
+    | 'stop'
+    | 'pause'
+    | 'return_dock'
+    | 'find'
+    | 'set_fan_speed'
+    | 'reset_consumable'
+    | 'segment_clean'
+    | 'set_mop_mode'
+    | 'set_mop_intensity'
+    | 'set_dnd'
+    | 'set_child_lock'
+    | 'set_volume'
+    | 'start_dust_collection'
+    | 'start_mop_wash'
+    | 'stop_mop_wash'
+    | 'zone_clean'
+    | 'goto_target';
   fanSpeed?: string;
+  /** For reset_consumable: 'main_brush' | 'side_brush' | 'filter' | 'sensor' */
+  consumable?: string;
+  /** For segment_clean: list of room IDs */
+  roomIds?: number[];
+  /** For set_mop_mode */
+  mopMode?: string;
+  /** For set_mop_intensity */
+  mopIntensity?: string;
+  /** For set_dnd */
+  dndEnabled?: boolean;
+  /** For set_child_lock */
+  childLock?: boolean;
+  /** For set_volume (0-100) */
+  volume?: number;
+  /** For zone_clean: array of [x1,y1,x2,y2,repeats] */
+  zones?: number[][];
+  /** For goto_target: [x, y] */
+  target?: [number, number];
 };
 
 export type ThermostatCommand = {

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSystemTerminal } from '@/providers/SystemTerminalProvider';
+import { HeaderToolbar } from './HeaderToolbar';
 
 const mainNavItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -139,6 +140,13 @@ export function Sidebar({
               <NavLink key={item.href} {...item} active={isActive(item.href)} collapsed={false} />
             ))}
           </nav>
+
+          <div
+            className="shrink-0 border-t px-3 py-3 md:hidden"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
+            <HeaderToolbar layout="drawer" />
+          </div>
 
           {/* Footer */}
           <div className="px-2 pb-4 space-y-1">

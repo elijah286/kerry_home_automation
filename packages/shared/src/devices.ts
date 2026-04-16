@@ -320,7 +320,7 @@ export interface GarageDoorState extends DeviceBase {
 
 // -- Sensor (generic) --------------------------------------------------------
 
-export type SensorKind = 'motion' | 'temperature' | 'humidity' | 'contact' | 'battery' | 'generic';
+export type SensorKind = 'motion' | 'temperature' | 'humidity' | 'contact' | 'battery' | 'consumable' | 'generic';
 
 export interface SensorState extends DeviceBase {
   type: 'sensor';
@@ -352,6 +352,11 @@ export interface SprinklerState extends DeviceBase {
 
 export type VacuumStatus = 'cleaning' | 'docked' | 'idle' | 'returning' | 'paused' | 'error';
 
+export interface VacuumRoom {
+  id: number;
+  name: string;
+}
+
 export interface VacuumState extends DeviceBase {
   type: 'vacuum';
   status: VacuumStatus;
@@ -362,6 +367,36 @@ export interface VacuumState extends DeviceBase {
   errorMessage: string | null;
   /** When set (Roborock cloud), client may load live map via GET /api/roborock/map?deviceId=… */
   mapUpdatedAt?: number | null;
+
+  // -- Extended (Roborock) --
+  /** Mop module attached */
+  mopAttached?: boolean;
+  /** Water tank attached */
+  waterBoxAttached?: boolean;
+  /** Water tank empty/low warning */
+  waterShortage?: boolean;
+  /** Dock error code (0 = ok) */
+  dockErrorCode?: number | null;
+  /** Lifetime cleaning area in m² */
+  totalCleaningArea?: number | null;
+  /** Lifetime cleaning time in minutes */
+  totalCleaningTime?: number | null;
+  /** Lifetime count of cleaning sessions */
+  totalCleaningCount?: number | null;
+
+  /** Mop mode — 'vacuum_and_mop' | 'vacuum_only' | 'mop_only' (device-dependent) */
+  mopMode?: string;
+  /** Mop water intensity — 'off' | 'low' | 'medium' | 'high' (device-dependent) */
+  mopIntensity?: string;
+  /** Do not disturb enabled */
+  dndEnabled?: boolean;
+  /** Child lock enabled */
+  childLock?: boolean;
+  /** Voice announcement volume, 0-100 */
+  volume?: number;
+
+  /** Known rooms for segment cleaning (Roborock cloud) */
+  rooms?: VacuumRoom[];
 }
 
 // -- Doorbell (Ring) ---------------------------------------------------------

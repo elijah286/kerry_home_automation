@@ -1,15 +1,11 @@
 'use client';
 
-import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronRight, Menu } from 'lucide-react';
 import { clsx } from 'clsx';
 import { getBreadcrumbItems, type BreadcrumbItem } from '@/lib/appBreadcrumbs';
-import { AppVersionLabel } from './AppVersionLabel';
-import { PinElevationControls } from './PinElevationControls';
-import { AssistantHeaderButton, MapLayersHeaderButton } from '../ChatBot';
-import { useSystemTerminal } from '@/providers/SystemTerminalProvider';
+import { HeaderToolbar } from './HeaderToolbar';
 
 function Separator({ className }: { className?: string }) {
   return (
@@ -94,27 +90,21 @@ export function BreadcrumbTrail({
 export function AppHeaderBar({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const pathname = usePathname();
   const items = getBreadcrumbItems(pathname ?? '/');
-  const {
-    canUse: canUseTerminal,
-    open: terminalOpen,
-    setOpen: setTerminalOpen,
-    hasRecentLogError,
-  } = useSystemTerminal();
 
   return (
     <header
-      className="app-header-bar sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-4 border-b px-4 md:px-5"
+      className="app-header-bar sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-2 border-b overflow-x-hidden px-3 md:gap-4 md:px-5"
       style={{
         backgroundColor: 'var(--color-bg-secondary)',
         borderColor: 'var(--color-border)',
       }}
     >
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
         {onOpenMobileNav && (
           <button
             type="button"
             onClick={onOpenMobileNav}
-            className="flex md:hidden shrink-0 items-center justify-center rounded-lg p-1.5 -ml-1.5 transition-colors"
+            className="flex md:hidden shrink-0 items-center justify-center rounded-lg p-1.5 -ml-1 transition-colors"
             style={{ color: 'var(--color-text)' }}
             aria-label="Open navigation menu"
           >
@@ -123,41 +113,8 @@ export function AppHeaderBar({ onOpenMobileNav }: { onOpenMobileNav?: () => void
         )}
         <BreadcrumbTrail items={items} variant="default" />
       </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <PinElevationControls variant="default" />
-        {canUseTerminal && (
-          <button
-            type="button"
-            onClick={() => setTerminalOpen(!terminalOpen)}
-            className={clsx(
-              'rounded-md px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors',
-              hasRecentLogError && 'system-status-log-error-alert',
-            )}
-            aria-label={hasRecentLogError ? 'Status — recent error in system log' : 'Open system log'}
-            style={{
-              ...(hasRecentLogError
-                ? ({
-                    '--status-alert-base': terminalOpen ? 'var(--color-accent)' : 'var(--color-bg-hover)',
-                    '--status-alert-fg-base': '#fff',
-                    '--status-alert-border-base': 'var(--color-border)',
-                  } as CSSProperties)
-                : {}),
-              backgroundColor: hasRecentLogError
-                ? undefined
-                : terminalOpen
-                  ? 'var(--color-accent)'
-                  : 'var(--color-bg-hover)',
-              color: hasRecentLogError ? undefined : '#fff',
-              border: '1px solid',
-              borderColor: hasRecentLogError ? undefined : 'var(--color-border)',
-            }}
-          >
-            Status
-          </button>
-        )}
-        <MapLayersHeaderButton variant="default" />
-        <AssistantHeaderButton variant="default" />
-        <AppVersionLabel />
+      <div className="hidden md:flex shrink-0 items-center">
+        <HeaderToolbar layout="header" />
       </div>
     </header>
   );

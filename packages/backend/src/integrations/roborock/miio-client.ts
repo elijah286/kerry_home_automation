@@ -19,6 +19,27 @@ export interface RoborockStatus {
   clean_time: number;
   error_code: number;
   msg_ver: number;
+  water_box_status?: number | null;
+  mop_attached?: number | null;
+  water_shortage_status?: number | null;
+  dock_error_status?: number | null;
+  water_box_mode?: number | null;
+  mop_mode?: number | null;
+  dnd_enabled?: number | null;
+  lock_status?: number | null;
+}
+
+export interface RoborockConsumables {
+  main_brush_work_time: number | null;
+  side_brush_work_time: number | null;
+  filter_work_time: number | null;
+  sensor_dirty_time: number | null;
+}
+
+export interface RoborockCleanSummary {
+  clean_time: number | null;
+  clean_area: number | null;
+  clean_count: number | null;
 }
 
 // State codes
@@ -177,6 +198,140 @@ export class MiioClient {
 
   async setFanSpeed(speed: number): Promise<void> {
     await this.send('set_custom_mode', [speed]);
+  }
+
+  async getConsumables(): Promise<RoborockConsumables | null> {
+    try {
+      const result = (await this.send('get_consumable')) as Array<Record<string, number>>;
+      const d = result?.[0] ?? null;
+      if (!d) return null;
+      return {
+        main_brush_work_time: d.main_brush_work_time ?? null,
+        side_brush_work_time: d.side_brush_work_time ?? null,
+        filter_work_time: d.filter_work_time ?? null,
+        sensor_dirty_time: d.sensor_dirty_time ?? null,
+      };
+    } catch (err) {
+      log.debug({ err }, 'Roborock: get_consumable failed');
+      return null;
+    }
+  }
+
+  async getCleanSummary(): Promise<RoborockCleanSummary | null> {
+    try {
+      const result = await this.send('get_clean_summary');
+      // Response may be array [time, area, count, [ids]] or an object
+      if (Array.isArray(result) && result.length >= 3) {
+        return {
+          clean_time: typeof result[0] === 'number' ? result[0] : null,
+          clean_area: typeof result[1] === 'number' ? result[1] : null,
+          clean_count: typeof result[2] === 'number' ? result[2] : null,
+        };
+      }
+      if (result && typeof result === 'object') {
+        const d = result as Record<string, number>;
+        return {
+          clean_time: d.clean_time ?? null,
+          clean_area: d.clean_area ?? null,
+          clean_count: d.clean_count ?? null,
+        };
+      }
+      return null;
+    } catch (err) {
+      log.debug({ err }, 'Roborock: get_clean_summary failed');
+      return null;
+    }
+  }
+
+  async resetConsumable(consumable: string): Promise<void> {
+    const map: Record<string, string> = {
+      main_brush: 'main_brush_work_time',
+      side_brush: 'side_brush_work_time',
+      filter: 'filter_work_time',
+      sensor: 'sensor_dirty_time',
+    };
+    const key = map[consumable];
+    if (!key) throw new Error(`Unknown consumable: ${consumable}`);
+    await this.send('reset_consumable', [key]);
+  }
+
+  async getRoomMapping(): Promise<Array<[number, string]>> {
+    try {
+      const result = await this.send('get_room_mapping');
+      if (Array.isArray(result)) {
+        return result
+          .filter((it): it is unknown[] => Array.isArray(it) && it.length > 0)
+          .map((it) => [Number(it[0]), String(it[1] ?? `Room ${it[0]}`)]);
+      }
+      return [];
+    } catch (err) {
+      log.debug({ err }, 'Roborock: get_room_mapping failed');
+      return [];
+    }
+  }
+
+  async segmentClean(roomIds: number[]): Promise<void> {
+    await this.send('app_segment_clean', roomIds);
+  }
+
+  async zonedClean(zones: number[][]): Promise<void> {
+    await this.send('app_zoned_clean', zones);
+  }
+
+  async gotoTarget(x: number, y: number): Promise<void> {
+    await this.send('app_goto_target', [x, y]);
+  }
+
+  async setMopMode(mode: number): Promise<void> {
+    await this.send('set_mop_mode', [mode]);
+  }
+
+  async setMopIntensity(level: number): Promise<void> {
+    await this.send('set_water_box_custom_mode', [level]);
+  }
+
+  async setDnd(enabled: boolean): Promise<void> {
+    if (enabled) {
+      await this.send('set_dnd_timer', [22, 0, 8, 0]);
+    } else {
+      await this.send('close_dnd_timer');
+    }
+  }
+
+  async setChildLock(enabled: boolean): Promise<void> {
+    await this.send('set_child_lock_status', [{ lock_status: enabled ? 1 : 0 }]);
+  }
+
+  async setVolume(volume: number): Promise<void> {
+    const v = Math.max(0, Math.min(100, Math.round(volume)));
+    await this.send('change_sound_volume', [v]);
+  }
+
+  async startDustCollection(): Promise<void> {
+    await this.send('app_start_collect_dust');
+  }
+
+  async startMopWash(): Promise<void> {
+    await this.send('app_start_wash');
+  }
+
+  async stopMopWash(): Promise<void> {
+    await this.send('app_stop_wash');
+  }
+
+  async getMap(): Promise<Buffer | null> {
+    try {
+      const result = await this.send('get_map_v1', []);
+      if (result == null) return null;
+      if (typeof result === 'string') {
+        return Buffer.from(result, 'latin1');
+      }
+      if (Buffer.isBuffer(result)) return result;
+      return null;
+    } catch (err) {
+      log.debug({ err }, 'Roborock: get_map_v1 failed');
+      return null;
+    }
   }
 
   disconnect(): void {

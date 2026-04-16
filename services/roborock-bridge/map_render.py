@@ -85,3 +85,62 @@ def raw_map_to_png(raw: object) -> Optional[bytes]:
         _LOGGER.debug("Roborock map PNG encode failed", exc_info=True)
         return None
     return buf.getvalue()
+
+
+def extract_rooms_from_map(raw: object) -> list[dict]:
+    """Extract room id + name + center from a raw map payload, or [] on failure."""
+    if raw is None:
+        return []
+    if isinstance(raw, (bytes, bytearray)):
+        data = bytes(raw)
+    elif isinstance(raw, str):
+        data = raw.encode("latin-1")
+    else:
+        return []
+
+    if len(data) < 32 or data.startswith(_PNG_MAGIC):
+        return []
+
+    try:
+        parser = RoborockMapDataParser(
+            ColorsPalette(), Sizes(), list(_DEFAULT_DRAWABLES), ImageConfig(), []
+        )
+        map_data = parser.parse(data)
+    except Exception:
+        return []
+
+    if map_data is None:
+        return []
+
+    rooms_out: list[dict] = []
+    rooms = getattr(map_data, "rooms", None) or {}
+    try:
+        items = rooms.items() if isinstance(rooms, dict) else [(getattr(r, "number", i), r) for i, r in enumerate(rooms)]
+    except Exception:
+        items = []
+
+    for key, room in items:
+        try:
+            rid = int(key)
+        except (TypeError, ValueError):
+            continue
+        name = getattr(room, "name", None) or f"Room {rid}"
+        cx = getattr(room, "x0", None)
+        cy = getattr(room, "y0", None)
+        x1 = getattr(room, "x1", None)
+        y1 = getattr(room, "y1", None)
+        if cx is not None and x1 is not None:
+            center_x = int((cx + x1) / 2)
+        else:
+            center_x = int(cx) if cx is not None else None
+        if cy is not None and y1 is not None:
+            center_y = int((cy + y1) / 2)
+        else:
+            center_y = int(cy) if cy is not None else None
+        rooms_out.append({
+            "id": rid,
+            "name": str(name),
+            "center_x": center_x,
+            "center_y": center_y,
+        })
+    return rooms_out

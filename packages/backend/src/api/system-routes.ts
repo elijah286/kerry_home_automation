@@ -481,11 +481,11 @@ export function registerSystemRoutes(app: FastifyInstance): void {
       // -----------------------------------------------------------------------
       // Determine the ACTUAL running container version.
       //
-      // buildInfo.version comes from /app/build-info.json which is baked into the
-      // Docker image at build time. It doesn't change when the host runs `git pull`.
+      // buildInfo is resolved from /app/build-info.json, then OCI image labels
+      // (org.opencontainers.image.*), then optional HA_CONTAINER_* env — see build-version.ts.
       //
-      // When buildInfo is unavailable (pre-CI containers), we fall back to git HEAD
-      // which may be inaccurate if git was pulled without rebuilding containers.
+      // When all of those are unavailable, we fall back to git HEAD + workspace
+      // app-version.json, which may be inaccurate if git was pulled without redeploying images.
       // -----------------------------------------------------------------------
       let runningSha: string;
       let runningVersionLabel: string | null;
