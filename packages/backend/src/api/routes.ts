@@ -153,6 +153,58 @@ export function registerRoutes(app: FastifyInstance): void {
     }
   });
 
+  // ---------------------------------------------------------------------------
+  // HLS live view — works through the Railway cloud proxy because each segment
+  // is a bounded HTTP request/response (unlike MSE which needs WebSocket).
+  // go2rtc's playlists use relative URLs, so we mirror go2rtc's path layout:
+  //   /api/cameras/:name/hls/stream.m3u8    →  go2rtc /api/stream.m3u8?src=…
+  //   /api/cameras/:name/hls/hls/*          →  go2rtc /api/hls/*  (sub-playlist / segments)
+  // ---------------------------------------------------------------------------
+  app.get<{ Params: { name: string } }>('/api/cameras/:name/hls/stream.m3u8', async (req, reply) => {
+    const unifi = registry.get('unifi') as UniFiIntegration | undefined;
+    const go2rtcUrl = unifi?.getGo2rtcUrl(req.params.name);
+    if (!go2rtcUrl) {
+      return reply.code(503).send({ error: 'UniFi Protect not configured.' });
+    }
+    const base = go2rtcUrl.replace(/\/$/, '');
+    const url = `${base}/api/stream.m3u8?src=${encodeURIComponent(req.params.name)}`;
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+      if (!res.ok) return reply.code(502).send({ error: 'HLS playlist unavailable' });
+      reply.header('Content-Type', res.headers.get('content-type') ?? 'application/vnd.apple.mpegurl');
+      reply.header('Cache-Control', 'no-cache');
+      return reply.send(await res.text());
+    } catch {
+      return reply.code(502).send({ error: 'go2rtc not reachable' });
+    }
+  });
+
+  app.get<{ Params: { name: string; '*': string } }>('/api/cameras/:name/hls/*', async (req, reply) => {
+    const unifi = registry.get('unifi') as UniFiIntegration | undefined;
+    const go2rtcUrl = unifi?.getGo2rtcUrl(req.params.name);
+    if (!go2rtcUrl) {
+      return reply.code(503).send({ error: 'UniFi Protect not configured.' });
+    }
+    const base = go2rtcUrl.replace(/\/$/, '');
+    const subPath = (req.params as { '*': string })['*']; // e.g. "hls/playlist.m3u8"
+    const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    const url = `${base}/api/${subPath}${qs}`;
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+      if (!res.ok) return reply.code(502).send({ error: 'HLS resource unavailable' });
+      const ct = res.headers.get('content-type') ?? 'application/octet-stream';
+      reply.header('Content-Type', ct);
+      reply.header('Cache-Control', 'no-cache');
+      // Playlists are text; segments/init are binary.
+      if (ct.includes('mpegurl') || ct.startsWith('text/')) {
+        return reply.send(await res.text());
+      }
+      return reply.send(Buffer.from(await res.arrayBuffer()));
+    } catch {
+      return reply.code(502).send({ error: 'go2rtc not reachable' });
+    }
+  });
+
   // Troubleshooting: probe each saved go2rtc URL from the server (stream count, reachability)
   app.get('/api/cameras/diagnostics', async (req, reply) => {
     const integration = registry.get('unifi');

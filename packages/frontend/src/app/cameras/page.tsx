@@ -257,6 +257,162 @@ function MSEStream({
 }
 
 // ---------------------------------------------------------------------------
+// HLS — works through the Railway cloud proxy because each segment is a
+// normal bounded HTTP GET (unlike MSE's long-lived WebSocket). Higher latency
+// than MSE (~3-6 s) but this is the only option for remote viewing.
+// ---------------------------------------------------------------------------
+
+const HLS_BASE_DELAY  = 2_000;
+const HLS_MAX_BACKOFF = 30_000;
+
+function HLSStream({
+  name,
+  onPlaying,
+  onOffline,
+  contain,
+}: {
+  name: string;
+  onPlaying?: () => void;
+  onOffline?: () => void;
+  contain?: boolean;
+}) {
+  const videoRef     = useRef<HTMLVideoElement>(null);
+  const onPlayingRef = useRef(onPlaying);
+  onPlayingRef.current = onPlaying;
+  const onOfflineRef = useRef(onOffline);
+  onOfflineRef.current = onOffline;
+
+  const [visible,  setVisible]  = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const retriesRef = useRef(0);
+  const playingRef = useRef(false);
+
+  // Page-visibility reconnect
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && !playingRef.current) {
+        retriesRef.current = 0;
+        setRetryKey((k) => k + 1);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    let disposed = false;
+    // Dynamic import so hls.js only loads when a fullscreen camera is opened.
+    let hls: import('hls.js').default | null = null;
+
+    // Remote adds ?token=... to proxy auth; local uses cookie.
+    const src = `${getApiBase()}/api/cameras/${encodeURIComponent(name)}/hls/stream.m3u8${authQueryParam(false)}`;
+
+    const scheduleRetry = () => {
+      if (disposed) return;
+      const attempt = retriesRef.current;
+      retriesRef.current = attempt + 1;
+      const delay = Math.min(HLS_BASE_DELAY * 2 ** Math.min(attempt, 5), HLS_MAX_BACKOFF);
+      setTimeout(() => { if (!disposed) setRetryKey((k) => k + 1); }, delay);
+    };
+
+    const goOffline = () => {
+      playingRef.current = false;
+      setVisible(false);
+      onOfflineRef.current?.();
+    };
+
+    const onPlayingHandler = () => {
+      if (disposed) return;
+      playingRef.current = true;
+      retriesRef.current = 0;
+      setVisible(true);
+      onPlayingRef.current?.();
+    };
+
+    video.addEventListener('playing', onPlayingHandler);
+
+    // Safari (and iOS Capacitor WebView) has native HLS — use it directly.
+    const nativeSupport = video.canPlayType('application/vnd.apple.mpegurl');
+    if (nativeSupport) {
+      video.src = src;
+      const onError = () => {
+        if (!disposed) { goOffline(); scheduleRetry(); }
+      };
+      video.addEventListener('error', onError);
+      void video.play().catch(() => {});
+      return () => {
+        disposed = true;
+        playingRef.current = false;
+        setVisible(false);
+        onOfflineRef.current?.();
+        video.removeEventListener('playing', onPlayingHandler);
+        video.removeEventListener('error', onError);
+        video.removeAttribute('src');
+        video.load();
+      };
+    }
+
+    // Other browsers (Chrome, Firefox): use hls.js via Media Source Extensions.
+    let cleanup: () => void = () => {};
+    void import('hls.js').then((mod) => {
+      if (disposed) return;
+      const Hls = mod.default;
+      if (!Hls.isSupported()) {
+        console.warn('HLS not supported in this browser');
+        return;
+      }
+      hls = new Hls({
+        lowLatencyMode: true,
+        backBufferLength: 10,
+      });
+      hls.loadSource(src);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        void video.play().catch(() => {});
+      });
+      hls.on(Hls.Events.ERROR, (_evt, data) => {
+        if (disposed) return;
+        if (data.fatal) {
+          console.warn('HLS fatal error:', data.type, data.details);
+          goOffline();
+          try { hls?.destroy(); } catch { /* ignore */ }
+          scheduleRetry();
+        }
+      });
+      cleanup = () => {
+        try { hls?.destroy(); } catch { /* ignore */ }
+      };
+    }).catch((err) => {
+      console.warn('hls.js failed to load:', err);
+      if (!disposed) scheduleRetry();
+    });
+
+    return () => {
+      disposed = true;
+      playingRef.current = false;
+      setVisible(false);
+      onOfflineRef.current?.();
+      video.removeEventListener('playing', onPlayingHandler);
+      cleanup();
+    };
+  }, [name, retryKey]);
+
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      muted
+      playsInline
+      className={`pointer-events-none absolute inset-0 h-full w-full transition-opacity duration-300 ${contain ? 'object-contain' : 'object-cover'}`}
+      style={{ zIndex: 2, opacity: visible ? 1 : 0 }}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
 // WebRTC — hidden until video actually plays; retries on failure / ICE drop
 // ---------------------------------------------------------------------------
 
@@ -569,9 +725,9 @@ const CameraTile = memo(function CameraTile({
 // ---------------------------------------------------------------------------
 
 function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => void }) {
-  const [snapRev,      setSnapRev]      = useState(0);
-  const [msePlaying,   setMsePlaying]   = useState(false);
-  const [snapError,    setSnapError]    = useState(false);
+  const [snapRev,     setSnapRev]     = useState(0);
+  const [hlsPlaying,  setHlsPlaying]  = useState(false);
+  const [snapError,   setSnapError]   = useState(false);
   const frame = useLCARSFrame();
 
   useEffect(() => {
@@ -580,18 +736,16 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  // Snapshot polling — fast on remote (proxy can't stream video, so we fake it
-  // with a ~1 fps slideshow), slower on local where MSE will take over.
+  // Snapshot polling — provides updating stills every 2s until HLS takes over.
   useEffect(() => {
-    if (msePlaying) return;
-    const interval = isRemoteAccess() ? 1000 : 2000;
-    const t = window.setInterval(() => setSnapRev((n) => n + 1), interval);
+    if (hlsPlaying) return;
+    const t = window.setInterval(() => setSnapRev((n) => n + 1), 2000);
     return () => window.clearInterval(t);
-  }, [msePlaying]);
+  }, [hlsPlaying]);
 
   useEffect(() => {
     setSnapError(false);
-    setMsePlaying(false);
+    setHlsPlaying(false);
   }, [cam.name]);
 
   // In LCARS mode, constrain to the content area (inside header/footer/sidebar).
@@ -611,9 +765,9 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
   return (
     <div className="flex flex-col bg-black" style={overlayStyle}>
       <div className="relative flex-1">
-        {/* Snapshot fallback — always visible underneath MSE so it shows
-            immediately when MSE stalls or hasn't connected yet. */}
-        {!msePlaying && (
+        {/* Snapshot fallback — always visible underneath HLS so it shows
+            immediately while HLS is still buffering its first segments. */}
+        {!hlsPlaying && (
           <img
             src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapRev}${authQueryParam(true)}`}
             alt={cam.label}
@@ -622,11 +776,11 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
           />
         )}
 
-        <MSEStream
+        <HLSStream
           name={cam.name}
           contain
-          onPlaying={() => setMsePlaying(true)}
-          onOffline={() => setMsePlaying(false)}
+          onPlaying={() => setHlsPlaying(true)}
+          onOffline={() => setHlsPlaying(false)}
         />
 
         <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-4 py-3">
@@ -642,13 +796,11 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/60 to-transparent px-4 py-3">
           <span className="text-[11px] text-white/60">
-            {msePlaying
+            {hlsPlaying
               ? 'Live'
               : snapError
                 ? 'No stream — check UniFi / go2rtc and backend logs'
-                : isRemoteAccess()
-                  ? 'Snapshots (1s) — live streaming not available remotely'
-                  : 'Snapshots (2s) · connecting…'}
+                : 'Snapshots (2s) · starting live stream…'}
           </span>
         </div>
       </div>

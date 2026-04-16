@@ -41,6 +41,7 @@
     "@types/leaflet": "^1.9.21",
     "clsx": "^2.1.0",
     "codemirror": "^6.0.2",
+    "hls.js": "^1.6.16",
     "js-yaml": "^4.1.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.468.0",
