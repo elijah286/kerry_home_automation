@@ -47,6 +47,7 @@ export default function DashboardsListPage() {
         layout: { type: 'sections', maxColumns: 3, dense: false },
         sections: [{ id: 'main', title: 'Main', cards: [] }],
         cards: [],
+        hiddenFromSidebar: false,
       });
       router.push(`/dashboards/${doc.path}/edit`);
     } catch (err) {

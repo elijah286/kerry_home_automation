@@ -77,6 +77,9 @@ export const dashboardDocSchema = z.object({
   /** Is this dashboard pinned to the owner\'s primary dashboard list? */
   pinned: z.boolean().default(false),
 
+  /** When true, the dashboard is still accessible via its path but omitted from the sidebar nav. */
+  hiddenFromSidebar: z.boolean().default(false),
+
   /** Kiosk defaulting: when non-null, this dashboard is the default for that areaId. */
   defaultForAreaId: z.string().optional(),
 
@@ -104,6 +107,7 @@ export const createDashboardRequestSchema = dashboardDocSchema.pick({
   cards: true,
   defaultForAreaId: true,
   tags: true,
+  hiddenFromSidebar: true,
 }).extend({
   createdBy: dashboardCreatedBySchema.optional(),
 });

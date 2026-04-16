@@ -4,7 +4,7 @@ import { useMemo, createElement } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Settings, Palette, Clock, Puzzle, Users, ChevronRight, MapPin, Bot, Zap,
-  ToggleLeft, LayoutGrid, HardDrive, Server, UserCircle, Download,
+  ToggleLeft, LayoutGrid, LayoutDashboard, HardDrive, Server, UserCircle, Download,
 } from 'lucide-react';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -36,6 +36,13 @@ const groups: { title?: string; items: SettingsItem[] }[] = [
   {
     title: 'Data',
     items: [
+      {
+        href: '/settings/dashboards',
+        icon: LayoutDashboard,
+        label: 'Dashboards',
+        description: 'Manage dashboards, access, and sidebar visibility',
+        adminOnly: true,
+      },
       { href: '/settings/history', icon: Clock, label: 'History', description: 'Retention duration and recording settings' },
       { href: '/areas', icon: LayoutGrid, label: 'Areas', description: 'Create areas and assign devices to them' },
     ],

@@ -1,6 +1,6 @@
 'use client';
 
-import { createElement } from 'react';
+import { createElement, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { clsx } from 'clsx';
@@ -19,8 +19,10 @@ import {
   Terminal,
   X,
 } from 'lucide-react';
+import type { DashboardDoc } from '@ha/shared';
 import { useAuth } from '@/providers/AuthProvider';
 import { useSystemTerminal } from '@/providers/SystemTerminalProvider';
+import { listDashboards } from '@/lib/api-dashboards';
 import { HeaderToolbar } from './HeaderToolbar';
 
 const mainNavItems = [
@@ -86,6 +88,21 @@ export function Sidebar({
     useSystemTerminal();
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
 
+  // Sidebar-visible dashboards. Backend already visibility-filters the list per
+  // session role/userId; we just drop ones flagged hiddenFromSidebar.
+  const [dashboards, setDashboards] = useState<DashboardDoc[]>([]);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    listDashboards()
+      .then((docs) => {
+        if (cancelled) return;
+        setDashboards(docs.filter((d) => !d.hiddenFromSidebar));
+      })
+      .catch(() => { /* non-fatal: sidebar falls back to static nav */ });
+    return () => { cancelled = true; };
+  }, [user]);
+
   return (
     <>
       {/* ── Mobile slide-out drawer ── */}
@@ -139,6 +156,26 @@ export function Sidebar({
             {mainNavItems.map((item) => (
               <NavLink key={item.href} {...item} active={isActive(item.href)} collapsed={false} />
             ))}
+            {dashboards.length > 0 && (
+              <>
+                <p
+                  className="pt-4 px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider"
+                  style={{ color: 'var(--color-sidebar-text)', opacity: 0.6 }}
+                >
+                  Dashboards
+                </p>
+                {dashboards.map((d) => (
+                  <NavLink
+                    key={d.id}
+                    href={`/dashboards/${d.path}`}
+                    label={d.title}
+                    icon={LayoutDashboard}
+                    active={pathname === `/dashboards/${d.path}`}
+                    collapsed={false}
+                  />
+                ))}
+              </>
+            )}
           </nav>
 
           <div
@@ -206,10 +243,33 @@ export function Sidebar({
         </div>
 
         {/* Main nav */}
-        <nav className="flex-1 px-2 py-4 space-y-1 overflow-hidden">
+        <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
           {mainNavItems.map((item) => (
             <NavLink key={item.href} {...item} active={isActive(item.href)} collapsed={collapsed} />
           ))}
+          {dashboards.length > 0 && (
+            <>
+              {!collapsed && (
+                <p
+                  className="pt-4 px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider"
+                  style={{ color: 'var(--color-sidebar-text)', opacity: 0.6 }}
+                >
+                  Dashboards
+                </p>
+              )}
+              {collapsed && <div className="pt-2" aria-hidden />}
+              {dashboards.map((d) => (
+                <NavLink
+                  key={d.id}
+                  href={`/dashboards/${d.path}`}
+                  label={d.title}
+                  icon={LayoutDashboard}
+                  active={pathname === `/dashboards/${d.path}`}
+                  collapsed={collapsed}
+                />
+              ))}
+            </>
+          )}
         </nav>
 
         {/* Footer */}
