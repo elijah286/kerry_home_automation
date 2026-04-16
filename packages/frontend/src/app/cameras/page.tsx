@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, memo, type CSSProperties } from 'react';
 import { X } from 'lucide-react';
-import { getApiBase, getWsBase, apiFetch, authQueryParam } from '@/lib/api-base';
+import { getApiBase, getWsBase, apiFetch, authQueryParam, isRemoteAccess } from '@/lib/api-base';
 import { useLCARSFrame } from '@/components/lcars/LCARSFrameContext';
 
 // ---------------------------------------------------------------------------
@@ -59,6 +59,10 @@ function MSEStream({
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !window.MediaSource) return;
+    // The Railway cloud proxy doesn't forward arbitrary WebSocket paths
+    // (only `/tunnel` and `/ws`), so MSE can't negotiate through it. Snapshot
+    // polling is the only option on remote.
+    if (isRemoteAccess()) return;
 
     const ms = new MediaSource();
     video.src = URL.createObjectURL(ms);
@@ -576,10 +580,12 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  // Snapshot polling — provides updating stills every 2 s until MSE takes over.
+  // Snapshot polling — fast on remote (proxy can't stream video, so we fake it
+  // with a ~1 fps slideshow), slower on local where MSE will take over.
   useEffect(() => {
     if (msePlaying) return;
-    const t = window.setInterval(() => setSnapRev((n) => n + 1), 2000);
+    const interval = isRemoteAccess() ? 1000 : 2000;
+    const t = window.setInterval(() => setSnapRev((n) => n + 1), interval);
     return () => window.clearInterval(t);
   }, [msePlaying]);
 
@@ -640,7 +646,9 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
               ? 'Live'
               : snapError
                 ? 'No stream — check UniFi / go2rtc and backend logs'
-                : 'Snapshots (2s) · connecting…'}
+                : isRemoteAccess()
+                  ? 'Snapshots (1s) — live streaming not available remotely'
+                  : 'Snapshots (2s) · connecting…'}
           </span>
         </div>
       </div>
