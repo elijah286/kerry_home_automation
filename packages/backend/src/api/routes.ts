@@ -90,7 +90,7 @@ export function registerRoutes(app: FastifyInstance): void {
 
     if (cached) {
       reply.header('Content-Type', 'image/jpeg');
-      reply.header('Cache-Control', 'public, max-age=5');
+      reply.header('Cache-Control', 'no-cache, no-store');
       reply.header('X-Snapshot-Age', String(Date.now() - cached.timestamp));
       return reply.send(cached.buffer);
     }
@@ -105,7 +105,7 @@ export function registerRoutes(app: FastifyInstance): void {
       });
       if (!res.ok) return reply.code(502).send({ error: 'Snapshot unavailable' });
       reply.header('Content-Type', 'image/jpeg');
-      reply.header('Cache-Control', 'public, max-age=5');
+      reply.header('Cache-Control', 'no-cache, no-store');
       const buffer = Buffer.from(await res.arrayBuffer());
       return reply.send(buffer);
     } catch {
