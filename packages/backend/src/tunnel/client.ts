@@ -248,7 +248,9 @@ class TunnelClient {
 
   // -- HTTP request relay (proxy → Fastify inject / frontend fetch) -----------
 
-  /** Port of the local Next.js frontend server. */
+  /** Host + port of the local Next.js frontend server.
+   *  In Docker the frontend is a separate container reachable via service name. */
+  private static FRONTEND_HOST = process.env.FRONTEND_HOST ?? '127.0.0.1';
   private static FRONTEND_PORT = parseInt(process.env.FRONTEND_PORT ?? '3001', 10);
 
   private async handleHttpRequest(
@@ -323,7 +325,7 @@ class TunnelClient {
     msg: TunnelMessage & { type: 'http_request' },
   ): Promise<void> {
     try {
-      const url = `http://127.0.0.1:${TunnelClient.FRONTEND_PORT}${msg.path}`;
+      const url = `http://${TunnelClient.FRONTEND_HOST}:${TunnelClient.FRONTEND_PORT}${msg.path}`;
       const fetchHeaders: Record<string, string> = { ...msg.headers };
       delete fetchHeaders['x-tunnel-target'];
       delete fetchHeaders['x-tunnel-internal'];
