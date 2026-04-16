@@ -368,39 +368,60 @@ function InlineRename({
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(currentName);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  // Optimistic name — shown after a successful save until the WebSocket confirms it
+  const [optimistic, setOptimistic] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const savingRef = useRef(false);
+
+  // Clear optimistic override once the WebSocket-driven currentName catches up
+  useEffect(() => {
+    if (optimistic && currentName === optimistic) setOptimistic(null);
+  }, [currentName, optimistic]);
 
   useEffect(() => {
     if (editing) {
-      setValue(currentName);
+      setValue(optimistic ?? currentName);
+      setError('');
       requestAnimationFrame(() => inputRef.current?.select());
     }
-  }, [editing, currentName]);
+  }, [editing]);
 
   const save = async () => {
+    // Guard against double-fire (Enter triggers save, then blur fires again)
+    if (savingRef.current) return;
     const trimmed = value.trim();
     if (!trimmed || trimmed === currentName) {
       setEditing(false);
       return;
     }
+    savingRef.current = true;
     setSaving(true);
+    setError('');
     try {
       await updateDeviceSettings(deviceId, { display_name: trimmed });
+      setOptimistic(trimmed);
+      setEditing(false);
+    } catch (err) {
+      setError((err as Error).message || 'Save failed');
+      // Keep editing open so user can retry
     } finally {
       setSaving(false);
-      setEditing(false);
+      savingRef.current = false;
     }
   };
 
+  const displayName = optimistic ?? currentName;
+
   if (editing) {
     return (
-      <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+      <span className="inline-flex flex-col items-end gap-0.5" onClick={(e) => e.stopPropagation()}>
         <input
           ref={inputRef}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => { setValue(e.target.value); setError(''); }}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') save();
+            if (e.key === 'Enter') { e.preventDefault(); save(); }
             if (e.key === 'Escape') setEditing(false);
           }}
           onBlur={save}
@@ -408,13 +429,16 @@ function InlineRename({
           className={`rounded border px-1.5 py-0.5 ${size === 'sm' ? 'text-xs' : 'text-sm'} font-medium`}
           style={{
             backgroundColor: 'var(--color-bg)',
-            borderColor: 'var(--color-accent)',
+            borderColor: error ? 'var(--color-danger)' : 'var(--color-accent)',
             color: 'var(--color-text)',
             outline: 'none',
             minWidth: '200px',
             width: `${Math.max(value.length + 2, 20)}ch`,
           }}
         />
+        {error && (
+          <span className="text-[10px]" style={{ color: 'var(--color-danger)' }}>{error}</span>
+        )}
       </span>
     );
   }
@@ -422,7 +446,7 @@ function InlineRename({
   return (
     <span className="inline-flex items-center gap-1.5 group">
       <span className={`font-${size === 'sm' ? 'normal' : 'medium'} ${size === 'sm' ? 'text-xs' : 'text-sm'}`} style={{ color: 'var(--color-text-secondary)' }}>
-        {currentName}
+        {displayName}
       </span>
       <button
         onClick={(e) => { e.stopPropagation(); setEditing(true); }}
