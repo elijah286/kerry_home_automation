@@ -15,6 +15,7 @@ import { loadIntegrationDebugFlags } from './integration-debug.js';
 import { migrateFromRedis } from './db/integration-config-store.js';
 import { historyWriter } from './db/history-writer.js';
 import { startNotificationSweeper } from './notifications/service.js';
+import { seedDashboardsIfMissing } from './dashboards/seed.js';
 import * as entryStore from './db/integration-entry-store.js';
 import { startEventLogBridge } from './state/event-log-bridge.js';
 import { readFile } from 'node:fs/promises';
@@ -98,6 +99,9 @@ async function main() {
 
   // 2b. Load role permission overrides from DB
   await loadRolePermissions();
+
+  // 2c. Seed built-in dashboards on fresh installs (no-op if files already exist)
+  await seedDashboardsIfMissing();
 
   // 3. Connect Redis (already connected via singleton import)
   logger.info('Redis connected');

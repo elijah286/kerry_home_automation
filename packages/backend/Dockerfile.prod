@@ -44,6 +44,8 @@ COPY --from=builder /app/packages/shared/package.json ./packages/shared/package.
 COPY --from=builder /app/packages/backend/dist ./packages/backend/dist
 # LEAP mutual TLS: client cert/key per bridge host (see packages/backend/certs/)
 COPY --from=builder /app/packages/backend/certs ./packages/backend/certs
+# Read-only seed dashboards — copied into data/dashboards/ on startup when missing
+COPY --from=builder /app/packages/backend/seeds ./packages/backend/seeds
 COPY --from=builder /app/packages/backend/scripts/reset-admin-password.mjs ./packages/backend/scripts/reset-admin-password.mjs
 COPY --from=builder /app/packages/backend/package.json ./packages/backend/package.json
 COPY --from=builder /app/packages/backend/node_modules ./packages/backend/node_modules
