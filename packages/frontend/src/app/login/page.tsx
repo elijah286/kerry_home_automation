@@ -27,8 +27,10 @@ export default function LoginPage() {
 
     const probe = async () => {
       const api = getApiBase();
+      // In remote mode, /api/* requires auth — use the proxy's public /health instead.
+      const healthPath = remote ? '/health' : '/api/health';
       try {
-        const r = await fetch(`${api}/api/health`, {
+        const r = await fetch(`${api}${healthPath}`, {
           cache: 'no-store',
           signal: AbortSignal.timeout(4000),
         });
