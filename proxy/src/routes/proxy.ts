@@ -13,8 +13,18 @@ export async function registerProxyRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const id = randomUUID();
-    const path = req.url;
     const method = req.method;
+
+    // Strip the ?token= query param before forwarding — the backend doesn't
+    // know about Supabase tokens and the auth has already been validated.
+    let path = req.url;
+    try {
+      const u = new URL(path, 'http://localhost');
+      if (u.searchParams.has('token')) {
+        u.searchParams.delete('token');
+        path = u.pathname + (u.search || '');
+      }
+    } catch { /* keep original */ }
 
     const headers: Record<string, string> = {};
     for (const [key, value] of Object.entries(req.headers)) {

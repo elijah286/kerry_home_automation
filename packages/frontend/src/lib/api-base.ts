@@ -37,6 +37,19 @@ export function getWsBase(): string {
 
 // -- Remote auth helpers for components that make direct fetch calls ----------
 
+/**
+ * Returns a query-string token param for URLs that can't send headers
+ * (e.g. `<img src>`, `new WebSocket()`). Empty string in local mode.
+ *
+ * Usage: ``src={`${url}/snapshot${authQueryParam()}`}``
+ */
+export function authQueryParam(existingQuery = false): string {
+  if (!isRemoteAccess()) return '';
+  const token = typeof window !== 'undefined' ? localStorage.getItem('ha_remote_token') : null;
+  if (!token) return '';
+  return `${existingQuery ? '&' : '?'}token=${encodeURIComponent(token)}`;
+}
+
 /** Returns auth headers for the current mode (Bearer token for remote, empty for local). */
 export function authHeaders(): Record<string, string> {
   if (!isRemoteAccess()) return {};

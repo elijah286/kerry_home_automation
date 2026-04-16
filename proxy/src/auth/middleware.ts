@@ -17,13 +17,24 @@ export async function requireRemoteAuth(
   request: FastifyRequest,
   reply: FastifyReply,
 ): Promise<void> {
+  // Accept token from Authorization header or ?token= query parameter.
+  // Query-string fallback is needed for <img src>, <video src>, and
+  // new WebSocket() calls that cannot attach custom headers.
+  let token: string | undefined;
   const auth = request.headers.authorization;
-  if (!auth?.startsWith('Bearer ')) {
-    reply.status(401).send({ error: 'missing authorization header' });
-    return;
+  if (auth?.startsWith('Bearer ')) {
+    token = auth.slice(7);
+  } else {
+    try {
+      const url = new URL(request.url, 'http://localhost');
+      token = url.searchParams.get('token') ?? undefined;
+    } catch { /* ignore malformed URLs */ }
   }
 
-  const token = auth.slice(7);
+  if (!token) {
+    reply.status(401).send({ error: 'missing authorization' });
+    return;
+  }
   const verified = await verifySupabaseToken(token);
   if (!verified) {
     reply.status(401).send({ error: 'invalid or expired token' });

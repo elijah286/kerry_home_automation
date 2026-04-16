@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, memo } from 'react';
 import { X } from 'lucide-react';
-import { getApiBase, getWsBase, apiFetch } from '@/lib/api-base';
+import { getApiBase, getWsBase, apiFetch, authQueryParam } from '@/lib/api-base';
 
 // ---------------------------------------------------------------------------
 // MSE stream — fMP4 over WebSocket (invisible until frames actually play)
@@ -147,7 +147,7 @@ function MSEStream({
     ms.addEventListener('sourceopen', () => {
       if (disposed) return;
 
-      ws = new WebSocket(`${getWsBase()}/api/cameras/${encodeURIComponent(name)}/stream`);
+      ws = new WebSocket(`${getWsBase()}/api/cameras/${encodeURIComponent(name)}/stream${authQueryParam()}`);
       ws.binaryType = 'arraybuffer';
 
       ws.onopen = () => resetDataTimeout();
@@ -501,7 +501,7 @@ const CameraTile = memo(function CameraTile({
 
           {!msePlaying && (
             <img
-              src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapshotRev}`}
+              src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapshotRev}${authQueryParam(true)}`}
               alt={cam.label}
               className="absolute inset-0 z-[1] h-full w-full object-cover"
               onLoad={() => setSnapLoaded(true)}
@@ -560,13 +560,13 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
         {!webrtcPlaying && (
           <>
             <img
-              src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapRev}`}
+              src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapRev}${authQueryParam(true)}`}
               alt={cam.label}
               className="absolute inset-0 z-[1] h-full w-full object-contain"
               onError={() => setSnapError(true)}
             />
             <img
-              src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/mjpeg`}
+              src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/mjpeg${authQueryParam()}`}
               alt=""
               className="absolute inset-0 z-[2] h-full w-full object-contain"
               onError={() => setMjpegError(true)}
