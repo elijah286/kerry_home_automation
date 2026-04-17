@@ -120,7 +120,7 @@ const readTools: ChatCompletionTool[] = [
     function: {
       name: 'navigate_ui',
       description:
-        'Navigate the UI to a page — this is your PRIMARY response tool for any "show/find/list/open" request. Always navigate first, then give a single brief sentence in the chat. Supported paths and query params: /devices, /cameras, /calendar, /settings, /integrations, /areas, /alarms, /settings/automations, /recipes (bare list), /recipes?q=<search+terms> (pre-filtered recipe search — use this after search_recipes instead of listing results in chat), /recipes?open=<uid> (specific recipe). For device searches use /devices?type=<type>&area=<area> where helpful.',
+        'Navigate the UI to a page — PRIMARY response tool for any "show/find/list/open" request. Always navigate first, then reply with one brief sentence. Paths: /devices, /cameras, /calendar, /settings, /integrations, /areas, /alarms, /settings/automations. Recipes: /recipes?uids=uid1,uid2,uid3 (use the navigatePath returned by search_recipes — this shows exactly the matched recipes), /recipes?open=<uid> (single recipe), /recipes (bare list). Devices: /devices?ids=id1,id2 (exact set from get_devices), /devices?type=<type>&area=<area> (filtered browse).',
       parameters: {
         type: 'object',
         properties: {
@@ -135,7 +135,7 @@ const readTools: ChatCompletionTool[] = [
     function: {
       name: 'search_recipes',
       description:
-        "Search the user's Paprika recipe library (names, ingredients, directions, notes, source). Call this whenever the user asks about recipes by ingredient, keyword, cuisine, or dish type. After getting results: DO NOT list them in the chat — instead call navigate_ui with /recipes?q=<your search query> so the results appear on screen. Then reply with one brief sentence like 'Showing X chicken recipes — want to narrow it down?' If results are zero, tell the user and suggest broadening the search.",
+        "Search the user's Paprika recipe library (names, ingredients, directions, notes, source). Call whenever the user asks about recipes by ingredient, keyword, cuisine, or dish type. The result includes a navigatePath field — always call navigate_ui with that path immediately after. It encodes the exact UIDs of matches so the UI shows precisely those recipes. Never list results in chat. Reply with one brief sentence: 'Showing X pork-and-vegetable recipes — want to open one?' If zero matches, suggest broadening the search.",
       parameters: {
         type: 'object',
         properties: {
@@ -869,6 +869,7 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
         maxResults: limit,
         matchAllTerms,
       });
+      const uidList = hits.map((h) => h.uid).join(',');
       return {
         totalInLibrary: recipes.length,
         matchCount: hits.length,
@@ -879,12 +880,12 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
           total_time: h.total_time,
           source: h.source,
           rating: h.rating,
-          openPath: `/recipes?open=${encodeURIComponent(h.uid)}`,
         })),
+        navigatePath: hits.length > 0 ? `/recipes?uids=${encodeURIComponent(uidList)}` : null,
         hint:
           hits.length === 0
-            ? 'No recipes matched. Try fewer words, synonyms, or match_all_terms=false. Ingredients use the wording from Paprika (e.g. "cilantro" vs "coriander").'
-            : 'Summarize matches by name. Offer navigate_ui to /recipes or to openPath for one recipe.',
+            ? 'No recipes matched. Try fewer words, synonyms, or match_all_terms=false.'
+            : `Call navigate_ui with the navigatePath above — it contains the exact UIDs of the ${hits.length} matches so the page shows precisely those recipes. Do NOT list them in chat; reply with one brief sentence instead.`,
       };
     }
 
@@ -1394,9 +1395,10 @@ The HomeOS UI is your primary output surface. The chat window is for brief confi
 ### When to navigate (don't list in chat)
 | User intent | Action |
 |---|---|
-| Find/show/list recipes by any criteria | search_recipes → navigate_ui /recipes?q=<query> |
+| Find/show/list recipes by any criteria | search_recipes → navigate_ui with the returned navigatePath (/recipes?uids=...) |
 | Open a specific recipe | navigate_ui /recipes?open=<uid> |
-| Show devices / a device type / area | navigate_ui /devices (add ?type=X&area=Y if specific) |
+| Show devices the LLM already fetched | navigate_ui /devices?ids=id1,id2,id3 |
+| Browse devices by type/area | navigate_ui /devices?type=X&area=Y |
 | Show cameras | navigate_ui /cameras |
 | Show calendar / schedule | navigate_ui /calendar |
 | Show automations | navigate_ui /settings/automations |
@@ -1410,24 +1412,24 @@ The HomeOS UI is your primary output surface. The chat window is for brief confi
 - Follow-up refinement after user responds to your offer
 
 ### Never do these
-- Never list more than 3 items in the chat window when a UI page exists for that content
-- Never show a recipe list in chat — always navigate to /recipes?q=<terms>
+- Never list more than 3 items in chat when a UI page can show them
+- Never show a recipe list in chat — always call navigate_ui with the navigatePath from search_recipes
+- Never use /recipes?q=<keyword> — that re-runs a dumb keyword search; use ?uids= instead
 - Never dump a device list in chat — navigate to /devices
 - Never say "Here are the results:" followed by a long list
 
 ### Chat reply format after navigating
-✓ "Showing [N] chicken recipes — want to narrow it down?"
-✓ "Opening your recipes filtered to pasta — let me know if you want to filter by time or rating."
+✓ "Showing 4 pork-and-vegetable recipes — want to open one?"
 ✓ "Navigated to Cameras."
 ✗ Never: "Here are 20 chicken recipes: 1. Chicken Parm... 2. Butter Chicken..."
 
 ## Paprika / recipes
 - Recipe library is Paprika, synced into HomeOS under **Recipes**. Always call search_recipes for ingredient/keyword queries.
-- After search_recipes: call navigate_ui with /recipes?q=<query terms> — the page will filter live. Reply: "Showing [count] [query] recipes — can I help refine?"
+- After search_recipes: use the navigatePath field in the result — it's /recipes?uids=... with the exact matched UIDs. Call navigate_ui with that path. The UI will show precisely those recipes with an "AI filtered" banner.
 - For one specific recipe: navigate_ui /recipes?open=<uid>.
 
 ## Navigation
-navigate_ui paths: /devices, /cameras, /calendar, /settings, /integrations, /areas, /alarms, /recipes, /settings/automations, /recipes?q=<terms>, /recipes?open=<uid>.
+navigate_ui paths: /devices?ids=id1,id2 (exact), /devices?type=X&area=Y (browse), /cameras, /calendar, /settings, /integrations, /areas, /alarms, /recipes, /settings/automations, /recipes?uids=uid1,uid2 (exact AI results), /recipes?open=<uid>.
 
 ## Integration setup guidelines
 - When a user asks to set up an integration, call get_integration_setup_info first.
