@@ -176,6 +176,21 @@ export interface VehicleState extends DeviceBase {
    * Keys are `slice.field` — used for Locations, device detail, and diagnostics.
    */
   vehicleTelemetry?: Record<string, string | number | boolean | null>;
+  // -- Tesla compositor inputs ---------------------------------------------
+  //
+  // Parsed from `vehicle_config.option_codes` and fed to the Tesla configurator
+  // compositor to render a live image of the specific car (paint, wheels,
+  // aero package). Falls back to a generic silhouette if compositor is off.
+  /** Tesla model family used as the `model=` param. e.g. "model3", "models", "modelx", "modely". */
+  compositorModel?: string | null;
+  /** The raw comma-separated option codes ("MTS04,PPSW,W38B,…"). Used as the `options=` param. */
+  optionCodes?: string | null;
+  /** Human-friendly paint colour, best-effort. e.g. "Pearl White". */
+  paintColor?: string | null;
+  /** Human-friendly wheel name, best-effort. e.g. "19″ Sport Wheels". */
+  wheelName?: string | null;
+  /** Friendly trim label. e.g. "Model 3 Long Range". */
+  trimName?: string | null;
 }
 
 // -- Energy Site (Tesla Powerwall / Solar) -----------------------------------
@@ -310,6 +325,57 @@ export interface WeatherForecastDay {
   shortForecast: string;
   detailedForecast: string;
   isDaytime: boolean;
+  /** NWS icon URL (daytime/nighttime variant already resolved). */
+  icon?: string | null;
+  /** 0-100, if NWS provided one for this period. */
+  probabilityOfPrecipitation?: number | null;
+  /** Wind speed string, e.g. "10 to 15 mph". */
+  windSpeed?: string | null;
+  windDirection?: string | null;
+  /** ISO timestamp for period start. */
+  startTime?: string;
+  endTime?: string;
+}
+
+/** One hour of the NWS hourly forecast. Up to 156 hours (~6.5 days). */
+export interface WeatherForecastHour {
+  /** ISO timestamp for the hour start. */
+  startTime: string;
+  temperature: number | null;
+  temperatureUnit: string;
+  icon: string | null;
+  shortForecast: string;
+  isDaytime: boolean;
+  /** 0-100, if NWS provided one. */
+  probabilityOfPrecipitation: number | null;
+  /** e.g. "10 mph" */
+  windSpeed: string | null;
+  windDirection: string | null;
+  /** Dewpoint Celsius, if provided. */
+  dewpoint: number | null;
+  /** Relative humidity 0-100, if provided. */
+  relativeHumidity: number | null;
+}
+
+/** Active alert (tornado watch, winter storm warning, etc) from the NWS
+ *  alerts endpoint. Lightweight subset for card rendering. */
+export interface WeatherAlert {
+  id: string;
+  /** e.g. "Severe Thunderstorm Warning" */
+  event: string;
+  /** "Severe" | "Moderate" | "Minor" | "Extreme" | "Unknown" */
+  severity: string;
+  /** "Immediate" | "Expected" | "Future" | "Past" | "Unknown" */
+  urgency: string;
+  /** Short headline. */
+  headline: string;
+  /** Full prose description (may be long). */
+  description: string;
+  /** Optional action instructions ("Move to interior room…"). */
+  instruction: string | null;
+  /** ISO start / end timestamps. */
+  effective: string;
+  expires: string;
 }
 
 export interface WeatherState extends DeviceBase {
@@ -321,7 +387,17 @@ export interface WeatherState extends DeviceBase {
   windDirection: string | null;
   condition: string;
   icon: string | null;
+  /** 14-period named forecast (Today / Tonight / Tomorrow / …). */
   forecast: WeatherForecastDay[];
+  /** Hour-by-hour forecast (~156 hours). Empty array if unavailable. */
+  hourly: WeatherForecastHour[];
+  /** Active NWS alerts for the point. Empty when none. */
+  alerts: WeatherAlert[];
+  /** Last timestamp the forecast blocks were refreshed (ms). */
+  forecastUpdatedAt: number | null;
+  /** Resolved lat/lon so the card can plot the RainViewer radar layer. */
+  latitude: number | null;
+  longitude: number | null;
 }
 
 // -- Garage Door (Meross) ----------------------------------------------------
