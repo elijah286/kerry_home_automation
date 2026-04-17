@@ -63,7 +63,7 @@ export async function loadLlmRuntimeSettings(): Promise<LlmRuntimeSettings> {
   const anthropicApiKey = explicitAnthropicKey ?? (provider === 'anthropic' ? legacyKey : undefined);
 
   const openaiModel = asTrimmedString(map.get('llm_openai_model')) ?? 'gpt-4o';
-  const anthropicModel = asTrimmedString(map.get('llm_anthropic_model')) ?? 'claude-sonnet-4-20250514';
+  const anthropicModel = asTrimmedString(map.get('llm_anthropic_model')) ?? 'claude-sonnet-4-6';
 
   return {
     provider,

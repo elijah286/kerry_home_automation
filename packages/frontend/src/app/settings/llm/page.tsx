@@ -24,9 +24,9 @@ const OPENAI_MODELS = [
 ] as const;
 
 const ANTHROPIC_MODELS = [
-  { id: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
-  { id: 'claude-opus-4-20250514',   label: 'Claude Opus 4' },
-  { id: 'claude-haiku-4-20250514',  label: 'Claude Haiku 4' },
+  { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+  { id: 'claude-opus-4-6',   label: 'Claude Opus 4.6' },
+  { id: 'claude-haiku-4-5',  label: 'Claude Haiku 4.5' },
 ] as const;
 
 function readSetting(data: { value?: unknown }): string | undefined {
