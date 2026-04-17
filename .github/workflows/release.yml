@@ -1,12 +1,16 @@
 # ---------------------------------------------------------------------------
-# CI/CD — Build Docker images and create releases on push to main
+# CI/CD — Compute version bump, build Docker images, create release on every push to main
 #
-# Every push to main builds and pushes images to ghcr.io. A GitHub Release is
-# created only when the version in app-version.json changes. Images are always
-# tagged with both the semantic version and the short SHA.
+# Version policy: CI is the SOLE source of version bumps. Every push to main
+# results in at least a patch bump. Bump type is determined by conventional
+# commit messages since the last release-manifest commit:
+#   - `feat!:` or `BREAKING CHANGE:` in footer → MAJOR
+#   - `feat:`                                   → MINOR
+#   - everything else (fix, chore, docs, ...)   → PATCH  (never zero-bump)
 #
-# The home hub checks for new releases via git fetch and reads the release
-# manifest to determine which images to pull.
+# The bumped app-version.json is committed together with deploy/release-manifest.json
+# in a single "ci: release vX.Y.Z" commit back to main. The home hub polls origin/main
+# and pulls matching pinned images from ghcr.io.
 # ---------------------------------------------------------------------------
 name: Release
 
@@ -15,10 +19,11 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      force_release:
-        description: 'Create a release even if version unchanged'
-        type: boolean
-        default: false
+      bump_override:
+        description: 'Force a specific bump type (major/minor/patch). Empty = auto from commits.'
+        type: choice
+        default: ''
+        options: ['', 'patch', 'minor', 'major']
 
 permissions:
   contents: write
@@ -27,12 +32,8 @@ permissions:
 env:
   REGISTRY: ghcr.io
 
-# Serialize runs on main so the "Commit release manifest" step can't race
-# against a concurrent run. Without this, back-to-back pushes (e.g. the
-# pre-push hook's version-bump chain) each try to `git pull --rebase && git
-# push` the manifest at the same time, conflict on deploy/release-manifest.json,
-# and fail the workflow. `cancel-in-progress: false` keeps every push building —
-# we queue them instead of dropping any.
+# Serialize on main so the version-bump commit can't race against a concurrent run.
+# cancel-in-progress: false keeps every push building — we queue them instead of dropping any.
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -40,38 +41,76 @@ concurrency:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    # Skip the workflow's own release commit to avoid an infinite loop.
+    if: "!startsWith(github.event.head_commit.message, 'ci: release v')"
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # need previous commit to detect version changes
+          fetch-depth: 0  # need full history to find last release commit
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Read version from app-version.json
+      - name: Compute bump type and new version
         id: version
         run: |
-          VERSION=$(node -e "const v=require('./packages/frontend/src/lib/app-version.json'); console.log(v.major+'.'+v.minor+'.'+v.patch)")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
-          echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-
-          # Check if version changed in this push
-          PREV_VERSION=$(git show HEAD~1:packages/frontend/src/lib/app-version.json 2>/dev/null \
-            | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const v=JSON.parse(d);console.log(v.major+'.'+v.minor+'.'+v.patch)}catch{console.log('')}})" \
-            || echo "")
-          if [ "$VERSION" != "$PREV_VERSION" ] || [ "${{ inputs.force_release }}" = "true" ]; then
-            echo "new_release=true" >> "$GITHUB_OUTPUT"
+          set -e
+          # Find the last release commit (the one that committed the previous release-manifest)
+          LAST_RELEASE_COMMIT=$(git log --format='%H' --grep='^ci: release v' -n 1 || echo "")
+          if [ -z "$LAST_RELEASE_COMMIT" ]; then
+            # First-ever release — scan from beginning
+            RANGE="HEAD"
           else
-            echo "new_release=false" >> "$GITHUB_OUTPUT"
+            RANGE="${LAST_RELEASE_COMMIT}..HEAD"
           fi
-          echo "Version: $VERSION (prev: $PREV_VERSION, new_release: $(grep new_release "$GITHUB_OUTPUT" | cut -d= -f2))"
+          echo "Scanning commits in range: $RANGE"
 
-      - name: Read release notes
-        id: notes
-        run: |
-          NOTES=$(node -e "
-            const v = require('./packages/frontend/src/lib/app-version.json');
-            console.log(v.releaseNotes || '');
-          ")
-          echo "release_notes=$NOTES" >> "$GITHUB_OUTPUT"
+          # Collect commit subjects + bodies in the range
+          COMMITS=$(git log --format='%B%n---END---' "$RANGE" 2>/dev/null || echo "")
+
+          # Determine bump type
+          OVERRIDE="${{ inputs.bump_override }}"
+          if [ -n "$OVERRIDE" ]; then
+            BUMP="$OVERRIDE"
+            echo "Using manual override: $BUMP"
+          elif echo "$COMMITS" | grep -qE '^(feat|fix|chore|refactor|perf|docs|style|test|build|ci)(\([^)]+\))?!:|BREAKING CHANGE:'; then
+            BUMP="major"
+          elif echo "$COMMITS" | grep -qE '^feat(\([^)]+\))?:'; then
+            BUMP="minor"
+          else
+            BUMP="patch"
+          fi
+          echo "Bump type: $BUMP"
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+
+          # Read current version
+          CUR_MAJOR=$(node -e "console.log(require('./packages/frontend/src/lib/app-version.json').major)")
+          CUR_MINOR=$(node -e "console.log(require('./packages/frontend/src/lib/app-version.json').minor)")
+          CUR_PATCH=$(node -e "console.log(require('./packages/frontend/src/lib/app-version.json').patch)")
+
+          # Compute new version
+          case "$BUMP" in
+            major) NEW_MAJOR=$((CUR_MAJOR+1)); NEW_MINOR=0; NEW_PATCH=0 ;;
+            minor) NEW_MAJOR=$CUR_MAJOR;       NEW_MINOR=$((CUR_MINOR+1)); NEW_PATCH=0 ;;
+            patch) NEW_MAJOR=$CUR_MAJOR;       NEW_MINOR=$CUR_MINOR;       NEW_PATCH=$((CUR_PATCH+1)) ;;
+          esac
+
+          NEW_VERSION="${NEW_MAJOR}.${NEW_MINOR}.${NEW_PATCH}"
+          echo "Current: ${CUR_MAJOR}.${CUR_MINOR}.${CUR_PATCH} → New: $NEW_VERSION"
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+          # Write the bumped app-version.json for use in subsequent steps and commit
+          node -e "
+            const fs = require('fs');
+            const p = './packages/frontend/src/lib/app-version.json';
+            const v = require(p);
+            v.major = ${NEW_MAJOR};
+            v.minor = ${NEW_MINOR};
+            v.patch = ${NEW_PATCH};
+            fs.writeFileSync(p, JSON.stringify(v, null, 2) + '\n');
+          "
+
+          # Use the head SHA + short SHA for image labeling (stable across this workflow run).
+          echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -141,7 +180,7 @@ jobs:
           cache-from: type=gha,scope=roborock
           cache-to: type=gha,mode=max,scope=roborock
 
-      # -- Proxy (Dockerfile expects repo root as context: copies shared/ + proxy/) --
+      # -- Proxy --
       - name: Build and push proxy
         uses: docker/build-push-action@v6
         with:
@@ -168,6 +207,7 @@ jobs:
             "sha": "${{ github.sha }}",
             "shaShort": "${{ steps.version.outputs.sha_short }}",
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "bump": "${{ steps.version.outputs.bump }}",
             "images": {
               "backend": "${{ env.REGISTRY }}/${OWNER}/ha-backend:${{ steps.version.outputs.tag }}",
               "frontend": "${{ env.REGISTRY }}/${OWNER}/ha-frontend:${{ steps.version.outputs.tag }}",
@@ -178,35 +218,34 @@ jobs:
           EOF
           cat deploy/release-manifest.json
 
-      - name: Commit release manifest
-        # The concurrency guard at the top serializes runs, so this step's
-        # `git pull --rebase` should always succeed. The fallback logic below
-        # exists defensively: if a conflict ever does sneak in (e.g. someone
-        # edits the manifest by hand between fetch and push), aborting the
-        # rebase and dropping this run's commit is safer than failing the
-        # whole release — the next push will regenerate the manifest anyway.
+      # -- Commit version bump + manifest in a single atomic commit --
+      - name: Commit release
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add deploy/release-manifest.json
-          git diff --cached --quiet && exit 0
-          git commit -m "ci: update release manifest for ${{ steps.version.outputs.tag }}"
-          if ! git pull --rebase origin main; then
-            echo "::warning::Rebase conflict on release-manifest.json — aborting and skipping manifest commit."
-            git rebase --abort || true
+          git add packages/frontend/src/lib/app-version.json deploy/release-manifest.json
+          if git diff --cached --quiet; then
+            echo "Nothing to commit — skipping release commit."
             exit 0
           fi
+          git commit -m "ci: release ${{ steps.version.outputs.tag }}"
+          if ! git pull --rebase origin main; then
+            echo "::warning::Rebase conflict during release commit — aborting."
+            git rebase --abort || true
+            exit 1
+          fi
           git push
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}" || true
 
-      # -- GitHub Release (only for new versions) --
+      # -- GitHub Release --
       - name: Create GitHub Release
-        if: steps.version.outputs.new_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: ${{ steps.version.outputs.tag }}
           body: |
-            ${{ steps.notes.outputs.release_notes }}
+            **Bump type:** ${{ steps.version.outputs.bump }}
 
             ## Images
             ```
