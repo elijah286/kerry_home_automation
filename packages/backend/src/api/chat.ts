@@ -15,6 +15,7 @@ import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
 import { authenticate } from './auth.js';
 import * as entryStore from '../db/integration-entry-store.js';
+import { tryFastPath } from './chat-fast-path.js';
 import {
   getPaprikaRecipesFromStore,
   isPaprikaConfigured,
@@ -1283,7 +1284,7 @@ function buildDeviceInventory(devices: ReturnType<typeof stateStore.getAll>, are
     if (!grouped.has(areaName)) grouped.set(areaName, []);
     const name = d.displayName || d.name;
     const aliases = d.aliases?.length ? ` [${d.aliases.join(', ')}]` : '';
-    grouped.get(areaName)!.push(`- ${name} (${d.type})${aliases}`);
+    grouped.get(areaName)!.push(`- ${name} (${d.type}) [id:${d.id}]${aliases}`);
   }
 
   const sections: string[] = [];
@@ -1364,16 +1365,16 @@ This is the complete list of controllable devices in the system, grouped by area
 ${buildDeviceInventory(devices, areaMap)}
 
 ## DEVICE RESOLUTION RULES — follow these strictly
-1. Use the Device Inventory above to identify which devices match the user's request. Match against device name AND aliases using case-insensitive partial matching.
-2. The inventory does NOT contain device IDs or current state. Once you identify the target device(s), call get_devices (with type and/or area filters when possible) to get device IDs and current state before acting.
-3. Exactly one match → call get_devices to get the ID, then act immediately. No confirmation needed.
-4. Multiple matches → list them briefly and ask which one.
-5. Zero matches in the inventory → tell the user the device was not found. Do NOT guess or fabricate. Suggest similar device names from the inventory if possible.
-6. For bulk operations ("turn off all kitchen lights"), call get_devices with the appropriate type and/or area filter, then send_command for each matching device.
+1. The Device Inventory above contains every device with its **[id:xxx]** — use these IDs directly. Do NOT call get_devices just to look up an ID you already have.
+2. Exactly one inventory match → use its ID, call send_command immediately. No confirmation needed.
+3. Multiple inventory matches → list them briefly and ask which one.
+4. Zero inventory matches → tell the user the device was not found. Do NOT guess or fabricate. Suggest similar names if possible.
+5. Only call get_devices when you need CURRENT STATE (e.g. "is the light on?", "what's the brightness?") — not for IDs.
+6. For bulk operations ("turn off all kitchen lights") → use the IDs directly from the inventory for each matching device, send_command for each in parallel.
 7. On confirmation ("yes", "go ahead", etc.) → execute immediately, no follow-up questions.
 8. Command fails → retry once, then report the error concisely.
 9. Confirm AFTER acting, not before. Be concise: "Done — turned on Patio Flood."
-10. To add or change **device aliases** (nicknames, alternate phrasing), call update_device_settings with the device ID from get_devices and add_aliases (merge) or aliases (full replace). Never use update_integration_entry for device names — that tool is only for integration bridge entries.
+10. To add or change **device aliases**, call update_device_settings with add_aliases (merge) or aliases (full replace). Never use update_integration_entry for device names.
 
 ## Calendar
 - Use **get_calendar_events** for upcoming events, schedule, and "what is on the calendar". Respect days_ahead. If feeds report errors or empty data, explain (feeds sync from the Calendar integration; user may need to open Calendar or refresh the integration).
@@ -1579,6 +1580,15 @@ export function registerChatRoutes(app: FastifyInstance): void {
             ? 'Anthropic API key not configured. Go to Settings → LLM Integration to add one.'
             : 'OpenAI API key not configured. Go to Settings → LLM Integration to add one.';
         return reply.code(400).send({ error: err });
+      }
+
+      // --- Fast path: handle simple device commands without LLM ---
+      const lastMessage = req.body.messages.at(-1);
+      if (lastMessage?.role === 'user' && req.body.messages.length === 1) {
+        const fast = await tryFastPath(lastMessage.content, user.role);
+        if (fast.handled) {
+          return { reply: fast.reply ?? 'Done.' };
+        }
       }
 
       const tools = getToolsForRole(user.role);
