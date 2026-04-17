@@ -139,8 +139,11 @@ function resolveBulk(
 // Intent patterns
 // ---------------------------------------------------------------------------
 
-// "turn on/off [the] <device>"
+// "turn on/off [the] <device>"  e.g. "turn on the kitchen lights"
 const TURN_RE = /^(?:please\s+)?(?:turn|switch|flip|put)\s+(on|off)\s+(?:the\s+)?(.+)$/i;
+
+// "turn [the] <device> on/off"  e.g. "turn the flood lights on"
+const TURN_SUFFIX_RE = /^(?:please\s+)?(?:turn|switch|flip|put)\s+(?:the\s+)?(.+?)\s+(on|off)$/i;
 
 // "<device> on/off" — short form: "patio lights off"
 const SHORT_TURN_RE = /^(?:the\s+)?(.+?)\s+(on|off)$/i;
@@ -210,7 +213,7 @@ export async function tryFastPath(
       }
     }
 
-    // --- Single turn on/off (standard form) ---
+    // --- Single turn on/off (standard form: "turn on the kitchen lights") ---
     const tm = msg.match(TURN_RE);
     if (tm) {
       const [, onOff, deviceQuery] = tm;
@@ -224,6 +227,25 @@ export async function tryFastPath(
         } as DeviceCommand);
         const name = device.displayName || device.name;
         logger.info({ deviceId: device.id, action, fastPath: true }, 'Fast path: turn on/off');
+        return { handled: true, reply: `Done — turned ${onOff.toLowerCase()} ${name}.` };
+      }
+    }
+
+    // --- Single turn on/off (suffix form: "turn the flood lights on") ---
+    // Must run before SHORT_TURN_RE, which would otherwise greedily include "turn" in the device name.
+    const tsm = msg.match(TURN_SUFFIX_RE);
+    if (tsm) {
+      const [, deviceQuery, onOff] = tsm;
+      const device = resolveDevice(deviceQuery);
+      if (device) {
+        const action = onOff.toLowerCase() === 'on' ? 'turn_on' : 'turn_off';
+        await registry.handleCommand({
+          deviceId: device.id,
+          type: device.type,
+          action,
+        } as DeviceCommand);
+        const name = device.displayName || device.name;
+        logger.info({ deviceId: device.id, action, fastPath: true }, 'Fast path: turn X on/off');
         return { handled: true, reply: `Done — turned ${onOff.toLowerCase()} ${name}.` };
       }
     }
