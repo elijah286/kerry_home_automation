@@ -270,13 +270,31 @@ function IframeForm({ card, onChange }: { card: Extract<CardDescriptor, { type: 
 
 // -- Device tiles (all share "entity + optional name + optional icon") -----
 
+// Maps each tile card type to the device type(s) that make sense for it.
+// Passed to EntityField so the picker only surfaces compatible devices.
+const TILE_DEVICE_TYPES: Partial<Record<CardDescriptor['type'], string[]>> = {
+  'light-tile':  ['light'],
+  'fan-tile':    ['fan'],
+  'cover-tile':  ['cover'],
+  'switch-tile': ['switch'],
+  'media-tile':  ['media_player'],
+  'camera':      ['camera'],
+  'vehicle':     ['vehicle'],
+  'alarm-panel': ['doorbell'], // closest approximation in the device graph
+};
+
 function EntityTileForm({ card, onChange }: { card: Extract<CardDescriptor, { entity: string }>; onChange: (c: CardDescriptor) => void }) {
   const bag = card as unknown as { entity: string; name?: string; icon?: string };
+  const deviceTypes = TILE_DEVICE_TYPES[card.type];
   const patch = (u: Partial<{ entity: string; name: string | undefined; icon: string | undefined }>) =>
     onChange({ ...card, ...u } as CardDescriptor);
   return (
     <FieldGroup>
-      <EntityField value={bag.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField
+        value={bag.entity}
+        onChange={(entity) => patch({ entity })}
+        deviceTypes={deviceTypes}
+      />
       <TextField label="Name (optional)" value={bag.name} onChange={(name) => patch({ name })} />
       <IconPickerField value={bag.icon} onChange={(icon) => patch({ icon })} />
     </FieldGroup>
@@ -285,11 +303,13 @@ function EntityTileForm({ card, onChange }: { card: Extract<CardDescriptor, { en
 
 // -- Data cards ------------------------------------------------------------
 
+const SENSOR_TYPES = ['sensor', 'helper_sensor', 'helper_number', 'helper_counter'];
+
 function SensorValueForm({ card, onChange }: { card: Extract<CardDescriptor, { type: 'sensor-value' }>; onChange: (c: CardDescriptor) => void }) {
   const patch = usePatch(card, onChange);
   return (
     <FieldGroup>
-      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} deviceTypes={SENSOR_TYPES} />
       <TextField label="Name" value={card.name} onChange={(name) => patch({ name })} />
       <IconPickerField value={card.icon} onChange={(icon) => patch({ icon })} />
       <SegmentedField
@@ -330,7 +350,7 @@ function GaugeForm({ card, onChange }: { card: Extract<CardDescriptor, { type: '
   const patch = usePatch(card, onChange);
   return (
     <FieldGroup>
-      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} deviceTypes={SENSOR_TYPES} />
       <TextField label="Name" value={card.name} onChange={(name) => patch({ name })} />
       <div className="grid grid-cols-2 gap-2">
         <NumberField label="Min" value={card.min} onChange={(v) => patch({ min: v ?? 0 })} />
@@ -413,7 +433,7 @@ function StatisticForm({ card, onChange }: { card: Extract<CardDescriptor, { typ
   const patch = usePatch(card, onChange);
   return (
     <FieldGroup>
-      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} deviceTypes={SENSOR_TYPES} />
       <TextField label="Name" value={card.name} onChange={(name) => patch({ name })} />
       <SegmentedField
         label="Statistic"
@@ -767,7 +787,7 @@ function ThermostatForm({
   const patch = usePatch(card, onChange);
   return (
     <FieldGroup>
-      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} deviceTypes={['thermostat']} />
       <TextField label="Name (optional)" value={card.name} onChange={(name) => patch({ name })} />
       <SegmentedField
         label="Size"
@@ -819,7 +839,7 @@ function TeslaForm({ card, onChange }: { card: Extract<CardDescriptor, { type: '
   const patch = usePatch(card, onChange);
   return (
     <FieldGroup>
-      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} deviceTypes={['vehicle']} />
       <TextField label="Name (optional)" value={card.name} onChange={(name) => patch({ name })} />
       <CheckboxField label="Hide vehicle image" value={card.hideImage} onChange={(hideImage) => patch({ hideImage })} />
       <SegmentedField
@@ -860,7 +880,7 @@ function DoorWindowForm({ card, onChange }: { card: Extract<CardDescriptor, { ty
   const patch = usePatch(card, onChange);
   return (
     <FieldGroup>
-      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} deviceTypes={['sensor', 'garage_door']} />
       <TextField label="Name (optional)" value={card.name} onChange={(name) => patch({ name })} />
       <SegmentedField
         label="Visual"
@@ -897,7 +917,7 @@ function BatteryForm({ card, onChange }: { card: Extract<CardDescriptor, { type:
   const patch = usePatch(card, onChange);
   return (
     <FieldGroup>
-      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} deviceTypes={['sensor', 'vehicle']} />
       <TextField label="Name (optional)" value={card.name} onChange={(name) => patch({ name })} />
       <SegmentedField
         label="Style"
@@ -921,6 +941,7 @@ function BatteryForm({ card, onChange }: { card: Extract<CardDescriptor, { type:
 function WeatherForm({ card, onChange }: { card: Extract<CardDescriptor, { type: 'weather' }>; onChange: (c: CardDescriptor) => void }) {
   const patch = usePatch(card, onChange);
   const togglePane = (pane: 'current' | 'hourly' | 'daily' | 'alerts' | 'radar') => {
+
     const current = card.panes ?? [];
     const next = current.includes(pane)
       ? current.filter((p) => p !== pane)
@@ -930,7 +951,7 @@ function WeatherForm({ card, onChange }: { card: Extract<CardDescriptor, { type:
   const has = (p: string) => (card.panes ?? []).includes(p as 'current');
   return (
     <FieldGroup>
-      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} deviceTypes={['weather']} />
       <TextField label="Name (optional)" value={card.name} onChange={(name) => patch({ name })} />
       <FieldShell label="Panes" hint="Which sections to render, in order.">
         <div className="flex flex-wrap gap-2">
