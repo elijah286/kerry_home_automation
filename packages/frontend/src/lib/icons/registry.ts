@@ -286,29 +286,164 @@ export const ICON_ALIASES: Record<string, string> = {
 };
 
 /**
+ * Emoji → lucide mapping. Legacy dashboards (and the original seed YAML)
+ * used colourful emoji glyphs for card icons. The new default look is
+ * simple stroke icons, so we auto-upgrade any known emoji to its closest
+ * lucide equivalent. Users who explicitly type an emoji that isn't in
+ * this table still see the emoji rendered literally (via IconGlyph's
+ * emoji fallback) — this table is an upgrade, not a hard replacement.
+ */
+export const EMOJI_ICONS: Record<string, string> = {
+  // Home / doors / windows
+  '🚪': 'DoorOpen',
+  '🔒': 'Lock',
+  '🔓': 'LockOpen',
+  '🔑': 'Key',
+  '🏠': 'Home',
+  '🏡': 'Home',
+  '🏚️': 'House',
+  '🪟': 'Blinds',
+  // Lights / power / electricity
+  '💡': 'Lightbulb',
+  '🔌': 'Plug',
+  '⚡': 'Zap',
+  '🔋': 'BatteryFull',
+  '⏻': 'Power',
+  '☀️': 'Sun',
+  '🌙': 'Moon',
+  // Climate / weather
+  '🌡️': 'Thermometer',
+  '💧': 'Droplet',
+  '🔥': 'Flame',
+  '❄️': 'Snowflake',
+  '🌬️': 'Wind',
+  '🌤️': 'CloudSun',
+  '☁️': 'Cloud',
+  '🌧️': 'CloudRain',
+  '🌨️': 'CloudSnow',
+  '⛈️': 'CloudLightning',
+  // Security / alarms / presence
+  '🛡️': 'Shield',
+  '🚨': 'Siren',
+  '🔔': 'Bell',
+  '👁️': 'Eye',
+  '📷': 'Camera',
+  '📹': 'Video',
+  '🎥': 'Video',
+  '🏃': 'PersonStanding',
+  '🚶': 'PersonStanding',
+  '🚷': 'Ban',
+  '👤': 'User',
+  '👥': 'Users',
+  // Cleaning / household
+  '🧹': 'Brush',
+  '🧽': 'Brush',
+  '🚿': 'ShowerHead',
+  '🛁': 'Bath',
+  '🚽': 'Toilet',
+  // Furniture / rooms
+  '🛏️': 'Bed',
+  '🛋️': 'Sofa',
+  '🪑': 'Armchair',
+  // Media / entertainment
+  '📺': 'Tv',
+  '🎵': 'Music',
+  '🎶': 'Music2',
+  '🎬': 'Film',
+  '🎮': 'Gamepad2',
+  '🔊': 'Volume2',
+  '🔇': 'VolumeX',
+  '▶️': 'Play',
+  '⏸️': 'Pause',
+  '⏹️': 'Square',
+  // Tools / settings
+  '⚙️': 'Settings',
+  '🔧': 'Wrench',
+  '🛠️': 'Wrench',
+  '🔨': 'Hammer',
+  '📋': 'ClipboardList',
+  '📝': 'Notebook',
+  // Time
+  '⏰': 'AlarmClock',
+  '🕒': 'Clock',
+  '⏱️': 'Timer',
+  '⏳': 'Hourglass',
+  // Network
+  '🌐': 'Globe',
+  '📶': 'Wifi',
+  '📡': 'Satellite',
+  // Vehicles / transport
+  '🚗': 'Car',
+  '🚙': 'Car',
+  '🏍️': 'Bike',
+  '🚲': 'Bike',
+  '✈️': 'Plane',
+  // Nature
+  '🌳': 'Trees',
+  '🌲': 'TreePine',
+  '🌱': 'Sprout',
+  '🪴': 'Sprout',
+  '🌸': 'Flower',
+  // Status
+  '✅': 'CheckCircle2',
+  '❌': 'XCircle',
+  '⚠️': 'TriangleAlert',
+  'ℹ️': 'Info',
+  '⭐': 'Star',
+  '❤️': 'Heart',
+  // Misc
+  '🏊': 'Waves',
+  '🏖️': 'Sun',
+  '🍳': 'ChefHat',
+  '☕': 'Coffee',
+  '👟': 'Footprints',
+  '🎯': 'Target',
+  '🔍': 'Search',
+  '📊': 'BarChart3',
+  '📈': 'TrendingUp',
+  '📉': 'TrendingDown',
+};
+
+// True when the string consists of a single Extended_Pictographic scalar
+// (with an optional variation selector). We use this to short-circuit the
+// alias lookup — emoji shouldn't match `mdi:` stripping or kebab→Pascal.
+const EMOJI_RE = /^\p{Extended_Pictographic}(?:\uFE0F)?$/u;
+
+/**
  * Resolve an icon name from any of our supported formats to a lucide component.
  *
  * Resolution order:
- *   1. Exact PascalCase lucide name ("CloudRain")
- *   2. HA alias table (`mdi:cloud-rain` or `cloud-rain` / `weather-cloudy`)
- *   3. Kebab-case → PascalCase conversion ("cloud-rain" → "CloudRain")
- *   4. null (caller falls back to emoji text or a dash)
+ *   1. Emoji alias table (🚪 → DoorOpen, etc.) — legacy dashboards come
+ *      through here so they auto-render as stroke icons.
+ *   2. Exact PascalCase lucide name ("CloudRain")
+ *   3. HA alias table (`mdi:cloud-rain` or `cloud-rain` / `weather-cloudy`)
+ *   4. Kebab-case → PascalCase conversion ("cloud-rain" → "CloudRain")
+ *   5. null (caller falls back to emoji text or a dash)
  */
 export function resolveIcon(name: string | undefined | null): LucideIcon | null {
   if (!name) return null;
   const s = name.trim();
   if (!s) return null;
 
-  // 1. Direct lucide name
+  // 1. Emoji → lucide upgrade (common path for legacy dashboards)
+  if (EMOJI_ICONS[s]) {
+    return LUCIDE_ICONS[EMOJI_ICONS[s]] ?? null;
+  }
+  // Unmapped emoji: signal "not a lucide" so IconGlyph falls back to
+  // rendering the emoji verbatim. Don't try the Pascal-case heuristic
+  // on a pictograph — it won't end well.
+  if (EMOJI_RE.test(s)) return null;
+
+  // 2. Direct lucide name
   if (LUCIDE_ICONS[s]) return LUCIDE_ICONS[s];
 
-  // 2. Strip `mdi:` prefix and look up alias / lucide
+  // 3. Strip `mdi:` prefix and look up alias / lucide
   const stripped = s.replace(/^mdi:/i, '');
   if (ICON_ALIASES[stripped]) {
     return LUCIDE_ICONS[ICON_ALIASES[stripped]] ?? null;
   }
 
-  // 3. Kebab → Pascal
+  // 4. Kebab → Pascal
   const pascal = stripped.split(/[-_\s]+/).filter(Boolean)
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
     .join('');

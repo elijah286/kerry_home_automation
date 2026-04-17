@@ -117,13 +117,14 @@ function StructuredDispatcher({ card, onChange }: CardFormProps) {
       return <ButtonForm card={card} onChange={onChange} />;
     case 'iframe-sandbox':
       return <IframeForm card={card} onChange={onChange} />;
+    case 'thermostat':
+      return <ThermostatForm card={card} onChange={onChange} />;
     case 'light-tile':
     case 'fan-tile':
     case 'cover-tile':
     case 'lock-tile':
     case 'switch-tile':
     case 'media-tile':
-    case 'thermostat':
     case 'vehicle':
     case 'camera':
     case 'alarm-panel':
@@ -745,6 +746,70 @@ function YamlFallback({ card, onChange }: CardFormProps) {
         <PrimaryButton onClick={apply}>Apply YAML</PrimaryButton>
       </div>
     </div>
+  );
+}
+
+// -- Thermostat -------------------------------------------------------------
+//
+// The thermostat schema already carries HA-parity options (size, presets, fan,
+// humidity, mode, history). Earlier we routed it through EntityTileForm which
+// exposed only name/entity/icon — so editing a thermostat felt broken. This
+// dedicated form surfaces the full option set as visibility toggles + a size
+// segmented control, matching how Home Assistant's climate card presents its
+// "features" list.
+function ThermostatForm({
+  card,
+  onChange,
+}: {
+  card: Extract<CardDescriptor, { type: 'thermostat' }>;
+  onChange: (c: CardDescriptor) => void;
+}) {
+  const patch = usePatch(card, onChange);
+  return (
+    <FieldGroup>
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <TextField label="Name (optional)" value={card.name} onChange={(name) => patch({ name })} />
+      <SegmentedField
+        label="Size"
+        hint="Compact is a single-line summary; hero fills the card column."
+        value={card.size}
+        onChange={(size) => patch({ size })}
+        options={[
+          { value: 'compact', label: 'Compact' },
+          { value: 'default', label: 'Normal' },
+          { value: 'hero', label: 'Large' },
+        ]}
+      />
+      <FieldShell label="Controls" hint="Which controls to surface on the tile.">
+        <div className="flex flex-col gap-1.5">
+          <CheckboxField
+            label="Mode selector (heat / cool / auto / off)"
+            value={card.showModeControl}
+            onChange={(showModeControl) => patch({ showModeControl })}
+          />
+          <CheckboxField
+            label="Preset buttons (home / away / sleep …)"
+            value={card.showPresets}
+            onChange={(showPresets) => patch({ showPresets })}
+          />
+          <CheckboxField
+            label="Fan mode selector"
+            value={card.showFanControl}
+            onChange={(showFanControl) => patch({ showFanControl })}
+          />
+          <CheckboxField
+            label="Indoor humidity chip"
+            value={card.showHumidity}
+            onChange={(showHumidity) => patch({ showHumidity })}
+          />
+          <CheckboxField
+            label="Inline setpoint/temperature history"
+            value={card.showHistory}
+            onChange={(showHistory) => patch({ showHistory })}
+          />
+        </div>
+      </FieldShell>
+    </FieldGroup>
   );
 }
 
