@@ -1,6 +1,17 @@
 'use client';
 
+// ---------------------------------------------------------------------------
+// DeviceAutocomplete — search-as-you-type entity picker.
+//
+// The dropdown is rendered in a React portal at `document.body` and positioned
+// with `position: fixed` anchored to the input rect. This way it always floats
+// above other form content regardless of scroll containers, z-index stacking
+// contexts, or overflow-hidden parents (the original `absolute` positioning
+// caused the dropdown to appear underneath sibling fields in the editor dialog).
+// ---------------------------------------------------------------------------
+
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { DeviceState } from '@ha/shared';
 
 interface DeviceAutocompleteProps {
@@ -26,6 +37,9 @@ export function DeviceAutocomplete({
   const menuRef = useRef<HTMLDivElement>(null);
   const [highlightIdx, setHighlightIdx] = useState(0);
 
+  // Position of the floating dropdown (updated whenever it opens).
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+
   useEffect(() => { setQuery(value); }, [value]);
 
   const filtered = query
@@ -39,6 +53,32 @@ export function DeviceAutocomplete({
 
   const isValid = !value || devices.some(d => d.id === value);
 
+  // Recalculate dropdown position from the input's bounding rect.
+  const updatePosition = useCallback(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    const rect = input.getBoundingClientRect();
+    setDropdownStyle({
+      position: 'fixed',
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+      zIndex: 9999,
+    });
+  }, []);
+
+  // Reposition on scroll / resize while open.
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [open, updatePosition]);
+
   const handleSelect = useCallback((id: string) => {
     onChange(id);
     setQuery(id);
@@ -48,8 +88,13 @@ export function DeviceAutocomplete({
   const handleInputChange = (val: string) => {
     setQuery(val);
     onChange(val);
-    setOpen(val.length > 0);
     setHighlightIdx(0);
+    if (val.length > 0) {
+      updatePosition();
+      setOpen(true);
+    } else {
+      setOpen(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -94,7 +139,7 @@ export function DeviceAutocomplete({
         type="text"
         value={query}
         onChange={(e) => handleInputChange(e.target.value)}
-        onFocus={() => query && setOpen(true)}
+        onFocus={() => { if (query) { updatePosition(); setOpen(true); } }}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         className={`w-full rounded border px-2 py-1 text-xs ${label ? 'mt-0.5' : ''}`}
@@ -109,33 +154,37 @@ export function DeviceAutocomplete({
           Device not found: {value}
         </p>
       )}
-      {open && filtered.length > 0 && (
-        <div
-          ref={menuRef}
-          className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-lg border shadow-lg"
-          style={{
-            backgroundColor: 'var(--color-bg-primary)',
-            borderColor: 'var(--color-border)',
-          }}
-        >
-          {filtered.map((d, i) => (
-            <button
-              key={d.id}
-              className="w-full text-left px-2.5 py-1.5 text-xs flex flex-col transition-colors"
-              style={{
-                backgroundColor: i === highlightIdx ? 'var(--color-bg-hover)' : 'transparent',
-              }}
-              onMouseEnter={() => setHighlightIdx(i)}
-              onMouseDown={(e) => { e.preventDefault(); handleSelect(d.id); }}
-            >
-              <span className="font-medium truncate">{d.displayName ?? d.name}</span>
-              <span className="font-mono text-[10px] truncate" style={{ color: 'var(--color-text-muted)' }}>
-                {d.id}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
+      {open && filtered.length > 0 && typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className="max-h-48 overflow-y-auto rounded-lg border shadow-lg"
+            style={{
+              ...dropdownStyle,
+              backgroundColor: 'var(--color-bg-primary)',
+              borderColor: 'var(--color-border)',
+            }}
+          >
+            {filtered.map((d, i) => (
+              <button
+                key={d.id}
+                className="w-full text-left px-2.5 py-1.5 text-xs flex flex-col transition-colors"
+                style={{
+                  backgroundColor: i === highlightIdx ? 'var(--color-bg-hover)' : 'transparent',
+                }}
+                onMouseEnter={() => setHighlightIdx(i)}
+                onMouseDown={(e) => { e.preventDefault(); handleSelect(d.id); }}
+              >
+                <span className="font-medium truncate">{d.displayName ?? d.name}</span>
+                <span className="font-mono text-[10px] truncate" style={{ color: 'var(--color-text-muted)' }}>
+                  {d.id}
+                </span>
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )
+      }
     </div>
   );
 }

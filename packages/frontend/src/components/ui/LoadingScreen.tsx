@@ -6,8 +6,8 @@ import { Loader2 } from 'lucide-react';
 
 /**
  * Themed loading screen shown during route transitions.
- * LCARS: UFP emblem + blue progress bar.
- * Other themes: spinner + accent-colored progress bar.
+ * LCARS: Federation emblem (SVG) + blue LCARS progress bar.
+ * Other themes: spinner + accent-colored progress bar (no emblem).
  */
 export function LoadingScreen({ label }: { label?: string }) {
   const { activeTheme } = useTheme();
@@ -24,20 +24,7 @@ export function LoadingScreen({ label }: { label?: string }) {
           letterSpacing: '0.1em',
         }}
       >
-        <FederationEmblem size={100} />
-        <div
-          style={{
-            marginTop: 14,
-            color: '#a0c4f0',
-            fontSize: 13,
-            fontWeight: 700,
-            letterSpacing: '0.2em',
-          }}
-        >
-          United Federation of Planets
-        </div>
-
-        {/* Indeterminate progress bar */}
+        <FederationEmblem size={180} />
         <div
           style={{
             width: 280,
@@ -68,10 +55,10 @@ export function LoadingScreen({ label }: { label?: string }) {
     );
   }
 
-  // ── Non-LCARS themes ──
+  // ── Non-LCARS themes ── plain spinner + progress bar, no emblem
   return (
     <div
-      className="flex flex-col items-center justify-center"
+      className="flex flex-col items-center justify-center gap-5"
       style={{ minHeight: '60vh' }}
     >
       <Loader2
@@ -87,7 +74,6 @@ export function LoadingScreen({ label }: { label?: string }) {
           height: 3,
           background: 'var(--color-border)',
           borderRadius: 999,
-          marginTop: 20,
           overflow: 'hidden',
           opacity: 0.6,
         }}
@@ -97,7 +83,6 @@ export function LoadingScreen({ label }: { label?: string }) {
 
       <div
         style={{
-          marginTop: 12,
           color: 'var(--color-text-secondary)',
           fontSize: 12,
           animation: 'loading-text-pulse 2s ease-in-out infinite',

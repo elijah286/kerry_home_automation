@@ -35,6 +35,7 @@ import type {
   ThermostatMode,
 } from '@ha/shared';
 import { Flame, Snowflake, Wind, Power, CircleDot, Minus, Plus } from 'lucide-react';
+import { ecobeeSelectablePresetKeys } from '@ha/shared';
 import { useDevice } from '@/hooks/useDevice';
 import { useCommand } from '@/hooks/useCommand';
 import { Select } from '@/components/ui/Select';
@@ -85,7 +86,7 @@ export function ThermostatCard({ card }: { card: ThermostatCardDescriptor }) {
 }
 
 // ---------------------------------------------------------------------------
-// Body
+// Body — dispatches to size-specific layouts
 // ---------------------------------------------------------------------------
 
 function ThermostatCardBody({
@@ -98,19 +99,10 @@ function ThermostatCardBody({
   const { send, isPending } = useCommand(device.id);
   const label = card.name ?? device.displayName ?? device.name;
   const visual = hvacActionVisual(device);
-  const HvacIcon = visual.Icon;
 
-  // Optimistic setpoints: shown while a tap hasn't round-tripped yet. Each
-  // − / + press sets `pending{Heat,Cool}` immediately and clears it once the
-  // server echoes the new value (or a grace period after the command
-  // resolves, whichever is first).
   const [pendingHeat, setPendingHeat] = useState<number | null>(null);
   const [pendingCool, setPendingCool] = useState<number | null>(null);
 
-  // When the server's value catches up to the optimistic target, drop the
-  // override so drift-on-stale-state is impossible. Without this the card
-  // would show the stale pending value if the server silently overrode (e.g.
-  // a vacation schedule kicking in).
   useEffect(() => {
     if (pendingHeat !== null && device.heatSetpoint === pendingHeat) setPendingHeat(null);
   }, [device.heatSetpoint, pendingHeat]);
@@ -125,32 +117,167 @@ function ThermostatCardBody({
     const target = clamp(heatDisplay + delta, HEAT_MIN, HEAT_MAX);
     setPendingHeat(target);
     void send('heat', { type: 'thermostat', action: 'set_heat_setpoint', temperature: target })
-      .then(() => {
-        // Brief grace window for the WebSocket echo. If the server came back
-        // with something different (mode boundary, vacation, etc.), the
-        // useEffect above won't match and we fall back to the server value.
-        setTimeout(() => setPendingHeat((p) => (p === target ? null : p)), 400);
-      });
+      .then(() => { setTimeout(() => setPendingHeat((p) => (p === target ? null : p)), 400); });
   };
-
   const bumpCool = (delta: number) => {
     const target = clamp(coolDisplay + delta, COOL_MIN, COOL_MAX);
     setPendingCool(target);
     void send('cool', { type: 'thermostat', action: 'set_cool_setpoint', temperature: target })
-      .then(() => {
-        setTimeout(() => setPendingCool((p) => (p === target ? null : p)), 400);
-      });
+      .then(() => { setTimeout(() => setPendingCool((p) => (p === target ? null : p)), 400); });
   };
 
-  // Which setpoints make sense for the current mode. The full-page control
-  // always shows both; here we hide the irrelevant one to keep the tile
-  // compact and avoid implying the other is settable.
-  const showHeat =
-    device.hvacMode === 'heat' ||
-    device.hvacMode === 'auto' ||
-    device.hvacMode === 'auxHeatOnly';
+  const showHeat = device.hvacMode === 'heat' || device.hvacMode === 'auto' || device.hvacMode === 'auxHeatOnly';
   const showCool = device.hvacMode === 'cool' || device.hvacMode === 'auto';
 
+  const size = card.size ?? 'default';
+
+  // ------------------------------------------------------------------
+  // compact: single horizontal row — name · temp · badge · setpoint pill
+  // ------------------------------------------------------------------
+  if (size === 'compact') {
+    return (
+      <div
+        className="flex items-center justify-between gap-3 rounded-lg px-3 py-2"
+        style={{
+          background: token('--color-bg-card'),
+          color: token('--color-text'),
+          border: `1px solid ${token('--color-border')}`,
+        }}
+        data-card-type="thermostat"
+        data-size="compact"
+      >
+        <span className="truncate text-sm font-medium">{label}</span>
+        <div className="flex shrink-0 items-center gap-2">
+          {device.temperature != null && (
+            <span className="text-sm font-semibold tabular-nums">
+              {device.temperature.toFixed(1)}°
+            </span>
+          )}
+          {card.showHumidity && device.humidity != null && (
+            <span className="text-xs tabular-nums" style={{ color: token('--color-text-muted') }}>
+              {device.humidity}%
+            </span>
+          )}
+          <HvacBadge visual={visual} />
+          {(showHeat || showCool) && (
+            <div className="flex items-center gap-1">
+              {showHeat && <span className="text-xs tabular-nums" style={{ color: token('--color-danger') }}>
+                <Flame className="inline h-3 w-3 mr-0.5" />{heatDisplay.toFixed(0)}°
+              </span>}
+              {showCool && <span className="text-xs tabular-nums" style={{ color: COOL_COLOR }}>
+                <Snowflake className="inline h-3 w-3 mr-0.5" />{coolDisplay.toFixed(0)}°
+              </span>}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // hero: large display — fills the column, larger temperature, fan +
+  // presets row always shown when enabled
+  // ------------------------------------------------------------------
+  if (size === 'hero') {
+    return (
+      <div
+        className="flex flex-col gap-4 rounded-lg p-5"
+        style={{
+          background: token('--color-bg-card'),
+          color: token('--color-text'),
+          border: `1px solid ${token('--color-border')}`,
+        }}
+        data-card-type="thermostat"
+        data-size="hero"
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-2">
+          <span className="text-base font-semibold">{label}</span>
+          <HvacBadge visual={visual} />
+        </div>
+
+        {/* Big temp + setpoints side by side */}
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <div className="text-5xl font-bold leading-none tabular-nums">
+              {device.temperature != null ? `${device.temperature.toFixed(1)}°` : '—'}
+            </div>
+            {card.showHumidity && device.humidity != null && (
+              <div className="mt-1.5 text-sm" style={{ color: token('--color-text-muted') }}>
+                {device.humidity}% RH
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col gap-2">
+            {showHeat && (
+              <SetpointRow label="Heat" Icon={Flame} color={token('--color-danger')}
+                value={heatDisplay} busy={isPending('heat')}
+                onMinus={() => bumpHeat(-1)} onPlus={() => bumpHeat(1)} large />
+            )}
+            {showCool && (
+              <SetpointRow label="Cool" Icon={Snowflake} color={COOL_COLOR}
+                value={coolDisplay} busy={isPending('cool')}
+                onMinus={() => bumpCool(-1)} onPlus={() => bumpCool(1)} large />
+            )}
+            {!showHeat && !showCool && (
+              <div className="rounded-md px-3 py-1.5 text-sm"
+                style={{ color: token('--color-text-muted'), backgroundColor: token('--color-bg-hover') }}>
+                System off
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Mode selector */}
+        {card.showModeControl && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm" style={{ color: token('--color-text-muted') }}>Mode</span>
+            <Select value={device.hvacMode} disabled={isPending('hvac')}
+              onValueChange={(v) => void send('hvac', { type: 'thermostat', action: 'set_hvac_mode', hvacMode: v as ThermostatMode })}
+              options={HVAC_OPTIONS} className="flex-1" size="sm" />
+          </div>
+        )}
+
+        {/* Fan selector */}
+        {card.showFanControl && device.fanMode != null && (
+          <div className="flex items-center gap-2">
+            <Wind className="h-4 w-4 shrink-0" style={{ color: token('--color-text-muted') }} />
+            <span className="text-sm" style={{ color: token('--color-text-muted') }}>Fan</span>
+            <Select value={device.fanMode} disabled={isPending('fan')}
+              onValueChange={(v) => void send('fan', { type: 'thermostat', action: 'set_fan_mode', fanMode: v as 'auto' | 'on' })}
+              options={[{ value: 'auto', label: 'Auto' }, { value: 'on', label: 'On' }]}
+              className="flex-1" size="sm" />
+          </div>
+        )}
+
+        {/* Preset chips (ecobee comfort settings) */}
+        {card.showPresets && device.ecobee && device.ecobee.climates.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {ecobeeSelectablePresetKeys(device.ecobee.climates).map((preset) => {
+              const active = device.ecobee?.presetMode === preset;
+              return (
+                <button key={preset} type="button"
+                  disabled={isPending('preset')}
+                  onClick={() => void send('preset', { type: 'thermostat', action: 'set_preset_mode', presetMode: preset })}
+                  className="rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors disabled:opacity-50"
+                  style={{
+                    background: active ? token('--color-accent') : token('--color-bg-secondary'),
+                    color: active ? '#fff' : token('--color-text'),
+                    border: `1px solid ${active ? token('--color-accent') : token('--color-border')}`,
+                  }}>
+                  {preset.replace(/_/g, ' ')}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // default (normal): the original layout
+  // ------------------------------------------------------------------
   return (
     <div
       className="flex flex-col gap-3 rounded-lg p-3"
@@ -160,21 +287,12 @@ function ThermostatCardBody({
         border: `1px solid ${token('--color-border')}`,
       }}
       data-card-type="thermostat"
+      data-size="default"
     >
       {/* Header: name + live HVAC-action badge */}
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-sm font-medium">{label}</span>
-        <span
-          className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium"
-          style={{
-            color: visual.color,
-            border: `1px solid ${visual.color}`,
-          }}
-          title={`HVAC action: ${device.hvacAction}`}
-        >
-          <HvacIcon className="h-3 w-3" />
-          {visual.label}
-        </span>
+        <HvacBadge visual={visual} />
       </div>
 
       {/* Current reading + setpoints */}
@@ -183,7 +301,7 @@ function ThermostatCardBody({
           <div className="text-3xl font-semibold leading-none tabular-nums">
             {device.temperature != null ? `${device.temperature.toFixed(1)}°` : '—'}
           </div>
-          {device.humidity != null && (
+          {card.showHumidity && device.humidity != null && (
             <div className="mt-1 text-xs" style={{ color: token('--color-text-muted') }}>
               {device.humidity}% RH
             </div>
@@ -192,61 +310,65 @@ function ThermostatCardBody({
 
         <div className="flex flex-col gap-1.5">
           {showHeat && (
-            <SetpointRow
-              label="Heat"
-              Icon={Flame}
-              color={token('--color-danger')}
-              value={heatDisplay}
-              busy={isPending('heat')}
-              onMinus={() => bumpHeat(-1)}
-              onPlus={() => bumpHeat(1)}
-            />
+            <SetpointRow label="Heat" Icon={Flame} color={token('--color-danger')}
+              value={heatDisplay} busy={isPending('heat')}
+              onMinus={() => bumpHeat(-1)} onPlus={() => bumpHeat(1)} />
           )}
           {showCool && (
-            <SetpointRow
-              label="Cool"
-              Icon={Snowflake}
-              color={COOL_COLOR}
-              value={coolDisplay}
-              busy={isPending('cool')}
-              onMinus={() => bumpCool(-1)}
-              onPlus={() => bumpCool(1)}
-            />
+            <SetpointRow label="Cool" Icon={Snowflake} color={COOL_COLOR}
+              value={coolDisplay} busy={isPending('cool')}
+              onMinus={() => bumpCool(-1)} onPlus={() => bumpCool(1)} />
           )}
           {!showHeat && !showCool && (
-            <div
-              className="rounded-md px-2 py-1 text-xs"
-              style={{
-                color: token('--color-text-muted'),
-                backgroundColor: token('--color-bg-hover'),
-              }}
-            >
+            <div className="rounded-md px-2 py-1 text-xs"
+              style={{ color: token('--color-text-muted'), backgroundColor: token('--color-bg-hover') }}>
               System off
             </div>
           )}
         </div>
       </div>
 
-      {/* Mode selector — opt-in via card descriptor */}
+      {/* Mode selector */}
       {card.showModeControl && (
         <div className="flex items-center gap-2">
-          <span className="text-xs" style={{ color: token('--color-text-muted') }}>
-            Mode
-          </span>
-          <Select
-            value={device.hvacMode}
-            disabled={isPending('hvac')}
-            onValueChange={(v) =>
-              void send('hvac', {
-                type: 'thermostat',
-                action: 'set_hvac_mode',
-                hvacMode: v as ThermostatMode,
-              })
-            }
-            options={HVAC_OPTIONS}
-            className="flex-1"
-            size="xs"
-          />
+          <span className="text-xs" style={{ color: token('--color-text-muted') }}>Mode</span>
+          <Select value={device.hvacMode} disabled={isPending('hvac')}
+            onValueChange={(v) => void send('hvac', { type: 'thermostat', action: 'set_hvac_mode', hvacMode: v as ThermostatMode })}
+            options={HVAC_OPTIONS} className="flex-1" size="xs" />
+        </div>
+      )}
+
+      {/* Fan mode */}
+      {card.showFanControl && device.fanMode != null && (
+        <div className="flex items-center gap-2">
+          <Wind className="h-3.5 w-3.5 shrink-0" style={{ color: token('--color-text-muted') }} />
+          <span className="text-xs" style={{ color: token('--color-text-muted') }}>Fan</span>
+          <Select value={device.fanMode} disabled={isPending('fan')}
+            onValueChange={(v) => void send('fan', { type: 'thermostat', action: 'set_fan_mode', fanMode: v as 'auto' | 'on' })}
+            options={[{ value: 'auto', label: 'Auto' }, { value: 'on', label: 'On' }]}
+            className="flex-1" size="xs" />
+        </div>
+      )}
+
+      {/* Preset chips (ecobee comfort settings) */}
+      {card.showPresets && device.ecobee && device.ecobee.climates.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {ecobeeSelectablePresetKeys(device.ecobee.climates).map((preset) => {
+            const active = device.ecobee?.presetMode === preset;
+            return (
+              <button key={preset} type="button"
+                disabled={isPending('preset')}
+                onClick={() => void send('preset', { type: 'thermostat', action: 'set_preset_mode', presetMode: preset })}
+                className="rounded-full px-2.5 py-0.5 text-xs font-medium capitalize transition-colors disabled:opacity-50"
+                style={{
+                  background: active ? token('--color-accent') : token('--color-bg-secondary'),
+                  color: active ? '#fff' : token('--color-text'),
+                  border: `1px solid ${active ? token('--color-accent') : token('--color-border')}`,
+                }}>
+                {preset.replace(/_/g, ' ')}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -254,7 +376,25 @@ function ThermostatCardBody({
 }
 
 // ---------------------------------------------------------------------------
-// Setpoint row — a compact pill with − / + and the current value
+// Shared sub-components
+// ---------------------------------------------------------------------------
+
+function HvacBadge({ visual }: { visual: ReturnType<typeof hvacActionVisual> }) {
+  const HvacIcon = visual.Icon;
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium"
+      style={{ color: visual.color, border: `1px solid ${visual.color}` }}
+    >
+      <HvacIcon className="h-3 w-3" />
+      {visual.label}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Setpoint row — a compact pill with − / + and the current value.
+// `large` prop renders bigger controls for the hero size.
 // ---------------------------------------------------------------------------
 
 function SetpointRow({
@@ -265,6 +405,7 @@ function SetpointRow({
   busy,
   onMinus,
   onPlus,
+  large = false,
 }: {
   label: string;
   Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
@@ -273,6 +414,7 @@ function SetpointRow({
   busy: boolean;
   onMinus: () => void;
   onPlus: () => void;
+  large?: boolean;
 }) {
   return (
     <div
@@ -283,35 +425,27 @@ function SetpointRow({
         transition: 'opacity 0.15s',
       }}
     >
-      <Icon className="h-3.5 w-3.5" style={{ color }} />
+      <Icon className={large ? 'h-4 w-4' : 'h-3.5 w-3.5'} style={{ color }} />
       <span
-        className="text-[10px] uppercase tracking-wide"
+        className={large ? 'text-xs uppercase tracking-wide' : 'text-[10px] uppercase tracking-wide'}
         style={{ color: token('--color-text-muted') }}
       >
         {label}
       </span>
-      <button
-        type="button"
-        onClick={onMinus}
-        disabled={busy}
+      <button type="button" onClick={onMinus} disabled={busy}
         aria-label={`Decrease ${label.toLowerCase()} setpoint`}
-        className="rounded p-0.5 disabled:opacity-50"
-        style={{ color: token('--color-text-secondary') }}
-      >
-        <Minus className="h-3 w-3" />
+        className={`rounded disabled:opacity-50 ${large ? 'p-1' : 'p-0.5'}`}
+        style={{ color: token('--color-text-secondary') }}>
+        <Minus className={large ? 'h-4 w-4' : 'h-3 w-3'} />
       </button>
-      <span className="min-w-[2rem] text-center text-sm font-medium tabular-nums">
+      <span className={`min-w-[2rem] text-center font-medium tabular-nums ${large ? 'text-base' : 'text-sm'}`}>
         {value.toFixed(0)}°
       </span>
-      <button
-        type="button"
-        onClick={onPlus}
-        disabled={busy}
+      <button type="button" onClick={onPlus} disabled={busy}
         aria-label={`Increase ${label.toLowerCase()} setpoint`}
-        className="rounded p-0.5 disabled:opacity-50"
-        style={{ color: token('--color-text-secondary') }}
-      >
-        <Plus className="h-3 w-3" />
+        className={`rounded disabled:opacity-50 ${large ? 'p-1' : 'p-0.5'}`}
+        style={{ color: token('--color-text-secondary') }}>
+        <Plus className={large ? 'h-4 w-4' : 'h-3 w-3'} />
       </button>
     </div>
   );
