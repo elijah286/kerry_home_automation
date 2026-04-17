@@ -32,6 +32,10 @@ import {
   Plus,
   Pencil,
   MapPinned,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { useCookingTimers, formatCookingTimer } from '@/providers/CookingTimersProvider';
 import { clsx } from 'clsx';
@@ -616,9 +620,17 @@ function AssistantRightPanel() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [toolStatuses, setToolStatuses] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
+  const ttsEnabledRef = useRef(false);
+  const streamingTextRef = useRef('');
 
   const dockInFrame = lcarsDockInset !== null && isMdUp && !fullscreen;
 
@@ -626,7 +638,7 @@ function AssistantRightPanel() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, loading]);
+  }, [messages, loading, toolStatuses]);
 
   useEffect(() => {
     if (open && rightPanelMode === 'assistant' && inputRef.current) {
@@ -652,52 +664,154 @@ function AssistantRightPanel() {
   const loadingRef = useRef(loading);
   loadingRef.current = loading;
 
-  const sendMessage = useCallback(async () => {
-    const text = inputValRef.current.trim();
+  /** Strip markdown symbols so TTS reads cleanly */
+  const stripMarkdown = (text: string) =>
+    text
+      .replace(/#{1,6}\s/g, '')
+      .replace(/[*_`~]/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/\n+/g, ' ')
+      .trim();
+
+  const speakText = useCallback((text: string) => {
+    if (!ttsEnabledRef.current || typeof window === 'undefined' || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(stripMarkdown(text));
+    utt.rate = 1.05;
+    utt.pitch = 1.0;
+    window.speechSynthesis.speak(utt);
+  }, []);
+
+  const toggleTts = useCallback(() => {
+    const next = !ttsEnabledRef.current;
+    ttsEnabledRef.current = next;
+    setTtsEnabled(next);
+    if (!next && typeof window !== 'undefined') window.speechSynthesis?.cancel();
+  }, []);
+
+  const sendMessage = useCallback(async (overrideText?: string) => {
+    const text = (overrideText ?? inputValRef.current).trim();
     if (!text || loadingRef.current) return;
 
     setInput('');
     setError(null);
+    setToolStatuses([]);
+    setIsStreaming(false);
+    streamingTextRef.current = '';
+
     const newMessages: Message[] = [...messagesRef.current, { role: 'user', content: text }];
     setMessages(newMessages);
     setLoading(true);
 
+    let assistantMsgAdded = false;
+
     try {
-      const res = await apiFetch(`${getApiBase()}/api/chat`, {
+      const res = await apiFetch(`${getApiBase()}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: newMessages }),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Something went wrong');
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        setError(data.error ?? 'Something went wrong');
         setLoading(false);
         return;
       }
 
-      setMessages([...newMessages, { role: 'assistant', content: data.reply }]);
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-      if (data.navigate) {
-        router.push(data.navigate);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() ?? '';
+        for (const part of parts) {
+          if (!part.startsWith('data: ')) continue;
+          try {
+            const event = JSON.parse(part.slice(6)) as {
+              type: string; text?: string; tool?: string; label?: string; navigate?: string; error?: string;
+            };
+            if (event.type === 'token' && event.text) {
+              if (!assistantMsgAdded) {
+                assistantMsgAdded = true;
+                setIsStreaming(true);
+                streamingTextRef.current = event.text;
+                setMessages((prev) => [...prev, { role: 'assistant', content: event.text! }]);
+              } else {
+                streamingTextRef.current += event.text;
+                const t = streamingTextRef.current;
+                setMessages((prev) => {
+                  const next = [...prev];
+                  next[next.length - 1] = { role: 'assistant', content: t };
+                  return next;
+                });
+              }
+            } else if (event.type === 'tool_status' && event.label) {
+              setToolStatuses((prev) => [...prev.filter((s) => s !== event.label), event.label!]);
+            } else if (event.type === 'done') {
+              setToolStatuses([]);
+              if (event.navigate) router.push(event.navigate);
+              if (streamingTextRef.current) speakText(streamingTextRef.current);
+            } else if (event.type === 'error' && event.error) {
+              setError(event.error);
+            }
+          } catch {
+            // malformed SSE chunk — skip
+          }
+        }
       }
     } catch {
       setError('Failed to connect to server');
     } finally {
       setLoading(false);
+      setIsStreaming(false);
+      setToolStatuses([]);
     }
-  }, [router]);
+  }, [router, speakText]);
+
+  const startListening = useCallback(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (typeof window !== 'undefined') && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+    if (!SR) {
+      setError('Voice input not supported in this browser. Try Chrome or Edge.');
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rec = new SR() as any;
+    rec.lang = 'en-US';
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.onresult = (e: { results: SpeechRecognitionResultList }) => {
+      const transcript = Array.from(e.results).map((r) => r[0].transcript).join('');
+      setInput(transcript);
+      if (e.results[e.results.length - 1].isFinal) {
+        setIsListening(false);
+        recognitionRef.current = null;
+        void sendMessage(transcript);
+      }
+    };
+    rec.onend = () => setIsListening(false);
+    rec.onerror = () => setIsListening(false);
+    recognitionRef.current = rec;
+    rec.start();
+    setIsListening(true);
+  }, [sendMessage]);
+
+  const stopListening = useCallback(() => {
+    recognitionRef.current?.stop();
+    setIsListening(false);
+  }, []);
 
   const close = useCallback(() => {
     setOpen(false);
     setFullscreen(false);
   }, [setOpen]);
 
-  /** Docked panels use `right: contentRight`; `translateX(100%)` alone leaves that inset visible. */
-  const dockedSlideOffPx =
-    dockInFrame && lcarsDockInset
-      ? lcarsDockInset.contentRight + 24
-      : 0;
+  const dockedSlideOffPx = dockInFrame && lcarsDockInset ? lcarsDockInset.contentRight + 24 : 0;
 
   const panelTransform = open
     ? fullscreen
@@ -711,7 +825,7 @@ function AssistantRightPanel() {
 
   return (
     <>
-      {/* Backdrop: tap outside to close on narrow screens */}
+      {/* Backdrop */}
       <div
         className={clsx(
           'fixed inset-0 z-[48] bg-black/45 transition-opacity duration-200 md:hidden',
@@ -770,6 +884,7 @@ function AssistantRightPanel() {
         }
         aria-hidden={!open}
       >
+        {/* Header */}
         <div
           className="flex shrink-0 items-center gap-2 px-4 py-3"
           style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
@@ -788,6 +903,19 @@ function AssistantRightPanel() {
                 ? 'Map layers'
                 : 'AI Assistant'}
           </span>
+          {rightPanelMode === 'assistant' && (
+            <button
+              type="button"
+              onClick={toggleTts}
+              className="rounded-md p-1 transition-colors hover:bg-white/20"
+              aria-label={ttsEnabled ? 'Mute voice responses' : 'Enable voice responses'}
+              title={ttsEnabled ? 'Voice responses on — click to mute' : 'Voice responses off — click to enable'}
+            >
+              {ttsEnabled
+                ? <Volume2 className="h-4 w-4" />
+                : <VolumeX className="h-4 w-4 opacity-60" />}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setFullscreen(!fullscreen)}
@@ -820,6 +948,7 @@ function AssistantRightPanel() {
           </div>
         ) : (
           <>
+            {/* Messages */}
             <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
               {messages.length === 0 && !loading && (
                 <div className="flex h-full flex-col items-center justify-center px-4 text-center">
@@ -850,16 +979,34 @@ function AssistantRightPanel() {
                 <ChatBubble key={i} msg={msg} />
               ))}
 
-              {loading && (
+              {/* Thinking / tool status indicator — hidden once text starts streaming */}
+              {loading && !isStreaming && (
                 <div className="flex items-start gap-2">
                   <div
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+                    className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
                     style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
                   >
                     <Bot className="h-3 w-3" />
                   </div>
-                  <div className="rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                    <Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--color-text-muted)' }} />
+                  <div
+                    className="rounded-lg px-3 py-2 text-xs"
+                    style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-muted)' }}
+                  >
+                    {toolStatuses.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {toolStatuses.map((s) => (
+                          <div key={s} className="flex items-center gap-1.5">
+                            <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                            <span>{s}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                        <span>Thinking…</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -877,6 +1024,7 @@ function AssistantRightPanel() {
               )}
             </div>
 
+            {/* Input row */}
             <div className="shrink-0 border-t p-3" style={{ borderColor: 'var(--color-border)' }}>
               <div className="flex gap-2">
                 <input
@@ -886,21 +1034,44 @@ function AssistantRightPanel() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      sendMessage();
+                      void sendMessage();
                     }
                   }}
-                  placeholder="Ask something..."
+                  placeholder={isListening ? 'Listening…' : 'Ask something…'}
                   className="flex-1 rounded-md border px-3 py-2 text-sm transition-colors"
                   style={{
-                    backgroundColor: 'var(--color-bg-secondary)',
-                    borderColor: 'var(--color-border)',
+                    backgroundColor: isListening
+                      ? 'color-mix(in srgb, var(--color-danger) 8%, var(--color-bg-secondary))'
+                      : 'var(--color-bg-secondary)',
+                    borderColor: isListening ? 'var(--color-danger)' : 'var(--color-border)',
                     color: 'var(--color-text)',
                   }}
                   disabled={loading}
                 />
+                {/* Mic button */}
                 <button
                   type="button"
-                  onClick={sendMessage}
+                  onClick={isListening ? stopListening : startListening}
+                  disabled={loading}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-40"
+                  style={{
+                    backgroundColor: isListening
+                      ? 'var(--color-danger, #ef4444)'
+                      : 'var(--color-bg-secondary)',
+                    color: isListening ? '#fff' : 'var(--color-text-secondary)',
+                    border: '1px solid var(--color-border)',
+                  }}
+                  aria-label={isListening ? 'Stop listening' : 'Start voice input'}
+                  title={isListening ? 'Stop listening' : 'Speak your message'}
+                >
+                  {isListening
+                    ? <MicOff className="h-4 w-4" />
+                    : <Mic className="h-4 w-4" />}
+                </button>
+                {/* Send button */}
+                <button
+                  type="button"
+                  onClick={() => void sendMessage()}
                   disabled={loading || !input.trim()}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-50"
                   style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}

@@ -1574,6 +1574,30 @@ async function runAnthropicChatWithTools(opts: {
 }
 
 // ---------------------------------------------------------------------------
+// Tool display labels for SSE streaming status events
+// ---------------------------------------------------------------------------
+
+const TOOL_LABELS: Record<string, string> = {
+  get_devices: 'Fetching devices…',
+  get_device_state: 'Reading device state…',
+  update_device_settings: 'Updating device…',
+  search_recipes: 'Searching recipes…',
+  navigate_ui: 'Navigating…',
+  get_calendar_events: 'Loading calendar…',
+  list_automations: 'Loading automations…',
+  get_automation: 'Reading automation…',
+  prepare_automation_change: 'Preparing change…',
+  commit_automation_change: 'Applying change…',
+  send_device_command: 'Sending command…',
+  search_web: 'Searching the web…',
+  fetch_url: 'Reading page…',
+  create_integration_entry: 'Setting up integration…',
+  restart_integration: 'Restarting integration…',
+  get_integration_setup_info: 'Loading setup info…',
+  add_device_to_area: 'Updating area…',
+};
+
+// ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
 
@@ -1696,6 +1720,210 @@ export function registerChatRoutes(app: FastifyInstance): void {
       }
 
       return reply.code(500).send({ error: 'Too many tool call iterations' });
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // POST /api/chat/stream — SSE streaming version with tool status events
+  // ---------------------------------------------------------------------------
+  app.post<{ Body: { messages: Array<{ role: string; content: string }> } }>(
+    '/api/chat/stream',
+    { preHandler: [authenticate] },
+    async (req, reply) => {
+      reply.hijack();
+      reply.raw.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+
+      let closed = false;
+      req.raw.on('close', () => { closed = true; });
+
+      const emit = (obj: object) => {
+        if (closed) return;
+        reply.raw.write(`data: ${JSON.stringify(obj)}\n\n`);
+      };
+
+      const user = req.user!;
+
+      try {
+        const llmSettings = await loadLlmRuntimeSettings();
+        const active = apiKeyForActiveProvider(llmSettings);
+
+        if (!active) {
+          const err = llmSettings.provider === 'anthropic'
+            ? 'Anthropic API key not configured. Go to Settings → LLM Integration to add one.'
+            : 'OpenAI API key not configured. Go to Settings → LLM Integration to add one.';
+          emit({ type: 'error', error: err });
+          reply.raw.end();
+          return;
+        }
+
+        // Fast path: handle simple device commands without LLM
+        const lastMessage = req.body.messages.at(-1);
+        if (lastMessage?.role === 'user' && req.body.messages.length === 1) {
+          const fast = await tryFastPath(lastMessage.content, user.role);
+          if (fast.handled) {
+            emit({ type: 'token', text: fast.reply ?? 'Done.' });
+            emit({ type: 'done' });
+            reply.raw.end();
+            return;
+          }
+        }
+
+        const tools = getToolsForRole(user.role);
+        const toolCtx: ToolContext = { userRole: user.role, userId: user.id };
+        const systemPrompt = await buildSystemPrompt(user);
+        const conversation = req.body.messages.map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        }));
+
+        let navigateTo: string | undefined;
+        const MAX_ITERATIONS = 10;
+
+        if (active.kind === 'anthropic') {
+          const anthropic = new Anthropic({ apiKey: active.key });
+          const anthropicTools = openAiToolsToAnthropic(tools);
+          let msgs = clientMessagesToAnthropic(conversation);
+
+          for (let i = 0; i < MAX_ITERATIONS; i++) {
+            if (closed) break;
+
+            const streamObj = anthropic.messages.stream({
+              model: llmSettings.anthropicModel,
+              max_tokens: 8192,
+              temperature: 0.3,
+              system: systemPrompt,
+              messages: msgs,
+              tools: anthropicTools,
+            });
+
+            for await (const event of streamObj) {
+              if (closed) break;
+              if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+                emit({ type: 'token', text: event.delta.text });
+              }
+            }
+
+            const finalMsg = await streamObj.finalMessage();
+            const toolUses: Array<{ id: string; name: string; input: Record<string, unknown> }> = [];
+            for (const block of finalMsg.content) {
+              if (block.type === 'tool_use') {
+                toolUses.push({
+                  id: block.id,
+                  name: block.name,
+                  input: (typeof block.input === 'object' && block.input !== null
+                    ? (block.input as Record<string, unknown>) : {}),
+                });
+              }
+            }
+
+            if (toolUses.length === 0) {
+              emit({ type: 'done', ...(navigateTo ? { navigate: navigateTo } : {}) });
+              break;
+            }
+
+            msgs.push({ role: 'assistant', content: finalMsg.content as unknown as ContentBlockParam[] });
+            const toolResultBlocks: ContentBlockParam[] = [];
+
+            for (const tu of toolUses) {
+              if (closed) break;
+              emit({ type: 'tool_status', tool: tu.name, label: TOOL_LABELS[tu.name] ?? `Running ${tu.name}…` });
+              logger.info({ tool: tu.name, args: tu.input, user: user.username }, 'Chat stream tool call');
+              const result = await executeTool(tu.name, tu.input, toolCtx);
+              if (tu.name === 'navigate_ui' && typeof result === 'object' && result !== null && 'navigate' in result) {
+                navigateTo = (result as { navigate: string }).navigate;
+              }
+              toolResultBlocks.push({
+                type: 'tool_result',
+                tool_use_id: tu.id,
+                content: JSON.stringify(result),
+              });
+            }
+
+            msgs.push({ role: 'user', content: toolResultBlocks });
+          }
+        } else {
+          // OpenAI streaming
+          const openai = new OpenAI({ apiKey: active.key });
+          const msgs: ChatCompletionMessageParam[] = [
+            { role: 'system', content: systemPrompt },
+            ...conversation.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+          ];
+
+          for (let i = 0; i < MAX_ITERATIONS; i++) {
+            if (closed) break;
+
+            const stream = await openai.chat.completions.create({
+              model: llmSettings.openaiModel,
+              messages: msgs,
+              tools,
+              temperature: 0.3,
+              stream: true,
+            });
+
+            let content = '';
+            const tcAcc = new Map<number, { id: string; name: string; args: string }>();
+
+            for await (const chunk of stream) {
+              if (closed) break;
+              const delta = chunk.choices[0]?.delta;
+              if (delta?.content) {
+                emit({ type: 'token', text: delta.content });
+                content += delta.content;
+              }
+              if (delta?.tool_calls) {
+                for (const tc of delta.tool_calls) {
+                  const idx = tc.index ?? 0;
+                  const ex = tcAcc.get(idx) ?? { id: '', name: '', args: '' };
+                  if (tc.id) ex.id = tc.id;
+                  if (tc.function?.name) ex.name = tc.function.name;
+                  if (tc.function?.arguments) ex.args += tc.function.arguments;
+                  tcAcc.set(idx, ex);
+                }
+              }
+            }
+
+            const toolCalls = [...tcAcc.entries()].sort(([a], [b]) => a - b).map(([, v]) => v);
+
+            if (toolCalls.length === 0) {
+              emit({ type: 'done', ...(navigateTo ? { navigate: navigateTo } : {}) });
+              break;
+            }
+
+            msgs.push({
+              role: 'assistant',
+              content: content || null,
+              tool_calls: toolCalls.map((tc) => ({
+                id: tc.id,
+                type: 'function' as const,
+                function: { name: tc.name, arguments: tc.args },
+              })),
+            });
+
+            for (const tc of toolCalls) {
+              if (closed) break;
+              emit({ type: 'tool_status', tool: tc.name, label: TOOL_LABELS[tc.name] ?? `Running ${tc.name}…` });
+              const args = JSON.parse(tc.args);
+              logger.info({ tool: tc.name, args, user: user.username }, 'Chat stream tool call');
+              const result = await executeTool(tc.name, args, toolCtx);
+              if (tc.name === 'navigate_ui' && typeof result === 'object' && result !== null && 'navigate' in result) {
+                navigateTo = (result as { navigate: string }).navigate;
+              }
+              msgs.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
+            }
+          }
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error({ err }, 'Chat stream error');
+        emit({ type: 'error', error: `LLM error: ${message}` });
+      }
+
+      reply.raw.end();
     },
   );
 
