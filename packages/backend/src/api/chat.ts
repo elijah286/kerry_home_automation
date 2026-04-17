@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import type { FastifyInstance } from 'fastify';
-import type { Automation, AutomationCreate, AutomationExecutionLog, AutomationUpdate, DeviceCommand, IntegrationId, UserRole } from '@ha/shared';
+import type { Automation, AutomationCreate, AutomationExecutionLog, AutomationUpdate, DeviceCommand, DeviceState, IntegrationId, UserRole } from '@ha/shared';
 import { KNOWN_INTEGRATIONS, Permission, ROLE_PERMISSIONS } from '@ha/shared';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
@@ -552,6 +552,60 @@ const automationPermissionTools = [
   'commit_automation_change',
 ];
 
+/**
+ * Verify that a device command actually took effect by comparing device
+ * state before and after. Returns:
+ *   true  — state changed as expected
+ *   false — state clearly did NOT change as expected (report failure)
+ *   null  — can't determine (unknown state shape, transitional state, etc.)
+ */
+function verifyCommandEffect(
+  cmd: DeviceCommand,
+  before: DeviceState | undefined,
+  after: DeviceState | undefined,
+): boolean | null {
+  if (!after) return null; // Device disappeared or never found
+  const b = before as unknown as Record<string, unknown>;
+  const a = after as unknown as Record<string, unknown>;
+
+  switch (cmd.action) {
+    case 'turn_on':
+      if (typeof a.on === 'boolean') return a.on === true;
+      if (typeof a.power === 'string') return a.power.toLowerCase() !== 'off';
+      return null;
+    case 'turn_off':
+      if (typeof a.on === 'boolean') return a.on === false;
+      if (typeof a.power === 'string') return a.power.toLowerCase() === 'off';
+      return null;
+    case 'open':
+      // Cover opened — position should be > 0 or 'opening' transient state OK
+      if (typeof a.position === 'number') return a.position > 0 || (typeof a.opening === 'boolean' && a.opening);
+      if (typeof a.open === 'boolean') return a.open === true;
+      return null;
+    case 'close':
+      if (typeof a.position === 'number') return a.position === 0 || (typeof a.closing === 'boolean' && a.closing);
+      if (typeof a.open === 'boolean') return a.open === false;
+      return null;
+    case 'set_brightness': {
+      const target = typeof cmd.brightness === 'number' ? cmd.brightness : null;
+      if (target == null || typeof a.brightness !== 'number') return null;
+      // Allow ±5% tolerance
+      return Math.abs(a.brightness - target) <= 5;
+    }
+    case 'set_position': {
+      const target = typeof cmd.position === 'number' ? cmd.position : null;
+      if (target == null || typeof a.position !== 'number') return null;
+      // Mid-transition is acceptable success signal too (opening/closing flag)
+      if (typeof a.opening === 'boolean' && a.opening) return true;
+      if (typeof a.closing === 'boolean' && a.closing) return true;
+      return Math.abs(a.position - target) <= 5;
+    }
+    default:
+      // Don't know how to verify this specific action — assume OK (no false alarm).
+      return null;
+  }
+}
+
 async function executeTool(name: string, args: Record<string, unknown>, ctx: ToolContext): Promise<unknown> {
   if (automationPermissionTools.includes(name) && !hasPermission(ctx.userRole, Permission.ManageAutomations)) {
     return {
@@ -703,13 +757,46 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
         ...(args.zoneId != null && { zoneId: String(args.zoneId) }),
         ...(args.duration != null && { duration: Number(args.duration) }),
       } as DeviceCommand;
+
+      // Snapshot state BEFORE sending so we can verify the command took effect.
+      const beforeState = stateStore.get(cmd.deviceId);
+
       try {
         await registry.handleCommand(cmd);
-        return { success: true, message: `Command ${args.action} sent to ${args.deviceId}` };
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        return { success: false, error: message };
+        return { success: false, error: message, message: `Command failed: ${message}` };
       }
+
+      // Wait briefly for the integration to push the new state. Most
+      // integrations update stateStore within 200-800ms; covers may take
+      // longer because they have mechanical transitions.
+      const waitMs = cmd.type === 'cover' || cmd.type === 'garage_door' ? 1500 : 800;
+      await new Promise((r) => setTimeout(r, waitMs));
+
+      const afterState = stateStore.get(cmd.deviceId);
+      const verified = verifyCommandEffect(cmd, beforeState, afterState);
+
+      if (verified === false) {
+        // We can see the state and it didn't change as expected — report honestly.
+        return {
+          success: false,
+          commandSent: true,
+          verified: false,
+          beforeState,
+          afterState,
+          message: `Command "${cmd.action}" was sent but the device state did not change as expected. It may be unreachable, already at the target, or the integration may not report state changes reliably. DO NOT claim this worked — tell the user it appears to have failed and suggest they check the device.`,
+        };
+      }
+
+      return {
+        success: true,
+        verified: verified === true, // null = unknown, true = confirmed
+        afterState,
+        message: verified === true
+          ? `Command ${cmd.action} confirmed on ${cmd.deviceId}.`
+          : `Command ${cmd.action} sent to ${cmd.deviceId} (state change not verified).`,
+      };
     }
 
     case 'get_device_history': {
@@ -1895,6 +1982,11 @@ export function registerChatRoutes(app: FastifyInstance): void {
               tMark(`tool_${tu.name} (${Date.now() - tToolStart}ms)`);
               if (tu.name === 'navigate_ui' && typeof result === 'object' && result !== null && 'navigate' in result) {
                 navigateTo = (result as { navigate: string }).navigate;
+                // Emit navigate IMMEDIATELY — do not wait for the LLM's
+                // "I'm opening it now…" narration to finish on the next
+                // iteration. Frontend can navigate while the LLM is still
+                // generating its response text.
+                emit({ type: 'navigate', navigate: navigateTo });
               }
               toolResultBlocks.push({
                 type: 'tool_result',
@@ -1976,6 +2068,8 @@ export function registerChatRoutes(app: FastifyInstance): void {
               const result = await executeTool(tc.name, args, toolCtx);
               if (tc.name === 'navigate_ui' && typeof result === 'object' && result !== null && 'navigate' in result) {
                 navigateTo = (result as { navigate: string }).navigate;
+                // Emit navigate immediately (don't wait for LLM to finish narrating)
+                emit({ type: 'navigate', navigate: navigateTo });
               }
               msgs.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
             }

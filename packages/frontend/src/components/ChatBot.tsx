@@ -783,6 +783,10 @@ function AssistantRightPanel() {
               }
             } else if (event.type === 'tool_status' && event.label) {
               setToolStatuses((prev) => [...prev.filter((s) => s !== event.label), event.label!]);
+            } else if (event.type === 'navigate' && event.navigate) {
+              // Backend fires this the moment navigate_ui runs — navigate
+              // immediately instead of waiting for the LLM's narration to finish.
+              router.push(event.navigate);
             } else if (event.type === 'done') {
               setToolStatuses([]);
               if (event.navigate) router.push(event.navigate);
