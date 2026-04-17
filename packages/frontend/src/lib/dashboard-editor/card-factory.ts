@@ -52,7 +52,7 @@ export const CARD_TYPE_LABELS: Record<CardType, { label: string; description: st
 const seeds: Record<CardType, unknown> = {
   heading: { type: 'heading', text: 'Heading', style: 'title' },
   markdown: { type: 'markdown', content: 'New markdown card' },
-  button: { type: 'button', name: 'Button', icon: '⚙️', tapAction: { type: 'none' } },
+  button: { type: 'button', name: 'Button', icon: 'Settings', tapAction: { type: 'none' } },
   'iframe-sandbox': { type: 'iframe-sandbox', url: 'https://example.com' },
   'light-tile': { type: 'light-tile', entity: 'replace.with.light_id' },
   'fan-tile': { type: 'fan-tile', entity: 'replace.with.fan_id' },
