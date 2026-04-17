@@ -1760,9 +1760,17 @@ export function registerChatRoutes(app: FastifyInstance): void {
 
       const user = req.user!;
 
+      // --- Performance instrumentation ---
+      const t0 = Date.now();
+      const tMark = (label: string) => {
+        const elapsed = Date.now() - t0;
+        logger.info({ perf: label, ms: elapsed, user: user.username }, `[chat-perf] ${label} +${elapsed}ms`);
+      };
+
       try {
         const llmSettings = await loadLlmRuntimeSettings();
         const active = apiKeyForActiveProvider(llmSettings);
+        tMark('llm_settings_loaded');
 
         if (!active) {
           const err = llmSettings.provider === 'anthropic'
@@ -1777,6 +1785,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
         const lastMessage = req.body.messages.at(-1);
         if (lastMessage?.role === 'user' && req.body.messages.length === 1) {
           const fast = await tryFastPath(lastMessage.content, user.role);
+          tMark(fast.handled ? 'fast_path_hit' : 'fast_path_miss');
           if (fast.handled) {
             const reply_text = fast.reply ?? 'Done.';
             // Save to history (fire-and-forget)
@@ -1797,6 +1806,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
         const tools = getToolsForRole(user.role);
         const toolCtx: ToolContext = { userRole: user.role, userId: user.id };
         const systemPrompt = await buildSystemPrompt(user);
+        tMark(`system_prompt_built (${systemPrompt.length} chars, ${tools.length} tools)`);
         const conversation = req.body.messages.map((m) => ({
           role: m.role as 'user' | 'assistant',
           content: m.content,
@@ -1814,6 +1824,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
           for (let i = 0; i < MAX_ITERATIONS; i++) {
             if (closed) break;
 
+            const tLlmStart = Date.now();
             const streamObj = anthropic.messages.stream({
               model: llmSettings.anthropicModel,
               max_tokens: 8192,
@@ -1832,6 +1843,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
             }
 
             const finalMsg = await streamObj.finalMessage();
+            tMark(`llm_iter_${i}_done (${Date.now() - tLlmStart}ms, model=${llmSettings.anthropicModel})`);
             const toolUses: Array<{ id: string; name: string; input: Record<string, unknown> }> = [];
             for (const block of finalMsg.content) {
               if (block.type === 'tool_use') {
@@ -1850,6 +1862,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
                 saveChatMessage(user.id, 'assistant', assistantResponse);
               }
               emit({ type: 'done', ...(navigateTo ? { navigate: navigateTo } : {}) });
+              tMark('total_anthropic');
               break;
             }
 
@@ -1859,8 +1872,10 @@ export function registerChatRoutes(app: FastifyInstance): void {
             for (const tu of toolUses) {
               if (closed) break;
               emit({ type: 'tool_status', tool: tu.name, label: TOOL_LABELS[tu.name] ?? `Running ${tu.name}…` });
+              const tToolStart = Date.now();
               logger.info({ tool: tu.name, args: tu.input, user: user.username }, 'Chat stream tool call');
               const result = await executeTool(tu.name, tu.input, toolCtx);
+              tMark(`tool_${tu.name} (${Date.now() - tToolStart}ms)`);
               if (tu.name === 'navigate_ui' && typeof result === 'object' && result !== null && 'navigate' in result) {
                 navigateTo = (result as { navigate: string }).navigate;
               }
