@@ -1825,13 +1825,30 @@ export function registerChatRoutes(app: FastifyInstance): void {
             if (closed) break;
 
             const tLlmStart = Date.now();
+            // Anthropic prompt caching: mark the system prompt (and the tail
+            // of the tools list) with cache_control: ephemeral. Anthropic will
+            // reuse the cached content for 5 minutes — on cache hits this is
+            // ~2-4x faster and ~90% cheaper. For a home-automation assistant
+            // whose system prompt + tools change rarely, this is a huge win.
             const streamObj = anthropic.messages.stream({
               model: llmSettings.anthropicModel,
               max_tokens: 8192,
               temperature: 0.3,
-              system: systemPrompt,
+              system: [
+                {
+                  type: 'text',
+                  text: systemPrompt,
+                  cache_control: { type: 'ephemeral' },
+                },
+              ],
               messages: msgs,
-              tools: anthropicTools,
+              tools: anthropicTools.length > 0
+                ? anthropicTools.map((t, idx) =>
+                    idx === anthropicTools.length - 1
+                      ? { ...t, cache_control: { type: 'ephemeral' as const } }
+                      : t,
+                  )
+                : anthropicTools,
             });
 
             for await (const event of streamObj) {
