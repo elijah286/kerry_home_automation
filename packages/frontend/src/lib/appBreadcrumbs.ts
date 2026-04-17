@@ -66,6 +66,8 @@ export type BreadcrumbItem = {
 
 /**
  * Breadcrumb trail for the authenticated app. Root is a single current-page crumb.
+ * Omits dynamic ID segments that don't have static labels — breadcrumbs will
+ * show parent route and let page-level headers display the actual name.
  */
 export function getBreadcrumbItems(pathname: string): BreadcrumbItem[] {
   const raw = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
@@ -82,6 +84,13 @@ export function getBreadcrumbItems(pathname: string): BreadcrumbItem[] {
     acc += `/${parts[i]}`;
     const isLast = i === parts.length - 1;
     const label = labelForPath(acc, parts[i], parentPath);
+
+    // Skip showing dynamic IDs that don't have static labels when they're the current page.
+    // Pages with dynamic segments (like /devices/[id]) should show their own name in the page header.
+    if (isLast && isLikelyDynamicId(parts[i]) && !PATH_LABELS[acc]) {
+      continue;
+    }
+
     items.push({
       href: acc,
       label,

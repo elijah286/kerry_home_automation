@@ -58,11 +58,24 @@ function DeviceSettings({ deviceId, device }: { deviceId: string; device: Device
   const saveSetting = async (body: Record<string, unknown>) => {
     setSaving(true);
     try {
-      await apiFetch(`${API_BASE}/api/devices/${encodeURIComponent(deviceId)}/settings`, {
+      const res = await apiFetch(`${API_BASE}/api/devices/${encodeURIComponent(deviceId)}/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData?.message || 'Failed to save');
+      }
+      // Refetch settings to confirm persistence
+      const settingsRes = await apiFetch(`${API_BASE}/api/devices/${encodeURIComponent(deviceId)}/settings`);
+      const settingsData = await settingsRes.json();
+      setRetentionDays(settingsData.settings.history_retention_days);
+      setDisplayName(settingsData.settings.display_name);
+      setAreaId(settingsData.settings.area_id);
+      setAliases(settingsData.settings.aliases ?? []);
+    } catch (e) {
+      console.error('Failed to save device settings:', e);
     } finally {
       setSaving(false);
     }
