@@ -3,6 +3,7 @@
 import type { SensorValueCard as SensorValueCardDescriptor, DeviceState } from '@ha/shared';
 import { useDevice } from '@/hooks/useDevice';
 import { token } from '@/lib/tokens';
+import { IconGlyph } from '@/lib/icons/IconGlyph';
 import { withEntityBoundary } from '../EntityBoundary';
 
 export function SensorValueCard({ card }: { card: SensorValueCardDescriptor }) {
@@ -28,7 +29,7 @@ function SensorValueBody({ card, device }: { card: SensorValueCardDescriptor; de
       data-card-type="sensor-value"
     >
       <div className="flex items-center gap-2">
-        {card.icon && <span aria-hidden>{card.icon}</span>}
+        {card.icon && <IconGlyph name={card.icon} size={14} style={{ color: token('--color-text-muted') }} />}
         <span className="text-xs font-medium uppercase tracking-wide" style={{ color: token('--color-text-muted') }}>
           {label}
         </span>

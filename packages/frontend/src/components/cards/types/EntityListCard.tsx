@@ -6,6 +6,7 @@ import { useDeviceCommand } from '@/hooks/useDeviceCommand';
 import { EntityBoundary } from '../EntityBoundary';
 import { useCardHandlers } from '../CardHandlersContext';
 import { token } from '@/lib/tokens';
+import { IconGlyph } from '@/lib/icons/IconGlyph';
 
 type EntryDescriptor =
   | { entity: string; name?: string; icon?: string; style?: 'default' | 'toggle' | 'value-only' };
@@ -67,7 +68,7 @@ function EntityListRow({ entry }: { entry: EntryDescriptor }) {
       style={{ opacity: device.available ? 1 : 0.6 }}
     >
       <div className="flex min-w-0 items-center gap-2">
-        {entry.icon && <span aria-hidden>{entry.icon}</span>}
+        {entry.icon && <IconGlyph name={entry.icon} size={16} style={{ color: token('--color-text-secondary') }} />}
         <span className="truncate text-sm">{label}</span>
       </div>
 

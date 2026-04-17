@@ -24,7 +24,11 @@ import {
   mediaTileCardSchema,
   thermostatCardSchema,
   vehicleCardSchema,
+  teslaCardSchema,
+  doorWindowCardSchema,
+  batteryCardSchema,
 } from './types/device.js';
+import { weatherCardSchema } from './types/weather.js';
 import {
   gaugeCardSchema,
   sensorValueCardSchema,
@@ -66,6 +70,10 @@ export type NonRecursiveCard =
   | z.infer<typeof mediaTileCardSchema>
   | z.infer<typeof thermostatCardSchema>
   | z.infer<typeof vehicleCardSchema>
+  | z.infer<typeof teslaCardSchema>
+  | z.infer<typeof doorWindowCardSchema>
+  | z.infer<typeof batteryCardSchema>
+  | z.infer<typeof weatherCardSchema>
   | z.infer<typeof gaugeCardSchema>
   | z.infer<typeof sensorValueCardSchema>
   | z.infer<typeof historyGraphCardSchema>
@@ -107,6 +115,10 @@ export const cardDescriptorSchema: z.ZodType<CardDescriptor, z.ZodTypeDef, unkno
     mediaTileCardSchema,
     thermostatCardSchema,
     vehicleCardSchema,
+    teslaCardSchema,
+    doorWindowCardSchema,
+    batteryCardSchema,
+    weatherCardSchema,
     gaugeCardSchema,
     sensorValueCardSchema,
     historyGraphCardSchema,
@@ -134,7 +146,7 @@ __setCardDescriptorRef(cardDescriptorSchema);
 export const CARD_TYPES = [
   'heading', 'markdown', 'button', 'iframe-sandbox',
   'light-tile', 'fan-tile', 'cover-tile', 'lock-tile', 'switch-tile',
-  'media-tile', 'thermostat', 'vehicle',
+  'media-tile', 'thermostat', 'vehicle', 'tesla', 'door-window', 'battery', 'weather',
   'gauge', 'sensor-value', 'history-graph', 'entity-list', 'statistic',
   'camera', 'area-summary', 'map',
   'alert-banner', 'notification-inbox', 'alarm-panel',

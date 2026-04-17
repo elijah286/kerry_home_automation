@@ -12,3 +12,4 @@ export * from './types/device.js';
 export * from './types/data.js';
 export * from './types/composite.js';
 export * from './types/layout.js';
+export * from './types/weather.js';

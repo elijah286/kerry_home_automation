@@ -37,6 +37,7 @@ import {
   TextField,
 } from './fields';
 import { ActionField } from './ActionField';
+import { IconPickerField } from './IconPickerField';
 
 interface CardFormProps {
   card: CardDescriptor;
@@ -57,6 +58,10 @@ const STRUCTURED_TYPES: ReadonlySet<CardType> = new Set<CardType>([
   'media-tile',
   'thermostat',
   'vehicle',
+  'tesla',
+  'door-window',
+  'battery',
+  'weather',
   'camera',
   'alarm-panel',
   'sensor-value',
@@ -123,6 +128,14 @@ function StructuredDispatcher({ card, onChange }: CardFormProps) {
     case 'camera':
     case 'alarm-panel':
       return <EntityTileForm card={card} onChange={onChange} />;
+    case 'tesla':
+      return <TeslaForm card={card} onChange={onChange} />;
+    case 'door-window':
+      return <DoorWindowForm card={card} onChange={onChange} />;
+    case 'battery':
+      return <BatteryForm card={card} onChange={onChange} />;
+    case 'weather':
+      return <WeatherForm card={card} onChange={onChange} />;
     case 'sensor-value':
       return <SensorValueForm card={card} onChange={onChange} />;
     case 'gauge':
@@ -176,7 +189,7 @@ function HeadingForm({ card, onChange }: { card: Extract<CardDescriptor, { type:
           { value: 'caption', label: 'Caption' },
         ]}
       />
-      <TextField label="Icon (mdi:* or emoji)" value={card.icon} onChange={(icon) => patch({ icon })} />
+      <IconPickerField value={card.icon} onChange={(icon) => patch({ icon })} />
     </FieldGroup>
   );
 }
@@ -201,7 +214,7 @@ function ButtonForm({ card, onChange }: { card: Extract<CardDescriptor, { type: 
   return (
     <FieldGroup>
       <TextField label="Name" value={card.name} onChange={(name) => patch({ name })} />
-      <TextField label="Icon (mdi:* or emoji)" value={card.icon} onChange={(icon) => patch({ icon })} />
+      <IconPickerField value={card.icon} onChange={(icon) => patch({ icon })} />
       <EntityField
         label="Entity (optional)"
         hint="Drives on/off appearance; leave blank for pure action buttons."
@@ -264,11 +277,7 @@ function EntityTileForm({ card, onChange }: { card: Extract<CardDescriptor, { en
     <FieldGroup>
       <EntityField value={bag.entity} onChange={(entity) => patch({ entity })} />
       <TextField label="Name (optional)" value={bag.name} onChange={(name) => patch({ name })} />
-      <TextField
-        label="Icon (mdi:* or emoji)"
-        value={bag.icon}
-        onChange={(icon) => patch({ icon })}
-      />
+      <IconPickerField value={bag.icon} onChange={(icon) => patch({ icon })} />
     </FieldGroup>
   );
 }
@@ -281,7 +290,7 @@ function SensorValueForm({ card, onChange }: { card: Extract<CardDescriptor, { t
     <FieldGroup>
       <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
       <TextField label="Name" value={card.name} onChange={(name) => patch({ name })} />
-      <TextField label="Icon (mdi:* or emoji)" value={card.icon} onChange={(icon) => patch({ icon })} />
+      <IconPickerField value={card.icon} onChange={(icon) => patch({ icon })} />
       <SegmentedField
         label="Style"
         value={card.style}
@@ -736,5 +745,184 @@ function YamlFallback({ card, onChange }: CardFormProps) {
         <PrimaryButton onClick={apply}>Apply YAML</PrimaryButton>
       </div>
     </div>
+  );
+}
+
+// -- New rich-card forms ----------------------------------------------------
+
+function TeslaForm({ card, onChange }: { card: Extract<CardDescriptor, { type: 'tesla' }>; onChange: (c: CardDescriptor) => void }) {
+  const patch = usePatch(card, onChange);
+  return (
+    <FieldGroup>
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <TextField label="Name (optional)" value={card.name} onChange={(name) => patch({ name })} />
+      <CheckboxField label="Hide vehicle image" value={card.hideImage} onChange={(hideImage) => patch({ hideImage })} />
+      <SegmentedField
+        label="Image source"
+        value={card.imageSource}
+        onChange={(imageSource) => patch({ imageSource })}
+        options={[
+          { value: 'auto', label: 'Auto' },
+          { value: 'compositor', label: 'Live render' },
+          { value: 'silhouette', label: 'Silhouette' },
+        ]}
+      />
+      <SegmentedField
+        label="View angle"
+        value={card.imageView}
+        onChange={(imageView) => patch({ imageView })}
+        options={[
+          { value: 'STUD_3QTR', label: '3/4' },
+          { value: 'STUD_SIDE', label: 'Side' },
+          { value: 'STUD_REAR', label: 'Rear' },
+          { value: 'STUD_SEAT', label: 'Interior' },
+        ]}
+      />
+      <NumberField
+        label="Image size (250–1920)"
+        value={card.imageSize}
+        min={250}
+        max={1920}
+        step={10}
+        onChange={(imageSize) => patch({ imageSize: imageSize ?? 720 })}
+      />
+      <CheckboxField label="Show map link" value={card.showMap} onChange={(showMap) => patch({ showMap })} />
+    </FieldGroup>
+  );
+}
+
+function DoorWindowForm({ card, onChange }: { card: Extract<CardDescriptor, { type: 'door-window' }>; onChange: (c: CardDescriptor) => void }) {
+  const patch = usePatch(card, onChange);
+  return (
+    <FieldGroup>
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <TextField label="Name (optional)" value={card.name} onChange={(name) => patch({ name })} />
+      <SegmentedField
+        label="Visual"
+        value={card.visual}
+        onChange={(visual) => patch({ visual })}
+        options={[
+          { value: 'auto', label: 'Auto' },
+          { value: 'door', label: 'Door' },
+          { value: 'window', label: 'Window' },
+          { value: 'garage', label: 'Garage' },
+          { value: 'gate', label: 'Gate' },
+        ]}
+      />
+      <SegmentedField
+        label="Size"
+        value={card.size}
+        onChange={(size) => patch({ size })}
+        options={[
+          { value: 'compact', label: 'Compact' },
+          { value: 'default', label: 'Default' },
+          { value: 'hero', label: 'Hero' },
+        ]}
+      />
+      <CheckboxField
+        label="Show last-changed timestamp"
+        value={card.showLastChanged}
+        onChange={(showLastChanged) => patch({ showLastChanged })}
+      />
+    </FieldGroup>
+  );
+}
+
+function BatteryForm({ card, onChange }: { card: Extract<CardDescriptor, { type: 'battery' }>; onChange: (c: CardDescriptor) => void }) {
+  const patch = usePatch(card, onChange);
+  return (
+    <FieldGroup>
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <TextField label="Name (optional)" value={card.name} onChange={(name) => patch({ name })} />
+      <SegmentedField
+        label="Style"
+        value={card.style}
+        onChange={(style) => patch({ style })}
+        options={[
+          { value: 'linear', label: 'Bar' },
+          { value: 'radial', label: 'Radial' },
+          { value: 'chip', label: 'Chip' },
+        ]}
+      />
+      <CheckboxField
+        label="Show remaining range / time"
+        value={card.showRemaining}
+        onChange={(showRemaining) => patch({ showRemaining })}
+      />
+    </FieldGroup>
+  );
+}
+
+function WeatherForm({ card, onChange }: { card: Extract<CardDescriptor, { type: 'weather' }>; onChange: (c: CardDescriptor) => void }) {
+  const patch = usePatch(card, onChange);
+  const togglePane = (pane: 'current' | 'hourly' | 'daily' | 'alerts' | 'radar') => {
+    const current = card.panes ?? [];
+    const next = current.includes(pane)
+      ? current.filter((p) => p !== pane)
+      : [...current, pane];
+    patch({ panes: next });
+  };
+  const has = (p: string) => (card.panes ?? []).includes(p as 'current');
+  return (
+    <FieldGroup>
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <TextField label="Name (optional)" value={card.name} onChange={(name) => patch({ name })} />
+      <FieldShell label="Panes" hint="Which sections to render, in order.">
+        <div className="flex flex-wrap gap-2">
+          {(['current', 'hourly', 'daily', 'alerts', 'radar'] as const).map((p) => (
+            <label key={p} className="flex items-center gap-1 text-xs">
+              <input type="checkbox" checked={has(p)} onChange={() => togglePane(p)} />
+              <span style={{ textTransform: 'capitalize' }}>{p}</span>
+            </label>
+          ))}
+        </div>
+      </FieldShell>
+      <NumberField
+        label="Hours to show"
+        value={card.hoursToShow}
+        min={1}
+        max={48}
+        step={1}
+        onChange={(hoursToShow) => patch({ hoursToShow: hoursToShow ?? 12 })}
+      />
+      <NumberField
+        label="Days to show"
+        value={card.daysToShow}
+        min={1}
+        max={7}
+        step={1}
+        onChange={(daysToShow) => patch({ daysToShow: daysToShow ?? 7 })}
+      />
+      <SegmentedField
+        label="Radar provider"
+        value={card.radarProvider}
+        onChange={(radarProvider) => patch({ radarProvider })}
+        options={[
+          { value: 'none', label: 'Off' },
+          { value: 'rainviewer', label: 'RainViewer' },
+        ]}
+      />
+      <SegmentedField
+        label="Minimum alert severity"
+        value={card.minAlertSeverity}
+        onChange={(minAlertSeverity) => patch({ minAlertSeverity })}
+        options={[
+          { value: 'Minor', label: 'Minor' },
+          { value: 'Moderate', label: 'Moderate' },
+          { value: 'Severe', label: 'Severe' },
+          { value: 'Extreme', label: 'Extreme' },
+        ]}
+      />
+      <SegmentedField
+        label="Size"
+        value={card.size}
+        onChange={(size) => patch({ size })}
+        options={[
+          { value: 'compact', label: 'Compact' },
+          { value: 'default', label: 'Default' },
+          { value: 'hero', label: 'Hero' },
+        ]}
+      />
+    </FieldGroup>
   );
 }

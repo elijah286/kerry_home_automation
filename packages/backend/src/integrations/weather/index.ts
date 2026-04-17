@@ -102,12 +102,33 @@ export class WeatherIntegration implements Integration {
   }
 
   private async poll(ctx: LocationCtx): Promise<void> {
-    const [observation, forecast] = await Promise.all([
+    // Hourly + alerts are best-effort: when NWS rate-limits or flakes, fall
+    // back to the core observation/forecast so the card still renders the
+    // current conditions and the 7-day summary.
+    const [observation, forecast, hourly, alerts] = await Promise.all([
       ctx.client.getCurrentConditions(),
       ctx.client.getForecast(),
+      ctx.client.getHourlyForecast().catch((err) => {
+        logger.warn({ err, entryId: ctx.entryId }, 'Weather: hourly forecast fetch failed');
+        return [];
+      }),
+      ctx.client.getActiveAlerts().catch((err) => {
+        logger.warn({ err, entryId: ctx.entryId }, 'Weather: alerts fetch failed');
+        return [];
+      }),
     ]);
 
-    const state = mapWeatherState(ctx.entryId, ctx.label, observation, forecast);
+    const { lat, lon } = ctx.client.getLatLon();
+    const state = mapWeatherState(
+      ctx.entryId,
+      ctx.label,
+      lat,
+      lon,
+      observation,
+      forecast,
+      hourly,
+      alerts,
+    );
     stateStore.update(state);
     this.lastConnected = Date.now();
   }

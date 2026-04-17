@@ -33,11 +33,48 @@ export interface NWSForecastPeriod {
   isDaytime: boolean;
   temperature: number;
   temperatureUnit: string;
-  windSpeed: string;
-  windDirection: string;
+  startTime?: string;
+  endTime?: string;
+  windSpeed?: string;
+  windDirection?: string;
   shortForecast: string;
   detailedForecast: string;
   icon: string;
+  probabilityOfPrecipitation?: { value: number | null };
+}
+
+/** Hourly forecast period from NWS `/gridpoints/.../forecast/hourly`.
+ *  Each period is 1 hour long; the endpoint returns ~156 of them. */
+export interface NWSHourlyPeriod {
+  number: number;
+  startTime: string;
+  endTime: string;
+  isDaytime: boolean;
+  temperature: number;
+  temperatureUnit: string;
+  probabilityOfPrecipitation: { value: number | null };
+  dewpoint?: { value: number | null; unitCode: string };
+  relativeHumidity?: { value: number | null };
+  windSpeed: string;
+  windDirection: string;
+  icon: string;
+  shortForecast: string;
+}
+
+/** Active alert polygon from `/alerts/active?point=lat,lon`. NWS wraps every
+ *  alert in a feature with properties we only partially consume. */
+export interface NWSAlertFeature {
+  id: string;
+  properties: {
+    event: string;
+    severity: string;
+    urgency: string;
+    headline: string;
+    description: string;
+    instruction: string | null;
+    effective: string;
+    expires: string;
+  };
 }
 
 async function nwsFetch(url: string): Promise<unknown> {
@@ -134,5 +171,29 @@ export class NWSClient {
       properties: { periods: NWSForecastPeriod[] };
     };
     return data.properties.periods;
+  }
+
+  /** Hour-by-hour forecast, 156 hours ahead. NWS's `forecastHourly` resource. */
+  async getHourlyForecast(): Promise<NWSHourlyPeriod[]> {
+    const meta = await this.resolvePoint();
+    const data = (await nwsFetch(meta.forecastHourlyUrl)) as {
+      properties: { periods: NWSHourlyPeriod[] };
+    };
+    return data.properties.periods;
+  }
+
+  /** Active alerts for this point (watches, warnings, advisories). NWS
+   *  requires the point geometry — lat,lon is acceptable via the `point`
+   *  query parameter. */
+  async getActiveAlerts(): Promise<NWSAlertFeature[]> {
+    const url = `${BASE_URL}/alerts/active?point=${this.lat},${this.lon}`;
+    const data = (await nwsFetch(url)) as { features: NWSAlertFeature[] };
+    return data.features ?? [];
+  }
+
+  /** Expose the lat/lon back so the card can render a RainViewer radar layer
+   *  centred on the reporting point. */
+  getLatLon(): { lat: number; lon: number } {
+    return { lat: this.lat, lon: this.lon };
   }
 }

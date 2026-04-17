@@ -53,9 +53,9 @@ const DEVICE_CARD_MAP: Partial<Record<MapKey, CardFactory>> = {
 
   // -- Covers --------------------------------------------------------------
   // Default cover gets the position control (vertical blind UI).
-  cover: (d) => ({ type: 'cover-tile', entity: d.id, showPositionControl: true }),
+  cover: (d) => ({ type: 'cover-tile', entity: d.id, showPositionControl: true, visual: 'auto', showPercentage: true }),
   // Garage doors are binary — position control is misleading.
-  'cover:garage_door': (d) => ({ type: 'cover-tile', entity: d.id, showPositionControl: false }),
+  'cover:garage_door': (d) => ({ type: 'cover-tile', entity: d.id, showPositionControl: false, visual: 'garage', showPercentage: false }),
 
   // -- Fans ----------------------------------------------------------------
   fan: (d) => ({ type: 'fan-tile', entity: d.id, showSpeedControl: true }),
@@ -66,12 +66,14 @@ const DEVICE_CARD_MAP: Partial<Record<MapKey, CardFactory>> = {
     entity: d.id,
     controls: ['play-pause', 'volume', 'mute', 'source', 'power'],
     showArtwork: true,
+    variant: 'auto',
   }),
   music_player: (d) => ({
     type: 'media-tile',
     entity: d.id,
     controls: ['play-pause', 'skip', 'volume', 'mute'],
     showArtwork: true,
+    variant: 'music',
   }),
 
   // -- Thermostats ---------------------------------------------------------
@@ -79,7 +81,11 @@ const DEVICE_CARD_MAP: Partial<Record<MapKey, CardFactory>> = {
     type: 'thermostat',
     entity: d.id,
     showModeControl: true,
+    showPresets: true,
+    showFanControl: true,
+    showHumidity: true,
     showHistory: true,
+    size: 'default',
   }),
 
   // -- Vehicles (composite) ------------------------------------------------
@@ -141,7 +147,7 @@ const DEVICE_CARD_MAP: Partial<Record<MapKey, CardFactory>> = {
   weather: (d) => ({ type: 'sensor-value', entity: d.id, style: 'big', format: 'temperature' }),
 
   // -- Garage doors / generic door & window sensors ------------------------
-  garage_door: (d) => ({ type: 'cover-tile', entity: d.id, showPositionControl: false }),
+  garage_door: (d) => ({ type: 'cover-tile', entity: d.id, showPositionControl: false, visual: 'garage', showPercentage: false }),
   // Binary door/window sensors render as sensor-value until a dedicated
   // door-state card exists.
   'sensor:door': (d) => ({ type: 'sensor-value', entity: d.id, style: 'big' }),

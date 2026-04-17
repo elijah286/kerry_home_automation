@@ -4,6 +4,7 @@
 
 import type { VehicleState, EnergySiteState, VehicleSleepState, EnergySiteOperationMode, WallConnectorState } from '@ha/shared';
 import type { TeslaVehicleData, TeslaVehicleListItem, TeslaEnergySiteLive, TeslaEnergySiteInfo } from './api-client.js';
+import { parseOptionCodes } from './option-codes.js';
 
 const now = () => Date.now();
 
@@ -83,6 +84,33 @@ export function mapVehicleData(
     guiDistanceUnits: gui?.gui_distance_units ?? null,
     guiTempUnits: gui?.gui_temperature_units ?? null,
     vehicleTelemetry: buildVehicleTelemetry(data),
+    ...mapCompositorConfig(vehicle.vin, data.vehicle_config),
+  };
+}
+
+/** Extract compositor-friendly fields from `vehicle_config`. Returns the
+ *  sparse subset of VehicleState keys that relate to rendering the car. */
+function mapCompositorConfig(
+  vin: string,
+  config: Record<string, unknown> | undefined,
+): Pick<VehicleState, 'compositorModel' | 'optionCodes' | 'paintColor' | 'wheelName' | 'trimName'> {
+  const raw = config?.option_codes;
+  const resolved = parseOptionCodes(raw, vin);
+  // The compositor also accepts a direct `car_type` field when present —
+  // prefer it over our option-code inference because Tesla sometimes lists
+  // the model there explicitly.
+  const carType = typeof config?.car_type === 'string'
+    ? (config.car_type as string).toLowerCase().replace(/\s+/g, '')
+    : null;
+  const model = carType && carType.startsWith('model')
+    ? carType
+    : resolved.model;
+  return {
+    compositorModel: model,
+    optionCodes: resolved.optionCodes,
+    paintColor: resolved.paintColor,
+    wheelName: resolved.wheelName,
+    trimName: resolved.trimName,
   };
 }
 

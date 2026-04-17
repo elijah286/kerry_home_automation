@@ -19,6 +19,7 @@ import { X } from 'lucide-react';
 import { dashboardDocSchema, type DashboardDoc } from '@ha/shared';
 import { Input, Textarea } from '@/components/ui/Input';
 import { PrimaryButton, SecondaryButton, GhostIconButton } from '@/components/ui/Button';
+import { IconPickerField } from '../card-forms/IconPickerField';
 
 interface DashboardMetaDialogProps {
   doc: DashboardDoc;
@@ -130,22 +131,10 @@ export function DashboardMetaDialog({ doc, trigger, onChange }: DashboardMetaDia
                 />
               </label>
 
-              <label className="flex flex-col gap-1">
-                <span
-                  className="text-xs font-medium"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  Icon (mdi:* or emoji)
-                </span>
-                <Input
-                  type="text"
-                  size="sm"
-                  value={doc.icon ?? ''}
-                  onChange={(e) =>
-                    onChange({ ...doc, icon: e.target.value || undefined })
-                  }
-                />
-              </label>
+              <IconPickerField
+                value={doc.icon}
+                onChange={(icon) => onChange({ ...doc, icon })}
+              />
 
               <div className="flex gap-3">
                 <label className="flex flex-1 flex-col gap-1">
