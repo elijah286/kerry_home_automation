@@ -11,6 +11,12 @@ import { type ReactNode } from 'react';
 import { Plus, X } from 'lucide-react';
 import { Input, Textarea } from '@/components/ui/Input';
 import { GhostIconButton } from '@/components/ui/Button';
+import { DeviceAutocomplete } from '@/components/DeviceAutocomplete';
+import { useDevices } from '@/hooks/useDevices';
+import type { DeviceState } from '@ha/shared';
+
+// Stable identity selector so useDevices can memoize correctly.
+const ALL_DEVICES = (all: DeviceState[]) => all;
 
 /** Label + helper wrapper used by every field primitive. */
 export function FieldShell({
@@ -208,14 +214,15 @@ export function SegmentedField<T extends string>({
   );
 }
 
-/** Entity-id input with a light "looks like an id" hint. Datalist-free
- *  because the DeviceStore is too large to enumerate inline. */
+/** Device picker with search-as-you-type. Backed by the live DeviceStore so
+ *  users can find entities by friendly name OR id, without memorizing the
+ *  `integration.entry.device.id` shape. */
 export function EntityField({
   label,
   hint,
   value,
   onChange,
-  placeholder = 'integration.entry1.device.id',
+  placeholder = 'Search devices…',
 }: {
   label?: string;
   hint?: string;
@@ -223,21 +230,21 @@ export function EntityField({
   onChange: (next: string) => void;
   placeholder?: string;
 }) {
+  const devices = useDevices(ALL_DEVICES);
   return (
     <FieldShell label={label ?? 'Entity'} hint={hint}>
-      <Input
-        type="text"
-        size="sm"
-        mono
+      <DeviceAutocomplete
         value={value ?? ''}
+        onChange={onChange}
+        devices={devices}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
       />
     </FieldShell>
   );
 }
 
-/** Repeating list of entity-id strings. */
+/** Repeating list of entity-id strings — each row is a search-as-you-type
+ *  device picker. */
 export function EntityListField({
   label,
   value,
@@ -250,22 +257,23 @@ export function EntityListField({
   minItems?: number;
 }) {
   const items = value ?? [];
+  const devices = useDevices(ALL_DEVICES);
   return (
     <FieldShell label={label ?? 'Entities'} hint={minItems > 0 ? `At least ${minItems}.` : undefined}>
       <div className="flex flex-col gap-1.5">
         {items.map((it, i) => (
           <div key={i} className="flex items-center gap-1.5">
-            <Input
-              type="text"
-              size="sm"
-              mono
-              value={it}
-              onChange={(e) => {
-                const next = items.slice();
-                next[i] = e.target.value;
-                onChange(next);
-              }}
-            />
+            <div className="flex-1">
+              <DeviceAutocomplete
+                value={it}
+                onChange={(v) => {
+                  const next = items.slice();
+                  next[i] = v;
+                  onChange(next);
+                }}
+                devices={devices}
+              />
+            </div>
             <GhostIconButton
               icon={X}
               tone="danger"

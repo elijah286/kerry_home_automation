@@ -15,18 +15,22 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import * as yaml from 'js-yaml';
+import { ChevronDown, ChevronRight, Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import {
   cardDescriptorSchema,
   type CardDescriptor,
   type CardType,
 } from '@ha/shared';
-import { PrimaryButton, SecondaryButton } from '@/components/ui/Button';
+import { PrimaryButton, SecondaryButton, GhostIconButton } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Input';
+import { CARD_TYPE_LABELS } from '@/lib/dashboard-editor/card-factory';
+import { CardPalette } from '../CardPalette';
 import {
   CheckboxField,
   EntityField,
   EntityListField,
   FieldGroup,
+  FieldShell,
   NumberField,
   SegmentedField,
   TextAreaField,
@@ -519,12 +523,165 @@ function StackForm({ card, onChange }: { card: Extract<CardDescriptor, { type: '
           { value: 'lg', label: 'lg' },
         ]}
       />
-      <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-        {card.children.length} child{card.children.length === 1 ? '' : 'ren'}. Children are
-        edited as YAML for now.
-      </p>
+      <ChildrenEditor
+        label="Children"
+        children={card.children}
+        onChange={(children) => patch({ children } as Partial<typeof card>)}
+      />
     </FieldGroup>
   );
+}
+
+// ---------------------------------------------------------------------------
+// ChildrenEditor — per-row expandable CardForm, reorder + delete + add.
+// Used by stack cards so nested children are editable in-place with the same
+// structured tooling (search-as-you-type entity picker, etc.) as top-level
+// cards — no YAML required.
+// ---------------------------------------------------------------------------
+
+function ChildrenEditor({
+  label,
+  children,
+  onChange,
+}: {
+  label: string;
+  children: CardDescriptor[];
+  onChange: (next: CardDescriptor[]) => void;
+}) {
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  const replace = (i: number, next: CardDescriptor) => {
+    const arr = children.slice();
+    arr[i] = next;
+    onChange(arr);
+  };
+  const remove = (i: number) => {
+    onChange(children.filter((_, j) => j !== i));
+    setExpanded((cur) => (cur === i ? null : cur));
+  };
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= children.length) return;
+    const arr = children.slice();
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    onChange(arr);
+    setExpanded((cur) => (cur === i ? j : cur === j ? i : cur));
+  };
+
+  return (
+    <FieldShell label={label}>
+      <div className="flex flex-col gap-1.5">
+        {children.length === 0 && (
+          <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+            No children yet — add one below.
+          </p>
+        )}
+        {children.map((child, i) => {
+          const open = expanded === i;
+          const meta = CARD_TYPE_LABELS[child.type] ?? { label: child.type, description: '' };
+          const preview = getChildPreviewName(child);
+          return (
+            <div
+              key={i}
+              className="rounded-lg"
+              style={{
+                background: 'var(--color-bg-secondary)',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              <div className="flex items-center gap-1 p-1.5">
+                <button
+                  type="button"
+                  onClick={() => setExpanded(open ? null : i)}
+                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-1 text-left hover:bg-[var(--color-bg-hover)]"
+                  aria-expanded={open}
+                  title={open ? 'Collapse' : 'Expand to edit'}
+                >
+                  {open
+                    ? <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} />
+                    : <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} />}
+                  <span
+                    className="truncate text-xs font-medium"
+                    style={{ color: 'var(--color-text)' }}
+                  >
+                    {meta.label}
+                  </span>
+                  {preview && (
+                    <span
+                      className="truncate text-[11px]"
+                      style={{ color: 'var(--color-text-muted)' }}
+                    >
+                      — {preview}
+                    </span>
+                  )}
+                </button>
+                <GhostIconButton
+                  icon={ArrowUp}
+                  aria-label="Move up"
+                  disabled={i === 0}
+                  onClick={() => move(i, -1)}
+                />
+                <GhostIconButton
+                  icon={ArrowDown}
+                  aria-label="Move down"
+                  disabled={i === children.length - 1}
+                  onClick={() => move(i, 1)}
+                />
+                <GhostIconButton
+                  icon={Trash2}
+                  tone="danger"
+                  aria-label="Remove child"
+                  onClick={() => remove(i)}
+                />
+              </div>
+              {open && (
+                <div
+                  className="border-t p-2"
+                  style={{ borderColor: 'var(--color-border)' }}
+                >
+                  <CardForm card={child} onChange={(next) => replace(i, next)} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={() => setPaletteOpen(true)}
+          className="inline-flex items-center gap-1.5 self-start rounded-lg px-3 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
+          style={{
+            background: 'var(--color-bg-secondary)',
+            color: 'var(--color-text)',
+            border: '1px dashed var(--color-border)',
+          }}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add child
+        </button>
+      </div>
+
+      <CardPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onPick={(card) => {
+          onChange([...children, card]);
+          setExpanded(children.length);
+          setPaletteOpen(false);
+        }}
+      />
+    </FieldShell>
+  );
+}
+
+function getChildPreviewName(card: CardDescriptor): string | undefined {
+  const c = card as Record<string, unknown>;
+  if (typeof c.name === 'string' && c.name) return c.name;
+  if (typeof c.title === 'string' && c.title) return c.title;
+  if (typeof c.text === 'string' && c.text) return c.text;
+  if (typeof c.entity === 'string' && c.entity) return c.entity;
+  return undefined;
 }
 
 // -- YAML fallback --------------------------------------------------------

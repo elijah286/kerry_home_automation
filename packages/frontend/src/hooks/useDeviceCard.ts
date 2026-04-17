@@ -17,6 +17,11 @@
 // device state. Re-renders fire on either (a) a WS update that changes the
 // device reference, or (b) an override change initiated here — every other
 // card on screen stays still.
+//
+// Override state is three-valued: `undefined` = still fetching for this
+// `deviceId`, `null` = fetch finished and no override, or a descriptor when
+// set. That avoids flashing the software default while GET /card is in
+// flight and avoids showing another device's override briefly after id churn.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useState } from 'react';
@@ -26,17 +31,23 @@ import {
   clearDeviceCardOverride,
   getDeviceCardOverride,
   setDeviceCardOverride,
-} from '../lib/api-device-cards';
-import { resolveDefaultCard } from '../lib/device-card-map';
+} from '@/lib/api-device-cards';
+import { resolveDefaultCard } from '@/lib/device-card-map';
+
+/** `undefined` means “initial GET not completed for this device id yet”. */
+type OverrideState = CardDescriptor | null | undefined;
 
 export interface UseDeviceCardResult {
   /** The device itself, or `undefined` while loading / on bad id. */
   device: DeviceState | undefined;
-  /** Resolved card — null only when the device itself is missing. */
+  /**
+   * Resolved card — `null` when the device row is not available yet, or when
+   * the override row is still loading (pair with `isLoading`).
+   */
   card: CardDescriptor | null;
   /** True when the current card came from a per-user override. */
   isOverridden: boolean;
-  /** True while the initial override GET is in flight. */
+  /** True while the initial override GET is in flight for this `deviceId`. */
   isLoading: boolean;
   /** Last error from any of the API calls, or `null`. */
   error: Error | null;
@@ -57,8 +68,7 @@ export interface UseDeviceCardResult {
  */
 export function useDeviceCard(deviceId: string | undefined): UseDeviceCardResult {
   const device = useDevice(deviceId);
-  const [override, setOverrideState] = useState<CardDescriptor | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(Boolean(deviceId));
+  const [override, setOverrideState] = useState<OverrideState>(undefined);
   const [error, setError] = useState<Error | null>(null);
 
   // Fetch the override whenever the deviceId changes. We don't depend on the
@@ -66,14 +76,14 @@ export function useDeviceCard(deviceId: string | undefined): UseDeviceCardResult
   // the device itself hasn't streamed in yet.
   useEffect(() => {
     if (!deviceId) {
-      setOverrideState(null);
-      setIsLoading(false);
+      setOverrideState(undefined);
+      setError(null);
       return;
     }
 
     let cancelled = false;
-    setIsLoading(true);
     setError(null);
+    setOverrideState(undefined);
 
     getDeviceCardOverride(deviceId)
       .then((res) => {
@@ -83,10 +93,7 @@ export function useDeviceCard(deviceId: string | undefined): UseDeviceCardResult
       .catch((err: unknown) => {
         if (cancelled) return;
         setError(err instanceof Error ? err : new Error(String(err)));
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setIsLoading(false);
+        setOverrideState(null);
       });
 
     return () => {
@@ -104,7 +111,7 @@ export function useDeviceCard(deviceId: string | undefined): UseDeviceCardResult
         const res = await setDeviceCardOverride(deviceId, descriptor);
         setOverrideState(res.override);
       } catch (err: unknown) {
-        setOverrideState(prev); // rollback
+        setOverrideState(prev);
         const wrapped = err instanceof Error ? err : new Error(String(err));
         setError(wrapped);
         throw wrapped;
@@ -121,19 +128,22 @@ export function useDeviceCard(deviceId: string | undefined): UseDeviceCardResult
     try {
       await clearDeviceCardOverride(deviceId);
     } catch (err: unknown) {
-      setOverrideState(prev); // rollback
+      setOverrideState(prev);
       const wrapped = err instanceof Error ? err : new Error(String(err));
       setError(wrapped);
       throw wrapped;
     }
   }, [deviceId, override]);
 
-  const card = device ? resolveDefaultCard(device, override) : null;
+  const card =
+    device && override !== undefined ? resolveDefaultCard(device, override) : null;
+
+  const isLoading = Boolean(deviceId) && override === undefined;
 
   return {
     device,
     card,
-    isOverridden: override !== null,
+    isOverridden: Boolean(deviceId) && override != null,
     isLoading,
     error,
     setOverride,

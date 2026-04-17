@@ -35,7 +35,7 @@ export function DeviceDefaultCardPanel({ deviceId }: DeviceDefaultCardPanelProps
             className="text-sm font-medium"
             style={{ color: 'var(--color-text-secondary)' }}
           >
-            {isOverridden ? 'Your custom card' : 'Default card'}
+            {isOverridden ? 'Your custom controls' : 'Quick controls'}
           </h2>
         </div>
 
