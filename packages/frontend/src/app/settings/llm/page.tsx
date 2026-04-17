@@ -132,9 +132,10 @@ export default function LlmSettingsPage() {
   const [openAiModel,    setOpenAiModel]     = useState<string>(OPENAI_MODELS[0].id);
   const [anthropicModel, setAnthropicModel]  = useState<string>(ANTHROPIC_MODELS[0].id);
 
-  const [loading,   setLoading]   = useState(true);
-  const [saving,    setSaving]    = useState(false);
-  const [saved,     setSaved]     = useState(false);
+  const [loading,    setLoading]   = useState(true);
+  const [saving,     setSaving]    = useState(false);
+  const [saved,      setSaved]     = useState(false);
+  const [saveError,  setSaveError] = useState<string | null>(null);
   const [showOpenAiKey,    setShowOpenAiKey]    = useState(false);
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
   const [testing,   setTesting]   = useState(false);
@@ -189,50 +190,43 @@ export default function LlmSettingsPage() {
   // True if the active provider selection differs from what's saved in the DB
   const providerUnsaved = provider !== savedProvider;
 
+  const putSetting = async (key: string, value: unknown): Promise<void> => {
+    const res = await apiFetch(`${API_BASE}/api/settings/${key}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string };
+      throw new Error(body.error ?? `Save failed (${res.status})`);
+    }
+  };
+
   const saveAll = async () => {
     setSaving(true);
     setSaved(false);
+    setSaveError(null);
     setTestResult(null);
     try {
-      await apiFetch(`${API_BASE}/api/settings/llm_provider`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: provider }),
-      });
-
-      await apiFetch(`${API_BASE}/api/settings/llm_openai_model`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: openAiModel }),
-      });
-
-      await apiFetch(`${API_BASE}/api/settings/llm_anthropic_model`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: anthropicModel }),
-      });
+      await putSetting('llm_provider', provider);
+      await putSetting('llm_openai_model', openAiModel);
+      await putSetting('llm_anthropic_model', anthropicModel);
 
       if (openAiKey && !openAiMaskActive) {
-        await apiFetch(`${API_BASE}/api/settings/llm_openai_api_key`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ value: openAiKey }),
-        });
+        await putSetting('llm_openai_api_key', openAiKey);
         setOpenAiConfigured(true);
       }
 
       if (anthropicKey && !anthropicMaskActive) {
-        await apiFetch(`${API_BASE}/api/settings/llm_anthropic_api_key`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ value: anthropicKey }),
-        });
+        await putSetting('llm_anthropic_api_key', anthropicKey);
         setAnthropicConfigured(true);
       }
 
       setSavedProvider(provider);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Save failed');
     } finally {
       setSaving(false);
     }
@@ -548,6 +542,21 @@ export default function LlmSettingsPage() {
       {/* Save / test row */}
       {!loading && (
         <Card>
+          {/* Save error */}
+          {saveError && (
+            <div
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs mb-3"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-danger, #ef4444) 10%, transparent)',
+                color: 'var(--color-danger, #ef4444)',
+                border: '1px solid color-mix(in srgb, var(--color-danger, #ef4444) 30%, transparent)',
+              }}
+            >
+              <CircleAlert className="h-3.5 w-3.5 shrink-0" />
+              Save failed: {saveError}
+            </div>
+          )}
+
           {/* Unsaved provider warning */}
           {providerUnsaved && (
             <div
