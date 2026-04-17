@@ -12,15 +12,17 @@ import { useLCARSFrame } from '@/components/lcars/LCARSFrameContext';
 //   3. Snapshot     — 2 fps JPEG polling, last-resort so user always sees *something*
 //
 // The player starts at whatever tier the user picked (default auto = 1), and
-// on stall / error automatically degrades. Each tier has a ~6s watchdog that
-// drops to the next tier if no frames have arrived.
+// on stall / error automatically degrades. Watchdogs are generous because
+// go2rtc HLS cold-start can take 10+ s to produce the first segment.
 // ---------------------------------------------------------------------------
 
 type Tier = 'webrtc' | 'hls' | 'snapshot';
 type PlayerMode = 'auto' | Tier;
+type PlayerStatus = 'connecting' | 'live' | 'failed';
 
 const TIER_ORDER: Tier[] = ['webrtc', 'hls', 'snapshot'];
-const WATCHDOG_MS = 6_000;
+const WEBRTC_WATCHDOG_MS = 10_000;
+const HLS_WATCHDOG_MS = 15_000;
 
 function nextTier(t: Tier): Tier | null {
   const i = TIER_ORDER.indexOf(t);
@@ -35,7 +37,7 @@ function CameraPlayer({
 }: {
   name: string;
   mode: PlayerMode;
-  onTierChange?: (tier: Tier, status: 'connecting' | 'live' | 'failed') => void;
+  onTierChange?: (tier: Tier, status: PlayerStatus) => void;
   onError?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -46,6 +48,21 @@ function CameraPlayer({
   const tierRef = useRef(activeTier);
   tierRef.current = activeTier;
 
+  // Stabilize callbacks so tier effects don't re-run on every parent re-render
+  // (parent re-renders every 500 ms during snapshot polling).
+  const onTierChangeRef = useRef(onTierChange);
+  onTierChangeRef.current = onTierChange;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+  const emit = useCallback((t: Tier, s: PlayerStatus) => {
+    onTierChangeRef.current?.(t, s);
+    if (process.env.NODE_ENV !== 'production') {
+      // Helps diagnose which tier is actually failing in the field.
+      // eslint-disable-next-line no-console
+      console.info(`[camera:${name}] ${t} → ${s}`);
+    }
+  }, [name]);
+
   // Reset to the user-selected starting tier whenever name or mode changes.
   useEffect(() => {
     setActiveTier(mode === 'auto' ? 'webrtc' : (mode as Tier));
@@ -55,18 +72,18 @@ function CameraPlayer({
   // mode the user asked for a specific tier so we don't override their choice.
   const degrade = useCallback(() => {
     if (mode !== 'auto') {
-      onTierChange?.(tierRef.current, 'failed');
-      onError?.();
+      emit(tierRef.current, 'failed');
+      onErrorRef.current?.();
       return;
     }
     const next = nextTier(tierRef.current);
     if (next) {
       setActiveTier(next);
     } else {
-      onTierChange?.(tierRef.current, 'failed');
-      onError?.();
+      emit(tierRef.current, 'failed');
+      onErrorRef.current?.();
     }
-  }, [mode, onError, onTierChange]);
+  }, [mode, emit]);
 
   // -------------------------------------------------------------------------
   // Tier 1: WebRTC
@@ -74,7 +91,7 @@ function CameraPlayer({
   useEffect(() => {
     if (activeTier !== 'webrtc') return;
 
-    onTierChange?.('webrtc', 'connecting');
+    emit('webrtc', 'connecting');
 
     let pc: RTCPeerConnection | null = null;
     let watchdog: ReturnType<typeof setTimeout> | null = null;
@@ -83,7 +100,7 @@ function CameraPlayer({
 
     const armWatchdog = () => {
       if (watchdog) clearTimeout(watchdog);
-      watchdog = setTimeout(() => { if (!cancelled) degrade(); }, WATCHDOG_MS);
+      watchdog = setTimeout(() => { if (!cancelled) degrade(); }, WEBRTC_WATCHDOG_MS);
     };
 
     const clearWatchdog = () => {
@@ -135,7 +152,7 @@ function CameraPlayer({
         if (video) {
           const onPlaying = () => {
             clearWatchdog();
-            if (!cancelled) onTierChange?.('webrtc', 'live');
+            if (!cancelled) emit('webrtc', 'live');
           };
           video.addEventListener('playing', onPlaying, { once: true });
 
@@ -169,7 +186,7 @@ function CameraPlayer({
         video.srcObject = null;
       }
     };
-  }, [activeTier, name, degrade, onTierChange]);
+  }, [activeTier, name, degrade, emit]);
 
   // -------------------------------------------------------------------------
   // Tier 2: HLS
@@ -177,7 +194,7 @@ function CameraPlayer({
   useEffect(() => {
     if (activeTier !== 'hls') return;
 
-    onTierChange?.('hls', 'connecting');
+    emit('hls', 'connecting');
 
     const video = videoRef.current;
     if (!video) return;
@@ -188,7 +205,7 @@ function CameraPlayer({
     let cancelled = false;
 
     const armWatchdog = () => {
-      watchdog = setTimeout(() => { if (!cancelled) degrade(); }, WATCHDOG_MS);
+      watchdog = setTimeout(() => { if (!cancelled) degrade(); }, HLS_WATCHDOG_MS);
     };
     const clearWatchdog = () => {
       if (watchdog) { clearTimeout(watchdog); watchdog = null; }
@@ -196,7 +213,7 @@ function CameraPlayer({
 
     const onPlaying = () => {
       clearWatchdog();
-      if (!cancelled) onTierChange?.('hls', 'live');
+      if (!cancelled) emit('hls', 'live');
     };
     video.addEventListener('playing', onPlaying);
 
@@ -234,17 +251,17 @@ function CameraPlayer({
       video.removeAttribute('src');
       try { video.load(); } catch { /* noop */ }
     };
-  }, [activeTier, name, degrade, onTierChange]);
+  }, [activeTier, name, degrade, emit]);
 
   // -------------------------------------------------------------------------
   // Tier 3: Snapshot polling (last resort)
   // -------------------------------------------------------------------------
   useEffect(() => {
     if (activeTier !== 'snapshot') return;
-    onTierChange?.('snapshot', 'connecting');
+    emit('snapshot', 'connecting');
     const id = window.setInterval(() => setSnapshotRev((n) => n + 1), 500);
     return () => window.clearInterval(id);
-  }, [activeTier, onTierChange]);
+  }, [activeTier, emit]);
 
   // -------------------------------------------------------------------------
   // Render
@@ -257,8 +274,8 @@ function CameraPlayer({
         src={src}
         alt=""
         className="absolute inset-0 h-full w-full object-contain"
-        onLoad={() => onTierChange?.('snapshot', 'live')}
-        onError={() => onTierChange?.('snapshot', 'failed')}
+        onLoad={() => emit('snapshot', 'live')}
+        onError={() => emit('snapshot', 'failed')}
       />
     );
   }
