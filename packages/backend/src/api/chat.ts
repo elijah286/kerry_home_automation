@@ -1731,12 +1731,23 @@ export function registerChatRoutes(app: FastifyInstance): void {
     '/api/chat/stream',
     { preHandler: [authenticate] },
     async (req, reply) => {
+      // Manually echo CORS headers — reply.hijack() below bypasses @fastify/cors,
+      // so we must add them ourselves to match the plugin's behavior.
+      const originHeader = req.headers.origin;
+      const corsHeaders: Record<string, string> = {};
+      if (originHeader) {
+        corsHeaders['Access-Control-Allow-Origin'] = originHeader;
+        corsHeaders['Access-Control-Allow-Credentials'] = 'true';
+        corsHeaders['Vary'] = 'Origin';
+      }
+
       reply.hijack();
       reply.raw.writeHead(200, {
         'Content-Type': 'text/event-stream; charset=utf-8',
         'Cache-Control': 'no-cache, no-transform',
         'Connection': 'keep-alive',
         'X-Accel-Buffering': 'no',
+        ...corsHeaders,
       });
 
       let closed = false;
