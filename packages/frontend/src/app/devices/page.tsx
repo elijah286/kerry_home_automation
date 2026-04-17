@@ -13,6 +13,7 @@ import {
   Search, Cpu, Lightbulb, ToggleLeft, Fan, Blinds, Speaker, Camera, CookingPot,
   Battery, Car, Waves, CircuitBoard, Beaker, ChevronDown, ChevronRight, X, Zap,
   Pencil, Check, CloudSun, Settings, DoorOpen, Activity, Droplets, Bot, Gauge,
+  ClipboardCopy,
 } from 'lucide-react';
 import type { DeviceState, DeviceType, NetworkDeviceState } from '@ha/shared';
 import Link from 'next/link';
@@ -346,6 +347,42 @@ function groupLabel(key: string, mode: GroupMode): string {
 function groupIcon(key: string, mode: GroupMode): React.ElementType | null {
   if (mode === 'type') return TYPE_ICONS[key] ?? null;
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// CopyButton — one-shot copy-to-clipboard button. Briefly flips the icon
+// to a green check on success so the user sees confirmation without
+// needing a toast system.
+// ---------------------------------------------------------------------------
+
+function CopyButton({ value, label = 'Copy' }: { value: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      /* ignore — older browsers, non-secure contexts */
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={onCopy}
+      aria-label={copied ? 'Copied' : label}
+      title={copied ? 'Copied' : label}
+      className="shrink-0 rounded-md p-1 hover:bg-[var(--color-bg-hover)] transition-colors"
+    >
+      {copied ? (
+        <Check className="h-3.5 w-3.5" style={{ color: 'var(--color-success)' }} />
+      ) : (
+        <ClipboardCopy className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
+      )}
+    </button>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1007,6 +1044,19 @@ export default function DevicesPage() {
                   <DeviceAliases deviceId={liveSelected.id} />
                   <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>Alternative names for search and the assistant.</p>
                 </div>
+              </div>
+            </LCARSSection>
+
+            {/* Default control card — same resolved descriptor as the
+                full detail page, including the admin Customize affordance. */}
+            <DeviceDefaultCardPanel deviceId={liveSelected.id} />
+
+            {/* Properties — type / integration / status / state / ID.
+                Sits below the control so the most frequently used bits
+                (name, aliases, the card itself) are the top of the panel
+                and these "about this device" details come second. */}
+            <LCARSSection title="Properties">
+              <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span style={{ color: 'var(--color-text-muted)' }}>Type</span>
                   <span className="capitalize">{liveSelected.type.replace(/_/g, ' ')}</span>
@@ -1025,16 +1075,20 @@ export default function DevicesPage() {
                   <span style={{ color: 'var(--color-text-muted)' }}>State</span>
                   <span className="text-sm font-medium">{getDeviceStateSummary(liveSelected)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex items-start justify-between gap-2">
                   <span style={{ color: 'var(--color-text-muted)' }}>ID</span>
-                  <span className="text-xs font-mono" style={{ color: 'var(--color-text-secondary)' }}>{liveSelected.id}</span>
+                  <div className="flex min-w-0 items-center gap-1">
+                    <span
+                      className="text-xs font-mono text-right break-all"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
+                      {liveSelected.id}
+                    </span>
+                    <CopyButton value={liveSelected.id} label="Copy device ID" />
+                  </div>
                 </div>
               </div>
             </LCARSSection>
-
-            {/* Default control card — same resolved descriptor as the
-                full detail page, including the admin Customize affordance. */}
-            <DeviceDefaultCardPanel deviceId={liveSelected.id} />
 
             {/* Show child entities for hub devices */}
             {liveSelected.type === 'hub' && (() => {
