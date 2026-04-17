@@ -586,7 +586,7 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
           .map(([id]) => id);
         devices = devices.filter((d) => d.userAreaId && matchingAreaIds.includes(d.userAreaId));
       }
-      return devices.map((d) => {
+      const deviceSummaries = devices.map((d) => {
         const summary: Record<string, unknown> = {
           id: d.id,
           name: d.displayName || d.name,
@@ -607,6 +607,15 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
         else if (d.type === 'sprinkler') { summary.running = d.running; summary.currentZone = d.currentZone; }
         return summary;
       });
+      const idList = deviceSummaries.map((d) => d.id as string).join(',');
+      return {
+        count: deviceSummaries.length,
+        devices: deviceSummaries,
+        navigatePath: deviceSummaries.length > 0 ? `/devices?ids=${encodeURIComponent(idList)}` : null,
+        hint: deviceSummaries.length === 0
+          ? 'No devices matched those filters.'
+          : `Call navigate_ui with the navigatePath above — it contains the exact IDs of the ${deviceSummaries.length} matched devices. The UI will show precisely those devices with an "AI filtered" banner. Do NOT list them in chat; reply with one brief sentence instead.`,
+      };
     }
 
     case 'get_device_state': {
@@ -1397,8 +1406,8 @@ The HomeOS UI is your primary output surface. The chat window is for brief confi
 |---|---|
 | Find/show/list recipes by any criteria | search_recipes → navigate_ui with the returned navigatePath (/recipes?uids=...) |
 | Open a specific recipe | navigate_ui /recipes?open=<uid> |
-| Show devices the LLM already fetched | navigate_ui /devices?ids=id1,id2,id3 |
-| Browse devices by type/area | navigate_ui /devices?type=X&area=Y |
+| Show/find/list devices by type, area, or any criteria | get_devices → navigate_ui with the returned navigatePath (/devices?ids=...) |
+| Browse all devices | navigate_ui /devices |
 | Show cameras | navigate_ui /cameras |
 | Show calendar / schedule | navigate_ui /calendar |
 | Show automations | navigate_ui /settings/automations |
@@ -1415,7 +1424,8 @@ The HomeOS UI is your primary output surface. The chat window is for brief confi
 - Never list more than 3 items in chat when a UI page can show them
 - Never show a recipe list in chat — always call navigate_ui with the navigatePath from search_recipes
 - Never use /recipes?q=<keyword> — that re-runs a dumb keyword search; use ?uids= instead
-- Never dump a device list in chat — navigate to /devices
+- Never dump a device list in chat — call get_devices then navigate_ui with the returned navigatePath
+- Never use /devices?type= or /devices?area= for filtered results — get_devices returns a navigatePath with exact IDs; use that
 - Never say "Here are the results:" followed by a long list
 
 ### Chat reply format after navigating

@@ -721,6 +721,7 @@ export default function DevicesPage() {
     }
   }, [entryLabelParam]);
   const [search, setSearch] = useState('');
+  const [pinnedIds, setPinnedIds] = useState<Set<string> | null>(null);
   const [groupMode, setGroupMode] = useState<GroupMode>('integration');
   const [selectedDevice, setSelectedDevice] = useState<DeviceState | null>(null);
   const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_VISIBLE);
@@ -732,6 +733,15 @@ export default function DevicesPage() {
   useEffect(() => {
     setVisibleColumns(loadVisibleColumns());
   }, []);
+
+  // Pin devices from ?ids= URL param (LLM navigation)
+  const idsParam = searchParams.get('ids');
+  useEffect(() => {
+    if (!idsParam) return;
+    setPinnedIds(new Set(idsParam.split(',').map((id) => id.trim()).filter(Boolean)));
+    setSearch('');
+    router.replace('/devices', { scroll: false });
+  }, [idsParam, router]);
 
   const toggleColumn = useCallback((key: string) => {
     setVisibleColumns((prev) => {
@@ -755,6 +765,11 @@ export default function DevicesPage() {
   const HIDDEN_POOL_TYPES = new Set(['pool_pump', 'pool_circuit', 'pool_chemistry']);
 
   const filtered = useMemo(() => {
+    if (pinnedIds) {
+      return [...pinnedIds]
+        .map((id) => devices.find((d) => d.id === id))
+        .filter((d): d is (typeof devices)[number] => d !== undefined);
+    }
     return devices.filter((d) => {
       if (!showChildren && d.parentDeviceId) return false;
       if (!showChildren && HIDDEN_POOL_TYPES.has(d.type)) return false;
@@ -774,7 +789,7 @@ export default function DevicesPage() {
       }
       return true;
     });
-  }, [devices, search, integrationFilter, entryFilter, areaFilter, showChildren]);
+  }, [devices, search, integrationFilter, entryFilter, areaFilter, showChildren, pinnedIds]);
 
   const groups = useMemo(() => groupDevices(filtered, groupMode), [filtered, groupMode]);
 
@@ -851,7 +866,7 @@ export default function DevicesPage() {
             type="text"
             placeholder="Search devices..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); if (pinnedIds) setPinnedIds(null); }}
             className="w-full rounded-md border pl-8 pr-3 py-1.5 text-sm"
             style={{
               backgroundColor: 'var(--color-bg-secondary)',
@@ -882,8 +897,26 @@ export default function DevicesPage() {
         </button>
       </div>
 
+      {/* AI pinned result set banner */}
+      {pinnedIds && (
+        <div className="flex items-center gap-2">
+          <div
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+            style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
+          >
+            ✦ AI filtered · {pinnedIds.size} device{pinnedIds.size !== 1 ? 's' : ''}
+            <button
+              onClick={() => { setPinnedIds(null); }}
+              className="ml-0.5 hover:opacity-80"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Active filter chip */}
-      {activeFilter && (
+      {activeFilter && !pinnedIds && (
         <div className="flex items-center gap-2">
           <div
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
