@@ -96,7 +96,7 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="max-w-2xl mx-auto p-4 lg:p-6">
+    <div className="max-w-2xl xl:max-w-5xl mx-auto p-4 lg:p-6">
       {/* Page header */}
       <div className="flex items-center gap-3 mb-5">
         <div
@@ -108,7 +108,7 @@ export default function SettingsPage() {
         <h1 className="text-lg font-semibold">Settings</h1>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 xl:grid xl:grid-cols-2 xl:gap-4 xl:space-y-0">
         {visibleGroups.map((group) => (
           <div key={group.title}>
             {group.title && (

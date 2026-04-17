@@ -441,7 +441,7 @@ export default function SystemPage() {
 
   if (authLoading) {
     return (
-      <div className="max-w-3xl mx-auto p-4 lg:p-6 flex justify-center py-16">
+      <div className="max-w-3xl xl:max-w-5xl mx-auto p-4 lg:p-6 flex justify-center py-16">
         <Loader2 className="h-6 w-6 animate-spin" style={{ color: 'var(--color-text-muted)' }} />
       </div>
     );
@@ -449,7 +449,7 @@ export default function SystemPage() {
 
   if (!isAdmin) {
     return (
-      <div className="max-w-3xl mx-auto p-4 lg:p-6 space-y-4">
+      <div className="max-w-3xl xl:max-w-5xl mx-auto p-4 lg:p-6 space-y-4">
         <div className="flex items-center gap-3">
           <Link href="/settings" className="p-1 rounded-lg hover:bg-[var(--color-bg-hover)]">
             <ArrowLeft className="h-4 w-4" style={{ color: 'var(--color-text-muted)' }} />
@@ -474,7 +474,7 @@ export default function SystemPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-3xl xl:max-w-5xl mx-auto p-4 lg:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link href="/settings" className="p-1 rounded-lg hover:bg-[var(--color-bg-hover)]">
