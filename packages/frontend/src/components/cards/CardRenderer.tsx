@@ -21,6 +21,7 @@ import { ButtonCard } from './types/ButtonCard';
 import { LightTileCard } from './types/LightTileCard';
 import { SwitchTileCard } from './types/SwitchTileCard';
 import { CoverTileCard } from './types/CoverTileCard';
+import { ThermostatCard } from './types/ThermostatCard';
 import { SensorValueCard } from './types/SensorValueCard';
 import { EntityListCard } from './types/EntityListCard';
 import { AlertBannerCard } from './types/AlertBannerCard';
@@ -37,6 +38,7 @@ function CardRendererInner({ card }: { card: CardDescriptor }) {
     case 'light-tile':       return <LightTileCard card={card} />;
     case 'switch-tile':      return <SwitchTileCard card={card} />;
     case 'cover-tile':       return <CoverTileCard card={card} />;
+    case 'thermostat':       return <ThermostatCard card={card} />;
     case 'sensor-value':     return <SensorValueCard card={card} />;
     case 'entity-list':      return <EntityListCard card={card} />;
     case 'alert-banner':     return <AlertBannerCard card={card} />;
@@ -51,7 +53,6 @@ function CardRendererInner({ card }: { card: CardDescriptor }) {
     case 'fan-tile':
     case 'lock-tile':
     case 'media-tile':
-    case 'thermostat':
     case 'vehicle':
     case 'gauge':
     case 'history-graph':
