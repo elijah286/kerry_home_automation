@@ -38,16 +38,20 @@ export async function loadLlmRuntimeSettings(): Promise<LlmRuntimeSettings> {
   );
   const map = new Map(rows.map((r) => [r.key, r.value]));
 
-  const legacyOpenAi = asTrimmedString(map.get('llm_api_key'));
+  const legacyKey    = asTrimmedString(map.get('llm_api_key'));
   const explicitOpenAi = asTrimmedString(map.get('llm_openai_api_key'));
-  const openaiApiKey = explicitOpenAi ?? legacyOpenAi;
+  const explicitAnthropicKey = asTrimmedString(map.get('llm_anthropic_api_key'));
 
-  const anthropicApiKey = asTrimmedString(map.get('llm_anthropic_api_key'));
-
+  // Determine provider first so we can correctly route the legacy key
   let provider: LlmProviderId = 'openai';
   const rawProvider = map.get('llm_provider');
   if (rawProvider === 'anthropic') provider = 'anthropic';
   else if (rawProvider === 'openai') provider = 'openai';
+
+  // Legacy `llm_api_key` is routed to whichever provider is active when the
+  // explicit per-provider key is missing — handles keys saved by older code.
+  const openaiApiKey    = explicitOpenAi    ?? (provider === 'openai'    ? legacyKey : undefined);
+  const anthropicApiKey = explicitAnthropicKey ?? (provider === 'anthropic' ? legacyKey : undefined);
 
   const openaiModel = asTrimmedString(map.get('llm_openai_model')) ?? 'gpt-4o';
   const anthropicModel = asTrimmedString(map.get('llm_anthropic_model')) ?? 'claude-sonnet-4-20250514';
