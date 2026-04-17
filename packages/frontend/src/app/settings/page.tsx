@@ -72,7 +72,7 @@ const groups: { title?: string; items: SettingsItem[] }[] = [
         description: 'Check for new versions and install when you are ready',
         adminOnly: true,
       },
-      { href: '/settings/llm', icon: Bot, label: 'LLM Integration', description: 'Configure AI assistant and API key' },
+      { href: '/settings/llm', icon: Bot, label: 'LLM Integration', description: 'OpenAI and Claude keys, model, and active provider' },
       { href: '/integrations', icon: Puzzle, label: 'Integrations', description: 'Manage connected services and bridges' },
       { href: '/settings/users', icon: Users, label: 'Manage Users', description: 'Add and manage user accounts' },
       { href: '/settings/server-installer', icon: HardDrive, label: 'Server Installer', description: 'Generate a bootable Ubuntu ISO pre-configured for this hub' },

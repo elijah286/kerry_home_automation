@@ -10,6 +10,7 @@
     "reset-admin-password": "tsx scripts/reset-admin-password.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.90.0",
     "@fastify/cors": "^10.0.0",
     "@fastify/websocket": "^11.0.0",
     "@ha/shared": "*",

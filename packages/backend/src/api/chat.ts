@@ -1,12 +1,14 @@
 // ---------------------------------------------------------------------------
-// Chat API: OpenAI-powered assistant with function calling
+// Chat API: OpenAI or Anthropic (Claude) assistant with function calling
 // ---------------------------------------------------------------------------
 
 import type { FastifyInstance } from 'fastify';
 import type { Automation, AutomationCreate, AutomationExecutionLog, AutomationUpdate, DeviceCommand, IntegrationId, UserRole } from '@ha/shared';
 import { KNOWN_INTEGRATIONS, Permission, ROLE_PERMISSIONS } from '@ha/shared';
+import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions';
+import type { ContentBlockParam, MessageParam, Tool as AnthropicToolDef } from '@anthropic-ai/sdk/resources/messages.js';
 import { stateStore } from '../state/store.js';
 import { registry } from '../integrations/registry.js';
 import { query } from '../db/pool.js';
@@ -25,6 +27,7 @@ import {
   type PendingAutomationOp,
 } from '../lib/chat-automation-proposals.js';
 import { applyAutomationProposal } from '../lib/apply-automation-proposal.js';
+import { apiKeyForActiveProvider, loadLlmRuntimeSettings } from './llm-config.js';
 
 // ---------------------------------------------------------------------------
 // Tool definitions for OpenAI function calling
@@ -1412,6 +1415,113 @@ function getToolsForRole(role: UserRole): ChatCompletionTool[] {
   return tools;
 }
 
+function openAiToolsToAnthropic(tools: ChatCompletionTool[]): AnthropicToolDef[] {
+  const out: AnthropicToolDef[] = [];
+  for (const t of tools) {
+    if (t.type !== 'function' || !t.function) continue;
+    out.push({
+      name: t.function.name,
+      description: t.function.description ?? '',
+      input_schema: t.function.parameters as AnthropicToolDef['input_schema'],
+    });
+  }
+  return out;
+}
+
+function clientMessagesToAnthropic(
+  msgs: Array<{ role: string; content: string }>,
+): MessageParam[] {
+  const out: MessageParam[] = [];
+  for (const m of msgs) {
+    if (m.role === 'user') {
+      out.push({ role: 'user', content: m.content });
+    } else if (m.role === 'assistant') {
+      out.push({ role: 'assistant', content: m.content });
+    }
+  }
+  return out;
+}
+
+type AnthropicChatOutcome =
+  | { ok: true; reply: string; navigate?: string }
+  | { ok: false; status: number; error: string };
+
+async function runAnthropicChatWithTools(opts: {
+  anthropic: Anthropic;
+  model: string;
+  systemPrompt: string;
+  conversation: Array<{ role: string; content: string }>;
+  tools: ChatCompletionTool[];
+  toolCtx: ToolContext;
+  username: string;
+}): Promise<AnthropicChatOutcome> {
+  const anthropicTools = openAiToolsToAnthropic(opts.tools);
+  let messages = clientMessagesToAnthropic(opts.conversation);
+  let navigateTo: string | undefined;
+  const MAX_ITERATIONS = 10;
+
+  for (let i = 0; i < MAX_ITERATIONS; i++) {
+    try {
+      const msg = await opts.anthropic.messages.create({
+        model: opts.model,
+        max_tokens: 8192,
+        temperature: 0.3,
+        system: opts.systemPrompt,
+        messages,
+        tools: anthropicTools,
+      });
+
+      const textParts: string[] = [];
+      const toolUses: Array<{ id: string; name: string; input: Record<string, unknown> }> = [];
+
+      for (const block of msg.content) {
+        if (block.type === 'text') {
+          textParts.push(block.text);
+        } else if (block.type === 'tool_use') {
+          toolUses.push({
+            id: block.id,
+            name: block.name,
+            input: (typeof block.input === 'object' && block.input !== null
+              ? (block.input as Record<string, unknown>)
+              : {}),
+          });
+        }
+      }
+
+      if (toolUses.length === 0) {
+        return { ok: true, reply: textParts.join(''), ...(navigateTo ? { navigate: navigateTo } : {}) };
+      }
+
+      messages.push({
+        role: 'assistant',
+        content: msg.content as unknown as ContentBlockParam[],
+      });
+
+      const toolResultBlocks: ContentBlockParam[] = [];
+      for (const tu of toolUses) {
+        logger.info({ tool: tu.name, args: tu.input, user: opts.username }, 'Chat tool call');
+        const result = await executeTool(tu.name, tu.input, opts.toolCtx);
+        if (tu.name === 'navigate_ui' && typeof result === 'object' && result !== null && 'navigate' in result) {
+          navigateTo = (result as { navigate: string }).navigate;
+        }
+        toolResultBlocks.push({
+          type: 'tool_result',
+          tool_use_id: tu.id,
+          content: JSON.stringify(result),
+        });
+      }
+
+      messages.push({ role: 'user', content: toolResultBlocks });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error({ err }, 'Anthropic chat completion error');
+      return { ok: false, status: 500, error: `LLM error: ${message}` };
+    }
+  }
+
+  return { ok: false, status: 500, error: 'Too many tool call iterations' };
+}
+
 // ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
@@ -1422,23 +1532,48 @@ export function registerChatRoutes(app: FastifyInstance): void {
     { preHandler: [authenticate] },
     async (req, reply) => {
       const user = req.user!;
+      const llmSettings = await loadLlmRuntimeSettings();
+      const active = apiKeyForActiveProvider(llmSettings);
 
-      // Load API key from system settings
-      const { rows } = await query<{ value: unknown }>(
-        "SELECT value FROM system_settings WHERE key = 'llm_api_key'",
-      );
-      const apiKey = rows[0]?.value as string | undefined;
-      if (!apiKey) {
-        return reply.code(400).send({ error: 'OpenAI API key not configured. Go to Settings → LLM Integration to add one.' });
+      if (!active) {
+        const err =
+          llmSettings.provider === 'anthropic'
+            ? 'Anthropic API key not configured. Go to Settings → LLM Integration to add one.'
+            : 'OpenAI API key not configured. Go to Settings → LLM Integration to add one.';
+        return reply.code(400).send({ error: err });
       }
 
-      const openai = new OpenAI({ apiKey });
       const tools = getToolsForRole(user.role);
       const toolCtx: ToolContext = { userRole: user.role, userId: user.id };
+      const systemPrompt = await buildSystemPrompt(user);
+      const conversation = req.body.messages.map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
+
+      if (active.kind === 'anthropic') {
+        const anthropic = new Anthropic({ apiKey: active.key });
+        const outcome = await runAnthropicChatWithTools({
+          anthropic,
+          model: llmSettings.anthropicModel,
+          systemPrompt,
+          conversation,
+          tools,
+          toolCtx,
+          username: user.username,
+        });
+        if (!outcome.ok) return reply.code(outcome.status).send({ error: outcome.error });
+        return {
+          reply: outcome.reply,
+          ...(outcome.navigate ? { navigate: outcome.navigate } : {}),
+        };
+      }
+
+      const openai = new OpenAI({ apiKey: active.key });
 
       const messages: ChatCompletionMessageParam[] = [
-        { role: 'system', content: await buildSystemPrompt(user) },
-        ...req.body.messages.map((m) => ({
+        { role: 'system', content: systemPrompt },
+        ...conversation.map((m) => ({
           role: m.role as 'user' | 'assistant',
           content: m.content,
         })),
@@ -1451,7 +1586,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
       for (let i = 0; i < MAX_ITERATIONS; i++) {
         try {
           const completion = await openai.chat.completions.create({
-            model: 'gpt-4o',
+            model: llmSettings.openaiModel,
             messages,
             tools,
             temperature: 0.3,
@@ -1506,23 +1641,39 @@ export function registerChatRoutes(app: FastifyInstance): void {
 
   // Test connection — verify the API key works by making a minimal API call
   app.post('/api/chat/test', { preHandler: [authenticate] }, async (_req, reply) => {
-    const { rows } = await query<{ value: unknown }>(
-      "SELECT value FROM system_settings WHERE key = 'llm_api_key'",
-    );
-    const apiKey = rows[0]?.value as string | undefined;
-    if (!apiKey) {
-      return reply.code(400).send({ error: 'No API key configured' });
+    const llmSettings = await loadLlmRuntimeSettings();
+    const active = apiKeyForActiveProvider(llmSettings);
+
+    if (!active) {
+      const err =
+        llmSettings.provider === 'anthropic'
+          ? 'Anthropic API key not configured'
+          : 'OpenAI API key not configured';
+      return reply.code(400).send({ error: err });
     }
 
     try {
-      const openai = new OpenAI({ apiKey });
+      if (active.kind === 'anthropic') {
+        const anthropic = new Anthropic({ apiKey: active.key });
+        const msg = await anthropic.messages.create({
+          model: llmSettings.anthropicModel,
+          max_tokens: 16,
+          temperature: 0,
+          messages: [{ role: 'user', content: 'Reply with exactly: ok' }],
+        });
+        const text =
+          msg.content.map((b) => (b.type === 'text' ? b.text : '')).join('').trim();
+        return { ok: true, provider: 'anthropic', model: msg.model, response: text };
+      }
+
+      const openai = new OpenAI({ apiKey: active.key });
       const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
+        model: llmSettings.openaiModel,
         messages: [{ role: 'user', content: 'Say "ok"' }],
         max_tokens: 5,
       });
       const text = completion.choices[0]?.message?.content ?? '';
-      return { ok: true, model: completion.model, response: text };
+      return { ok: true, provider: 'openai', model: completion.model, response: text };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error({ err }, 'LLM test connection failed');
