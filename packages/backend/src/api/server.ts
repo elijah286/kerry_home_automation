@@ -59,10 +59,11 @@ export async function createServer() {
   });
 
   // Log and surface actual error messages — Fastify({ logger: false }) swallows them otherwise
-  app.setErrorHandler((error, req, reply) => {
+  app.setErrorHandler((error: unknown, req, reply) => {
     logger.error({ err: error, method: req.method, url: req.url }, 'Request error');
-    const status = error.statusCode ?? 500;
-    reply.code(status).send({ error: error.message || 'Internal Server Error' });
+    const err = error as { statusCode?: number; message?: string };
+    const status = err.statusCode ?? 500;
+    reply.code(status).send({ error: err.message || 'Internal Server Error' });
   });
 
   // Global auth hook — skip public routes and WebSocket upgrades

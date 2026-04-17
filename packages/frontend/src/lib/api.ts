@@ -51,7 +51,12 @@ export async function sendCommand(deviceId: string, command: Record<string, unkn
 
 export async function updateDeviceSettings(
   deviceId: string,
-  settings: { display_name?: string | null; area_id?: string | null; history_retention_days?: number | null },
+  settings: {
+    display_name?: string | null;
+    area_id?: string | null;
+    history_retention_days?: number | null;
+    aliases?: string[];
+  },
 ): Promise<{ ok: boolean }> {
   return fetchApi(`/api/devices/${encodeURIComponent(deviceId)}/settings`, {
     method: 'PUT',

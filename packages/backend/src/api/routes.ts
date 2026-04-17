@@ -23,6 +23,7 @@ import { registerDashboardRoutes } from './dashboard-routes.js';
 import { registerNotificationRoutes } from './notification-routes.js';
 import { registerScreensaverRoutes } from './screensaver-routes.js';
 import { registerRoborockRoutes } from './roborock-routes.js';
+import { registerDeviceCardRoutes } from './device-card-routes.js';
 import { requirePermission, requireRole } from './auth.js';
 
 /** Prevent hung Node fetch() calls when go2rtc or Protect is slow or wedged. */
@@ -43,6 +44,7 @@ export function registerRoutes(app: FastifyInstance): void {
   registerNotificationRoutes(app);
   registerScreensaverRoutes(app);
   registerRoborockRoutes(app);
+  registerDeviceCardRoutes(app);
 
   // Per-integration verbose logging (system terminal troubleshooting)
   app.get('/api/integrations/debug-logging', { preHandler: [requirePermission(Permission.ManageIntegrations)] }, async () => {

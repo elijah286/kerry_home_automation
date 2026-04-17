@@ -26,6 +26,21 @@ export interface DeviceBase {
   lastUpdated: number;
   /** If set, this device is a child entity of the referenced parent device */
   parentDeviceId?: string;
+  /**
+   * Canonical sub-classification from the {@link DeviceClass} taxonomy. The
+   * frontend's `device-card-map` uses `(type, device_class)` to pick the
+   * default card for display; the class is populated by bridges when known,
+   * by the admin via the device edit UI, or by the LLM inference route as a
+   * fallback. `undefined` means "unclassified" — UI may surface a CTA.
+   */
+  device_class?: string;
+  /**
+   * Provenance for `device_class`. Used by the inference flow to decide
+   * whether a regenerate run may overwrite an existing value (it always may,
+   * for the nuclear mode) and by admin UIs to show who set the class.
+   * Never sent blank from the server when device_class is set.
+   */
+  device_class_source?: 'bridge' | 'admin' | 'llm';
 }
 
 // -- Light (Lutron dimmers) --------------------------------------------------

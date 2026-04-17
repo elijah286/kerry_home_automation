@@ -113,10 +113,25 @@ async function main() {
   const saved = await redis.get(REDIS_STATE_KEY);
   if (saved) stateStore.restore(saved);
 
-  // 4b. Overlay user display names and area assignments from device_settings
+  // 4b. Overlay user display names, area assignments, and device_class from
+  //     device_settings. These fields are global (admin-scoped) — per-user
+  //     card overrides live in device_card_overrides and are resolved on
+  //     the frontend, not overlaid here.
   {
-    const { rows } = await query<{ device_id: string; display_name: string | null; area_id: string | null; aliases: string[] | null }>(
-      'SELECT device_id, display_name, area_id, aliases FROM device_settings WHERE display_name IS NOT NULL OR area_id IS NOT NULL OR (aliases IS NOT NULL AND array_length(aliases, 1) > 0)',
+    const { rows } = await query<{
+      device_id: string;
+      display_name: string | null;
+      area_id: string | null;
+      aliases: string[] | null;
+      device_class: string | null;
+      device_class_source: string | null;
+    }>(
+      `SELECT device_id, display_name, area_id, aliases, device_class, device_class_source
+       FROM device_settings
+       WHERE display_name IS NOT NULL
+          OR area_id IS NOT NULL
+          OR (aliases IS NOT NULL AND array_length(aliases, 1) > 0)
+          OR device_class IS NOT NULL`,
     );
     for (const row of rows) {
       const device = stateStore.get(row.device_id);
@@ -125,10 +140,15 @@ async function main() {
         if (row.display_name) patched.displayName = row.display_name;
         if (row.area_id) patched.userAreaId = row.area_id;
         if (row.aliases?.length) patched.aliases = row.aliases;
+        if (row.device_class) {
+          patched.device_class = row.device_class;
+          patched.device_class_source =
+            (row.device_class_source as 'bridge' | 'admin' | 'llm' | null) ?? undefined;
+        }
         stateStore.update(patched);
       }
     }
-    if (rows.length > 0) logger.info({ count: rows.length }, 'Applied device display names / area / alias overrides');
+    if (rows.length > 0) logger.info({ count: rows.length }, 'Applied device settings overlay (name/area/alias/class)');
   }
 
   // 5. Persist state to Redis on changes (debounced)

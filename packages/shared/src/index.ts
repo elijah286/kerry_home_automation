@@ -1,4 +1,5 @@
 export * from './devices.js';
+export * from './device-classes.js';
 export * from './commands.js';
 export * from './events.js';
 export * from './paprika.js';
