@@ -27,6 +27,16 @@ permissions:
 env:
   REGISTRY: ghcr.io
 
+# Serialize runs on main so the "Commit release manifest" step can't race
+# against a concurrent run. Without this, back-to-back pushes (e.g. the
+# pre-push hook's version-bump chain) each try to `git pull --rebase && git
+# push` the manifest at the same time, conflict on deploy/release-manifest.json,
+# and fail the workflow. `cancel-in-progress: false` keeps every push building —
+# we queue them instead of dropping any.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
@@ -169,13 +179,23 @@ jobs:
           cat deploy/release-manifest.json
 
       - name: Commit release manifest
+        # The concurrency guard at the top serializes runs, so this step's
+        # `git pull --rebase` should always succeed. The fallback logic below
+        # exists defensively: if a conflict ever does sneak in (e.g. someone
+        # edits the manifest by hand between fetch and push), aborting the
+        # rebase and dropping this run's commit is safer than failing the
+        # whole release — the next push will regenerate the manifest anyway.
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add deploy/release-manifest.json
           git diff --cached --quiet && exit 0
           git commit -m "ci: update release manifest for ${{ steps.version.outputs.tag }}"
-          git pull --rebase origin main || true
+          if ! git pull --rebase origin main; then
+            echo "::warning::Rebase conflict on release-manifest.json — aborting and skipping manifest commit."
+            git rebase --abort || true
+            exit 0
+          fi
           git push
 
       # -- GitHub Release (only for new versions) --

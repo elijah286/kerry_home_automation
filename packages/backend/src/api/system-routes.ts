@@ -462,21 +462,21 @@ export function registerSystemRoutes(app: FastifyInstance): void {
       const remoteSha = await execGit(['rev-parse', 'origin/main'], root);
 
       // -----------------------------------------------------------------------
-      // Read the CI release manifest from origin/main.  This file is committed
-      // by the GitHub Actions workflow ONLY after all Docker images have been
-      // built and pushed to ghcr.io.  By basing the "update available" decision
-      // on the manifest version (not app-version.json), we avoid advertising
-      // an update before the images are actually available to pull.
+      // Remote version label for DISPLAY: always from app-version.json at
+      // origin/main, so the UI never shows an older label than the code
+      // that's actually on the remote branch.
+      //
+      // We still read `deploy/release-manifest.json` from origin/main — but
+      // only as an "images are ready" signal. That manifest is committed by
+      // the GitHub Actions workflow AFTER all Docker images land on ghcr.io,
+      // so its presence gates whether we're willing to offer an update at
+      // all. Its version string is no longer surfaced to the UI because the
+      // manifest commit can lag behind origin/main (e.g. when the manifest
+      // write itself fails in CI) — and displaying a stale version next to
+      // the current running version is just confusing.
       // -----------------------------------------------------------------------
       const manifest = await readReleaseManifestAtRef(root, 'origin/main');
-      const remoteMeta: { versionLabel: string | null; description: string } = manifest
-        ? {
-            versionLabel: manifest.version,
-            description:
-              (await readCommitSubject(root, manifest.sha).catch(() => '')).trim() ||
-              manifest.version,
-          }
-        : await describeDeployRef(root, 'origin/main');
+      const remoteMeta = await describeDeployRef(root, 'origin/main');
 
       // -----------------------------------------------------------------------
       // Determine the ACTUAL running container version.
@@ -515,13 +515,28 @@ export function registerSystemRoutes(app: FastifyInstance): void {
 
       // -----------------------------------------------------------------------
       // Decide whether an update is available.
+      //
+      // Hard guards applied first:
+      //   1. If the server's git HEAD is already at origin/main, there is
+      //      nothing to install. Never advertise an update in that case —
+      //      this prevents the UI from offering a "Re-sync" that would
+      //      point at an older manifest or otherwise confuse the user.
+      //   2. If the CI release manifest doesn't exist at origin/main, images
+      //      haven't been published yet. Don't advertise an update until
+      //      they are pullable.
+      //
+      // After those guards, we still prefer the container-version compare
+      // when available (it detects "git pulled but not rebuilt" drift), and
+      // fall back to SHA compare otherwise.
       // -----------------------------------------------------------------------
       let updateAvailable: boolean;
-      if (containerVersionKnown && remoteMeta.versionLabel) {
-        // Reliable: compare the baked container version vs the remote version
+      if (headSha === remoteSha) {
+        updateAvailable = false;
+      } else if (!manifest) {
+        updateAvailable = false;
+      } else if (containerVersionKnown && remoteMeta.versionLabel) {
         updateAvailable = buildInfo.version !== remoteMeta.versionLabel;
       } else {
-        // Fallback: compare git SHAs (may be wrong after git pull without rebuild)
         updateAvailable = headSha !== remoteSha;
       }
 

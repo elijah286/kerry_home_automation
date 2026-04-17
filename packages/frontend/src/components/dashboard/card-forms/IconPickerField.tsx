@@ -221,6 +221,45 @@ export function IconPickerField({
               )}
             </div>
 
+            {/* Custom value — lets advanced users type an emoji or a name
+                we don't list (legacy mdi:* aliases, new lucide icons before
+                we bump the package, etc.). Kept small and labelled so the
+                primary path stays the grid. */}
+            <div
+              className="px-2 py-1.5"
+              style={{ borderTop: `1px solid ${token('--color-border')}` }}
+            >
+              <label
+                className="mb-1 block text-[11px]"
+                style={{ color: token('--color-text-muted') }}
+              >
+                Custom (emoji or name)
+              </label>
+              <input
+                type="text"
+                defaultValue={value ?? ''}
+                onBlur={(e) => {
+                  const next = e.target.value.trim();
+                  onChange(next === '' ? undefined : next);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const next = (e.target as HTMLInputElement).value.trim();
+                    onChange(next === '' ? undefined : next);
+                    setOpen(false);
+                  }
+                }}
+                placeholder="e.g. 🚪 or mdi:home"
+                className="w-full rounded px-2 py-1 text-sm outline-none"
+                style={{
+                  background: token('--color-bg-secondary'),
+                  color: token('--color-text'),
+                  border: `1px solid ${token('--color-border')}`,
+                }}
+              />
+            </div>
+
             {/* Footer */}
             <div
               className="flex items-center justify-between px-2 py-1.5 text-[11px]"
