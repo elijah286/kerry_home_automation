@@ -16,9 +16,6 @@
 
 import WebSocket from 'ws';
 import { createHmac } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { FastifyInstance, InjectOptions } from 'fastify';
 import type { TunnelMessage, TunnelUser, WsServerMessage, IntegrationId, IntegrationHealth } from '@ha/shared';
 import { logger as rootLogger } from '../logger.js';
@@ -26,10 +23,9 @@ import { TUNNEL_INTERNAL_NONCE } from '../api/auth.js';
 import { stateStore } from '../state/store.js';
 import { eventBus } from '../state/event-bus.js';
 import { registry } from '../integrations/registry.js';
+import { buildInfo } from '../build-version.js';
 
 const logger = rootLogger.child({ module: 'tunnel' });
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // -- Constants ---------------------------------------------------------------
 
@@ -77,25 +73,20 @@ class TunnelClient {
     this.tunnelSecret = opts.tunnelSecret;
     this.homeId = opts.homeId;
 
-    // Read app version for registration
-    try {
-      const versionPath = resolve(__dirname, '../../../frontend/src/lib/app-version.json');
-      const raw = await readFile(versionPath, 'utf8');
-      const v = JSON.parse(raw) as { major: number; minor: number; patch: number };
-      this.version = `${v.major}.${v.minor}.${v.patch}`;
-    } catch {
-      // In Docker the frontend may not be adjacent — try the app root mount
-      try {
-        const appRoot = process.env.HA_APP_ROOT ?? '/opt/home-automation';
-        const raw = await readFile(
-          resolve(appRoot, 'packages/frontend/src/lib/app-version.json'),
-          'utf8',
-        );
-        const v = JSON.parse(raw) as { major: number; minor: number; patch: number };
-        this.version = `${v.major}.${v.minor}.${v.patch}`;
-      } catch {
-        logger.warn('Could not read app-version.json — using "unknown"');
-      }
+    // Version reported to the proxy MUST reflect what Docker is actually running
+    // (from /app/build-info.json baked in at CI build time), NOT what the mounted
+    // git workspace happens to have checked out. Git state can drift via `git pull`
+    // or CI-committed release manifests — if the tunnel reports that drift, the
+    // proxy's header tells remote clients a lie about what the hub is running.
+    //
+    // See packages/backend/src/build-version.ts for the resolution chain:
+    //   build-info.json → OCI labels → env vars → pinned HA_BACKEND_IMAGE tag.
+    if (buildInfo.version) {
+      // buildInfo.version includes the leading "v" (e.g. "v4.1.2") — strip it for
+      // the handshake payload which historically carried bare semver.
+      this.version = buildInfo.version.replace(/^v/, '');
+    } else {
+      logger.warn('buildInfo.version unavailable — tunnel will report version "unknown"');
     }
 
     logger.info(

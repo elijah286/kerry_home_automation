@@ -23,6 +23,13 @@ class TunnelManager {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private pongTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /**
+   * Last-known version reported by the home server during tunnel handshake.
+   * Used by /api/system/app-version on the proxy so remote clients see the
+   * HOME's version, never the proxy's Railway-deployed version.
+   */
+  private homeVersion: string | null = null;
+
   private wsMessageListeners = new Set<(msg: TunnelMessage) => void>();
 
   init(_server: HttpServer): void {
@@ -58,6 +65,7 @@ class TunnelManager {
           if (msg.type === 'home_register') {
             if (this.verifyRegistration(msg)) {
               this.authenticated = true;
+              this.homeVersion = typeof msg.version === 'string' && msg.version.trim() ? msg.version.trim() : null;
               clearTimeout(authTimeout);
               this.sendToTunnel({ type: 'home_registered' });
               this.startHeartbeat(ws);
@@ -77,6 +85,7 @@ class TunnelManager {
         clearTimeout(authTimeout);
         this.stopHeartbeat();
         this.authenticated = false;
+        this.homeVersion = null;
         if (this.tunnel === ws) {
           this.tunnel = null;
         }
@@ -106,6 +115,11 @@ class TunnelManager {
 
   isConnected(): boolean {
     return this.authenticated && this.tunnel?.readyState === WebSocket.OPEN;
+  }
+
+  /** Last-known version reported by the home server. Null if tunnel has never authenticated. */
+  getHomeVersion(): string | null {
+    return this.homeVersion;
   }
 
   sendToTunnel(msg: TunnelMessage): boolean {
