@@ -523,6 +523,11 @@ export function registerSystemRoutes(app: FastifyInstance): void {
       } else {
         // Fallback: compare git SHAs (may be wrong after git pull without rebuild)
         updateAvailable = headSha !== remoteSha;
+        // If both version labels are known and equal, the running container is
+        // already at this version — SHA difference is just a git divergence artifact.
+        if (updateAvailable && runningVersionLabel && remoteMeta.versionLabel && runningVersionLabel === remoteMeta.versionLabel) {
+          updateAvailable = false;
+        }
       }
 
       // -----------------------------------------------------------------------
