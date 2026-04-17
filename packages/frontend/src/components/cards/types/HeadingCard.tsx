@@ -2,6 +2,7 @@
 
 import type { HeadingCard as HeadingCardDescriptor } from '@ha/shared';
 import { token } from '@/lib/tokens';
+import { IconGlyph } from '@/lib/icons/IconGlyph';
 
 const STYLE_MAP: Record<HeadingCardDescriptor['style'], { tag: 'h1' | 'h2' | 'h3'; className: string }> = {
   title:    { tag: 'h2', className: 'text-xl font-semibold' },
@@ -16,7 +17,13 @@ export function HeadingCard({ card }: { card: HeadingCardDescriptor }) {
       className={className}
       style={{ color: card.style === 'caption' ? token('--color-text-muted') : token('--color-text') }}
     >
-      {card.icon && <span className="mr-2" aria-hidden>{card.icon}</span>}
+      {card.icon && (
+        <IconGlyph
+          name={card.icon}
+          size={card.style === 'title' ? 22 : card.style === 'subtitle' ? 18 : 14}
+          className="mr-2 inline-block align-text-bottom"
+        />
+      )}
       {card.text}
     </Tag>
   );

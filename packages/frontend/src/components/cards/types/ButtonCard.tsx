@@ -4,6 +4,7 @@ import type { ButtonCard as ButtonCardDescriptor } from '@ha/shared';
 import { useDevice } from '@/hooks/useDevice';
 import { useDeviceCommand } from '@/hooks/useDeviceCommand';
 import { token } from '@/lib/tokens';
+import { IconGlyph } from '@/lib/icons/IconGlyph';
 import { ButtonSpinner } from '@/components/ui/ButtonSpinner';
 import { useCardHandlers } from '../CardHandlersContext';
 
@@ -38,7 +39,7 @@ export function ButtonCard({ card }: { card: ButtonCardDescriptor }) {
       data-card-id={card.id}
       data-card-type="button"
     >
-      {card.icon && <span aria-hidden className="text-lg">{card.icon}</span>}
+      {card.icon && <IconGlyph name={card.icon} size={20} />}
       <span className="flex-1 truncate text-sm font-medium">{label}</span>
       {busy && <ButtonSpinner />}
       {card.showState && device && (

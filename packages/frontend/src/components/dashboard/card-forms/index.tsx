@@ -37,6 +37,7 @@ import {
   TextField,
 } from './fields';
 import { ActionField } from './ActionField';
+import { IconPickerField } from './IconPickerField';
 
 interface CardFormProps {
   card: CardDescriptor;
@@ -188,7 +189,7 @@ function HeadingForm({ card, onChange }: { card: Extract<CardDescriptor, { type:
           { value: 'caption', label: 'Caption' },
         ]}
       />
-      <TextField label="Icon (mdi:* or emoji)" value={card.icon} onChange={(icon) => patch({ icon })} />
+      <IconPickerField value={card.icon} onChange={(icon) => patch({ icon })} />
     </FieldGroup>
   );
 }
@@ -213,7 +214,7 @@ function ButtonForm({ card, onChange }: { card: Extract<CardDescriptor, { type: 
   return (
     <FieldGroup>
       <TextField label="Name" value={card.name} onChange={(name) => patch({ name })} />
-      <TextField label="Icon (mdi:* or emoji)" value={card.icon} onChange={(icon) => patch({ icon })} />
+      <IconPickerField value={card.icon} onChange={(icon) => patch({ icon })} />
       <EntityField
         label="Entity (optional)"
         hint="Drives on/off appearance; leave blank for pure action buttons."
@@ -276,11 +277,7 @@ function EntityTileForm({ card, onChange }: { card: Extract<CardDescriptor, { en
     <FieldGroup>
       <EntityField value={bag.entity} onChange={(entity) => patch({ entity })} />
       <TextField label="Name (optional)" value={bag.name} onChange={(name) => patch({ name })} />
-      <TextField
-        label="Icon (mdi:* or emoji)"
-        value={bag.icon}
-        onChange={(icon) => patch({ icon })}
-      />
+      <IconPickerField value={bag.icon} onChange={(icon) => patch({ icon })} />
     </FieldGroup>
   );
 }
@@ -293,7 +290,7 @@ function SensorValueForm({ card, onChange }: { card: Extract<CardDescriptor, { t
     <FieldGroup>
       <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
       <TextField label="Name" value={card.name} onChange={(name) => patch({ name })} />
-      <TextField label="Icon (mdi:* or emoji)" value={card.icon} onChange={(icon) => patch({ icon })} />
+      <IconPickerField value={card.icon} onChange={(icon) => patch({ icon })} />
       <SegmentedField
         label="Style"
         value={card.style}

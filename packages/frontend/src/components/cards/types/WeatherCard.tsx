@@ -22,6 +22,8 @@ import type {
 import { AlertTriangle, Droplets, Wind } from 'lucide-react';
 import { useDevice } from '@/hooks/useDevice';
 import { token, severityVar } from '@/lib/tokens';
+import { IconGlyph } from '@/lib/icons/IconGlyph';
+import { weatherIconFor } from '@/lib/icons/weather';
 import { withEntityBoundary } from '../EntityBoundary';
 
 const SEVERITY_ORDER: Record<string, number> = {
@@ -92,19 +94,24 @@ function WeatherBody({ card, device }: { card: WeatherCardDescriptor; device: We
 
 function CurrentPane({ device, size }: { device: WeatherState; size: 'compact' | 'default' | 'hero' }) {
   const tempClass = size === 'hero' ? 'text-5xl' : size === 'compact' ? 'text-2xl' : 'text-4xl';
+  const iconPx = size === 'hero' ? 72 : size === 'compact' ? 40 : 56;
+  // Infer day/night from the first upcoming period so the sun / moon glyph
+  // pair swaps cleanly at dusk.
+  const isDaytime = device.hourly[0]?.isDaytime ?? device.forecast[0]?.isDaytime ?? true;
+  const glyph = weatherIconFor(device.condition, isDaytime);
   return (
     <div className="flex items-center gap-3">
-      {device.icon && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={device.icon}
-          alt={device.condition}
-          width={size === 'hero' ? 96 : 64}
-          height={size === 'hero' ? 96 : 64}
-          className="rounded-md"
-          style={{ background: token('--color-bg-hover') }}
-        />
-      )}
+      <div
+        className="flex items-center justify-center rounded-md"
+        style={{
+          width: iconPx + 16,
+          height: iconPx + 16,
+          background: token('--color-bg-hover'),
+          color: token('--color-text'),
+        }}
+      >
+        <IconGlyph name={glyph} size={iconPx} aria-label={device.condition} />
+      </div>
       <div className="flex flex-col">
         <div className={`${tempClass} font-semibold leading-none tabular-nums`}>
           {device.temperature != null ? `${Math.round(device.temperature)}°` : '—'}
@@ -157,10 +164,11 @@ function HourlyPane({ hours, max }: { hours: WeatherForecastHour[]; max: number 
           <span className="text-[10px]" style={{ color: token('--color-text-muted') }}>
             {formatHour(h.startTime)}
           </span>
-          {h.icon && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={h.icon} alt="" width="32" height="32" />
-          )}
+          <IconGlyph
+            name={weatherIconFor(h.shortForecast, h.isDaytime)}
+            size={24}
+            style={{ color: token('--color-text-secondary') }}
+          />
           <span className="text-xs font-medium tabular-nums">
             {h.temperature != null ? `${Math.round(h.temperature)}°` : '—'}
           </span>
@@ -206,10 +214,11 @@ function DailyPane({ days, max }: { days: WeatherForecastDay[]; max: number }) {
             style={{ background: token('--color-bg-hover') }}
           >
             <span className="w-16 font-medium">{pair.day?.name ?? pair.night?.name}</span>
-            {primary.icon && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={primary.icon} alt="" width="24" height="24" />
-            )}
+            <IconGlyph
+              name={weatherIconFor(primary.shortForecast, primary.isDaytime)}
+              size={20}
+              style={{ color: token('--color-text-secondary') }}
+            />
             <span className="flex-1 truncate" style={{ color: token('--color-text-secondary') }}>
               {primary.shortForecast}
             </span>

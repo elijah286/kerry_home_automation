@@ -4,6 +4,7 @@ import type { SwitchTileCard as SwitchTileCardDescriptor, SwitchState } from '@h
 import { useDevice } from '@/hooks/useDevice';
 import { useDeviceCommand } from '@/hooks/useDeviceCommand';
 import { token } from '@/lib/tokens';
+import { IconGlyph } from '@/lib/icons/IconGlyph';
 import { ButtonSpinner } from '@/components/ui/ButtonSpinner';
 import { withEntityBoundary } from '../EntityBoundary';
 import { useCardHandlers } from '../CardHandlersContext';
@@ -36,7 +37,7 @@ function SwitchTileBody({ card, device }: { card: SwitchTileCardDescriptor; devi
       }}
       data-card-type="switch-tile"
     >
-      {card.icon && <span aria-hidden>{card.icon}</span>}
+      {card.icon && <IconGlyph name={card.icon} size={18} />}
       <span className="flex-1 truncate text-sm font-medium text-left">{label}</span>
       {busy ? <ButtonSpinner /> : (
         <span className="text-xs font-medium opacity-80">{device.on ? 'ON' : 'OFF'}</span>

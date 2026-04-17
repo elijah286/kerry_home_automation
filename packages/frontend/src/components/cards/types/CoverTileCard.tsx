@@ -29,6 +29,7 @@ import type {
 import { useDevice } from '@/hooks/useDevice';
 import { useCommand } from '@/hooks/useCommand';
 import { token } from '@/lib/tokens';
+import { IconGlyph } from '@/lib/icons/IconGlyph';
 import { ButtonSpinner } from '@/components/ui/ButtonSpinner';
 import { Badge } from '@/components/ui/Badge';
 import { withEntityBoundary } from '../EntityBoundary';
@@ -92,7 +93,7 @@ function CoverBinaryBody({
       }}
       data-card-type="cover-tile"
     >
-      {card.icon && <span aria-hidden>{card.icon}</span>}
+      {card.icon && <IconGlyph name={card.icon} size={18} />}
       <span className="flex-1 truncate text-left text-sm font-medium">{label}</span>
       {busy ? (
         <ButtonSpinner />
@@ -142,7 +143,7 @@ function GarageDoorBody({
       }}
       data-card-type="cover-tile"
     >
-      {card.icon && <span aria-hidden>{card.icon}</span>}
+      {card.icon && <IconGlyph name={card.icon} size={18} />}
       <span className="flex-1 truncate text-left text-sm font-medium">{label}</span>
       {busy ? (
         <ButtonSpinner />
