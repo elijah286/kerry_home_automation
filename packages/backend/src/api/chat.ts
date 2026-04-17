@@ -1767,11 +1767,20 @@ export function registerChatRoutes(app: FastifyInstance): void {
         if (lastMessage?.role === 'user' && req.body.messages.length === 1) {
           const fast = await tryFastPath(lastMessage.content, user.role);
           if (fast.handled) {
-            emit({ type: 'token', text: fast.reply ?? 'Done.' });
+            const reply_text = fast.reply ?? 'Done.';
+            // Save to history (fire-and-forget)
+            saveChatMessage(user.id, 'user', lastMessage.content);
+            saveChatMessage(user.id, 'assistant', reply_text);
+            emit({ type: 'token', text: reply_text });
             emit({ type: 'done' });
             reply.raw.end();
             return;
           }
+        }
+
+        // Save incoming user message to history
+        if (lastMessage?.role === 'user') {
+          saveChatMessage(user.id, 'user', lastMessage.content);
         }
 
         const tools = getToolsForRole(user.role);
@@ -1783,6 +1792,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
         }));
 
         let navigateTo: string | undefined;
+        let assistantResponse = ''; // Collect assistant response for history
         const MAX_ITERATIONS = 10;
 
         if (active.kind === 'anthropic') {
@@ -1805,6 +1815,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
             for await (const event of streamObj) {
               if (closed) break;
               if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+                assistantResponse += event.delta.text;
                 emit({ type: 'token', text: event.delta.text });
               }
             }
@@ -1823,6 +1834,10 @@ export function registerChatRoutes(app: FastifyInstance): void {
             }
 
             if (toolUses.length === 0) {
+              // Save assistant response to history (fire-and-forget)
+              if (assistantResponse) {
+                saveChatMessage(user.id, 'assistant', assistantResponse);
+              }
               emit({ type: 'done', ...(navigateTo ? { navigate: navigateTo } : {}) });
               break;
             }
@@ -1875,6 +1890,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
               if (delta?.content) {
                 emit({ type: 'token', text: delta.content });
                 content += delta.content;
+                assistantResponse += delta.content;
               }
               if (delta?.tool_calls) {
                 for (const tc of delta.tool_calls) {
@@ -1891,6 +1907,10 @@ export function registerChatRoutes(app: FastifyInstance): void {
             const toolCalls = [...tcAcc.entries()].sort(([a], [b]) => a - b).map(([, v]) => v);
 
             if (toolCalls.length === 0) {
+              // Save assistant response to history (fire-and-forget)
+              if (assistantResponse) {
+                saveChatMessage(user.id, 'assistant', assistantResponse);
+              }
               emit({ type: 'done', ...(navigateTo ? { navigate: navigateTo } : {}) });
               break;
             }

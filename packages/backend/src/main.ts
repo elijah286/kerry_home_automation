@@ -15,6 +15,7 @@ import { loadIntegrationDebugFlags } from './integration-debug.js';
 import { migrateFromRedis } from './db/integration-config-store.js';
 import { historyWriter } from './db/history-writer.js';
 import { startNotificationSweeper } from './notifications/service.js';
+import { cleanupOldMessages } from './api/chat-history.js';
 import { seedDashboardsIfMissing } from './dashboards/seed.js';
 import * as entryStore from './db/integration-entry-store.js';
 import { startEventLogBridge } from './state/event-log-bridge.js';
@@ -195,6 +196,12 @@ async function main() {
 
   // 8b. Start notification cleanup sweep (auto-resolve expired rows, drop old ones)
   startNotificationSweeper();
+
+  // 8c. Start chat history cleanup (remove messages older than 24 hours)
+  await cleanupOldMessages();
+  setInterval(() => {
+    cleanupOldMessages().catch((err) => logger.error({ err }, 'Chat history cleanup failed'));
+  }, 6 * 60 * 60 * 1000); // Every 6 hours
 
   // 9. Register and start all integrations (they no-op if no entries configured)
   registry.register(new LutronIntegration());

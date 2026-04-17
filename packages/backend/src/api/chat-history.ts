@@ -1,18 +1,25 @@
-import { db } from '../db/client.js';
-import type { Request, Response } from 'express';
+import type { FastifyRequest, FastifyReply } from 'fastify';
+import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
+
+interface ChatHistoryMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
+}
 
 /**
  * Load chat history for the authenticated user (last 24 hours)
  */
-export async function loadChatHistory(req: Request, res: Response) {
+export async function loadChatHistory(req: FastifyRequest, reply: FastifyReply) {
   try {
-    const userId = req.user?.id;
+    const userId = (req.user as { id: number } | undefined)?.id;
     if (!userId) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      return reply.code(401).send({ error: 'Not authenticated' });
     }
 
-    const messages = await db.query(
+    const result = await query<ChatHistoryMessage>(
       `SELECT id, role, content, created_at
        FROM chat_history
        WHERE user_id = $1
@@ -21,10 +28,10 @@ export async function loadChatHistory(req: Request, res: Response) {
       [userId],
     );
 
-    return res.json({ messages: messages.rows });
+    return { messages: result.rows };
   } catch (err) {
     logger.error({ err }, 'Failed to load chat history');
-    return res.status(500).json({ error: 'Failed to load chat history' });
+    return reply.code(500).send({ error: 'Failed to load chat history' });
   }
 }
 
@@ -32,12 +39,12 @@ export async function loadChatHistory(req: Request, res: Response) {
  * Save a single message to chat history
  */
 export async function saveChatMessage(
-  userId: number,
+  userId: string,
   role: 'user' | 'assistant',
   content: string,
 ): Promise<void> {
   try {
-    await db.query(
+    await query(
       `INSERT INTO chat_history (user_id, role, content)
        VALUES ($1, $2, $3)`,
       [userId, role, content],
@@ -54,7 +61,7 @@ export async function saveChatMessage(
  */
 export async function cleanupOldMessages(): Promise<number> {
   try {
-    const result = await db.query(
+    const result = await query(
       `DELETE FROM chat_history
        WHERE created_at < NOW() - INTERVAL '24 hours'`,
     );

@@ -631,6 +631,7 @@ function AssistantRightPanel() {
   const recognitionRef = useRef<any>(null);
   const ttsEnabledRef = useRef(false);
   const streamingTextRef = useRef('');
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const dockInFrame = lcarsDockInset !== null && isMdUp && !fullscreen;
 
@@ -656,6 +657,24 @@ function AssistantRightPanel() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, fullscreen, setOpen]);
+
+  // Load chat history when assistant opens
+  useEffect(() => {
+    if (!open || rightPanelMode !== 'assistant' || messages.length > 0) return;
+    const loadHistory = async () => {
+      try {
+        const res = await apiFetch(`${getApiBase()}/api/chat/history`);
+        if (res.ok) {
+          const data = await res.json() as { messages: Array<{ role: 'user' | 'assistant'; content: string }> };
+          setMessages(data.messages);
+        }
+      } catch (err) {
+        // Silently fail — don't show error to user
+        console.error('Failed to load chat history:', err);
+      }
+    };
+    loadHistory();
+  }, [open, rightPanelMode]);
 
   const inputValRef = useRef(input);
   inputValRef.current = input;
@@ -689,6 +708,15 @@ function AssistantRightPanel() {
     if (!next && typeof window !== 'undefined') window.speechSynthesis?.cancel();
   }, []);
 
+  const stopMessage = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setLoading(false);
+      setIsStreaming(false);
+    }
+  }, []);
+
   const sendMessage = useCallback(async (overrideText?: string) => {
     const text = (overrideText ?? inputValRef.current).trim();
     if (!text || loadingRef.current) return;
@@ -704,12 +732,15 @@ function AssistantRightPanel() {
     setLoading(true);
 
     let assistantMsgAdded = false;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       const res = await apiFetch(`${getApiBase()}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: newMessages }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -764,9 +795,14 @@ function AssistantRightPanel() {
           }
         }
       }
-    } catch {
-      setError('Failed to connect to server');
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        // Request was cancelled by user — don't show error
+      } else {
+        setError('Failed to connect to server');
+      }
     } finally {
+      abortControllerRef.current = null;
       setLoading(false);
       setIsStreaming(false);
       setToolStatuses([]);
@@ -1068,16 +1104,29 @@ function AssistantRightPanel() {
                     ? <MicOff className="h-4 w-4" />
                     : <Mic className="h-4 w-4" />}
                 </button>
-                {/* Send button */}
-                <button
-                  type="button"
-                  onClick={() => void sendMessage()}
-                  disabled={loading || !input.trim()}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-50"
-                  style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
-                >
-                  <Send className="h-4 w-4" />
-                </button>
+                {/* Send or Stop button */}
+                {loading ? (
+                  <button
+                    type="button"
+                    onClick={stopMessage}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors"
+                    style={{ backgroundColor: '#ef4444', color: '#fff' }}
+                    title="Stop responding"
+                    aria-label="Stop responding"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void sendMessage()}
+                    disabled={!input.trim()}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
           </>
