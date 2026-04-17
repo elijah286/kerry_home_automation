@@ -29,6 +29,7 @@ import {
 } from '../lib/chat-automation-proposals.js';
 import { applyAutomationProposal } from '../lib/apply-automation-proposal.js';
 import { apiKeyForActiveProvider, loadLlmRuntimeSettings } from './llm-config.js';
+import { loadChatHistory, saveChatMessage, cleanupOldMessages } from './chat-history.js';
 
 // ---------------------------------------------------------------------------
 // Tool definitions for OpenAI function calling
@@ -1926,6 +1927,9 @@ export function registerChatRoutes(app: FastifyInstance): void {
       reply.raw.end();
     },
   );
+
+  // GET /api/chat/history — Load chat history for the current user (last 24 hours)
+  app.get('/api/chat/history', { preHandler: [authenticate] }, loadChatHistory);
 
   // Test connection — verify the API key works by making a minimal API call
   app.post('/api/chat/test', { preHandler: [authenticate] }, async (_req, reply) => {
