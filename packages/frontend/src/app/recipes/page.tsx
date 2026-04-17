@@ -258,7 +258,7 @@ function RecipesPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<PaprikaRecipe | null>(null);
@@ -306,6 +306,14 @@ function RecipesPageContent() {
   };
 
   useEffect(() => { loadData(); }, []);
+
+  // Apply ?q= search param from assistant navigation, then clean URL
+  const qParam = searchParams.get('q');
+  useEffect(() => {
+    if (!qParam) return;
+    setSearch(qParam);
+    router.replace('/recipes', { scroll: false });
+  }, [qParam, router]);
 
   const openUid = searchParams.get('open');
   useEffect(() => {
