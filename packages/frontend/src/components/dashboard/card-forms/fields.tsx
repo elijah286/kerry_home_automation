@@ -223,14 +223,22 @@ export function EntityField({
   value,
   onChange,
   placeholder = 'Search devices…',
+  deviceTypes,
 }: {
   label?: string;
   hint?: string;
   value: string | undefined;
   onChange: (next: string) => void;
   placeholder?: string;
+  /** When provided, only devices whose `type` is in this list are shown.
+   *  This keeps the picker contextual — e.g. a thermostat card should only
+   *  offer climate devices, not light switches. */
+  deviceTypes?: string[];
 }) {
-  const devices = useDevices(ALL_DEVICES);
+  const allDevices = useDevices(ALL_DEVICES);
+  const devices = deviceTypes
+    ? allDevices.filter((d) => deviceTypes.includes(d.type))
+    : allDevices;
   return (
     <FieldShell label={label ?? 'Entity'} hint={hint}>
       <DeviceAutocomplete

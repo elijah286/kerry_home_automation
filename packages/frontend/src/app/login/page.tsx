@@ -3,15 +3,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/AuthProvider';
+import { useTheme } from '@/providers/ThemeProvider';
 import { getApiBase, isRemoteAccess } from '@/lib/api-base';
 import { Loader2 } from 'lucide-react';
-import { UfpEmblemLogo } from '@/components/ui/UfpEmblemLogo';
+import { FederationEmblem } from '@/components/lcars/FederationEmblem';
 
 /** How often to poll /api/health while backend is down (ms). */
 const POLL_MS = 3000;
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const { activeTheme } = useTheme();
+  const isLCARS = activeTheme === 'lcars';
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -74,9 +77,7 @@ export default function LoginPage() {
         className="min-h-screen flex flex-col items-center justify-center gap-6 px-6"
         style={{ backgroundColor: 'var(--color-bg)' }}
       >
-        <div className="w-full max-w-[min(320px,90vw)]">
-          <UfpEmblemLogo maxWidth={1024} priority />
-        </div>
+        {isLCARS && <FederationEmblem size={180} />}
         <Loader2 className="h-6 w-6 animate-spin shrink-0" style={{ color: 'var(--color-accent)' }} />
       </div>
     );
@@ -90,9 +91,7 @@ export default function LoginPage() {
         className="min-h-screen flex flex-col items-center justify-center gap-5 px-6 text-center"
         style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)' }}
       >
-        <div className="w-full max-w-[min(300px,88vw)]">
-          <UfpEmblemLogo maxWidth={1024} priority />
-        </div>
+        {isLCARS && <FederationEmblem size={180} />}
         <Loader2 className="h-10 w-10 animate-spin shrink-0" style={{ color: 'var(--color-accent)' }} />
         <div className="max-w-md space-y-2">
           <h1 className="text-lg font-semibold tracking-wide" style={{ color: 'var(--color-accent)' }}>
@@ -112,9 +111,7 @@ export default function LoginPage() {
       className="min-h-screen flex flex-col items-center justify-center gap-8 p-4"
       style={{ backgroundColor: 'var(--color-bg)' }}
     >
-      <div className="w-full max-w-[min(280px,85vw)] shrink-0">
-        <UfpEmblemLogo maxWidth={1024} priority />
-      </div>
+      {isLCARS && <FederationEmblem size={180} />}
       <div
         className="w-full max-w-sm rounded-xl p-6 space-y-6"
         style={{ backgroundColor: 'var(--color-card-bg)', border: '1px solid var(--color-border)' }}
