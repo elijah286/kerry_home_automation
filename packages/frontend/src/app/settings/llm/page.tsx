@@ -300,7 +300,7 @@ export default function LlmSettingsPage() {
   // Render
   // -------------------------------------------------------------------------
   return (
-    <div className="max-w-3xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-3xl xl:max-w-5xl mx-auto p-4 lg:p-6 space-y-6">
 
       {/* Header */}
       <div className="flex items-center gap-3">
@@ -358,6 +358,9 @@ export default function LlmSettingsPage() {
           </div>
         )}
       </Card>
+
+      {/* Provider cards — side by side on wide screens */}
+      <div className="xl:grid xl:grid-cols-2 xl:gap-6 space-y-6 xl:space-y-0">
 
       {/* OpenAI card */}
       <Card>
@@ -539,6 +542,8 @@ export default function LlmSettingsPage() {
           </div>
         )}
       </Card>
+
+      </div>{/* end provider cards grid */}
 
       {/* Save / test row */}
       {!loading && (
