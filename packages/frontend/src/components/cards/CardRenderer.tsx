@@ -21,49 +21,57 @@ import { ButtonCard } from './types/ButtonCard';
 import { LightTileCard } from './types/LightTileCard';
 import { SwitchTileCard } from './types/SwitchTileCard';
 import { CoverTileCard } from './types/CoverTileCard';
+import { FanTileCard } from './types/FanTileCard';
+import { LockTileCard } from './types/LockTileCard';
 import { ThermostatCard } from './types/ThermostatCard';
+import { MediaTileCard } from './types/MediaTileCard';
+import { VehicleCard } from './types/VehicleCard';
 import { SensorValueCard } from './types/SensorValueCard';
+import { GaugeCard } from './types/GaugeCard';
+import { StatisticCard } from './types/StatisticCard';
+import { HistoryGraphCard } from './types/HistoryGraphCard';
 import { EntityListCard } from './types/EntityListCard';
 import { AlertBannerCard } from './types/AlertBannerCard';
 import { NotificationInboxCard } from './types/NotificationInboxCard';
+import { CameraCard } from './types/CameraCard';
+import { MapCard } from './types/MapCard';
+import { AreaSummaryCard } from './types/AreaSummaryCard';
+import { AlarmPanelCard } from './types/AlarmPanelCard';
+import { GroupCard } from './types/GroupCard';
+import { IframeSandboxCard } from './types/IframeSandboxCard';
 import { VerticalStackCard, HorizontalStackCard } from './types/StackCard';
 import { ConditionalCard } from './types/ConditionalCard';
 import { UnknownCard } from './types/UnknownCard';
 
 function CardRendererInner({ card }: { card: CardDescriptor }) {
   switch (card.type) {
-    case 'heading':          return <HeadingCard card={card} />;
-    case 'markdown':         return <MarkdownCard card={card} />;
-    case 'button':           return <ButtonCard card={card} />;
-    case 'light-tile':       return <LightTileCard card={card} />;
-    case 'switch-tile':      return <SwitchTileCard card={card} />;
-    case 'cover-tile':       return <CoverTileCard card={card} />;
-    case 'thermostat':       return <ThermostatCard card={card} />;
-    case 'sensor-value':     return <SensorValueCard card={card} />;
-    case 'entity-list':      return <EntityListCard card={card} />;
-    case 'alert-banner':     return <AlertBannerCard card={card} />;
+    case 'heading':            return <HeadingCard card={card} />;
+    case 'markdown':           return <MarkdownCard card={card} />;
+    case 'button':             return <ButtonCard card={card} />;
+    case 'light-tile':         return <LightTileCard card={card} />;
+    case 'switch-tile':        return <SwitchTileCard card={card} />;
+    case 'cover-tile':         return <CoverTileCard card={card} />;
+    case 'fan-tile':           return <FanTileCard card={card} />;
+    case 'lock-tile':          return <LockTileCard card={card} />;
+    case 'thermostat':         return <ThermostatCard card={card} />;
+    case 'media-tile':         return <MediaTileCard card={card} />;
+    case 'vehicle':            return <VehicleCard card={card} />;
+    case 'sensor-value':       return <SensorValueCard card={card} />;
+    case 'gauge':              return <GaugeCard card={card} />;
+    case 'statistic':          return <StatisticCard card={card} />;
+    case 'history-graph':      return <HistoryGraphCard card={card} />;
+    case 'entity-list':        return <EntityListCard card={card} />;
+    case 'alert-banner':       return <AlertBannerCard card={card} />;
     case 'notification-inbox': return <NotificationInboxCard card={card} />;
-    case 'vertical-stack':   return <VerticalStackCard card={card} />;
-    case 'horizontal-stack': return <HorizontalStackCard card={card} />;
-    case 'conditional':      return <ConditionalCard card={card} />;
-
-    // Not yet implemented — render a placeholder so authoring doesn't regress
-    // when a dashboard references a card type whose React component still
-    // lives on a later ticket.
-    case 'fan-tile':
-    case 'lock-tile':
-    case 'media-tile':
-    case 'vehicle':
-    case 'gauge':
-    case 'history-graph':
-    case 'statistic':
-    case 'camera':
-    case 'area-summary':
-    case 'map':
-    case 'alarm-panel':
-    case 'group':
-    case 'iframe-sandbox':
-      return <UnknownCard type={card.type} reason="not-implemented" />;
+    case 'camera':             return <CameraCard card={card} />;
+    case 'map':                return <MapCard card={card} />;
+    case 'area-summary':       return <AreaSummaryCard card={card} />;
+    case 'alarm-panel':        return <AlarmPanelCard card={card} />;
+    case 'group':              return <GroupCard card={card} />;
+    case 'iframe-sandbox':     return <IframeSandboxCard card={card} />;
+    case 'vertical-stack':     return <VerticalStackCard card={card} />;
+    case 'horizontal-stack':   return <HorizontalStackCard card={card} />;
+    case 'conditional':        return <ConditionalCard card={card} />;
 
     default: {
       // Exhaustiveness: force the union to be fully handled. If a new card
