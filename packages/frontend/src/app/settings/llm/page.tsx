@@ -1,29 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
-import { ArrowLeft, Bot, Loader2, Eye, EyeOff, Check, Zap, CircleAlert } from 'lucide-react';
+import {
+  ArrowLeft, Bot, Loader2, Eye, EyeOff, Check, Zap,
+  CircleAlert, ChevronDown, AlertTriangle,
+} from 'lucide-react';
 import { getApiBase, apiFetch } from '@/lib/api-base';
 
 const API_BASE = getApiBase();
 
-const MASK_OPENAI = 'sk-••••••••••••••••••••••••••••••••';
+const MASK_OPENAI    = 'sk-••••••••••••••••••••••••••••••••';
 const MASK_ANTHROPIC = 'sk-ant-••••••••••••••••••••••••••••••••';
 
 type LlmProviderId = 'openai' | 'anthropic';
 
 const OPENAI_MODELS = [
-  { id: 'gpt-4o', label: 'GPT-4o' },
-  { id: 'gpt-4o-mini', label: 'GPT-4o mini' },
-  { id: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-  { id: 'o4-mini', label: 'o4-mini' },
+  { id: 'gpt-4o',       label: 'GPT-4o' },
+  { id: 'gpt-4o-mini',  label: 'GPT-4o mini' },
+  { id: 'gpt-4-turbo',  label: 'GPT-4 Turbo' },
+  { id: 'o4-mini',      label: 'o4-mini' },
 ] as const;
 
 const ANTHROPIC_MODELS = [
   { id: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
-  { id: 'claude-opus-4-20250514', label: 'Claude Opus 4' },
-  { id: 'claude-haiku-4-20250514', label: 'Claude Haiku 4' },
+  { id: 'claude-opus-4-20250514',   label: 'Claude Opus 4' },
+  { id: 'claude-haiku-4-20250514',  label: 'Claude Haiku 4' },
 ] as const;
 
 function readSetting(data: { value?: unknown }): string | undefined {
@@ -32,22 +35,109 @@ function readSetting(data: { value?: unknown }): string | undefined {
   return t === '' ? undefined : t;
 }
 
+// ---------------------------------------------------------------------------
+// Reusable styled model-picker dropdown (never a native <select>)
+// ---------------------------------------------------------------------------
+interface ModelOption { id: string; label: string }
+
+function ModelPicker({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: readonly ModelOption[];
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const label = options.find((o) => o.id === value)?.label ?? value;
+
+  return (
+    <div ref={ref} className="relative w-full max-w-xs">
+      <button
+        type="button"
+        onClick={() => setOpen((p) => !p)}
+        className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors"
+        style={{
+          backgroundColor: 'var(--color-bg-secondary)',
+          borderColor: open ? 'var(--color-accent)' : 'var(--color-border)',
+          color: 'var(--color-text)',
+        }}
+      >
+        <span>{label}</span>
+        <ChevronDown
+          className="h-3.5 w-3.5 shrink-0 transition-transform"
+          style={{
+            color: 'var(--color-text-muted)',
+            transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+          }}
+        />
+      </button>
+
+      {open && (
+        <div
+          className="absolute left-0 top-full z-20 mt-1 w-full overflow-hidden rounded-lg border shadow-lg"
+          style={{
+            backgroundColor: 'var(--color-bg-elevated, var(--color-bg-secondary))',
+            borderColor: 'var(--color-border)',
+          }}
+        >
+          {options.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => { onChange(opt.id); setOpen(false); }}
+              className="flex w-full items-center justify-between px-3 py-2 text-sm transition-colors hover:opacity-80"
+              style={{ color: 'var(--color-text)' }}
+            >
+              <span>{opt.label}</span>
+              {opt.id === value && (
+                <Check className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--color-accent)' }} />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
 export default function LlmSettingsPage() {
   const router = useRouter();
-  const [provider, setProvider] = useState<LlmProviderId>('openai');
-  const [openAiKey, setOpenAiKey] = useState('');
-  const [anthropicKey, setAnthropicKey] = useState('');
-  const [openAiConfigured, setOpenAiConfigured] = useState(false);
-  const [anthropicConfigured, setAnthropicConfigured] = useState(false);
-  const [openAiModel, setOpenAiModel] = useState<string>(OPENAI_MODELS[0].id);
-  const [anthropicModel, setAnthropicModel] = useState<string>(ANTHROPIC_MODELS[0].id);
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [showOpenAiKey, setShowOpenAiKey] = useState(false);
+  // Saved-to-DB state (what the backend actually has)
+  const [savedProvider, setSavedProvider] = useState<LlmProviderId>('openai');
+
+  // Local (unsaved) UI state
+  const [provider,       setProvider]       = useState<LlmProviderId>('openai');
+  const [openAiKey,      setOpenAiKey]       = useState('');
+  const [anthropicKey,   setAnthropicKey]    = useState('');
+  const [openAiConfigured,    setOpenAiConfigured]    = useState(false);
+  const [anthropicConfigured, setAnthropicConfigured] = useState(false);
+  const [openAiModel,    setOpenAiModel]     = useState<string>(OPENAI_MODELS[0].id);
+  const [anthropicModel, setAnthropicModel]  = useState<string>(ANTHROPIC_MODELS[0].id);
+
+  const [loading,   setLoading]   = useState(true);
+  const [saving,    setSaving]    = useState(false);
+  const [saved,     setSaved]     = useState(false);
+  const [showOpenAiKey,    setShowOpenAiKey]    = useState(false);
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
-  const [testing, setTesting] = useState(false);
+  const [testing,   setTesting]   = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
@@ -60,13 +150,20 @@ export default function LlmSettingsPage() {
       'llm_anthropic_model',
     ] as const;
 
-    Promise.all(keys.map((k) => apiFetch(`${API_BASE}/api/settings/${k}`).then((r) => r.json() as Promise<{ value?: unknown }>)))
+    Promise.all(
+      keys.map((k) =>
+        apiFetch(`${API_BASE}/api/settings/${k}`).then((r) => r.json() as Promise<{ value?: unknown }>),
+      ),
+    )
       .then(([p, openaiExplicit, legacy, anth, om, am]) => {
         const pv = readSetting(p);
-        if (pv === 'anthropic' || pv === 'openai') setProvider(pv);
+        const resolvedProvider: LlmProviderId =
+          pv === 'anthropic' ? 'anthropic' : 'openai';
+        setProvider(resolvedProvider);
+        setSavedProvider(resolvedProvider);
 
         const explicitOpenAi = readSetting(openaiExplicit);
-        const legacyOpenAi = readSetting(legacy);
+        const legacyOpenAi   = readSetting(legacy);
         if (explicitOpenAi || legacyOpenAi) {
           setOpenAiConfigured(true);
           setOpenAiKey(MASK_OPENAI);
@@ -86,8 +183,11 @@ export default function LlmSettingsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const openAiMaskActive = openAiKey.startsWith('sk-••') || openAiKey === MASK_OPENAI;
+  const openAiMaskActive    = openAiKey.startsWith('sk-••')     || openAiKey    === MASK_OPENAI;
   const anthropicMaskActive = anthropicKey.startsWith('sk-ant-••') || anthropicKey === MASK_ANTHROPIC;
+
+  // True if the active provider selection differs from what's saved in the DB
+  const providerUnsaved = provider !== savedProvider;
 
   const saveAll = async () => {
     setSaving(true);
@@ -130,6 +230,7 @@ export default function LlmSettingsPage() {
         setAnthropicConfigured(true);
       }
 
+      setSavedProvider(provider);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } finally {
@@ -140,16 +241,18 @@ export default function LlmSettingsPage() {
   const removeOpenAi = async () => {
     setSaving(true);
     try {
-      await apiFetch(`${API_BASE}/api/settings/llm_openai_api_key`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: '' }),
-      });
-      await apiFetch(`${API_BASE}/api/settings/llm_api_key`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: '' }),
-      });
+      await Promise.all([
+        apiFetch(`${API_BASE}/api/settings/llm_openai_api_key`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: '' }),
+        }),
+        apiFetch(`${API_BASE}/api/settings/llm_api_key`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: '' }),
+        }),
+      ]);
       setOpenAiKey('');
       setOpenAiConfigured(false);
     } finally {
@@ -176,9 +279,7 @@ export default function LlmSettingsPage() {
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await apiFetch(`${API_BASE}/api/chat/test`, {
-        method: 'POST',
-      });
+      const res = await apiFetch(`${API_BASE}/api/chat/test`, { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
         const prov = typeof data.provider === 'string' ? `${data.provider} · ` : '';
@@ -193,11 +294,15 @@ export default function LlmSettingsPage() {
     }
   };
 
-  const activeKeyReady =
-    provider === 'openai' ? openAiConfigured : anthropicConfigured;
+  const activeKeyReady = provider === 'openai' ? openAiConfigured : anthropicConfigured;
 
+  // -------------------------------------------------------------------------
+  // Render
+  // -------------------------------------------------------------------------
   return (
     <div className="max-w-3xl mx-auto p-4 lg:p-6 space-y-6">
+
+      {/* Header */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => router.push('/settings')}
@@ -206,99 +311,97 @@ export default function LlmSettingsPage() {
         >
           <ArrowLeft className="h-4 w-4" style={{ color: 'var(--color-text-secondary)' }} />
         </button>
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}>
+        <div
+          className="flex h-9 w-9 items-center justify-center rounded-lg"
+          style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}
+        >
           <Bot className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
         </div>
         <h1 className="text-lg font-semibold">LLM Integration</h1>
       </div>
 
+      {/* Provider picker */}
       <Card>
-        <h2 className="text-sm font-medium mb-1">Assistant model</h2>
+        <h2 className="text-sm font-medium mb-1">Active provider</h2>
         <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
-          Choose which provider powers the AI assistant. API keys for each provider are stored below; only the selected provider&apos;s key is required.
+          Only the selected provider&apos;s key is used by the assistant. Configure API keys in the sections below.
         </p>
 
         {loading ? (
           <Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--color-text-muted)' }} />
         ) : (
-          <div className="space-y-3">
-            <div
-              className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-4"
-              role="radiogroup"
-              aria-label="LLM provider"
-            >
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  name="llm-provider"
-                  checked={provider === 'openai'}
-                  onChange={() => setProvider('openai')}
-                  className="accent-[var(--color-accent)]"
-                />
-                OpenAI
-              </label>
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  name="llm-provider"
-                  checked={provider === 'anthropic'}
-                  onChange={() => setProvider('anthropic')}
-                  className="accent-[var(--color-accent)]"
-                />
-                Claude (Anthropic)
-              </label>
-            </div>
+          <div className="flex gap-2">
+            {([
+              { id: 'openai'    as LlmProviderId, label: 'OpenAI' },
+              { id: 'anthropic' as LlmProviderId, label: 'Claude (Anthropic)' },
+            ]).map((p) => {
+              const active = provider === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => { setProvider(p.id); setSaved(false); setTestResult(null); }}
+                  className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
+                  style={{
+                    backgroundColor: active
+                      ? 'color-mix(in srgb, var(--color-accent) 15%, transparent)'
+                      : 'var(--color-bg-secondary)',
+                    borderColor: active ? 'var(--color-accent)' : 'var(--color-border)',
+                    color: active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                  }}
+                >
+                  {active && <Check className="h-3.5 w-3.5 shrink-0" />}
+                  {p.label}
+                </button>
+              );
+            })}
           </div>
         )}
       </Card>
 
+      {/* OpenAI card */}
       <Card>
-        <h2 className="text-sm font-medium mb-1">OpenAI</h2>
-        <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
-          API key for Chat Completions (starts with{' '}
-          <span className="font-mono">sk-</span>
-          ). Keys are stored on the server only.
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-sm font-medium">OpenAI</h2>
+          {provider === 'openai' && (
+            <span
+              className="rounded-full px-2 py-0.5 text-xs font-medium"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-accent) 15%, transparent)',
+                color: 'var(--color-accent)',
+              }}
+            >
+              Active
+            </span>
+          )}
+        </div>
+        <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
+          API key starts with <span className="font-mono">sk-</span>. Keys are stored on the server only.
         </p>
 
         {!loading && (
-          <div className="space-y-3">
-            <label className="block text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
-              Model
-            </label>
-            <select
-              value={openAiModel}
-              onChange={(e) => { setOpenAiModel(e.target.value); setSaved(false); }}
-              className="w-full max-w-md rounded-md border px-3 py-2 text-sm transition-colors sm:w-auto"
-              style={{
-                backgroundColor: 'var(--color-bg-secondary)',
-                borderColor: 'var(--color-border)',
-                color: 'var(--color-text)',
-              }}
-            >
-              {!OPENAI_MODELS.some((m) => m.id === openAiModel) && openAiModel ? (
-                <option value={openAiModel}>{openAiModel}</option>
-              ) : null}
-              {OPENAI_MODELS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
+          <div className="space-y-4">
+            {/* Model */}
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>Model</p>
+              <ModelPicker
+                value={openAiModel}
+                options={OPENAI_MODELS}
+                onChange={(v) => { setOpenAiModel(v); setSaved(false); }}
+              />
+            </div>
 
-            <label className="block text-xs font-medium pt-1" style={{ color: 'var(--color-text-secondary)' }}>
-              API key
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
+            {/* API key */}
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>API key</p>
+              <div className="relative max-w-xs">
                 <input
                   type={showOpenAiKey ? 'text' : 'password'}
                   value={openAiKey}
                   onChange={(e) => { setOpenAiKey(e.target.value); setSaved(false); }}
-                  onFocus={() => {
-                    if (openAiMaskActive) setOpenAiKey('');
-                  }}
+                  onFocus={() => { if (openAiMaskActive) setOpenAiKey(''); }}
                   placeholder="sk-..."
-                  className="w-full rounded-md border px-3 py-2 pr-10 text-sm font-mono transition-colors"
+                  className="w-full rounded-lg border px-3 py-2 pr-10 text-sm font-mono transition-colors"
                   style={{
                     backgroundColor: 'var(--color-bg-secondary)',
                     borderColor: 'var(--color-border)',
@@ -307,7 +410,7 @@ export default function LlmSettingsPage() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowOpenAiKey(!showOpenAiKey)}
+                  onClick={() => setShowOpenAiKey((p) => !p)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-1"
                   style={{ color: 'var(--color-text-muted)' }}
                 >
@@ -316,13 +419,13 @@ export default function LlmSettingsPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
               {openAiConfigured && (
                 <button
                   type="button"
                   onClick={removeOpenAi}
                   disabled={saving}
-                  className="rounded-md px-4 py-2 text-sm font-medium transition-colors"
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
                   style={{
                     backgroundColor: 'var(--color-bg-secondary)',
                     color: 'var(--color-text-secondary)',
@@ -342,52 +445,58 @@ export default function LlmSettingsPage() {
         )}
       </Card>
 
+      {/* Anthropic card */}
       <Card>
-        <h2 className="text-sm font-medium mb-1">Claude (Anthropic)</h2>
-        <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
-          Create a key in the Anthropic console. Keys usually start with{' '}
-          <span className="font-mono">sk-ant-api</span>.
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-sm font-medium">Claude (Anthropic)</h2>
+          {provider === 'anthropic' && (
+            <span
+              className="rounded-full px-2 py-0.5 text-xs font-medium"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-accent) 15%, transparent)',
+                color: 'var(--color-accent)',
+              }}
+            >
+              Active
+            </span>
+          )}
+        </div>
+        <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
+          Create a key at{' '}
+          <a
+            href="https://console.anthropic.com/settings/keys"
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: 'var(--color-accent)' }}
+          >
+            console.anthropic.com
+          </a>
+          . Keys start with <span className="font-mono">sk-ant-</span>.
         </p>
 
         {!loading && (
-          <div className="space-y-3">
-            <label className="block text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
-              Model
-            </label>
-            <select
-              value={anthropicModel}
-              onChange={(e) => { setAnthropicModel(e.target.value); setSaved(false); }}
-              className="w-full max-w-md rounded-md border px-3 py-2 text-sm transition-colors sm:w-auto"
-              style={{
-                backgroundColor: 'var(--color-bg-secondary)',
-                borderColor: 'var(--color-border)',
-                color: 'var(--color-text)',
-              }}
-            >
-              {!ANTHROPIC_MODELS.some((m) => m.id === anthropicModel) && anthropicModel ? (
-                <option value={anthropicModel}>{anthropicModel}</option>
-              ) : null}
-              {ANTHROPIC_MODELS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
+          <div className="space-y-4">
+            {/* Model */}
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>Model</p>
+              <ModelPicker
+                value={anthropicModel}
+                options={ANTHROPIC_MODELS}
+                onChange={(v) => { setAnthropicModel(v); setSaved(false); }}
+              />
+            </div>
 
-            <label className="block text-xs font-medium pt-1" style={{ color: 'var(--color-text-secondary)' }}>
-              API key
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
+            {/* API key */}
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>API key</p>
+              <div className="relative max-w-xs">
                 <input
                   type={showAnthropicKey ? 'text' : 'password'}
                   value={anthropicKey}
                   onChange={(e) => { setAnthropicKey(e.target.value); setSaved(false); }}
-                  onFocus={() => {
-                    if (anthropicMaskActive) setAnthropicKey('');
-                  }}
+                  onFocus={() => { if (anthropicMaskActive) setAnthropicKey(''); }}
                   placeholder="sk-ant-api..."
-                  className="w-full rounded-md border px-3 py-2 pr-10 text-sm font-mono transition-colors"
+                  className="w-full rounded-lg border px-3 py-2 pr-10 text-sm font-mono transition-colors"
                   style={{
                     backgroundColor: 'var(--color-bg-secondary)',
                     borderColor: 'var(--color-border)',
@@ -396,7 +505,7 @@ export default function LlmSettingsPage() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowAnthropicKey(!showAnthropicKey)}
+                  onClick={() => setShowAnthropicKey((p) => !p)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-1"
                   style={{ color: 'var(--color-text-muted)' }}
                 >
@@ -405,13 +514,13 @@ export default function LlmSettingsPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
               {anthropicConfigured && (
                 <button
                   type="button"
                   onClick={removeAnthropic}
                   disabled={saving}
-                  className="rounded-md px-4 py-2 text-sm font-medium transition-colors"
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
                   style={{
                     backgroundColor: 'var(--color-bg-secondary)',
                     color: 'var(--color-text-secondary)',
@@ -431,36 +540,47 @@ export default function LlmSettingsPage() {
         )}
       </Card>
 
+      {/* Save / test row */}
       {!loading && (
         <Card>
+          {/* Unsaved provider warning */}
+          {providerUnsaved && (
+            <div
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs mb-3"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-warning, #f59e0b) 12%, transparent)',
+                color: 'var(--color-warning, #f59e0b)',
+                border: '1px solid color-mix(in srgb, var(--color-warning, #f59e0b) 30%, transparent)',
+              }}
+            >
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              Active provider changed — save before testing.
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={saveAll}
               disabled={saving}
-              className="rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
-              style={{
-                backgroundColor: 'var(--color-accent)',
-                color: '#fff',
-              }}
+              className="rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+              style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
             >
               {saving ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : saved ? (
-                <span className="flex items-center gap-1">
-                  <Check className="h-3.5 w-3.5" /> Saved
-                </span>
+                <span className="flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Saved</span>
               ) : (
                 'Save settings'
               )}
             </button>
 
-            {activeKeyReady && (
+            {activeKeyReady && !providerUnsaved && (
               <button
                 type="button"
                 onClick={testConnection}
                 disabled={testing}
-                className="rounded-md px-4 py-2 text-sm font-medium transition-colors"
+                className="rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
                 style={{
                   backgroundColor: 'var(--color-bg-secondary)',
                   color: 'var(--color-text-secondary)',
@@ -470,14 +590,12 @@ export default function LlmSettingsPage() {
                 {testing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <span className="flex items-center gap-1">
-                    <Zap className="h-3.5 w-3.5" /> Test active model
-                  </span>
+                  <span className="flex items-center gap-1"><Zap className="h-3.5 w-3.5" /> Test active model</span>
                 )}
               </button>
             )}
 
-            {activeKeyReady && !saved && !testResult && (
+            {activeKeyReady && !providerUnsaved && !saved && !testResult && (
               <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--color-success, #22c55e)' }}>
                 <Check className="h-3 w-3" /> Active provider configured
               </span>
@@ -486,19 +604,22 @@ export default function LlmSettingsPage() {
 
           {testResult && (
             <div
-              className="mt-3 flex items-center gap-2 rounded-md px-3 py-2 text-xs"
+              className="mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
               style={{
                 backgroundColor: 'var(--color-bg-secondary)',
                 color: testResult.ok ? 'var(--color-success, #22c55e)' : 'var(--color-danger, #ef4444)',
               }}
             >
-              {testResult.ok ? <Check className="h-3.5 w-3.5 shrink-0" /> : <CircleAlert className="h-3.5 w-3.5 shrink-0" />}
+              {testResult.ok
+                ? <Check className="h-3.5 w-3.5 shrink-0" />
+                : <CircleAlert className="h-3.5 w-3.5 shrink-0" />}
               {testResult.message}
             </div>
           )}
         </Card>
       )}
 
+      {/* Capabilities hint */}
       <Card>
         <h2 className="text-sm font-medium mb-1">AI Assistant</h2>
         <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
