@@ -64,7 +64,7 @@ export default function AppearancePage() {
   const { variant: lcarsVariant, setVariant: setLcarsVariant } = useLCARSVariant();
 
   return (
-    <div className="max-w-3xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-3xl xl:max-w-5xl mx-auto p-4 lg:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
@@ -82,7 +82,7 @@ export default function AppearancePage() {
 
       {lockNotice && (
         <div
-          className="rounded-lg border px-3 py-2 text-xs"
+          className="rounded-lg border px-3 py-2 text-xs xl:col-span-2"
           style={{
             borderColor: 'var(--color-border)',
             backgroundColor: 'color-mix(in srgb, var(--color-accent) 8%, transparent)',
@@ -92,6 +92,9 @@ export default function AppearancePage() {
           Your administrator has set: {lockNotice}. Those options cannot be changed here.
         </div>
       )}
+
+      {/* 2-column card grid on wide screens */}
+      <div className="xl:grid xl:grid-cols-2 xl:gap-6 space-y-6 xl:space-y-0">
 
       {/* Color Mode */}
       <Card>
@@ -194,8 +197,8 @@ export default function AppearancePage() {
         </div>
       </Card>
 
-      {/* Theme */}
-      <Card>
+      {/* Theme — spans both columns so the theme picker grid has room to breathe */}
+      <Card className="xl:col-span-2">
         <h2 className="text-sm font-medium mb-1">Theme</h2>
         <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
           Change the overall look and feel
@@ -305,6 +308,8 @@ export default function AppearancePage() {
           </button>
         </Card>
       )}
+
+      </div>{/* end 2-col card grid */}
     </div>
   );
 }

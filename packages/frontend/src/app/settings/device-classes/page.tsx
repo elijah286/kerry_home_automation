@@ -100,7 +100,7 @@ export default function DeviceClassesSettingsPage() {
 
   if (!authLoading && !isAdmin) {
     return (
-      <div className="mx-auto max-w-2xl p-4 lg:p-6">
+      <div className="mx-auto max-w-2xl xl:max-w-5xl p-4 lg:p-6">
         <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
           This page is only available to admins.
         </p>
@@ -112,7 +112,7 @@ export default function DeviceClassesSettingsPage() {
   const confirming = mode === 'confirming';
 
   return (
-    <div className="mx-auto max-w-2xl p-4 lg:p-6">
+    <div className="mx-auto max-w-2xl xl:max-w-5xl p-4 lg:p-6">
       <PageHeader
         icon={Sparkles}
         title="Device classes"
