@@ -5,7 +5,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/AuthProvider';
 import { AppShell } from './AppShell';
 import { Loader2 } from 'lucide-react';
-import { UfpEmblemLogo } from '@/components/ui/UfpEmblemLogo';
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -21,17 +20,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
     }
   }, [needsRedirect, router]);
 
-  // Show emblem + spinner while checking auth
+  // Show loading spinner while checking auth
   if (loading) {
     return (
-      <div
-        className="min-h-screen flex flex-col items-center justify-center gap-6 px-6"
-        style={{ backgroundColor: 'var(--color-bg)' }}
-      >
-        <div className="w-full max-w-[min(320px,90vw)]">
-          <UfpEmblemLogo maxWidth={1024} priority />
-        </div>
-        <Loader2 className="h-6 w-6 animate-spin shrink-0" style={{ color: 'var(--color-accent)' }} />
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
+        <Loader2 className="h-6 w-6 animate-spin" style={{ color: 'var(--color-accent)' }} />
       </div>
     );
   }

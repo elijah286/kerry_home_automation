@@ -1,12 +1,12 @@
 'use client';
 
 import { useTheme } from '@/providers/ThemeProvider';
-import { UfpEmblemLogo } from '@/components/ui/UfpEmblemLogo';
+import { FederationEmblem } from '@/components/lcars/FederationEmblem';
 import { Loader2 } from 'lucide-react';
 
 /**
  * Themed loading screen shown during route transitions.
- * LCARS: UFP emblem artwork + blue progress bar.
+ * LCARS: UFP emblem + blue progress bar.
  * Other themes: spinner + accent-colored progress bar.
  */
 export function LoadingScreen({ label }: { label?: string }) {
@@ -24,9 +24,20 @@ export function LoadingScreen({ label }: { label?: string }) {
           letterSpacing: '0.1em',
         }}
       >
-        <div className="w-full max-w-[min(320px,90vw)] shrink-0 px-2">
-          <UfpEmblemLogo maxWidth={1024} />
+        <FederationEmblem size={100} />
+        <div
+          style={{
+            marginTop: 14,
+            color: '#a0c4f0',
+            fontSize: 13,
+            fontWeight: 700,
+            letterSpacing: '0.2em',
+          }}
+        >
+          United Federation of Planets
         </div>
+
+        {/* Indeterminate progress bar */}
         <div
           style={{
             width: 280,
@@ -60,12 +71,9 @@ export function LoadingScreen({ label }: { label?: string }) {
   // ── Non-LCARS themes ──
   return (
     <div
-      className="flex flex-col items-center justify-center gap-5"
+      className="flex flex-col items-center justify-center"
       style={{ minHeight: '60vh' }}
     >
-      <div className="w-full max-w-[min(280px,88vw)] shrink-0 opacity-90">
-        <UfpEmblemLogo maxWidth={1024} />
-      </div>
       <Loader2
         className="animate-spin"
         style={{ color: 'var(--color-accent)', width: 32, height: 32 }}
