@@ -258,7 +258,7 @@ function RecipesPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
+  const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<PaprikaRecipe | null>(null);
@@ -339,7 +339,7 @@ function RecipesPageContent() {
     return recipes.filter((r) => {
       if (search) {
         const q = search.toLowerCase();
-        if (!r.name.toLowerCase().includes(q) && !r.ingredients.toLowerCase().includes(q) && !r.source.toLowerCase().includes(q)) return false;
+        if (!r.name.toLowerCase().includes(q) && !r.ingredients.toLowerCase().includes(q) && !(r.source ?? '').toLowerCase().includes(q)) return false;
       }
       if (selectedCategory && !r.categories.includes(selectedCategory)) return false;
       return true;
