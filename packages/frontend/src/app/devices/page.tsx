@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { DeviceCard } from '@/components/DeviceCard';
 import { SlidePanel } from '@/components/ui/SlidePanel';
 import { updateDeviceSettings } from '@/lib/api';
+import { getApiBase, apiFetch } from '@/lib/api-base';
 import { deviceBelongsToEntry } from '@/lib/device-instance';
 import {
   Search, Cpu, Lightbulb, ToggleLeft, Fan, Blinds, Speaker, Camera, CookingPot,
@@ -461,6 +462,77 @@ function InlineRename({
 }
 
 // ---------------------------------------------------------------------------
+// DeviceAliases
+// ---------------------------------------------------------------------------
+
+function DeviceAliases({ deviceId }: { deviceId: string }) {
+  const [aliases, setAliases] = useState<string[] | null>(null);
+  const [input, setInput] = useState('');
+
+  useEffect(() => {
+    setAliases(null);
+    setInput('');
+    apiFetch(`${getApiBase()}/api/devices/${encodeURIComponent(deviceId)}/settings`)
+      .then((r) => r.json())
+      .then((d: { settings?: { aliases?: string[] } }) => setAliases(d.settings?.aliases ?? []))
+      .catch(() => setAliases([]));
+  }, [deviceId]);
+
+  const save = async (next: string[]) => {
+    setAliases(next);
+    await updateDeviceSettings(deviceId, { aliases: next }).catch(() => {});
+  };
+
+  const add = () => {
+    const alias = input.trim();
+    if (!alias || (aliases ?? []).includes(alias)) { setInput(''); return; }
+    void save([...(aliases ?? []), alias]);
+    setInput('');
+  };
+
+  const remove = (alias: string) => void save((aliases ?? []).filter((a) => a !== alias));
+
+  if (aliases === null) return null;
+
+  return (
+    <div className="flex flex-col gap-1.5 w-full">
+      <div className="flex flex-wrap gap-1">
+        {aliases.map((a) => (
+          <span
+            key={a}
+            className="inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-[11px]"
+            style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)', backgroundColor: 'var(--color-bg-secondary)' }}
+          >
+            {a}
+            <button onClick={() => remove(a)} className="ml-0.5 rounded-full hover:opacity-70" aria-label={`Remove alias ${a}`}>
+              <X className="h-2.5 w-2.5" style={{ color: 'var(--color-text-muted)' }} />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex items-center gap-1.5">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+          placeholder="Add alias…"
+          className="flex-1 rounded border px-1.5 py-0.5 text-xs"
+          style={{ backgroundColor: 'var(--color-bg)', borderColor: 'var(--color-border)', color: 'var(--color-text)', outline: 'none', minWidth: 0 }}
+        />
+        <button
+          onClick={add}
+          className="shrink-0 rounded px-2 py-0.5 text-xs font-medium border transition-colors hover:bg-[var(--color-bg-hover)]"
+          style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+        >
+          Add
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // SegmentedControl
 // ---------------------------------------------------------------------------
 
@@ -660,7 +732,8 @@ export default function DevicesPage() {
       if (search) {
         const q = search.toLowerCase();
         const dn = (d.displayName ?? d.name).toLowerCase();
-        if (!dn.includes(q) && !d.name.toLowerCase().includes(q) && !d.id.toLowerCase().includes(q)) return false;
+        const aliasMatch = d.aliases?.some((a) => a.toLowerCase().includes(q)) ?? false;
+        if (!dn.includes(q) && !d.name.toLowerCase().includes(q) && !d.id.toLowerCase().includes(q) && !aliasMatch) return false;
       }
       if (integrationFilter && d.integration !== integrationFilter) return false;
       if (entryFilter && integrationFilter && !deviceBelongsToEntry(d, integrationFilter, entryFilter)) {
@@ -960,6 +1033,11 @@ export default function DevicesPage() {
                     <div className="flex justify-between items-center">
                       <span style={{ color: 'var(--color-text-muted)' }}>Name</span>
                       <InlineRename deviceId={liveSelected.id} currentName={liveSelected.displayName ?? liveSelected.name} size="sm" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Aliases</span>
+                      <DeviceAliases deviceId={liveSelected.id} />
+                      <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>Alternative names for search and the assistant.</p>
                     </div>
                     <div className="flex justify-between">
                       <span style={{ color: 'var(--color-text-muted)' }}>Type</span>

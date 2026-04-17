@@ -807,28 +807,33 @@ export function registerRoutes(app: FastifyInstance): void {
     '/api/devices/:id/settings',
     { preHandler: [requireRole('admin')] },
     async (req) => {
-      const { rows } = await query<{ display_name: string | null; area_id: string | null }>(
+      const body = req.body ?? {};
+      const hasDisplayName = 'display_name' in body;
+      const hasAreaId = 'area_id' in body;
+      const hasHistoryEnabled = 'history_enabled' in body;
+      const hasAliases = 'aliases' in body;
+
+      await query(
         `INSERT INTO device_settings (device_id, history_retention_days, display_name, area_id, history_enabled, aliases, updated_at)
-         VALUES ($1, $2, $3, $4, COALESCE($7, TRUE), COALESCE($9, '{}'), NOW())
+         VALUES ($1, $2, $3, $4, COALESCE($7::boolean, TRUE), COALESCE($9::text[], '{}'), NOW())
          ON CONFLICT (device_id) DO UPDATE SET
-           history_retention_days = COALESCE($2, device_settings.history_retention_days),
-           display_name = CASE WHEN $5 THEN $3 ELSE device_settings.display_name END,
-           area_id = CASE WHEN $6 THEN $4 ELSE device_settings.area_id END,
-           history_enabled = CASE WHEN $8 THEN $7 ELSE device_settings.history_enabled END,
-           aliases = CASE WHEN $10 THEN COALESCE($9, '{}') ELSE device_settings.aliases END,
-           updated_at = NOW()
-         RETURNING display_name, area_id`,
+           history_retention_days = COALESCE($2::integer, device_settings.history_retention_days),
+           display_name = CASE WHEN $5::boolean THEN $3::text ELSE device_settings.display_name END,
+           area_id = CASE WHEN $6::boolean THEN $4::text ELSE device_settings.area_id END,
+           history_enabled = CASE WHEN $8::boolean THEN $7::boolean ELSE device_settings.history_enabled END,
+           aliases = CASE WHEN $10::boolean THEN COALESCE($9::text[], '{}') ELSE device_settings.aliases END,
+           updated_at = NOW()`,
         [
           req.params.id,
-          req.body.history_retention_days ?? null,
-          req.body.display_name ?? null,
-          req.body.area_id ?? null,
-          'display_name' in req.body,
-          'area_id' in req.body,
-          req.body.history_enabled ?? null,
-          'history_enabled' in req.body,
-          req.body.aliases ?? null,
-          'aliases' in req.body,
+          (body as { history_retention_days?: number | null }).history_retention_days ?? null,
+          (body as { display_name?: string | null }).display_name ?? null,
+          (body as { area_id?: string | null }).area_id ?? null,
+          hasDisplayName,
+          hasAreaId,
+          (body as { history_enabled?: boolean }).history_enabled ?? null,
+          hasHistoryEnabled,
+          (body as { aliases?: string[] }).aliases ?? null,
+          hasAliases,
         ],
       );
 
@@ -836,14 +841,11 @@ export function registerRoutes(app: FastifyInstance): void {
       const device = stateStore.get(req.params.id);
       if (device) {
         const updated = { ...device };
-        if ('display_name' in req.body) {
-          updated.displayName = req.body.display_name ?? undefined;
-        }
-        if ('area_id' in req.body) {
-          updated.userAreaId = req.body.area_id ?? undefined;
-        }
-        if ('aliases' in req.body) {
-          updated.aliases = req.body.aliases?.length ? req.body.aliases : undefined;
+        if (hasDisplayName) updated.displayName = (body as { display_name?: string | null }).display_name ?? undefined;
+        if (hasAreaId) updated.userAreaId = (body as { area_id?: string | null }).area_id ?? undefined;
+        if (hasAliases) {
+          const aliases = (body as { aliases?: string[] }).aliases;
+          updated.aliases = aliases?.length ? aliases : undefined;
         }
         stateStore.update(updated);
       }
