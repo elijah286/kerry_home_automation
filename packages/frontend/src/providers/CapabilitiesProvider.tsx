@@ -15,9 +15,8 @@
 // re-budgeted whenever the effective tier changes.
 // ---------------------------------------------------------------------------
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { detectCapabilities, CAMERA_BUDGET, type Capabilities, type CapabilityTier } from '@/lib/capabilities';
-import { cameraCoordinator } from '@/lib/camera-coordinator';
+import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { detectCapabilities, type Capabilities, type CapabilityTier } from '@/lib/capabilities';
 
 interface CapabilitiesContextValue {
   capabilities: Capabilities;
@@ -38,10 +37,6 @@ export function CapabilitiesProvider({ children }: { children: ReactNode }) {
   const [override, setOverrideState] = useState<CapabilityTier | null>(() => readUrlOverride());
 
   const tier = override ?? capabilities.tier;
-
-  useEffect(() => {
-    cameraCoordinator.setBudget(CAMERA_BUDGET[tier]);
-  }, [tier]);
 
   const value = useMemo<CapabilitiesContextValue>(() => ({
     capabilities,
