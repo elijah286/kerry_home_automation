@@ -13,15 +13,10 @@ import {
   Search, Cpu, Lightbulb, ToggleLeft, Fan, Blinds, Speaker, Camera, CookingPot,
   Battery, Car, Waves, CircuitBoard, Beaker, ChevronDown, ChevronRight, X, Zap,
   Pencil, Check, CloudSun, Settings, DoorOpen, Activity, Droplets, Bot, Gauge,
-  Braces, Loader2,
 } from 'lucide-react';
 import type { DeviceState, DeviceType, NetworkDeviceState } from '@ha/shared';
 import Link from 'next/link';
-import { useDeviceMergedState } from '@/hooks/useDeviceMergedState';
-import { DeviceLiveStateTree } from '@/components/DeviceLiveStateTree';
-import { DeviceRawJsonPanelBody } from '@/components/DeviceRawJsonPanel';
-import { DeviceFieldHistoryContent } from '@/components/DeviceFieldHistoryContent';
-import { formatFieldPath } from '@/lib/object-path';
+import { DeviceDefaultCardPanel } from '@/components/DeviceDefaultCardPanel';
 import { LCARSSection } from '@/components/lcars/LCARSSection';
 
 // ---------------------------------------------------------------------------
@@ -696,9 +691,6 @@ export default function DevicesPage() {
   const [expandedGroups, setExpandedGroups] = useState<Set<string> | null>(null);
   const [showChildren, setShowChildren] = useState(false);
 
-  type ListInspector = null | { kind: 'json' } | { kind: 'field'; path: string[]; value: unknown };
-  const [listInspector, setListInspector] = useState<ListInspector>(null);
-
   // Load from localStorage on mount
   useEffect(() => {
     setVisibleColumns(loadVisibleColumns());
@@ -750,13 +742,6 @@ export default function DevicesPage() {
   const groups = useMemo(() => groupDevices(filtered, groupMode), [filtered, groupMode]);
 
   const liveSelected = selectedDevice ? devices.find((d) => d.id === selectedDevice.id) ?? selectedDevice : null;
-
-  const mergedList = useDeviceMergedState(liveSelected?.id, liveSelected ?? undefined);
-  const listDisplay = (mergedList.display ?? liveSelected) as DeviceState | undefined;
-
-  useEffect(() => {
-    setListInspector(null);
-  }, [liveSelected?.id]);
 
   const sortedGroupKeys = useMemo(() => {
     const keys = [...groups.keys()];
@@ -998,169 +983,105 @@ export default function DevicesPage() {
         />
       )}
 
-      {/* Slide-out detail panel */}
+      {/* Slide-out detail panel — intentionally lean.
+          Shows device data (rename, aliases, area, …) and the default
+          control card only. Live state, raw JSON, history, and other
+          deep-dive surfaces live on the full detail page at
+          /devices/[id], reachable via the "See full details" button. */}
       <SlidePanel
         open={!!liveSelected}
-        onClose={() => { setSelectedDevice(null); setListInspector(null); }}
-        title={
-          listInspector?.kind === 'json'
-            ? 'Raw device JSON'
-            : listInspector?.kind === 'field'
-              ? formatFieldPath(listInspector.path)
-              : (liveSelected?.displayName ?? liveSelected?.name ?? 'Device')
-        }
-        size={
-          listInspector?.kind === 'json' ? 'xl' : listInspector?.kind === 'field' ? 'lg' : 'md'
-        }
+        onClose={() => setSelectedDevice(null)}
+        title={liveSelected?.displayName ?? liveSelected?.name ?? 'Device'}
+        size="md"
       >
-        {liveSelected && listDisplay && (
+        {liveSelected && (
           <div className="space-y-4">
-            {listInspector && (
-              <button
-                type="button"
-                onClick={() => setListInspector(null)}
-                className="text-xs font-medium hover:underline"
-                style={{ color: 'var(--color-accent)' }}
-              >
-                Back to overview
-              </button>
-            )}
+            <LCARSSection title="Device data">
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between items-center">
+                  <span style={{ color: 'var(--color-text-muted)' }}>Name</span>
+                  <InlineRename deviceId={liveSelected.id} currentName={liveSelected.displayName ?? liveSelected.name} size="sm" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Aliases</span>
+                  <DeviceAliases deviceId={liveSelected.id} />
+                  <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>Alternative names for search and the assistant.</p>
+                </div>
+                <div className="flex justify-between">
+                  <span style={{ color: 'var(--color-text-muted)' }}>Type</span>
+                  <span className="capitalize">{liveSelected.type.replace(/_/g, ' ')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span style={{ color: 'var(--color-text-muted)' }}>Integration</span>
+                  <span className="capitalize">{liveSelected.integration}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span style={{ color: 'var(--color-text-muted)' }}>Status</span>
+                  <Badge variant={liveSelected.available ? 'success' : 'danger'}>
+                    {liveSelected.available ? 'Online' : 'Offline'}
+                  </Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span style={{ color: 'var(--color-text-muted)' }}>State</span>
+                  <span className="text-sm font-medium">{getDeviceStateSummary(liveSelected)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span style={{ color: 'var(--color-text-muted)' }}>ID</span>
+                  <span className="text-xs font-mono" style={{ color: 'var(--color-text-secondary)' }}>{liveSelected.id}</span>
+                </div>
+              </div>
+            </LCARSSection>
 
-            {!listInspector && (
-              <>
-                <LCARSSection title="Device data">
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between items-center">
-                      <span style={{ color: 'var(--color-text-muted)' }}>Name</span>
-                      <InlineRename deviceId={liveSelected.id} currentName={liveSelected.displayName ?? liveSelected.name} size="sm" />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Aliases</span>
-                      <DeviceAliases deviceId={liveSelected.id} />
-                      <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>Alternative names for search and the assistant.</p>
-                    </div>
-                    <div className="flex justify-between">
-                      <span style={{ color: 'var(--color-text-muted)' }}>Type</span>
-                      <span className="capitalize">{liveSelected.type.replace(/_/g, ' ')}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span style={{ color: 'var(--color-text-muted)' }}>Integration</span>
-                      <span className="capitalize">{liveSelected.integration}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span style={{ color: 'var(--color-text-muted)' }}>Status</span>
-                      <Badge variant={liveSelected.available ? 'success' : 'danger'}>
-                        {liveSelected.available ? 'Online' : 'Offline'}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span style={{ color: 'var(--color-text-muted)' }}>State</span>
-                      <span className="text-sm font-medium">{getDeviceStateSummary(liveSelected)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span style={{ color: 'var(--color-text-muted)' }}>ID</span>
-                      <span className="text-xs font-mono" style={{ color: 'var(--color-text-secondary)' }}>{liveSelected.id}</span>
-                    </div>
-                  </div>
-                </LCARSSection>
+            {/* Default control card — same resolved descriptor as the
+                full detail page, including the admin Customize affordance. */}
+            <DeviceDefaultCardPanel deviceId={liveSelected.id} />
 
-                <LCARSSection title="Live state">
+            {/* Show child entities for hub devices */}
+            {liveSelected.type === 'hub' && (() => {
+              const children = devices.filter((d) => d.parentDeviceId === liveSelected.id);
+              if (children.length === 0) return null;
+              return (
+                <LCARSSection title={`Entities (${children.length})`}>
                   <div className="space-y-3">
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setListInspector({ kind: 'json' })}
-                        className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
-                        style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
-                      >
-                        <Braces className="h-3 w-3" />
-                        Raw JSON
-                      </button>
-                    </div>
-                    {mergedList.loading && !mergedList.error && (
-                      <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Syncing…
+                    {children.map((child) => (
+                      <div key={child.id} className="border-t pt-3 first:border-t-0 first:pt-0" style={{ borderColor: 'var(--color-border)' }}>
+                        <DeviceCard device={child} />
                       </div>
-                    )}
-                    <DeviceLiveStateTree
-                      data={listDisplay as unknown}
-                      onFieldSelect={(path, value) => setListInspector({ kind: 'field', path, value })}
-                    />
+                    ))}
                   </div>
                 </LCARSSection>
+              );
+            })()}
 
-                <LCARSSection title="Controls">
-                  <DeviceCard device={liveSelected} />
+            {/* Show related pool sub-equipment inline */}
+            {liveSelected.type === 'pool_body' && (() => {
+              const entryPrefix = liveSelected.id.split('.').slice(0, 2).join('.');
+              const related = devices.filter(
+                (d) => d.id.startsWith(entryPrefix) && HIDDEN_POOL_TYPES.has(d.type),
+              );
+              if (related.length === 0) return null;
+              return (
+                <LCARSSection title="Related equipment">
+                  <div className="space-y-3">
+                    {related.map((sub) => (
+                      <div key={sub.id} className="border-t pt-3 first:border-t-0 first:pt-0" style={{ borderColor: 'var(--color-border)' }}>
+                        <DeviceCard device={sub} />
+                      </div>
+                    ))}
+                  </div>
                 </LCARSSection>
+              );
+            })()}
 
-                {/* Show child entities for hub devices */}
-                {liveSelected.type === 'hub' && (() => {
-                  const children = devices.filter((d) => d.parentDeviceId === liveSelected.id);
-                  if (children.length === 0) return null;
-                  return (
-                    <LCARSSection title={`Entities (${children.length})`}>
-                      <div className="space-y-3">
-                        {children.map((child) => (
-                          <div key={child.id} className="border-t pt-3 first:border-t-0 first:pt-0" style={{ borderColor: 'var(--color-border)' }}>
-                            <DeviceCard device={child} />
-                          </div>
-                        ))}
-                      </div>
-                    </LCARSSection>
-                  );
-                })()}
-
-                {/* Show related pool sub-equipment inline */}
-                {liveSelected.type === 'pool_body' && (() => {
-                  const entryPrefix = liveSelected.id.split('.').slice(0, 2).join('.');
-                  const related = devices.filter(
-                    (d) => d.id.startsWith(entryPrefix) && HIDDEN_POOL_TYPES.has(d.type),
-                  );
-                  if (related.length === 0) return null;
-                  return (
-                    <LCARSSection title="Related equipment">
-                      <div className="space-y-3">
-                        {related.map((sub) => (
-                          <div key={sub.id} className="border-t pt-3 first:border-t-0 first:pt-0" style={{ borderColor: 'var(--color-border)' }}>
-                            <DeviceCard device={sub} />
-                          </div>
-                        ))}
-                      </div>
-                    </LCARSSection>
-                  );
-                })()}
-
-                <Link
-                  href={`/devices/${encodeURIComponent(liveSelected.id)}`}
-                  className="block text-center text-sm font-medium py-2 rounded-md transition-colors"
-                  style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
-                >
-                  View Full Details
-                </Link>
-              </>
-            )}
-
-            {listInspector?.kind === 'json' && (
-              <LCARSSection title="Raw exchange">
-                <DeviceRawJsonPanelBody
-                  display={listDisplay}
-                  loading={mergedList.loading}
-                  error={mergedList.error}
-                  onReload={mergedList.reload}
-                />
-              </LCARSSection>
-            )}
-
-            {listInspector?.kind === 'field' && (
-              <LCARSSection title={formatFieldPath(listInspector.path)}>
-                <DeviceFieldHistoryContent
-                  deviceId={liveSelected.id}
-                  path={listInspector.path}
-                  liveValue={listInspector.value}
-                />
-              </LCARSSection>
-            )}
+            {/* Anything deeper (live-state fields, raw JSON, history,
+                retention, aliases-as-a-table, etc.) is on the full page. */}
+            <Link
+              href={`/devices/${encodeURIComponent(liveSelected.id)}`}
+              className="block text-center text-sm font-medium py-2 rounded-md transition-colors"
+              style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
+            >
+              See full details
+            </Link>
           </div>
         )}
       </SlidePanel>
