@@ -20,6 +20,7 @@ import { MarkdownCard } from './types/MarkdownCard';
 import { ButtonCard } from './types/ButtonCard';
 import { LightTileCard } from './types/LightTileCard';
 import { SwitchTileCard } from './types/SwitchTileCard';
+import { CoverTileCard } from './types/CoverTileCard';
 import { SensorValueCard } from './types/SensorValueCard';
 import { EntityListCard } from './types/EntityListCard';
 import { AlertBannerCard } from './types/AlertBannerCard';
@@ -35,6 +36,7 @@ function CardRendererInner({ card }: { card: CardDescriptor }) {
     case 'button':           return <ButtonCard card={card} />;
     case 'light-tile':       return <LightTileCard card={card} />;
     case 'switch-tile':      return <SwitchTileCard card={card} />;
+    case 'cover-tile':       return <CoverTileCard card={card} />;
     case 'sensor-value':     return <SensorValueCard card={card} />;
     case 'entity-list':      return <EntityListCard card={card} />;
     case 'alert-banner':     return <AlertBannerCard card={card} />;
@@ -47,7 +49,6 @@ function CardRendererInner({ card }: { card: CardDescriptor }) {
     // when a dashboard references a card type whose React component still
     // lives on a later ticket.
     case 'fan-tile':
-    case 'cover-tile':
     case 'lock-tile':
     case 'media-tile':
     case 'thermostat':

@@ -18,12 +18,16 @@ import { SlidePanel } from '@/components/ui/SlidePanel';
 import { formatFieldPath } from '@/lib/object-path';
 import type { CoverState, DeviceState, GarageDoorState, NetworkDeviceState, WeatherState } from '@ha/shared';
 import { getApiBase, apiFetch } from '@/lib/api-base';
+import { DeviceClassControl } from '@/components/DeviceClassControl';
+import { DeviceDefaultCardPanel } from '@/components/DeviceDefaultCardPanel';
+import { useAuth } from '@/providers/AuthProvider';
 
 const API_BASE = getApiBase();
 
 interface Area { id: string; name: string; }
 
-function DeviceSettings({ deviceId }: { deviceId: string }) {
+function DeviceSettings({ deviceId, device }: { deviceId: string; device: DeviceState }) {
+  const { isAdmin } = useAuth();
   const [retentionDays, setRetentionDays] = useState<number | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [areaId, setAreaId] = useState<string | null>(null);
@@ -205,6 +209,9 @@ function DeviceSettings({ deviceId }: { deviceId: string }) {
         />
       </div>
 
+      {/* Device class — admin-only; controls the default card mapping */}
+      {isAdmin && <DeviceClassControl device={device} />}
+
       {/* History retention */}
       <div className="space-y-2">
         <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>History retention:</span>
@@ -297,6 +304,9 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
           {device.available ? 'Online' : 'Offline'}
         </Badge>
       </div>
+
+      {/* Default card — resolved from the device-card-map or a per-user override */}
+      <DeviceDefaultCardPanel deviceId={device.id} />
 
       {/* Live state — structured UI for every JSON field */}
       <Card>
@@ -396,7 +406,7 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
           <Settings className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
           <h2 className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>Device Settings</h2>
         </div>
-        <DeviceSettings deviceId={device.id} />
+        <DeviceSettings deviceId={device.id} device={device} />
       </Card>
 
       <SlidePanel

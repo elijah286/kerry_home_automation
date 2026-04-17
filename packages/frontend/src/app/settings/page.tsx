@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Settings, Palette, Clock, Puzzle, Users, ChevronRight, MapPin, Bot, Zap,
   ToggleLeft, LayoutGrid, LayoutDashboard, HardDrive, Server, UserCircle, Download,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -45,6 +46,13 @@ const groups: { title?: string; items: SettingsItem[] }[] = [
       },
       { href: '/settings/history', icon: Clock, label: 'History', description: 'Retention duration and recording settings' },
       { href: '/areas', icon: LayoutGrid, label: 'Areas', description: 'Create areas and assign devices to them' },
+      {
+        href: '/settings/device-classes',
+        icon: Sparkles,
+        label: 'Device classes',
+        description: 'Classify devices so the right default card is shown; run LLM inference',
+        adminOnly: true,
+      },
     ],
   },
   {
