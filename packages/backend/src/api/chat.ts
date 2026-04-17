@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Chat API: OpenAI-powered assistant with function calling
+// Chat API: AI assistant with function calling (OpenAI or Anthropic)
 // ---------------------------------------------------------------------------
 
 import type { FastifyInstance } from 'fastify';
@@ -7,6 +7,8 @@ import type { Automation, AutomationCreate, AutomationExecutionLog, AutomationUp
 import { KNOWN_INTEGRATIONS, Permission, ROLE_PERMISSIONS } from '@ha/shared';
 import OpenAI from 'openai';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions';
+import Anthropic from '@anthropic-ai/sdk';
+import type { Tool as AnthropicTool, MessageParam as AnthropicMessageParam } from '@anthropic-ai/sdk/resources/messages';
 import { stateStore } from '../state/store.js';
 import { registry } from '../integrations/registry.js';
 import { query } from '../db/pool.js';
@@ -1416,6 +1418,26 @@ function getToolsForRole(role: UserRole): ChatCompletionTool[] {
 // Route registration
 // ---------------------------------------------------------------------------
 
+// Convert OpenAI tool definitions to Anthropic format
+function toAnthropicTools(tools: ChatCompletionTool[]): AnthropicTool[] {
+  return tools
+    .filter((t): t is Extract<ChatCompletionTool, { type: 'function' }> => t.type === 'function')
+    .map((t) => ({
+      name: t.function.name,
+      description: t.function.description ?? '',
+      input_schema: (t.function.parameters ?? { type: 'object', properties: {} }) as AnthropicTool['input_schema'],
+    }));
+}
+
+async function loadLlmSettings(): Promise<{ provider: string; apiKey: string } | null> {
+  const { rows } = await query<{ key: string; value: unknown }>(
+    "SELECT key, value FROM system_settings WHERE key IN ('llm_api_key', 'llm_provider')",
+  );
+  const map = Object.fromEntries(rows.map((r) => [r.key, r.value as string]));
+  if (!map.llm_api_key) return null;
+  return { provider: map.llm_provider ?? 'openai', apiKey: map.llm_api_key };
+}
+
 export function registerChatRoutes(app: FastifyInstance): void {
   app.post<{ Body: { messages: Array<{ role: string; content: string }> } }>(
     '/api/chat',
@@ -1423,80 +1445,131 @@ export function registerChatRoutes(app: FastifyInstance): void {
     async (req, reply) => {
       const user = req.user!;
 
-      // Load API key from system settings
-      const { rows } = await query<{ value: unknown }>(
-        "SELECT value FROM system_settings WHERE key = 'llm_api_key'",
-      );
-      const apiKey = rows[0]?.value as string | undefined;
-      if (!apiKey) {
-        return reply.code(400).send({ error: 'OpenAI API key not configured. Go to Settings → LLM Integration to add one.' });
+      const settings = await loadLlmSettings();
+      if (!settings) {
+        return reply.code(400).send({ error: 'LLM API key not configured. Go to Settings → LLM Integration to add one.' });
       }
 
-      const openai = new OpenAI({ apiKey });
+      const { provider, apiKey } = settings;
       const tools = getToolsForRole(user.role);
       const toolCtx: ToolContext = { userRole: user.role, userId: user.id };
+      const systemPrompt = await buildSystemPrompt(user);
+      let navigateTo: string | undefined;
+      const MAX_ITERATIONS = 10;
 
-      const messages: ChatCompletionMessageParam[] = [
-        { role: 'system', content: await buildSystemPrompt(user) },
-        ...req.body.messages.map((m) => ({
+      if (provider === 'anthropic') {
+        const anthropic = new Anthropic({ apiKey });
+        const anthropicTools = toAnthropicTools(tools);
+        const messages: AnthropicMessageParam[] = req.body.messages.map((m) => ({
           role: m.role as 'user' | 'assistant',
           content: m.content,
-        })),
-      ];
+        }));
 
-      let navigateTo: string | undefined;
+        for (let i = 0; i < MAX_ITERATIONS; i++) {
+          try {
+            const response = await anthropic.messages.create({
+              model: 'claude-sonnet-4-6',
+              max_tokens: 4096,
+              system: systemPrompt,
+              messages,
+              tools: anthropicTools,
+              temperature: 0.3,
+            });
 
-      // Tool call loop — keep calling until we get a final text response
-      const MAX_ITERATIONS = 10;
-      for (let i = 0; i < MAX_ITERATIONS; i++) {
-        try {
-          const completion = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages,
-            tools,
-            temperature: 0.3,
-          });
-
-          const choice = completion.choices[0];
-          if (!choice) {
-            return reply.code(500).send({ error: 'No response from LLM' });
-          }
-
-          const msg = choice.message;
-
-          // If no tool calls, we have the final response
-          if (!msg.tool_calls || msg.tool_calls.length === 0) {
-            return {
-              reply: msg.content || '',
-              ...(navigateTo && { navigate: navigateTo }),
-            };
-          }
-
-          // Execute tool calls
-          messages.push(msg);
-
-          for (const toolCall of msg.tool_calls) {
-            if (!('function' in toolCall) || !toolCall.function) continue;
-            const fn = toolCall.function;
-            const args = JSON.parse(fn.arguments);
-            logger.info({ tool: fn.name, args, user: user.username }, 'Chat tool call');
-            const result = await executeTool(fn.name, args, toolCtx);
-
-            // Capture navigation instructions
-            if (fn.name === 'navigate_ui' && typeof result === 'object' && result !== null && 'navigate' in result) {
-              navigateTo = (result as { navigate: string }).navigate;
+            if (response.stop_reason === 'end_turn' || response.stop_reason !== 'tool_use') {
+              const text = response.content.find((b) => b.type === 'text');
+              return {
+                reply: text?.type === 'text' ? text.text : '',
+                ...(navigateTo && { navigate: navigateTo }),
+              };
             }
 
-            messages.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: JSON.stringify(result),
-            });
+            // Push assistant message with all content blocks
+            messages.push({ role: 'assistant', content: response.content });
+
+            // Execute tool calls
+            const toolResults: AnthropicMessageParam = { role: 'user', content: [] };
+            for (const block of response.content) {
+              if (block.type !== 'tool_use') continue;
+              const args = block.input as Record<string, unknown>;
+              logger.info({ tool: block.name, args, user: user.username }, 'Chat tool call');
+              const result = await executeTool(block.name, args, toolCtx);
+
+              if (block.name === 'navigate_ui' && typeof result === 'object' && result !== null && 'navigate' in result) {
+                navigateTo = (result as { navigate: string }).navigate;
+              }
+
+              (toolResults.content as Array<unknown>).push({
+                type: 'tool_result',
+                tool_use_id: block.id,
+                content: JSON.stringify(result),
+              });
+            }
+            messages.push(toolResults);
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            logger.error({ err }, 'Chat completion error');
+            return reply.code(500).send({ error: `LLM error: ${message}` });
           }
-        } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : String(err);
-          logger.error({ err }, 'Chat completion error');
-          return reply.code(500).send({ error: `LLM error: ${message}` });
+        }
+      } else {
+        // OpenAI path
+        const openai = new OpenAI({ apiKey });
+        const messages: ChatCompletionMessageParam[] = [
+          { role: 'system', content: systemPrompt },
+          ...req.body.messages.map((m) => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+          })),
+        ];
+
+        for (let i = 0; i < MAX_ITERATIONS; i++) {
+          try {
+            const completion = await openai.chat.completions.create({
+              model: 'gpt-4o',
+              messages,
+              tools,
+              temperature: 0.3,
+            });
+
+            const choice = completion.choices[0];
+            if (!choice) {
+              return reply.code(500).send({ error: 'No response from LLM' });
+            }
+
+            const msg = choice.message;
+
+            if (!msg.tool_calls || msg.tool_calls.length === 0) {
+              return {
+                reply: msg.content || '',
+                ...(navigateTo && { navigate: navigateTo }),
+              };
+            }
+
+            messages.push(msg);
+
+            for (const toolCall of msg.tool_calls) {
+              if (!('function' in toolCall) || !toolCall.function) continue;
+              const fn = toolCall.function;
+              const args = JSON.parse(fn.arguments);
+              logger.info({ tool: fn.name, args, user: user.username }, 'Chat tool call');
+              const result = await executeTool(fn.name, args, toolCtx);
+
+              if (fn.name === 'navigate_ui' && typeof result === 'object' && result !== null && 'navigate' in result) {
+                navigateTo = (result as { navigate: string }).navigate;
+              }
+
+              messages.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify(result),
+              });
+            }
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            logger.error({ err }, 'Chat completion error');
+            return reply.code(500).send({ error: `LLM error: ${message}` });
+          }
         }
       }
 
@@ -1506,23 +1579,33 @@ export function registerChatRoutes(app: FastifyInstance): void {
 
   // Test connection — verify the API key works by making a minimal API call
   app.post('/api/chat/test', { preHandler: [authenticate] }, async (_req, reply) => {
-    const { rows } = await query<{ value: unknown }>(
-      "SELECT value FROM system_settings WHERE key = 'llm_api_key'",
-    );
-    const apiKey = rows[0]?.value as string | undefined;
-    if (!apiKey) {
+    const settings = await loadLlmSettings();
+    if (!settings) {
       return reply.code(400).send({ error: 'No API key configured' });
     }
 
+    const { provider, apiKey } = settings;
+
     try {
-      const openai = new OpenAI({ apiKey });
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [{ role: 'user', content: 'Say "ok"' }],
-        max_tokens: 5,
-      });
-      const text = completion.choices[0]?.message?.content ?? '';
-      return { ok: true, model: completion.model, response: text };
+      if (provider === 'anthropic') {
+        const anthropic = new Anthropic({ apiKey });
+        const response = await anthropic.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 10,
+          messages: [{ role: 'user', content: 'Say "ok"' }],
+        });
+        const text = response.content.find((b) => b.type === 'text');
+        return { ok: true, model: response.model, response: text?.type === 'text' ? text.text : '' };
+      } else {
+        const openai = new OpenAI({ apiKey });
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: 'Say "ok"' }],
+          max_tokens: 5,
+        });
+        const text = completion.choices[0]?.message?.content ?? '';
+        return { ok: true, model: completion.model, response: text };
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error({ err }, 'LLM test connection failed');

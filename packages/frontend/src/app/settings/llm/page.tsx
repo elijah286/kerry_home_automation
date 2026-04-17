@@ -3,13 +3,34 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
-import { ArrowLeft, Bot, Loader2, Eye, EyeOff, Check, Zap, CircleAlert } from 'lucide-react';
+import { ArrowLeft, Bot, Loader2, Eye, EyeOff, Check, Zap, CircleAlert, ChevronDown } from 'lucide-react';
 import { getApiBase, apiFetch } from '@/lib/api-base';
 
 const API_BASE = getApiBase();
 
+type Provider = 'openai' | 'anthropic';
+
+const PROVIDERS: { id: Provider; label: string; placeholder: string; hint: string; docsUrl: string }[] = [
+  {
+    id: 'openai',
+    label: 'OpenAI (ChatGPT)',
+    placeholder: 'sk-...',
+    hint: 'Get your API key at platform.openai.com → API keys',
+    docsUrl: 'https://platform.openai.com/api-keys',
+  },
+  {
+    id: 'anthropic',
+    label: 'Anthropic (Claude)',
+    placeholder: 'sk-ant-...',
+    hint: 'Get your API key at console.anthropic.com → API keys',
+    docsUrl: 'https://console.anthropic.com/settings/keys',
+  },
+];
+
 export default function LlmSettingsPage() {
   const router = useRouter();
+  const [provider, setProvider] = useState<Provider>('openai');
+  const [providerOpen, setProviderOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -19,14 +40,20 @@ export default function LlmSettingsPage() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  const selectedProvider = PROVIDERS.find((p) => p.id === provider)!;
+
   useEffect(() => {
-    apiFetch(`${API_BASE}/api/settings/llm_api_key`)
-      .then((r) => r.json())
-      .then((data: { value?: string }) => {
-        if (data.value) {
+    Promise.all([
+      apiFetch(`${API_BASE}/api/settings/llm_api_key`).then((r) => r.json()),
+      apiFetch(`${API_BASE}/api/settings/llm_provider`).then((r) => r.json()),
+    ])
+      .then(([keyData, providerData]: [{ value?: string }, { value?: string }]) => {
+        if (keyData.value) {
           setConfigured(true);
-          // Show masked version
           setApiKey('sk-••••••••••••••••••••••••••••••••');
+        }
+        if (providerData.value === 'anthropic' || providerData.value === 'openai') {
+          setProvider(providerData.value);
         }
       })
       .catch(() => {})
@@ -38,12 +65,18 @@ export default function LlmSettingsPage() {
     setSaving(true);
     setSaved(false);
     try {
-      const res = await apiFetch(`${API_BASE}/api/settings/llm_api_key`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: apiKey }),
-      });
-      if (!res.ok) throw new Error('Save failed');
+      await Promise.all([
+        apiFetch(`${API_BASE}/api/settings/llm_api_key`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: apiKey }),
+        }),
+        apiFetch(`${API_BASE}/api/settings/llm_provider`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: provider }),
+        }),
+      ]);
       setConfigured(true);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -62,6 +95,7 @@ export default function LlmSettingsPage() {
       });
       setApiKey('');
       setConfigured(false);
+      setTestResult(null);
     } finally {
       setSaving(false);
     }
@@ -71,9 +105,7 @@ export default function LlmSettingsPage() {
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await apiFetch(`${API_BASE}/api/chat/test`, {
-        method: 'POST',
-      });
+      const res = await apiFetch(`${API_BASE}/api/chat/test`, { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
         setTestResult({ ok: true, message: `Connected to ${data.model}` });
@@ -104,9 +136,49 @@ export default function LlmSettingsPage() {
       </div>
 
       <Card>
-        <h2 className="text-sm font-medium mb-1">OpenAI API Key</h2>
+        <h2 className="text-sm font-medium mb-1">AI Provider</h2>
         <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
-          Enter your OpenAI API key to enable the AI assistant. The key is stored securely on the server and never sent to the browser.
+          Choose which AI provider to use for the assistant.
+        </p>
+
+        {/* Provider selector */}
+        <div className="relative mb-4">
+          <button
+            onClick={() => setProviderOpen(!providerOpen)}
+            className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors"
+            style={{
+              backgroundColor: 'var(--color-bg-secondary)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-text)',
+            }}
+          >
+            <span>{selectedProvider.label}</span>
+            <ChevronDown className="h-4 w-4" style={{ color: 'var(--color-text-muted)' }} />
+          </button>
+
+          {providerOpen && (
+            <div
+              className="absolute z-10 mt-1 w-full rounded-md border shadow-lg"
+              style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border)' }}
+            >
+              {PROVIDERS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => { setProvider(p.id); setProviderOpen(false); setApiKey(''); setSaved(false); setTestResult(null); }}
+                  className="flex w-full items-center justify-between px-3 py-2 text-sm transition-colors hover:opacity-80"
+                  style={{ color: 'var(--color-text)' }}
+                >
+                  <span>{p.label}</span>
+                  {provider === p.id && <Check className="h-3.5 w-3.5" style={{ color: 'var(--color-accent)' }} />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <h2 className="text-sm font-medium mb-1">API Key</h2>
+        <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
+          {selectedProvider.hint}
         </p>
 
         {loading ? (
@@ -119,10 +191,8 @@ export default function LlmSettingsPage() {
                   type={showKey ? 'text' : 'password'}
                   value={apiKey}
                   onChange={(e) => { setApiKey(e.target.value); setSaved(false); }}
-                  onFocus={() => {
-                    if (apiKey.startsWith('sk-••')) setApiKey('');
-                  }}
-                  placeholder="sk-..."
+                  onFocus={() => { if (apiKey.startsWith('sk-••')) setApiKey(''); }}
+                  placeholder={selectedProvider.placeholder}
                   className="w-full rounded-md border px-3 py-2 pr-10 text-sm font-mono transition-colors"
                   style={{
                     backgroundColor: 'var(--color-bg-secondary)',
@@ -140,15 +210,12 @@ export default function LlmSettingsPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={save}
                 disabled={saving || !apiKey || apiKey.startsWith('sk-••')}
                 className="rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
-                style={{
-                  backgroundColor: 'var(--color-accent)',
-                  color: '#fff',
-                }}
+                style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
               >
                 {saving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -164,11 +231,7 @@ export default function LlmSettingsPage() {
                   onClick={remove}
                   disabled={saving}
                   className="rounded-md px-4 py-2 text-sm font-medium transition-colors"
-                  style={{
-                    backgroundColor: 'var(--color-bg-secondary)',
-                    color: 'var(--color-text-secondary)',
-                    border: '1px solid var(--color-border)',
-                  }}
+                  style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}
                 >
                   Remove Key
                 </button>
@@ -179,11 +242,7 @@ export default function LlmSettingsPage() {
                   onClick={testConnection}
                   disabled={testing}
                   className="rounded-md px-4 py-2 text-sm font-medium transition-colors"
-                  style={{
-                    backgroundColor: 'var(--color-bg-secondary)',
-                    color: 'var(--color-text-secondary)',
-                    border: '1px solid var(--color-border)',
-                  }}
+                  style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}
                 >
                   {testing ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
