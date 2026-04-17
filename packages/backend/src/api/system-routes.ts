@@ -212,18 +212,6 @@ async function readAppVersionMetaAtRef(root: string, ref: string): Promise<AppVe
   }
 }
 
-/** Version from the mounted workspace (matches running frontend after rebuild), not the baked UI bundle. */
-async function readAppVersionFromWorkspace(
-  root: string,
-): Promise<(AppVersionMeta & { major: number; minor: number; patch: number }) | null> {
-  try {
-    const raw = await readFile(join(root, APP_VERSION_JSON_PATH), 'utf8');
-    return parseAppVersionJson(raw);
-  } catch {
-    return null;
-  }
-}
-
 async function readCommitSubject(root: string, ref: string): Promise<string> {
   try {
     return await execGit(['log', '-1', '--format=%s', ref], root);
@@ -362,19 +350,15 @@ export function registerSystemRoutes(app: FastifyInstance): void {
         patch: parseInt(parts[2] ?? '0', 10),
       };
     }
-    // Fallback for pre-CI containers: read from the mounted workspace.
-    // NOTE: this may be wrong after `git pull` without a container rebuild.
-    const root = appConfig.deploy.appRoot;
-    const meta = await readAppVersionFromWorkspace(root);
-    if (!meta) {
-      return reply.code(503).send({ error: 'app-version.json not readable (configure HA_APP_ROOT mount).' });
-    }
-    return {
-      versionLabel: meta.versionLabel,
-      major: meta.major,
-      minor: meta.minor,
-      patch: meta.patch,
-    };
+    // We intentionally do NOT fall back to reading app-version.json from the
+    // mounted workspace — that reflects git state (which can drift via `git
+    // pull` or CI-commit), NOT what Docker is actually running. Lying about
+    // the running version breaks the whole update-detection flow. Instead,
+    // honestly report the version as unknown so the UI can say so clearly.
+    return reply.code(503).send({
+      error: 'Running container version is unknown (no build-info, OCI labels, or pinned HA_BACKEND_IMAGE). Install an update to refresh this.',
+      versionLabel: null,
+    });
   });
 
   // GET /api/system/stats
@@ -506,11 +490,13 @@ export function registerSystemRoutes(app: FastifyInstance): void {
           runningDescription = buildInfo.version;
         }
       } else {
-        // Fallback for pre-CI containers
-        const headMeta = await describeDeployRef(root, 'HEAD');
-        runningVersionLabel = headMeta.versionLabel;
+        // No reliable running-version source (no build-info.json, OCI labels, env,
+        // or pinned HA_BACKEND_IMAGE). DO NOT fall back to reading app-version.json
+        // from the mounted workspace — that reflects git state, not what Docker is
+        // actually running. Report null so the UI can clearly show "unknown".
+        runningVersionLabel = null;
         runningSha = headSha;
-        runningDescription = headMeta.description;
+        runningDescription = 'Running container version unknown — install an update to refresh.';
       }
 
       // -----------------------------------------------------------------------
@@ -530,12 +516,19 @@ export function registerSystemRoutes(app: FastifyInstance): void {
       // fall back to SHA compare otherwise.
       // -----------------------------------------------------------------------
       let updateAvailable: boolean;
-      if (headSha === remoteSha) {
-        updateAvailable = false;
-      } else if (!manifest) {
+      if (!manifest) {
+        // CI hasn't published images for origin/main yet — nothing installable.
         updateAvailable = false;
       } else if (containerVersionKnown && remoteMeta.versionLabel) {
+        // Best case: compare running container version against remote version.
+        // This catches the critical "git pulled but never rebuilt" drift where
+        // HEAD == origin/main but the running image is older.
         updateAvailable = buildInfo.version !== remoteMeta.versionLabel;
+      } else if (!containerVersionKnown) {
+        // Container predates build-info — we can't know what's running.
+        // Always offer the update so the user can install a version that WILL
+        // report truthfully. Never silently say "up to date" when we don't know.
+        updateAvailable = true;
       } else {
         updateAvailable = headSha !== remoteSha;
       }

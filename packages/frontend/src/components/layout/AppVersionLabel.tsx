@@ -37,9 +37,16 @@ export function AppVersionLabel({
       for (const url of appVersionFetchUrls()) {
         try {
           const r = await fetch(url, { cache: 'no-store' });
-          if (!r.ok) continue;
-          const j = (await r.json()) as { versionLabel?: string };
-          if (!cancelled && j.versionLabel) {
+          const j = (await r.json()) as { versionLabel?: string | null };
+          if (cancelled) return;
+          // 503 with explicit versionLabel: null means "backend honestly doesn't know".
+          // Show that truth instead of falling back to the baked bundle version
+          // (which would also be a lie — the bundle can predate the running container).
+          if (!r.ok && j.versionLabel === null) {
+            setLabel('v?');
+            return;
+          }
+          if (r.ok && j.versionLabel) {
             setLabel(j.versionLabel);
             return;
           }
