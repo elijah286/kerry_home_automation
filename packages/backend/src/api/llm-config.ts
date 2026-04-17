@@ -24,7 +24,16 @@ const LLM_SETTING_KEYS = [
   'llm_anthropic_model',
 ] as const;
 
+/**
+ * Unwrap a setting value from the DB.
+ * Handles both plain JSONB strings ("anthropic") and the wrapped object
+ * format ({"value":"anthropic"}) that older save code may have produced.
+ */
 function asTrimmedString(v: unknown): string | undefined {
+  // Unwrap {value: ...} wrapper if present
+  if (v !== null && typeof v === 'object' && !Array.isArray(v) && 'value' in v) {
+    return asTrimmedString((v as Record<string, unknown>).value);
+  }
   if (typeof v !== 'string') return undefined;
   const t = v.trim();
   return t === '' ? undefined : t;
@@ -44,7 +53,7 @@ export async function loadLlmRuntimeSettings(): Promise<LlmRuntimeSettings> {
 
   // Determine provider first so we can correctly route the legacy key
   let provider: LlmProviderId = 'openai';
-  const rawProvider = map.get('llm_provider');
+  const rawProvider = asTrimmedString(map.get('llm_provider'));
   if (rawProvider === 'anthropic') provider = 'anthropic';
   else if (rawProvider === 'openai') provider = 'openai';
 
