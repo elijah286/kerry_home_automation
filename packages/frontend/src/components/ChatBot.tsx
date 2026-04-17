@@ -831,7 +831,17 @@ function AssistantRightPanel() {
       }
     };
     rec.onend = () => setIsListening(false);
-    rec.onerror = () => setIsListening(false);
+    rec.onerror = (e: { error: string }) => {
+      setIsListening(false);
+      const errorMsg = e.error === 'no-speech'
+        ? 'No speech detected. Try speaking again.'
+        : e.error === 'network'
+          ? 'Network error. Check your connection.'
+          : e.error === 'permission-denied'
+            ? 'Microphone permission denied. Check browser settings.'
+            : `Voice input error: ${e.error}`;
+      setError(errorMsg);
+    };
     recognitionRef.current = rec;
     rec.start();
     setIsListening(true);
