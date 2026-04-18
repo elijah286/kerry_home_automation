@@ -3,9 +3,9 @@
 import Link from 'next/link';
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GripHorizontal } from 'lucide-react';
+import { GripHorizontal, Activity, ScrollText, ChevronDown, ArrowDown } from 'lucide-react';
 import { clsx } from 'clsx';
-import { X, AlertTriangle, Info, AlertOctagon, ListTree, Braces, Maximize2, Minimize2, Filter } from 'lucide-react';
+import { X, AlertTriangle, Info, AlertOctagon, Braces, Maximize2, Minimize2, Filter } from 'lucide-react';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { SYSTEM_LOG_SOURCE_ID, TERMINAL_PANEL_HEIGHT } from '@/lib/terminal-constants';
@@ -14,6 +14,8 @@ import {
   type TerminalLogFilter,
 } from '@/providers/SystemTerminalProvider';
 import { LogIntegrationFilterPanel, logIntegrationFilterPanelWidthPx } from '@/components/layout/LogIntegrationFilterPanel';
+import { StatusPerformanceView } from '@/components/layout/StatusPerformanceView';
+import { SYSTEM_STATS_RANGE_PRESETS } from '@/components/viz/SystemStatsGraph';
 import {
   formatLogPrimaryLine,
   formatTerminalLogLines,
@@ -128,7 +130,15 @@ export function SystemTerminalDock({
     logIntegrationFilterPanelOpen,
     setLogIntegrationFilterPanelOpen,
     initLogIntegrationWhitelistIfNeeded,
+    dockView,
+    setDockView,
+    perfRangeMs,
+    setPerfRangeMs,
   } = useSystemTerminal();
+  const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const viewMenuAnchorRef = useRef<HTMLDivElement>(null);
+  const viewMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const [viewMenuRect, setViewMenuRect] = useState<{ left: number; top: number } | null>(null);
   const [entries, setEntries] = useState<LogEntry[]>([]);
   /** Row expanded by click — full JSON + deep links */
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
@@ -209,6 +219,22 @@ export function SystemTerminalDock({
     if (!logAutoScroll || !scrollerRef.current) return;
     scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
   }, [filtered, logAutoScroll]);
+
+  /** Close the view-switcher dropdown on outside click or Escape. */
+  useEffect(() => {
+    if (!viewMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!viewMenuAnchorRef.current) return;
+      if (!viewMenuAnchorRef.current.contains(e.target as Node)) setViewMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setViewMenuOpen(false); };
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [viewMenuOpen]);
 
   const onScroll = useCallback(() => {
     onStatusInteraction?.();
@@ -306,255 +332,307 @@ export function SystemTerminalDock({
       {/* Header — filters (hidden when LCARS frame handles controls) */}
       {!lcarsFrameHandlesControls && (
       <div
-        className={clsx(
-          'flex shrink-0 border-b',
-          lcarsTop ? 'flex-col gap-1.5 px-2 py-2' : 'items-center gap-2 px-3 py-2',
-          isLCARS && !lcarsTop ? 'gap-1 px-2 py-1' : '',
-        )}
+        className="flex shrink-0 items-center gap-1.5 border-b px-2 py-1.5 overflow-x-auto"
         style={{ borderColor: 'var(--color-border)' }}
       >
-        <div
-          className={clsx(
-            'flex min-w-0 items-center',
-            lcarsTop ? 'w-full justify-between gap-2' : 'contents',
-          )}
-        >
-          {!isLCARS && <ListTree className="h-4 w-4 shrink-0" style={{ color: 'var(--color-accent)' }} />}
-          <span
-            className={clsx(
-              'shrink-0 font-semibold uppercase tracking-wide',
-              isLCARS ? 'font-mono text-[8px] leading-none' : 'text-xs',
-            )}
-            style={{ color: 'var(--color-text-secondary)' }}
+        {/* View switcher — click to swap between Logs and Performance */}
+        <div ref={viewMenuAnchorRef} className="relative shrink-0">
+          <button
+            ref={viewMenuTriggerRef}
+            type="button"
+            onClick={() => {
+              const el = viewMenuTriggerRef.current;
+              if (el) {
+                const r = el.getBoundingClientRect();
+                setViewMenuRect({ left: r.left, top: r.bottom + 4 });
+              }
+              setViewMenuOpen((v) => !v);
+            }}
+            aria-haspopup="menu"
+            aria-expanded={viewMenuOpen}
+            className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors hover:bg-white/5"
+            style={{ color: 'var(--color-text)' }}
+            title="Switch view"
           >
-            Status window
-          </span>
-          {!lcarsTop && (
+            {dockView === 'performance' ? (
+              <Activity className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--color-accent)' }} aria-hidden />
+            ) : (
+              <ScrollText className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--color-accent)' }} aria-hidden />
+            )}
+            <span>{dockView === 'performance' ? 'Performance' : 'Logs'}</span>
+            <ChevronDown
+              className={clsx('h-3 w-3 shrink-0 transition-transform', viewMenuOpen && 'rotate-180')}
+              style={{ color: 'var(--color-text-muted)' }}
+              aria-hidden
+            />
+            {/* Connection dot — placed inside trigger to keep Status identity compact */}
+            <span
+              className={clsx('ml-1 block h-1.5 w-1.5 rounded-full', connected ? 'animate-pulse' : '')}
+              style={{ backgroundColor: connected ? 'var(--color-success)' : 'var(--color-text-muted)' }}
+              title={connected ? 'Live — streaming updates' : 'Reconnecting…'}
+              aria-label={connected ? 'Live' : 'Reconnecting'}
+            />
+          </button>
+          {viewMenuOpen && viewMenuRect && (
             <div
-              className={clsx(
-                'flex flex-1 flex-wrap items-center justify-center sm:justify-start',
-                isLCARS ? 'gap-1' : 'gap-1.5',
-              )}
+              role="menu"
+              className="fixed z-[9999] min-w-[180px] overflow-hidden rounded-md border shadow-xl"
+              style={{
+                left: viewMenuRect.left,
+                top: viewMenuRect.top,
+                backgroundColor: 'var(--color-bg)',
+                borderColor: 'var(--color-border)',
+              }}
             >
-              {FILTER_OPTIONS.map((opt) => {
-                const active = filter === opt.id;
+              {([
+                { id: 'logs' as const, label: 'Logs', desc: 'Live log stream', Icon: ScrollText },
+                { id: 'performance' as const, label: 'Performance', desc: 'CPU + memory graphs', Icon: Activity },
+              ]).map((item) => {
+                const active = dockView === item.id;
+                const Icon = item.Icon;
                 return (
                   <button
-                    key={opt.id}
+                    key={item.id}
                     type="button"
-                    onClick={() => setFilter(opt.id)}
-                    className={clsx(
-                      'font-medium transition-colors',
-                      isLCARS
-                        ? 'rounded-none px-2 py-0.5 font-mono text-[7px] font-bold uppercase tracking-tight'
-                        : 'rounded-md px-2.5 py-1 text-xs',
-                    )}
+                    role="menuitemradio"
+                    aria-checked={active}
+                    onClick={() => {
+                      setDockView(item.id);
+                      setViewMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-white/5"
                     style={{
-                      backgroundColor: active ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                      color: active ? '#fff' : 'var(--color-text-secondary)',
+                      backgroundColor: active ? 'color-mix(in srgb, var(--color-accent) 18%, transparent)' : 'transparent',
+                      color: 'var(--color-text)',
                     }}
                   >
-                    {!isLCARS && opt.id === 'info' && (
-                      <Info className="mr-1 inline h-3 w-3 align-text-bottom opacity-80" />
-                    )}
-                    {!isLCARS && opt.id === 'warn' && (
-                      <AlertTriangle className="mr-1 inline h-3 w-3 align-text-bottom opacity-80" />
-                    )}
-                    {!isLCARS && opt.id === 'error' && (
-                      <AlertOctagon className="mr-1 inline h-3 w-3 align-text-bottom opacity-80" />
-                    )}
-                    {isLCARS
-                      ? opt.id === 'error'
-                        ? 'Err'
-                        : opt.id === 'warn'
-                          ? 'Warn'
-                          : opt.label
-                      : opt.label}
+                    <Icon
+                      className="h-3.5 w-3.5 shrink-0"
+                      style={{ color: active ? 'var(--color-accent)' : 'var(--color-text-muted)' }}
+                      aria-hidden
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold">{item.label}</div>
+                      <div className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                        {item.desc}
+                      </div>
+                    </div>
                   </button>
                 );
               })}
             </div>
           )}
-          <span
-            className={clsx(
-              'shrink-0 uppercase',
-              lcarsTop ? 'inline font-mono text-[8px]' : 'hidden sm:inline',
-              !lcarsTop && isLCARS ? 'font-mono text-[7px]' : !lcarsTop ? 'text-[10px]' : '',
-            )}
-            style={{ color: connected ? 'var(--color-success)' : 'var(--color-text-muted)' }}
-          >
-            {connected ? 'Live' : '…'}
-          </span>
-          <button
-            type="button"
-            onClick={() => setLogDetailStyle(logDetailStyle === 'terminal' ? 'digest' : 'terminal')}
-            aria-pressed={logDetailStyle === 'terminal'}
-            aria-label={
-              logDetailStyle === 'terminal'
-                ? 'Switch to one-line log summaries'
-                : 'Show full terminal-style log lines'
-            }
-            className={clsx(
-              'shrink-0 transition-colors',
-              isLCARS
-                ? lcarsTop
-                  ? 'rounded-none px-2.5 py-1 font-mono text-[8px] font-bold uppercase'
-                  : 'rounded-none px-2 py-0.5 font-mono text-[7px] font-bold uppercase'
-                : 'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium',
-            )}
-            style={{
-              backgroundColor:
-                logDetailStyle === 'terminal' ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-              color: logDetailStyle === 'terminal' ? '#fff' : 'var(--color-text-secondary)',
-            }}
-          >
-            {!isLCARS && <Braces className="h-3.5 w-3.5 opacity-90" />}
-            <span className={clsx(!isLCARS && 'hidden sm:inline')}>
-              {logDetailStyle === 'terminal' ? 'Digest' : 'Lines'}
-            </span>
-          </button>
-          {placement === 'bottom' && (
-            <button
-              type="button"
-              onClick={() => {
-                initLogIntegrationWhitelistIfNeeded();
-                setLogIntegrationFilterPanelOpen(!logIntegrationFilterPanelOpen);
-              }}
-              aria-pressed={logIntegrationFilterPanelOpen}
-              aria-label="Filter log by integration"
-              className={clsx(
-                'flex shrink-0 items-center gap-1 text-xs font-medium transition-colors',
-                isLCARS
-                  ? 'rounded-none px-2 py-0.5 font-mono text-[7px] font-bold uppercase tracking-tight'
-                  : 'rounded-md px-2 py-1',
-              )}
-              style={{
-                backgroundColor:
-                  logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
-                    ? 'var(--color-accent)'
-                    : 'var(--color-bg-secondary)',
-                color:
-                  logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
-                    ? '#fff'
-                    : 'var(--color-text-secondary)',
-              }}
-            >
-              {!isLCARS && <Filter className="h-3.5 w-3.5 opacity-90" />}
-              <span className="hidden sm:inline">Sources</span>
-            </button>
-          )}
-          {placement === 'bottom' && (
-            <button
-              type="button"
-              onClick={() => setStatusLcarsFullscreen(!statusLcarsFullscreen)}
-              aria-pressed={statusLcarsFullscreen}
-              aria-label={
-                statusLcarsFullscreen
-                  ? 'Restore default status window height'
-                  : 'Expand status window toward full screen'
-              }
-              className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
-              style={{
-                backgroundColor: statusLcarsFullscreen ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                color: statusLcarsFullscreen ? '#fff' : 'var(--color-text-secondary)',
-              }}
-            >
-              {statusLcarsFullscreen ? (
-                <Minimize2 className="h-3.5 w-3.5 opacity-90" />
-              ) : (
-                <Maximize2 className="h-3.5 w-3.5 opacity-90" />
-              )}
-              <span className="hidden sm:inline">
-                {statusLcarsFullscreen ? 'Dock' : 'Full screen'}
-              </span>
-            </button>
-          )}
-          {lcarsStatusAuto && isLCARS && lcarsTop && !lcarsFrameHandlesControls ? (
-            <button
-              type="button"
-              data-lcars-auto-scroll-btn
-              onClick={lcarsStatusAuto.onAutoClick}
-              aria-pressed={logAutoScroll}
-              aria-label={
-                logAutoScroll
-                  ? 'Auto-scroll log tail: on. Click to pause following new lines.'
-                  : 'Auto-scroll log tail: off. Click to follow new lines.'
-              }
-              className={clsx(
-                'shrink-0 transition-colors',
-                lcarsTop ? 'rounded-none px-2.5 py-1 font-mono text-[8px] font-bold uppercase' : '',
-                lcarsStatusAuto.flashPeriodMs != null ? 'lcars-auto-scroll-nudge' : '',
-              )}
-              style={{
-                backgroundColor: logAutoScroll ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                color: logAutoScroll ? '#fff' : 'var(--color-text-secondary)',
-                ...(lcarsStatusAuto.flashPeriodMs != null
-                  ? { animationDuration: `${lcarsStatusAuto.flashPeriodMs}ms` }
-                  : {}),
-              }}
-            >
-              Auto
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={onClose}
-            className={clsx(
-              'shrink-0 transition-colors hover:bg-white/10',
-              isLCARS
-                ? lcarsTop
-                  ? 'px-2 py-1 font-mono text-[9px] font-bold uppercase'
-                  : 'px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase'
-                : 'rounded-md p-1.5',
-            )}
-            style={{ color: 'var(--color-text-secondary)' }}
-            aria-label="Close status window"
-          >
-            {isLCARS ? '×' : <X className="h-4 w-4" />}
-          </button>
         </div>
-        {lcarsTop && (
+
+        {/* Middle section — depends on view */}
+        {dockView === 'logs' ? (
           <div
-            className="grid w-full grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:justify-end"
+            className="flex shrink-0 items-center rounded-md p-0.5"
+            style={{ backgroundColor: 'var(--color-bg-secondary)' }}
             role="group"
             aria-label="Log level filter"
           >
             {FILTER_OPTIONS.map((opt) => {
               const active = filter === opt.id;
+              const Icon =
+                opt.id === 'info' ? Info :
+                opt.id === 'warn' ? AlertTriangle :
+                opt.id === 'error' ? AlertOctagon : null;
               return (
                 <button
                   key={opt.id}
                   type="button"
                   onClick={() => setFilter(opt.id)}
-                  className="rounded-none px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-wide transition-colors sm:min-w-[5.5rem]"
+                  aria-pressed={active}
+                  title={opt.label}
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors"
                   style={{
-                    backgroundColor: active ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                    backgroundColor: active ? 'var(--color-accent)' : 'transparent',
                     color: active ? '#fff' : 'var(--color-text-secondary)',
-                    border: '2px solid #000',
                   }}
                 >
-                  {opt.id === 'error' ? 'Errors' : opt.id === 'warn' ? 'Warnings' : opt.label}
+                  {Icon && <Icon className="h-3 w-3" />}
+                  <span className={Icon ? 'hidden sm:inline' : ''}>{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {/* Spacer */}
+        <div className="flex-1 min-w-[8px]" aria-hidden />
+
+        {/* Right side — switches with view */}
+        {dockView === 'logs' ? (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setLogAutoScroll(!logAutoScroll);
+                if (!logAutoScroll && scrollerRef.current) {
+                  scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
+                }
+              }}
+              aria-pressed={logAutoScroll}
+              aria-label={logAutoScroll ? 'Auto-scroll on' : 'Auto-scroll off'}
+              title={logAutoScroll ? 'Auto-scroll on — click to pause' : 'Auto-scroll off — click to follow tail'}
+              className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors"
+              style={{
+                backgroundColor: logAutoScroll ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                color: logAutoScroll ? '#fff' : 'var(--color-text-secondary)',
+              }}
+            >
+              <ArrowDown className="h-3.5 w-3.5" aria-hidden />
+              <span className="hidden lg:inline">Auto</span>
+            </button>
+
+            {placement === 'bottom' && (
+              <button
+                type="button"
+                onClick={() => {
+                  initLogIntegrationWhitelistIfNeeded();
+                  setLogIntegrationFilterPanelOpen(!logIntegrationFilterPanelOpen);
+                }}
+                aria-pressed={logIntegrationFilterPanelOpen}
+                aria-label="Filter log by source"
+                title="Filter by source"
+                className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors"
+                style={{
+                  backgroundColor:
+                    logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
+                      ? 'var(--color-accent)'
+                      : 'var(--color-bg-secondary)',
+                  color:
+                    logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
+                      ? '#fff'
+                      : 'var(--color-text-secondary)',
+                }}
+              >
+                <Filter className="h-3.5 w-3.5" aria-hidden />
+                <span className="hidden lg:inline">Sources</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setLogDetailStyle(logDetailStyle === 'terminal' ? 'digest' : 'terminal')}
+              aria-pressed={logDetailStyle === 'terminal'}
+              aria-label={
+                logDetailStyle === 'terminal'
+                  ? 'Switch to one-line log summaries'
+                  : 'Show full terminal-style log lines'
+              }
+              title={logDetailStyle === 'terminal' ? 'Showing full lines — click for digest' : 'Showing digest — click for full lines'}
+              className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors"
+              style={{
+                backgroundColor:
+                  logDetailStyle === 'terminal' ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                color: logDetailStyle === 'terminal' ? '#fff' : 'var(--color-text-secondary)',
+              }}
+            >
+              <Braces className="h-3.5 w-3.5" aria-hidden />
+              <span className="hidden lg:inline">{logDetailStyle === 'terminal' ? 'Lines' : 'Digest'}</span>
+            </button>
+          </>
+        ) : (
+          <div
+            className="flex shrink-0 items-center rounded-md p-0.5"
+            style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+            role="group"
+            aria-label="Performance time window"
+          >
+            {SYSTEM_STATS_RANGE_PRESETS.map((r) => {
+              const active = perfRangeMs === r.ms;
+              return (
+                <button
+                  key={r.label}
+                  type="button"
+                  onClick={() => setPerfRangeMs(r.ms)}
+                  aria-pressed={active}
+                  title={`Last ${r.label}`}
+                  className="rounded px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors"
+                  style={{
+                    backgroundColor: active ? 'var(--color-accent)' : 'transparent',
+                    color: active ? '#fff' : 'var(--color-text-secondary)',
+                  }}
+                >
+                  {r.label}
                 </button>
               );
             })}
           </div>
         )}
+
+        {placement === 'bottom' && (
+          <button
+            type="button"
+            onClick={() => setStatusLcarsFullscreen(!statusLcarsFullscreen)}
+            aria-pressed={statusLcarsFullscreen}
+            aria-label={
+              statusLcarsFullscreen
+                ? 'Restore default status window height'
+                : 'Expand status window toward full screen'
+            }
+            title={statusLcarsFullscreen ? 'Restore' : 'Expand'}
+            className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors"
+            style={{
+              backgroundColor: statusLcarsFullscreen ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+              color: statusLcarsFullscreen ? '#fff' : 'var(--color-text-secondary)',
+            }}
+          >
+            {statusLcarsFullscreen ? (
+              <Minimize2 className="h-3.5 w-3.5" aria-hidden />
+            ) : (
+              <Maximize2 className="h-3.5 w-3.5" aria-hidden />
+            )}
+            <span className="hidden lg:inline">{statusLcarsFullscreen ? 'Dock' : 'Expand'}</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 rounded-md p-1 transition-colors hover:bg-white/10"
+          style={{ color: 'var(--color-text-secondary)' }}
+          aria-label="Close status window"
+          title="Close"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
       )}
 
       {placement === 'top' && (
         <div
           onPointerDown={onResizePointerDown}
-          className="absolute inset-x-0 bottom-0 z-10 flex h-[6px] cursor-ns-resize items-center justify-center select-none"
-          style={{ touchAction: 'none' }}
+          className="absolute inset-x-0 bottom-0 z-20 flex h-[8px] cursor-ns-resize items-center justify-center select-none"
+          style={{
+            touchAction: 'none',
+            background: lcarsTopStackedChrome ? 'transparent' : 'rgba(0,0,0,0.4)',
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+          }}
           title="Drag to resize"
+          aria-label="Resize status window"
+          role="separator"
         >
-          {!lcarsTopStackedChrome && (
-            <GripHorizontal className="h-3 w-3 opacity-30" style={{ color: 'var(--color-text-secondary)' }} />
-          )}
+          <GripHorizontal className="h-3 w-3 opacity-50" style={{ color: 'var(--color-text-secondary)' }} />
         </div>
       )}
+      {/* Performance view body */}
+      {dockView === 'performance' && (
+        <div
+          className="min-h-0 flex-1 overflow-auto"
+          style={{
+            paddingBottom: placement === 'top' ? 12 : undefined,
+            paddingTop: placement === 'bottom' ? 10 : undefined,
+          }}
+        >
+          <StatusPerformanceView rangeMs={perfRangeMs} />
+        </div>
+      )}
+
       {/* Log body */}
+      {dockView === 'logs' && (
       <div
         ref={scrollerRef}
         onScroll={onScroll}
@@ -562,7 +640,12 @@ export function SystemTerminalDock({
           'min-h-0 flex-1 overflow-auto font-mono leading-relaxed',
           isLCARS ? 'px-2 py-0.5 text-[8px] leading-tight' : 'px-3 py-2 text-[11px]',
         )}
-        style={{ color: 'var(--color-text)' }}
+        style={{
+          color: 'var(--color-text)',
+          /* Reserve room for splitter bars so log text never collides with the resize handle */
+          paddingBottom: placement === 'top' ? 12 : undefined,
+          paddingTop: placement === 'bottom' ? 10 : undefined,
+        }}
       >
         {filtered.length === 0 ? (
           <span style={{ color: 'var(--color-text-muted)' }}>No log lines for this filter.</span>
@@ -695,6 +778,7 @@ export function SystemTerminalDock({
           })
         )}
       </div>
+      )}
     </div>
     </>
   );

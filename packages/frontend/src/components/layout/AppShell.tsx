@@ -11,6 +11,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useTheme } from '@/providers/ThemeProvider';
 import { SystemTerminalProvider, useSystemTerminalBottomInset } from '@/providers/SystemTerminalProvider';
 import { LocationsMapProvider } from '@/providers/LocationsMapContext';
+import { BreadcrumbOverrideProvider } from '@/providers/BreadcrumbOverrideProvider';
 import { LCARSFrame } from '../lcars/LCARSFrame';
 import { AppHeaderBar } from './AppHeaderBar';
 
@@ -92,6 +93,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const terminalLeftOffset = isMdUp ? (isLCARS ? lcarsContentLeft : sidebarWidth) : 0;
 
   return (
+    <BreadcrumbOverrideProvider>
     <CookingTimersProvider>
     <LocationsMapProvider>
     <AssistantProvider>
@@ -133,5 +135,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     </AssistantProvider>
     </LocationsMapProvider>
     </CookingTimersProvider>
+    </BreadcrumbOverrideProvider>
   );
 }

@@ -16,12 +16,14 @@ interface Sample {
   diskPercent: number;
 }
 
-const RANGE_PRESETS = [
+export const SYSTEM_STATS_RANGE_PRESETS = [
   { label: '1h',  ms: 3_600_000 },
   { label: '6h',  ms: 21_600_000 },
   { label: '24h', ms: 86_400_000 },
   { label: '7d',  ms: 604_800_000 },
 ] as const;
+
+const RANGE_PRESETS = SYSTEM_STATS_RANGE_PRESETS;
 
 const METRIC_LABEL: Record<SystemMetric, string> = {
   cpu:    'CPU',
@@ -40,13 +42,26 @@ function valueForMetric(s: Sample, metric: SystemMetric): number {
   return s.diskPercent;
 }
 
-export function SystemStatsGraph({ metric, height = 180 }: { metric: SystemMetric; height?: number }) {
+export function SystemStatsGraph({
+  metric,
+  height = 180,
+  controlledRangeMs,
+  hideRangePicker,
+}: {
+  metric: SystemMetric;
+  height?: number;
+  /** When provided, the caller controls the time window and the internal picker is hidden. */
+  controlledRangeMs?: number;
+  /** Hide the internal range-preset buttons (e.g. when a parent renders its own). */
+  hideRangePicker?: boolean;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const plotRef = useRef<UPlotInstance | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const uPlotCtorRef = useRef<any>(null);
 
-  const [rangeMs, setRangeMs] = useState<number>(RANGE_PRESETS[2].ms);
+  const [internalRangeMs, setRangeMs] = useState<number>(RANGE_PRESETS[2].ms);
+  const rangeMs = controlledRangeMs ?? internalRangeMs;
   const [samples, setSamples] = useState<Sample[] | null>(null);
   const [error,   setError]   = useState<string | null>(null);
 
@@ -166,32 +181,36 @@ export function SystemStatsGraph({ metric, height = 180 }: { metric: SystemMetri
     };
   }, [plotData, metric, height]);
 
+  const showPicker = !hideRangePicker && controlledRangeMs === undefined;
+
   return (
     <div className="mt-3">
-      <div className="mb-2 flex items-center gap-1 text-[11px]">
-        {RANGE_PRESETS.map((r) => (
-          <button
-            key={r.label}
-            type="button"
-            onClick={() => setRangeMs(r.ms)}
-            className="rounded border px-2 py-0.5 transition-colors"
-            style={{
-              borderColor: rangeMs === r.ms ? 'var(--color-accent)' : 'var(--color-border)',
-              backgroundColor: rangeMs === r.ms
-                ? 'color-mix(in srgb, var(--color-accent) 15%, transparent)'
-                : 'transparent',
-              color: 'var(--color-text-secondary)',
-            }}
-          >
-            {r.label}
-          </button>
-        ))}
-        {samples && (
-          <span className="ml-auto text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
-            {samples.length} samples
-          </span>
-        )}
-      </div>
+      {showPicker && (
+        <div className="mb-2 flex items-center gap-1 text-[11px]">
+          {RANGE_PRESETS.map((r) => (
+            <button
+              key={r.label}
+              type="button"
+              onClick={() => setRangeMs(r.ms)}
+              className="rounded border px-2 py-0.5 transition-colors"
+              style={{
+                borderColor: rangeMs === r.ms ? 'var(--color-accent)' : 'var(--color-border)',
+                backgroundColor: rangeMs === r.ms
+                  ? 'color-mix(in srgb, var(--color-accent) 15%, transparent)'
+                  : 'transparent',
+                color: 'var(--color-text-secondary)',
+              }}
+            >
+              {r.label}
+            </button>
+          ))}
+          {samples && (
+            <span className="ml-auto text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+              {samples.length} samples
+            </span>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="rounded border px-2 py-1.5 text-[11px]"

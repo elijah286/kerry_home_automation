@@ -29,7 +29,10 @@ import {
   type PendingAutomationOp,
 } from '../lib/chat-automation-proposals.js';
 import { applyAutomationProposal } from '../lib/apply-automation-proposal.js';
-import { apiKeyForActiveProvider, loadLlmRuntimeSettings } from './llm-config.js';
+import { apiKeyFor, loadLlmRuntimeSettings, type TtsVoice } from './llm-config.js';
+import { extractSentences, stripMarkdownForTts, synthesizeSentence } from './tts.js';
+import { effectiveUiPreferences, mergeUserPreferences } from '../lib/ui-preferences.js';
+import { VALID_UI_THEME_IDS, type ValidUiThemeId } from '@ha/shared';
 import { loadChatHistory, saveChatMessage, cleanupOldMessages } from './chat-history.js';
 
 // ---------------------------------------------------------------------------
@@ -114,6 +117,24 @@ const readTools: ChatCompletionTool[] = [
           integration: { type: 'string', description: 'Integration ID (e.g. meross, lutron, tesla)' },
         },
         required: ['integration'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'set_theme',
+      description: 'Change the active UI theme for the current user. Takes effect immediately across all of HomeOS — the browser does not need to refresh. Use this whenever the user asks to switch, change, set, or try a theme (e.g. "change the theme to lcars", "switch to dark mode", "make it forest"). Valid theme IDs: default, midnight, glass, forest, rose, slate, ocean, amber, lcars. Map natural phrases to IDs: "dark"/"night" → midnight, "light"/"default" → default, "star trek"/"lcars" → lcars. After the tool succeeds, reply with ONE short sentence confirming the change — do not list other themes.',
+      parameters: {
+        type: 'object',
+        properties: {
+          theme: {
+            type: 'string',
+            enum: ['default', 'midnight', 'glass', 'forest', 'rose', 'slate', 'ocean', 'amber', 'lcars'],
+            description: 'The theme ID to activate.',
+          },
+        },
+        required: ['theme'],
       },
     },
   },
@@ -1134,6 +1155,38 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
       return { navigate: String(args.path) };
     }
 
+    case 'set_theme': {
+      const raw = String(args.theme ?? '').trim();
+      if (!(VALID_UI_THEME_IDS as readonly string[]).includes(raw)) {
+        return {
+          success: false,
+          error: `Invalid theme. Must be one of: ${VALID_UI_THEME_IDS.join(', ')}.`,
+        };
+      }
+      const theme = raw as ValidUiThemeId;
+
+      const { rows } = await query<{ ui_preferences: unknown; ui_preferences_admin: unknown }>(
+        'SELECT ui_preferences, ui_preferences_admin FROM users WHERE id = $1',
+        [ctx.userId],
+      );
+      if (rows.length === 0) {
+        return { success: false, error: 'User not found.' };
+      }
+      const { locks } = effectiveUiPreferences(rows[0].ui_preferences, rows[0].ui_preferences_admin);
+      if (locks.activeTheme) {
+        return {
+          success: false,
+          error: 'The active theme is admin-locked for this user and cannot be changed from the assistant.',
+        };
+      }
+      const merged = mergeUserPreferences(rows[0].ui_preferences, { activeTheme: theme });
+      await query(
+        'UPDATE users SET ui_preferences = $1::jsonb, updated_at = NOW() WHERE id = $2',
+        [JSON.stringify(merged), ctx.userId],
+      );
+      return { success: true, activeTheme: theme, uiPreferencesUpdated: true };
+    }
+
     case 'search_recipes': {
       const configured = await isPaprikaConfigured();
       if (!configured) {
@@ -2131,6 +2184,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_ui_preferences: 'Reading preferences…',
   update_ui_preferences: 'Updating preferences…',
   navigate_ui: 'Navigating…',
+  set_theme: 'Changing theme…',
   get_calendar_events: 'Loading calendar…',
   list_automations: 'Loading automations…',
   get_automation: 'Reading automation…',
@@ -2156,11 +2210,11 @@ export function registerChatRoutes(app: FastifyInstance): void {
     async (req, reply) => {
       const user = req.user!;
       const llmSettings = await loadLlmRuntimeSettings();
-      const active = apiKeyForActiveProvider(llmSettings);
+      const active = apiKeyFor('chat', llmSettings);
 
       if (!active) {
         const err =
-          llmSettings.provider === 'anthropic'
+          llmSettings.chatProvider === 'anthropic'
             ? 'Anthropic API key not configured. Go to Settings → LLM Integration to add one.'
             : 'OpenAI API key not configured. Go to Settings → LLM Integration to add one.';
         return reply.code(400).send({ error: err });
@@ -2274,7 +2328,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
   // ---------------------------------------------------------------------------
   // POST /api/chat/stream — SSE streaming version with tool status events
   // ---------------------------------------------------------------------------
-  app.post<{ Body: { messages: Array<{ role: string; content: string }>; context?: ClientContext } }>(
+  app.post<{ Body: { messages: Array<{ role: string; content: string }>; tts?: boolean; context?: ClientContext } }>(
     '/api/chat/stream',
     { preHandler: [authenticate] },
     async (req, reply) => {
@@ -2307,6 +2361,61 @@ export function registerChatRoutes(app: FastifyInstance): void {
 
       const user = req.user!;
 
+      // --- TTS pipeline (sentence-streaming) -----------------------------
+      // Buffers assistant text, flushes on sentence boundaries, and emits
+      // 'audio' SSE events in monotonic seq order so the client can play
+      // them back in sequence even if later synthesis finishes first.
+      const ttsRequested = req.body.tts !== false;
+      let ttsBuffer = '';
+      let ttsSeq = 0;
+      let lastTtsEmit: Promise<void> = Promise.resolve();
+      const ttsAll: Promise<void>[] = [];
+      let ttsKey: string | undefined;
+      let ttsVoice = 'sage';
+      let ttsInstructions = '';
+      let ttsEnabled = false;
+
+      const enqueueTts = (text: string) => {
+        const cleaned = stripMarkdownForTts(text);
+        if (!cleaned || !ttsKey) return;
+        const n = ttsSeq++;
+        const prev = lastTtsEmit;
+        const synth = synthesizeSentence(cleaned, {
+          apiKey: ttsKey,
+          voice: ttsVoice as TtsVoice,
+          instructions: ttsInstructions,
+        }).catch((err) => {
+          logger.warn({ err, seq: n }, 'tts synth failed');
+          return null;
+        });
+        const p = Promise.all([prev, synth]).then(([, buf]) => {
+          if (buf && !closed) {
+            emit({ type: 'audio', seq: n, mime: 'audio/mpeg', data: buf.toString('base64') });
+          }
+        });
+        lastTtsEmit = p;
+        ttsAll.push(p);
+      };
+
+      const feedTts = (delta: string) => {
+        if (!ttsEnabled) return;
+        ttsBuffer += delta;
+        const { sentences, rest } = extractSentences(ttsBuffer);
+        ttsBuffer = rest;
+        for (const s of sentences) enqueueTts(s);
+      };
+
+      const flushTts = async () => {
+        if (!ttsEnabled) return;
+        if (ttsBuffer.trim()) {
+          const tail = ttsBuffer;
+          ttsBuffer = '';
+          enqueueTts(tail);
+        }
+        await Promise.all(ttsAll);
+        if (!closed) emit({ type: 'audio_end' });
+      };
+
       // --- Performance instrumentation ---
       const t0 = Date.now();
       const tMark = (label: string) => {
@@ -2316,16 +2425,27 @@ export function registerChatRoutes(app: FastifyInstance): void {
 
       try {
         const llmSettings = await loadLlmRuntimeSettings();
-        const active = apiKeyForActiveProvider(llmSettings);
+        const active = apiKeyFor('chat', llmSettings);
         tMark('llm_settings_loaded');
 
         if (!active) {
-          const err = llmSettings.provider === 'anthropic'
+          const err = llmSettings.chatProvider === 'anthropic'
             ? 'Anthropic API key not configured. Go to Settings → LLM Integration to add one.'
             : 'OpenAI API key not configured. Go to Settings → LLM Integration to add one.';
           emit({ type: 'error', error: err });
           reply.raw.end();
           return;
+        }
+
+        // Resolve TTS (independent of chat provider — TTS is always OpenAI).
+        if (ttsRequested && llmSettings.ttsEnabled) {
+          const ttsActive = apiKeyFor('tts', llmSettings);
+          if (ttsActive) {
+            ttsKey = ttsActive.key;
+            ttsVoice = llmSettings.ttsVoice;
+            ttsInstructions = llmSettings.ttsInstructions;
+            ttsEnabled = true;
+          }
         }
 
         // Fast path: handle simple device commands without LLM
@@ -2339,6 +2459,8 @@ export function registerChatRoutes(app: FastifyInstance): void {
             saveChatMessage(user.id, 'user', lastMessage.content);
             saveChatMessage(user.id, 'assistant', reply_text);
             emit({ type: 'token', text: reply_text });
+            feedTts(reply_text);
+            await flushTts();
             emit({ type: 'done' });
             reply.raw.end();
             return;
@@ -2407,6 +2529,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
               if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
                 assistantResponse += event.delta.text;
                 emit({ type: 'token', text: event.delta.text });
+                feedTts(event.delta.text);
               }
             }
 
@@ -2429,6 +2552,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
               if (assistantResponse) {
                 saveChatMessage(user.id, 'assistant', assistantResponse);
               }
+              await flushTts();
               emit({ type: 'done', ...(navigateTo ? { navigate: navigateTo } : {}) });
               tMark('total_anthropic');
               break;
@@ -2451,6 +2575,13 @@ export function registerChatRoutes(app: FastifyInstance): void {
                 // iteration. Frontend can navigate while the LLM is still
                 // generating its response text.
                 emit({ type: 'navigate', navigate: navigateTo });
+              }
+              if (
+                tu.name === 'set_theme' && typeof result === 'object' && result !== null
+                && 'uiPreferencesUpdated' in result
+                && (result as { uiPreferencesUpdated?: unknown }).uiPreferencesUpdated
+              ) {
+                emit({ type: 'ui_preferences_update' });
               }
               // Relay client-side actions (timers, etc.) to the frontend.
               if (typeof result === 'object' && result !== null && 'clientAction' in result) {
@@ -2495,6 +2626,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
                 emit({ type: 'token', text: delta.content });
                 content += delta.content;
                 assistantResponse += delta.content;
+                feedTts(delta.content);
               }
               if (delta?.tool_calls) {
                 for (const tc of delta.tool_calls) {
@@ -2515,6 +2647,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
               if (assistantResponse) {
                 saveChatMessage(user.id, 'assistant', assistantResponse);
               }
+              await flushTts();
               emit({ type: 'done', ...(navigateTo ? { navigate: navigateTo } : {}) });
               break;
             }
@@ -2540,6 +2673,13 @@ export function registerChatRoutes(app: FastifyInstance): void {
                 // Emit navigate immediately (don't wait for LLM to finish narrating)
                 emit({ type: 'navigate', navigate: navigateTo });
               }
+              if (
+                tc.name === 'set_theme' && typeof result === 'object' && result !== null
+                && 'uiPreferencesUpdated' in result
+                && (result as { uiPreferencesUpdated?: unknown }).uiPreferencesUpdated
+              ) {
+                emit({ type: 'ui_preferences_update' });
+              }
               if (typeof result === 'object' && result !== null && 'clientAction' in result) {
                 const ca = (result as { clientAction: Record<string, unknown> }).clientAction;
                 emit({ type: 'client_action', action: ca });
@@ -2564,11 +2704,11 @@ export function registerChatRoutes(app: FastifyInstance): void {
   // Test connection — verify the API key works by making a minimal API call
   app.post('/api/chat/test', { preHandler: [authenticate] }, async (_req, reply) => {
     const llmSettings = await loadLlmRuntimeSettings();
-    const active = apiKeyForActiveProvider(llmSettings);
+    const active = apiKeyFor('chat', llmSettings);
 
     if (!active) {
       const err =
-        llmSettings.provider === 'anthropic'
+        llmSettings.chatProvider === 'anthropic'
           ? 'Anthropic API key not configured'
           : 'OpenAI API key not configured';
       return reply.code(400).send({ error: err });

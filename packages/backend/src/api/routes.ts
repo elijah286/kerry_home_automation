@@ -18,6 +18,7 @@ import { query } from '../db/pool.js';
 import { UniFiIntegration } from '../integrations/unifi/index.js';
 import WebSocket from 'ws';
 import { registerChatRoutes } from './chat.js';
+import { registerTtsRoutes } from './tts.js';
 import { registerHelperRoutes } from './helpers-routes.js';
 import { registerDashboardRoutes } from './dashboard-routes.js';
 import { registerNotificationRoutes } from './notification-routes.js';
@@ -47,6 +48,7 @@ const GO2RTC_MSE_REQUEST = JSON.stringify({
 
 export function registerRoutes(app: FastifyInstance): void {
   registerChatRoutes(app);
+  registerTtsRoutes(app);
   registerHelperRoutes(app);
   registerDashboardRoutes(app);
   registerNotificationRoutes(app);
@@ -100,59 +102,69 @@ export function registerRoutes(app: FastifyInstance): void {
 
   // Camera snapshot — serve from backend cache (instant), with request coalescing
   // so N concurrent clients asking for the same camera share ONE upstream fetch.
-  // Also short-cache live fetches for 500ms to absorb tile polling bursts.
-  app.get<{ Params: { name: string } }>('/api/cameras/:name/snapshot', async (req, reply) => {
-    const unifi = registry.get('unifi') as UniFiIntegration | undefined;
-    const cached = unifi?.getCachedSnapshot(req.params.name);
+  //
+  // `?fresh=<ms>` query param: if the cached frame is older than N ms, bypass
+  // the cache and fetch a fresh frame directly from go2rtc. Fullscreen uses
+  // fresh=500 to drive 2fps updates while HLS is cold-starting. Grid tiles
+  // omit the param so they continue to serve from the shared 1s cache.
+  app.get<{ Params: { name: string }; Querystring: { fresh?: string } }>(
+    '/api/cameras/:name/snapshot',
+    async (req, reply) => {
+      const unifi = registry.get('unifi') as UniFiIntegration | undefined;
+      const freshMs = req.query.fresh !== undefined ? Math.max(0, parseInt(req.query.fresh, 10) || 0) : -1;
+      const cached = unifi?.getCachedSnapshot(req.params.name);
+      const cacheAge = cached ? Date.now() - cached.timestamp : Infinity;
+      const canServeCache = cached && (freshMs < 0 || cacheAge <= freshMs);
 
-    if (cached) {
-      reply.header('Content-Type', 'image/jpeg');
-      // Allow browsers/proxies to coalesce duplicate concurrent tile fetches
-      reply.header('Cache-Control', 'private, max-age=1');
-      reply.header('X-Snapshot-Age', String(Date.now() - cached.timestamp));
-      return reply.send(cached.buffer);
-    }
-
-    // Coalesce concurrent live fetches for the same camera — multiple tiles
-    // requesting simultaneously should share one upstream request.
-    const coalesceKey = req.params.name;
-    const inflight = snapshotInflight.get(coalesceKey);
-    if (inflight) {
-      try {
-        const buf = await inflight;
+      if (canServeCache && cached) {
         reply.header('Content-Type', 'image/jpeg');
         reply.header('Cache-Control', 'private, max-age=1');
-        return reply.send(buf);
-      } catch {
-        return reply.code(502).send({ error: 'Snapshot unavailable' });
+        reply.header('X-Snapshot-Age', String(cacheAge));
+        return reply.send(cached.buffer);
       }
-    }
 
-    // Live fetch through integration
-    const go2rtcUrl = unifi?.getGo2rtcUrl(req.params.name);
-    if (!go2rtcUrl) return reply.code(503).send({ error: 'UniFi Protect not configured. Add an instance in Integrations.' });
+      // Coalesce concurrent live fetches for the same camera — multiple clients
+      // (or tiles) asking simultaneously should share one upstream request.
+      const coalesceKey = req.params.name;
+      const inflight = snapshotInflight.get(coalesceKey);
+      if (inflight) {
+        try {
+          const buf = await inflight;
+          reply.header('Content-Type', 'image/jpeg');
+          reply.header('Cache-Control', 'private, max-age=1');
+          return reply.send(buf);
+        } catch {
+          return reply.code(502).send({ error: 'Snapshot unavailable' });
+        }
+      }
 
-    const fetchPromise = (async () => {
-      const res = await fetch(`${go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(req.params.name)}`, {
-        signal: AbortSignal.timeout(GO2RTC_FETCH_INIT_MS),
-      });
-      if (!res.ok) throw new Error('Snapshot unavailable');
-      return Buffer.from(await res.arrayBuffer());
-    })();
-    snapshotInflight.set(coalesceKey, fetchPromise);
-    // Clear the inflight entry once resolved/rejected so subsequent requests
-    // can trigger a new fetch after the cache would have gone stale.
-    fetchPromise.finally(() => snapshotInflight.delete(coalesceKey));
+      const go2rtcUrl = unifi?.getGo2rtcUrl(req.params.name);
+      if (!go2rtcUrl) return reply.code(503).send({ error: 'UniFi Protect not configured. Add an instance in Integrations.' });
 
-    try {
-      const buffer = await fetchPromise;
-      reply.header('Content-Type', 'image/jpeg');
-      reply.header('Cache-Control', 'private, max-age=1');
-      return reply.send(buffer);
-    } catch {
-      return reply.code(502).send({ error: 'go2rtc not reachable' });
-    }
-  });
+      const fetchPromise = (async () => {
+        const res = await fetch(`${go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(req.params.name)}`, {
+          signal: AbortSignal.timeout(GO2RTC_FETCH_INIT_MS),
+        });
+        if (!res.ok) throw new Error('Snapshot unavailable');
+        return Buffer.from(await res.arrayBuffer());
+      })();
+      snapshotInflight.set(coalesceKey, fetchPromise);
+      // Also update the shared cache so subsequent tile requests benefit.
+      fetchPromise
+        .then((buf) => unifi?.setCachedSnapshot?.(req.params.name, buf))
+        .catch(() => { /* noop */ });
+      fetchPromise.finally(() => snapshotInflight.delete(coalesceKey));
+
+      try {
+        const buffer = await fetchPromise;
+        reply.header('Content-Type', 'image/jpeg');
+        reply.header('Cache-Control', 'private, max-age=1');
+        return reply.send(buffer);
+      } catch {
+        return reply.code(502).send({ error: 'go2rtc not reachable' });
+      }
+    },
+  );
 
   // Camera live view — proxy go2rtc multipart MJPEG (updates in <img>; works without MSE/WebRTC)
   app.get<{ Params: { name: string } }>('/api/cameras/:name/mjpeg', async (req, reply) => {
@@ -856,7 +868,7 @@ export function registerRoutes(app: FastifyInstance): void {
 
       await query(
         `INSERT INTO device_settings (device_id, history_retention_days, display_name, area_id, history_enabled, aliases, updated_at)
-         VALUES ($1, $2, $3, $4, COALESCE($7::boolean, TRUE), COALESCE($9::text[], '{}'), NOW())
+         VALUES ($1, $2, $3, $4, COALESCE($7::boolean, TRUE), CASE WHEN $10::boolean THEN COALESCE($9::text[], '{}') ELSE '{}' END, NOW())
          ON CONFLICT (device_id) DO UPDATE SET
            history_retention_days = COALESCE($2::integer, device_settings.history_retention_days),
            display_name = CASE WHEN $5::boolean THEN $3::text ELSE device_settings.display_name END,

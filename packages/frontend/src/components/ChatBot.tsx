@@ -616,10 +616,10 @@ function MapLayersSidebarBody() {
 
 function AssistantRightPanel() {
   const router = useRouter();
+  const { refreshSession } = useAuth();
   const isMdUp = useMediaQuery('(min-width: 768px)');
   const { open, setOpen, lcarsDockInset, rightPanelMode, setRightPanelMode } = useAssistant();
   const { timers, addTimer, toggleTimer, resetTimer, removeTimer, stopTimer } = useCookingTimers();
-  const { refreshSession } = useAuth();
   const [fullscreen, setFullscreen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -635,6 +635,9 @@ function AssistantRightPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaChunksRef = useRef<Blob[]>([]);
   const ttsEnabledRef = useRef(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const passiveRecRef = useRef<any>(null);
@@ -642,6 +645,67 @@ function AssistantRightPanel() {
   const passiveListeningRef = useRef(false);
   const streamingTextRef = useRef('');
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Audio queue for server-synthesized TTS. Chunks arrive with monotonic
+  // `seq` numbers; we play them in order even if a later sentence finishes
+  // synthesis before an earlier one.
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const audioQueueRef = useRef<{ seq: number; url: string }[]>([]);
+  const audioNextSeqRef = useRef(0);
+  const audioPlayingRef = useRef(false);
+
+  const clearAudioQueue = useCallback(() => {
+    for (const item of audioQueueRef.current) URL.revokeObjectURL(item.url);
+    audioQueueRef.current = [];
+    audioNextSeqRef.current = 0;
+    audioPlayingRef.current = false;
+    const el = audioElRef.current;
+    if (el) {
+      el.pause();
+      el.removeAttribute('src');
+      el.load();
+    }
+  }, []);
+
+  const playNextAudio = useCallback(() => {
+    if (audioPlayingRef.current) return;
+    const queue = audioQueueRef.current;
+    const want = audioNextSeqRef.current;
+    const idx = queue.findIndex((q) => q.seq === want);
+    if (idx === -1) return;
+    const [item] = queue.splice(idx, 1);
+    audioNextSeqRef.current = want + 1;
+    audioPlayingRef.current = true;
+    if (!audioElRef.current) audioElRef.current = new Audio();
+    const el = audioElRef.current;
+    el.src = item.url;
+    el.onended = () => {
+      URL.revokeObjectURL(item.url);
+      audioPlayingRef.current = false;
+      playNextAudio();
+    };
+    el.onerror = () => {
+      URL.revokeObjectURL(item.url);
+      audioPlayingRef.current = false;
+      playNextAudio();
+    };
+    el.play().catch(() => {
+      audioPlayingRef.current = false;
+    });
+  }, []);
+
+  const enqueueAudio = useCallback((seq: number, base64: string, mime: string) => {
+    if (!ttsEnabledRef.current) return;
+    // Decode base64 → Blob URL
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: mime || 'audio/mpeg' });
+    const url = URL.createObjectURL(blob);
+    audioQueueRef.current.push({ seq, url });
+    playNextAudio();
+  }, [playNextAudio]);
 
   const dockInFrame = lcarsDockInset !== null && isMdUp && !fullscreen;
 
@@ -705,30 +769,12 @@ function AssistantRightPanel() {
   const loadingRef = useRef(loading);
   loadingRef.current = loading;
 
-  /** Strip markdown symbols so TTS reads cleanly */
-  const stripMarkdown = (text: string) =>
-    text
-      .replace(/#{1,6}\s/g, '')
-      .replace(/[*_`~]/g, '')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .replace(/\n+/g, ' ')
-      .trim();
-
-  const speakText = useCallback((text: string) => {
-    if (!ttsEnabledRef.current || typeof window === 'undefined' || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance(stripMarkdown(text));
-    utt.rate = 1.05;
-    utt.pitch = 1.0;
-    window.speechSynthesis.speak(utt);
-  }, []);
-
   const toggleTts = useCallback(() => {
     const next = !ttsEnabledRef.current;
     ttsEnabledRef.current = next;
     setTtsEnabled(next);
-    if (!next && typeof window !== 'undefined') window.speechSynthesis?.cancel();
-  }, []);
+    if (!next) clearAudioQueue();
+  }, [clearAudioQueue]);
 
   const stopMessage = useCallback(() => {
     if (abortControllerRef.current) {
@@ -737,7 +783,8 @@ function AssistantRightPanel() {
       setLoading(false);
       setIsStreaming(false);
     }
-  }, []);
+    clearAudioQueue();
+  }, [clearAudioQueue]);
 
   const sendMessage = useCallback(async (overrideText?: string) => {
     const text = (overrideText ?? inputValRef.current).trim();
@@ -748,6 +795,7 @@ function AssistantRightPanel() {
     setToolStatuses([]);
     setIsStreaming(false);
     streamingTextRef.current = '';
+    clearAudioQueue();
 
     const newMessages: Message[] = [...messagesRef.current, { role: 'user', content: text }];
     setMessages(newMessages);
@@ -774,7 +822,7 @@ function AssistantRightPanel() {
       const res = await apiFetch(`${getApiBase()}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages, context: clientContext }),
+        body: JSON.stringify({ messages: newMessages, context: clientContext, tts: ttsEnabledRef.current }),
         signal: controller.signal,
       });
 
@@ -800,6 +848,7 @@ function AssistantRightPanel() {
           try {
             const event = JSON.parse(part.slice(6)) as {
               type: string; text?: string; tool?: string; label?: string; navigate?: string; error?: string;
+              seq?: number; data?: string; mime?: string;
               action?: {
                 kind?: string;
                 action?: string;
@@ -832,6 +881,12 @@ function AssistantRightPanel() {
               // can actually see the destination page (but keep the assistant open).
               setFullscreen(false);
               router.push(event.navigate);
+            } else if (event.type === 'audio' && event.data && typeof event.seq === 'number') {
+              enqueueAudio(event.seq, event.data, event.mime ?? 'audio/mpeg');
+            } else if (event.type === 'ui_preferences_update') {
+              void refreshSession();
+            } else if (event.type === 'audio_end') {
+              // No-op — queue drains on its own. Reserved for future UI state.
             } else if (event.type === 'client_action' && event.action?.kind === 'refresh_auth') {
               // UI preferences changed on the server; re-fetch the session so
               // the theme/color mode/etc. applies instantly.
@@ -874,7 +929,6 @@ function AssistantRightPanel() {
                 setFullscreen(false);
                 router.push(event.navigate);
               }
-              if (streamingTextRef.current) speakText(streamingTextRef.current);
             } else if (event.type === 'error' && event.error) {
               setError(event.error);
             }
@@ -895,13 +949,69 @@ function AssistantRightPanel() {
       setIsStreaming(false);
       setToolStatuses([]);
     }
-  }, [router, speakText, timers, addTimer, stopTimer, toggleTimer, resetTimer, removeTimer, refreshSession]);
+  }, [router, enqueueAudio, clearAudioQueue, timers, addTimer, stopTimer, toggleTimer, resetTimer, removeTimer, refreshSession]);
+
+  const startMediaRecorderSTT = useCallback(async () => {
+    if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setError('Voice input not supported in this browser.');
+      return;
+    }
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      setError('Microphone permission denied. Check browser settings.');
+      return;
+    }
+    // Pick a MIME type MediaRecorder supports (Safari needs mp4/aac; Chrome/Firefox support webm/opus).
+    const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/ogg'];
+    const mimeType = candidates.find((t) => MediaRecorder.isTypeSupported?.(t)) ?? '';
+    const rec = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    mediaChunksRef.current = [];
+    mediaStreamRef.current = stream;
+    mediaRecorderRef.current = rec;
+    rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) mediaChunksRef.current.push(e.data); };
+    rec.onstop = async () => {
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+      mediaRecorderRef.current = null;
+      const chunks = mediaChunksRef.current;
+      mediaChunksRef.current = [];
+      setIsListening(false);
+      if (!chunks.length) return;
+      const blobType = rec.mimeType || 'audio/webm';
+      const blob = new Blob(chunks, { type: blobType });
+      try {
+        const res = await apiFetch(`${getApiBase()}/api/stt`, {
+          method: 'POST',
+          headers: { 'Content-Type': blobType },
+          body: blob,
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({})) as { error?: string };
+          setError(data.error ?? 'Speech transcription failed');
+          return;
+        }
+        const data = (await res.json()) as { text?: string };
+        const transcript = (data.text ?? '').trim();
+        if (transcript) {
+          setInput(transcript);
+          void sendMessage(transcript);
+        }
+      } catch {
+        setError('Speech transcription failed');
+      }
+    };
+    rec.start();
+    setIsListening(true);
+  }, [sendMessage]);
 
   const startListening = useCallback(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SR = (typeof window !== 'undefined') && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
     if (!SR) {
-      setError('Voice input not supported in this browser. Try Chrome or Edge.');
+      // Safari and other browsers without Web Speech API — fall back to server-side Whisper.
+      void startMediaRecorderSTT();
       return;
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -933,9 +1043,13 @@ function AssistantRightPanel() {
     recognitionRef.current = rec;
     rec.start();
     setIsListening(true);
-  }, [sendMessage]);
+  }, [sendMessage, startMediaRecorderSTT]);
 
   const stopListening = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      return;
+    }
     recognitionRef.current?.stop();
     setIsListening(false);
   }, []);

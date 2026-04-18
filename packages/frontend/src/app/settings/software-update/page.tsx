@@ -187,6 +187,16 @@ function DeployProgress({
   const isFailed = lastEvent?.status === 'failed';
   const hasAnyFailure = events.some((e) => e.status === 'failed');
 
+  // When deploy finishes successfully, any still-pending/running stage never got
+  // its final event (the backend restarted mid-stream). Promote them to completed
+  // so the UI doesn't leave stale spinners next to "Complete".
+  if (isDone && !hasAnyFailure) {
+    for (const stage of STAGE_ORDER) {
+      const s = stageStatuses.get(stage);
+      if (s === 'pending' || s === 'running') stageStatuses.set(stage, 'completed');
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Stage progress */}
@@ -346,6 +356,12 @@ export default function SoftwareUpdatePage() {
           setDeploying(false);
           es.close();
           sseRef.current = null;
+          // Auto-reload on successful deploy so the user immediately sees the
+          // new version (new bundle, new version label). Short delay lets the
+          // success banner land before the page swaps.
+          if (ev.status === 'completed') {
+            setTimeout(() => { window.location.reload(); }, 1500);
+          }
         }
 
         // Detect early failure (deploy script exited before sidecar).
@@ -394,6 +410,9 @@ export default function SoftwareUpdatePage() {
               }
               if (status.finalStatus) {
                 setDeploying(false);
+                if (status.finalStatus === 'completed') {
+                  setTimeout(() => { window.location.reload(); }, 1500);
+                }
               } else {
                 connectSSE();
               }

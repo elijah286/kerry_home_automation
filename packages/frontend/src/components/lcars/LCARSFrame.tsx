@@ -19,9 +19,11 @@ import {
   type TerminalLogFilter,
 } from '@/providers/SystemTerminalProvider';
 import { SystemTerminalDock } from '@/components/layout/SystemTerminalDock';
+import { SYSTEM_STATS_RANGE_PRESETS } from '@/components/viz/SystemStatsGraph';
 import { lcarsVerticalRailGradient } from './lcarsRailGradient';
 import { LCARSBreadcrumbBlocks } from './LCARSBreadcrumbBlocks';
 import { getBreadcrumbItems } from '@/lib/appBreadcrumbs';
+import { useBreadcrumbOverride, mergeBreadcrumbItems } from '@/providers/BreadcrumbOverrideProvider';
 import { AppVersionLabel } from '../layout/AppVersionLabel';
 import { PinElevationControls } from '../layout/PinElevationControls';
 import { AssistantHeaderButton, MapLayersHeaderButton, LCARSAssistantInsetSync } from '../ChatBot';
@@ -160,6 +162,10 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
     setLogIntegrationFilterPanelOpen,
     logIntegrationFilterPanelOpen,
     logIntegrationWhitelist,
+    dockView,
+    setDockView,
+    perfRangeMs,
+    setPerfRangeMs,
   } = useSystemTerminal();
 
   const showTopTerminal = canUseTerminal && terminalOpen;
@@ -171,6 +177,7 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
   }, [logDetailStyle, setLogDetailStyle]);
   const { devices, integrations } = useWebSocket();
   const { play: playSound } = useLCARSSounds();
+  const { extra: breadcrumbExtra } = useBreadcrumbOverride();
   const [showStartup, setShowStartup] = useState(true);
   /** Status viewer band when terminal open: ~20% viewport, clamped for usability */
   const [statusViewerBandH, setStatusViewerBandH] = useState(TERMINAL_PANEL_HEIGHT);
@@ -205,7 +212,7 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
 
   if (activeTheme !== 'lcars') return <>{children}</>;
 
-  const breadcrumbItems = getBreadcrumbItems(pathname ?? '/');
+  const breadcrumbItems = mergeBreadcrumbItems(getBreadcrumbItems(pathname ?? '/'), breadcrumbExtra);
   const barW = collapsed ? BAR_W_COLLAPSED : BAR_W;
   const or = Math.min(OUTER_R, barW);
   const elbowW = barW + INNER_R;
@@ -287,17 +294,18 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
         height: filterPanelHeight,
         zIndex: 46,
         display: 'flex',
-        flexDirection: statusFullscreen ? 'column' : 'row',
+        flexDirection: 'column',
         alignItems: 'stretch',
-        justifyContent: statusFullscreen ? 'flex-start' : 'center',
+        justifyContent: 'flex-start',
         gap: statusFullscreen ? 6 : 4,
-        padding: statusFullscreen ? '10px 8px 12px' : '14px 8px 12px',
+        padding: statusFullscreen ? '10px 8px 12px' : '8px 8px 8px',
         boxSizing: 'border-box',
         pointerEvents: 'auto',
         background: '#000',
         border: 'none',
         outline: 'none',
         boxShadow: 'none',
+        overflowY: 'auto',
       }}
     >
       {statusFullscreen && (
@@ -315,7 +323,7 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25)',
             }}
           >
-            <span className="truncate">Log Controls</span>
+            <span className="truncate">{dockView === 'performance' ? 'Performance' : 'Log Controls'}</span>
           </div>
           <div
             className="lcars-chrome-item min-h-[26px] w-11 shrink-0 rounded-tr-[14px]"
@@ -327,6 +335,41 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
           />
         </div>
       )}
+
+      {/* View switcher — Logs / Performance — always at top of rail */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          gap: 4,
+          justifyContent: 'center',
+          background: '#000',
+        }}
+        role="group"
+        aria-label="Status view"
+      >
+        {([
+          { id: 'logs' as const, label: 'Logs' },
+          { id: 'performance' as const, label: 'Perf' },
+        ]).map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            className={`lcars-btn lcars-btn--pill${dockView === id ? ' lcars-btn--active' : ''}`}
+            style={{
+              background: dockView === id ? colors.navActive : colors.muted,
+              minWidth: 88,
+              minHeight: 36,
+              fontSize: 12,
+            }}
+            aria-pressed={dockView === id}
+            onClick={() => setDockView(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div
         style={{
           display: 'flex',
@@ -339,137 +382,173 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
           background: '#000',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'row',
-            gap: 4,
-            justifyContent: 'center',
-            background: '#000',
-          }}
-        >
-          {[STATUS_FILTERS[0], STATUS_FILTERS[2]].map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              className={`lcars-btn lcars-btn--pill${logFilter === id ? ' lcars-btn--active' : ''}`}
+        {dockView === 'logs' ? (
+          <>
+            <div
               style={{
-                background: logFilter === id ? colors.navActive : colors.muted,
-                minWidth: 88,
-                minHeight: 36,
-                fontSize: 12,
-              }}
-              onClick={() => setLogFilter(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'row',
-            gap: 4,
-            justifyContent: 'center',
-            background: '#000',
-          }}
-        >
-          {[STATUS_FILTERS[1], STATUS_FILTERS[3]].map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              className={`lcars-btn lcars-btn--pill${logFilter === id ? ' lcars-btn--active' : ''}`}
-              style={{
-                background: logFilter === id ? colors.navActive : colors.muted,
-                minWidth: 88,
-                minHeight: 36,
-                fontSize: 12,
-              }}
-              onClick={() => setLogFilter(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {statusFullscreen && (
-          <div style={{ display: 'flex', justifyContent: 'center', width: '100%', background: '#000' }}>
-            <button
-              type="button"
-              onClick={() => {
-                initLogIntegrationWhitelistIfNeeded();
-                setLogIntegrationFilterPanelOpen(true);
-              }}
-              aria-pressed={logIntegrationFilterPanelOpen}
-              className={`lcars-btn lcars-btn--pill${
-                logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null ? ' lcars-btn--active' : ''
-              }`}
-              style={{
-                background:
-                  logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
-                    ? colors.navActive
-                    : colors.muted,
-                minWidth: '100%',
-                minHeight: 36,
-                fontSize: 11,
+                display: 'flex',
+                flexDirection: 'row',
+                gap: 4,
+                justifyContent: 'center',
+                background: '#000',
               }}
             >
-              Sources
-            </button>
+              {[STATUS_FILTERS[0], STATUS_FILTERS[2]].map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`lcars-btn lcars-btn--pill${logFilter === id ? ' lcars-btn--active' : ''}`}
+                  style={{
+                    background: logFilter === id ? colors.navActive : colors.muted,
+                    minWidth: 88,
+                    minHeight: 36,
+                    fontSize: 12,
+                  }}
+                  onClick={() => setLogFilter(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                gap: 4,
+                justifyContent: 'center',
+                background: '#000',
+              }}
+            >
+              {[STATUS_FILTERS[1], STATUS_FILTERS[3]].map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`lcars-btn lcars-btn--pill${logFilter === id ? ' lcars-btn--active' : ''}`}
+                  style={{
+                    background: logFilter === id ? colors.navActive : colors.muted,
+                    minWidth: 88,
+                    minHeight: 36,
+                    fontSize: 12,
+                  }}
+                  onClick={() => setLogFilter(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', width: '100%', background: '#000' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  initLogIntegrationWhitelistIfNeeded();
+                  setLogIntegrationFilterPanelOpen(!logIntegrationFilterPanelOpen);
+                }}
+                aria-pressed={logIntegrationFilterPanelOpen}
+                className={`lcars-btn lcars-btn--pill${
+                  logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null ? ' lcars-btn--active' : ''
+                }`}
+                style={{
+                  background:
+                    logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
+                      ? colors.navActive
+                      : colors.muted,
+                  minWidth: '100%',
+                  minHeight: 36,
+                  fontSize: 11,
+                }}
+              >
+                Sources
+              </button>
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                gap: 4,
+                justifyContent: 'center',
+                background: '#000',
+              }}
+            >
+              <button
+                type="button"
+                className={`lcars-btn lcars-btn--pill${logDetailStyle === 'terminal' ? ' lcars-btn--active' : ''}`}
+                style={{
+                  background: logDetailStyle === 'terminal' ? colors.navActive : colors.muted,
+                  minWidth: 88,
+                  minHeight: 36,
+                  fontSize: 12,
+                }}
+                aria-label={
+                  logDetailStyle === 'terminal'
+                    ? 'Switch to one-line log summaries'
+                    : 'Show full terminal-style log lines'
+                }
+                onClick={toggleLogDetailStyle}
+              >
+                {logDetailStyle === 'terminal' ? 'Digest' : 'Lines'}
+              </button>
+              <button
+                type="button"
+                data-lcars-auto-scroll-btn
+                className={clsx(
+                  'lcars-btn lcars-btn--pill',
+                  logAutoScroll ? ' lcars-btn--active' : '',
+                  flashPeriodMs != null ? 'lcars-auto-scroll-nudge' : '',
+                )}
+                style={{
+                  background: logAutoScroll ? colors.navActive : colors.muted,
+                  minWidth: 88,
+                  minHeight: 36,
+                  fontSize: 12,
+                  ...(flashPeriodMs != null ? { animationDuration: `${flashPeriodMs}ms` } : {}),
+                }}
+                aria-pressed={logAutoScroll}
+                aria-label={
+                  logAutoScroll
+                    ? 'Auto-scroll log tail: on. Click to pause following new lines.'
+                    : 'Auto-scroll log tail: off. Click to follow new lines.'
+                }
+                onClick={onAutoButtonClick}
+              >
+                Auto
+              </button>
+            </div>
+          </>
+        ) : (
+          /* Performance view — time window buttons, one per row for visual rhythm */
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: 4,
+              width: '100%',
+              background: '#000',
+            }}
+            role="group"
+            aria-label="Performance time window"
+          >
+            {SYSTEM_STATS_RANGE_PRESETS.map((r) => {
+              const active = perfRangeMs === r.ms;
+              return (
+                <button
+                  key={r.label}
+                  type="button"
+                  className={`lcars-btn lcars-btn--pill${active ? ' lcars-btn--active' : ''}`}
+                  style={{
+                    background: active ? colors.navActive : colors.muted,
+                    minHeight: 36,
+                    fontSize: 12,
+                  }}
+                  aria-pressed={active}
+                  onClick={() => setPerfRangeMs(r.ms)}
+                  title={`Last ${r.label}`}
+                >
+                  {r.label}
+                </button>
+              );
+            })}
           </div>
         )}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'row',
-            gap: 4,
-            justifyContent: 'center',
-            background: '#000',
-          }}
-        >
-          <button
-            type="button"
-            className={`lcars-btn lcars-btn--pill${logDetailStyle === 'terminal' ? ' lcars-btn--active' : ''}`}
-            style={{
-              background: logDetailStyle === 'terminal' ? colors.navActive : colors.muted,
-              minWidth: 88,
-              minHeight: 36,
-              fontSize: 12,
-            }}
-            aria-label={
-              logDetailStyle === 'terminal'
-                ? 'Switch to one-line log summaries'
-                : 'Show full terminal-style log lines'
-            }
-            onClick={toggleLogDetailStyle}
-          >
-            {logDetailStyle === 'terminal' ? 'Digest' : 'Lines'}
-          </button>
-          <button
-            type="button"
-            data-lcars-auto-scroll-btn
-            className={clsx(
-              'lcars-btn lcars-btn--pill',
-              logAutoScroll ? ' lcars-btn--active' : '',
-              flashPeriodMs != null ? 'lcars-auto-scroll-nudge' : '',
-            )}
-            style={{
-              background: logAutoScroll ? colors.navActive : colors.muted,
-              minWidth: 88,
-              minHeight: 36,
-              fontSize: 12,
-              ...(flashPeriodMs != null ? { animationDuration: `${flashPeriodMs}ms` } : {}),
-            }}
-            aria-pressed={logAutoScroll}
-            aria-label={
-              logAutoScroll
-                ? 'Auto-scroll log tail: on. Click to pause following new lines.'
-                : 'Auto-scroll log tail: off. Click to follow new lines.'
-            }
-            onClick={onAutoButtonClick}
-          >
-            Auto
-          </button>
-        </div>
       </div>
     </div>
   ) : null;
@@ -770,16 +849,11 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
             panelHeightPx={statusBodyH}
             topOffsetPx={statusBodyTop}
             lcarsTopStackedChrome={useStackedStatusChrome}
-            lcarsFrameHandlesControls={useStackedStatusChrome}
+            lcarsFrameHandlesControls
             onStatusInteraction={bumpStatusInteraction}
             rightInsetPx={LCARS_STATUS_FILTER_RAIL_W}
             onHeightChange={(h) =>
               setStatusViewerBandH(useStackedStatusChrome ? h + STATUS_SEPARATOR_H + STATUS_STACK_GAP : h)
-            }
-            lcarsStatusAuto={
-              useStackedStatusChrome
-                ? undefined
-                : { flashPeriodMs, onAutoClick: onAutoButtonClick }
             }
           />
           {/* Filter buttons — right-aligned in the status body area */}
