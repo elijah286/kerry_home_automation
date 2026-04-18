@@ -687,7 +687,7 @@ function SettingsPanel({
                 Stream Mode
               </h3>
               <div className="flex flex-wrap gap-1">
-                {(['auto', 'webrtc', 'hls', 'snapshot'] as PlayerMode[]).map((m) => (
+                {(['auto', 'hls', 'snapshot'] as PlayerMode[]).map((m) => (
                   <button
                     key={m}
                     type="button"
