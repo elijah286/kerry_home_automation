@@ -180,8 +180,16 @@ interface ColumnDef {
   key: string;
   label: string;
   width?: string;
+  /** Hide this column below a Tailwind breakpoint. Omit to always show. */
+  hideBelow?: 'sm' | 'md' | 'lg';
   render: (device: DeviceState) => React.ReactNode;
 }
+
+const HIDE_CLASS: Record<NonNullable<ColumnDef['hideBelow']>, string> = {
+  sm: 'hidden sm:table-cell',
+  md: 'hidden md:table-cell',
+  lg: 'hidden lg:table-cell',
+};
 
 const ALL_COLUMNS: ColumnDef[] = [
   {
@@ -193,6 +201,7 @@ const ALL_COLUMNS: ColumnDef[] = [
     key: 'type',
     label: 'Type',
     width: '130px',
+    hideBelow: 'sm',
     render: (d) => {
       const Icon = TYPE_ICONS[d.type];
       return (
@@ -211,7 +220,6 @@ const ALL_COLUMNS: ColumnDef[] = [
   {
     key: 'state',
     label: 'State',
-    width: '160px',
     render: (d) => (
       <span className="text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
         {getDeviceStateSummary(d)}
@@ -222,6 +230,7 @@ const ALL_COLUMNS: ColumnDef[] = [
     key: 'connected',
     label: 'Connected',
     width: '90px',
+    hideBelow: 'sm',
     render: (d) => (
       <Badge variant={d.available ? 'success' : 'danger'}>
         {d.available ? 'Online' : 'Offline'}
@@ -232,6 +241,7 @@ const ALL_COLUMNS: ColumnDef[] = [
     key: 'integration',
     label: 'Integration',
     width: '140px',
+    hideBelow: 'md',
     render: (d) => (
       <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
         {INTEGRATION_LABELS[d.integration] ?? d.integration}
@@ -242,6 +252,7 @@ const ALL_COLUMNS: ColumnDef[] = [
     key: 'area',
     label: 'Area',
     width: '120px',
+    hideBelow: 'sm',
     render: (d) => (
       <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
         {d.userAreaId ?? d.areaId ?? '—'}
@@ -252,6 +263,7 @@ const ALL_COLUMNS: ColumnDef[] = [
     key: 'lastChanged',
     label: 'Last Changed',
     width: '110px',
+    hideBelow: 'md',
     render: (d) => (
       <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
         {d.lastChanged ? new Date(d.lastChanged).toLocaleTimeString() : '—'}
@@ -262,6 +274,7 @@ const ALL_COLUMNS: ColumnDef[] = [
     key: 'lastUpdated',
     label: 'Last Updated',
     width: '110px',
+    hideBelow: 'lg',
     render: (d) => (
       <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
         {d.lastUpdated ? new Date(d.lastUpdated).toLocaleTimeString() : '—'}
@@ -272,6 +285,7 @@ const ALL_COLUMNS: ColumnDef[] = [
     key: 'id',
     label: 'ID',
     width: '200px',
+    hideBelow: 'lg',
     render: (d) => (
       <span className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>
         {d.id}
@@ -599,14 +613,14 @@ function SegmentedControl({
   }
   return (
     <div
-      className="inline-flex rounded-lg p-0.5"
+      className="inline-flex max-w-full overflow-x-auto rounded-lg p-0.5"
       style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}
     >
       {options.map((opt) => (
         <button
           key={opt.value}
           onClick={() => onChange(opt.value)}
-          className="rounded-md px-3 py-1 text-xs font-medium transition-colors"
+          className="whitespace-nowrap rounded-md px-2 sm:px-3 py-1 text-xs font-medium transition-colors"
           style={{
             backgroundColor: value === opt.value ? 'var(--color-accent)' : 'transparent',
             color: value === opt.value ? '#fff' : 'var(--color-text-secondary)',
@@ -845,7 +859,7 @@ export default function DevicesPage() {
   const colCount = columns.length;
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-4">
+    <div className="max-w-7xl mx-auto p-2 sm:p-4 lg:p-6 space-y-4">
       <div className="flex items-center gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}>
           <Cpu className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
@@ -859,8 +873,8 @@ export default function DevicesPage() {
       </div>
 
       {/* Controls bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-48">
+      <div className="flex flex-wrap items-center gap-2 min-w-0">
+        <div className="relative flex-1 min-w-0 sm:min-w-48">
           <Search className="absolute left-2.5 top-2 h-4 w-4" style={{ color: 'var(--color-text-muted)' }} />
           <input
             type="text"
@@ -954,18 +968,18 @@ export default function DevicesPage() {
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className="px-3 py-2 text-left text-xs font-medium select-none"
+                  className={`px-2 sm:px-3 py-2 text-left text-xs font-medium select-none${col.hideBelow ? ' ' + HIDE_CLASS[col.hideBelow] : ''}`}
                   style={{
                     color: 'var(--color-text-secondary)',
                     width: col.width,
-                    ...(col.key === 'name' ? { paddingLeft: '2rem' } : {}),
+                    ...(col.key === 'name' ? { paddingLeft: '1rem' } : {}),
                   }}
                 >
                   {col.key === 'name' ? (
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span>{col.label}</span>
                       {filtered.length > 0 && sortedGroupKeys.length > 0 && (
-                        <span className="inline-flex items-center gap-1 font-normal">
+                        <span className="hidden sm:inline-flex items-center gap-1 font-normal">
                           <button
                             type="button"
                             className="rounded px-0 py-0 hover:underline"
@@ -1316,8 +1330,8 @@ const GroupRows = memo(function GroupRows({
           {columns.map((col) => (
             <td
               key={col.key}
-              className="px-3 py-2"
-              style={col.key === 'name' ? { paddingLeft: isChild ? '3.5rem' : '2rem' } : undefined}
+              className={`px-2 sm:px-3 py-2${col.key === 'name' ? ' break-all' : ''}${col.hideBelow ? ' ' + HIDE_CLASS[col.hideBelow] : ''}`}
+              style={col.key === 'name' ? { paddingLeft: isChild ? '2.25rem' : '1rem' } : undefined}
             >
               {col.key === 'name' && isChild ? (
                 <span className="inline-flex items-center gap-1.5">

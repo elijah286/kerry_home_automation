@@ -10,7 +10,14 @@ export interface Column<T> {
   render: (row: T) => React.ReactNode;
   sortValue?: (row: T) => string | number;
   width?: string;
+  hideBelow?: 'sm' | 'md' | 'lg';
 }
+
+const HIDE_CLASS: Record<NonNullable<Column<unknown>['hideBelow']>, string> = {
+  sm: 'hidden sm:table-cell',
+  md: 'hidden md:table-cell',
+  lg: 'hidden lg:table-cell',
+};
 
 interface DataTableProps<T> {
   columns: Column<T>[];
@@ -63,8 +70,9 @@ export function DataTable<T>({
               <th
                 key={col.key}
                 className={clsx(
-                  'px-3 py-2 text-left text-xs font-medium whitespace-nowrap',
+                  'px-2 sm:px-3 py-2 text-left text-xs font-medium whitespace-nowrap',
                   col.sortValue && 'cursor-pointer select-none hover:bg-[var(--color-bg-hover)]',
+                  col.hideBelow && HIDE_CLASS[col.hideBelow],
                 )}
                 style={{ color: 'var(--color-text-muted)', width: col.width }}
                 onClick={col.sortValue ? () => toggleSort(col.key) : undefined}
@@ -106,7 +114,13 @@ export function DataTable<T>({
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
               >
                 {columns.map((col) => (
-                  <td key={col.key} className="px-3 py-2 whitespace-nowrap">
+                  <td
+                    key={col.key}
+                    className={clsx(
+                      'px-2 sm:px-3 py-2 whitespace-nowrap',
+                      col.hideBelow && HIDE_CLASS[col.hideBelow],
+                    )}
+                  >
                     {col.render(row)}
                   </td>
                 ))}
