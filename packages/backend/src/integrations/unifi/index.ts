@@ -362,11 +362,13 @@ export class UniFiIntegration implements Integration {
 
   private async go2rtcPutStream(baseUrl: string, name: string, rtspUrl: string): Promise<void> {
     // Register through the ffmpeg source wrapper so any HLS fragmenting or
-    // MJPEG transcoding go2rtc has to do goes through Intel QuickSync (or
-    // whatever the master-hardware image's ffmpeg detects). `video=copy` and
-    // `audio=copy` keep the native codec passthrough for WebRTC/MSE on the
-    // happy path — ffmpeg only does real work when a client asks for HLS.
-    const src = `ffmpeg:${rtspUrl}#video=copy#audio=copy#hardware=qsv`;
+    // MJPEG transcoding go2rtc has to do goes through the iGPU. We use VAAPI
+    // rather than QSV because the master-hardware image's ffmpeg is compiled
+    // with --disable-libmfx (so `#hardware=qsv` fails at init). VAAPI hits the
+    // same Intel iGPU via the iHD driver and gives the same CPU savings.
+    // `video=copy` / `audio=copy` keep native passthrough for WebRTC/MSE on
+    // the happy path — ffmpeg only does real work when a client asks for HLS.
+    const src = `ffmpeg:${rtspUrl}#video=copy#audio=copy#hardware=vaapi`;
     const url = `${baseUrl}/api/streams?name=${encodeURIComponent(name)}&src=${encodeURIComponent(src)}`;
     const res = await fetch(url, { method: 'PUT', signal: AbortSignal.timeout(8_000) });
     if (!res.ok) {
