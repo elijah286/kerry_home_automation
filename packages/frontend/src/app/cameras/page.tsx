@@ -591,9 +591,16 @@ function InlineCameraPlayer({ cam, onClose }: { cam: CameraInfo; onClose: () => 
           onTierChange={(t, s) => { setTier(t); setStatus(s); }}
         />
 
+        {/* Small unobtrusive badge while HLS warms up — the snapshot underlay
+            is already showing the scene, so we don't cover it with a big
+            center spinner. Status bar below still spells out 'Connecting · HLS…'. */}
         {status === 'connecting' && (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-            <div className="h-6 w-6 rounded-full border-2 border-white/30 border-t-white/80 animate-spin drop-shadow-md" />
+          <div className="pointer-events-none absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 backdrop-blur-sm">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
+            </span>
+            <span className="text-[10px] font-medium uppercase tracking-wider text-white/90">Live in…</span>
           </div>
         )}
       </div>
