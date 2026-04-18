@@ -55,18 +55,18 @@ export function DeviceDefaultCardPanel({ deviceId }: DeviceDefaultCardPanelProps
 
   return (
     <Card>
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Sparkles className="h-4 w-4 shrink-0" style={{ color: 'var(--color-accent)' }} />
           <h2
-            className="text-sm font-medium"
+            className="text-sm font-medium truncate"
             style={{ color: 'var(--color-text-secondary)' }}
           >
             {isOverridden ? 'Your custom controls' : 'Quick controls'}
           </h2>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           {isLoading && (
             <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: 'var(--color-text-muted)' }} />
           )}
