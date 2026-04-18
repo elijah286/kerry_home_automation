@@ -503,33 +503,19 @@ export function registerSystemRoutes(app: FastifyInstance): void {
       reply.raw.write(`data: ${JSON.stringify({ type: 'entry', entry })}\n\n`);
     };
 
-    // On client connect, replay recent software-update progress events from the
-    // persisted .update-progress.jsonl so the status window shows continuity
-    // even if the backend restarted mid-upgrade.
+    // On client connect, replay all recent entries from the in-memory log buffer
+    // so the status window shows continuity across SSE reconnects, device reboots,
+    // or backend restarts. The buffer is populated in real-time by all logging
+    // sources (orchestrator, integrations, system events, etc.) and survives
+    // transient disconnects.
     (async () => {
       try {
-        const progressPath = join(appConfig.deploy.appRoot, '.update-progress.jsonl');
-        if (existsSync(progressPath)) {
-          const content = await readFile(progressPath, 'utf8');
-          const lines = content.trim().split('\n').filter(Boolean);
-          for (const line of lines) {
-            try {
-              const ev = JSON.parse(line) as { stage?: string; status?: string; msg?: string; ts?: string };
-              if (ev.stage === 'done' || !ev.stage) continue; // Skip done/invalid
-              const entry: LogEntry = {
-                ts: new Date(ev.ts || Date.now()).getTime(),
-                level: 'info',
-                msg: ev.msg || `[${ev.stage}] ${ev.status}`,
-                context: { integration: 'software-update' },
-              };
-              write(entry);
-            } catch {
-              // Malformed line — skip
-            }
-          }
+        const allEntries = getLogEntries();
+        for (const entry of allEntries) {
+          write(entry);
         }
       } catch (err) {
-        logger.debug({ err }, 'Failed to replay software-update progress');
+        logger.debug({ err }, 'Failed to replay log buffer');
       }
 
       // Now stream live updates

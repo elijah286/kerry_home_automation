@@ -18,6 +18,8 @@ import { SlidePanel } from '@/components/ui/SlidePanel';
 import { formatFieldPath } from '@/lib/object-path';
 import type { CoverState, DeviceState, GarageDoorState, NetworkDeviceState, WeatherState } from '@ha/shared';
 import { getApiBase, apiFetch } from '@/lib/api-base';
+import { updateDeviceSettings } from '@/lib/api';
+import { setDeviceClass } from '@/lib/api-device-cards';
 import { DeviceClassControl } from '@/components/DeviceClassControl';
 import { DeviceDefaultCardPanel } from '@/components/DeviceDefaultCardPanel';
 import { DeviceHistoryDefault } from '@/components/DeviceHistoryDefault';
@@ -262,6 +264,133 @@ function DeviceSettings({ deviceId, device }: { deviceId: string; device: Device
   );
 }
 
+// ---------------------------------------------------------------------------
+// Entity helpers
+// ---------------------------------------------------------------------------
+
+function getEntityStateValue(d: DeviceState): string | null {
+  const s = d as unknown as Record<string, unknown>;
+  if (d.type === 'sensor' && 'value' in s) return String(s.value ?? '');
+  if ('state' in s && s.state !== null && s.state !== undefined) return String(s.state);
+  return null;
+}
+
+function isEntityOpen(val: string | null): boolean {
+  if (!val) return false;
+  const v = val.toLowerCase();
+  return v === 'open' || v === 'true' || v === 'on' || v === 'detected' || v === 'motion';
+}
+
+const ENTITY_CLASS_OPTIONS = [
+  { value: '__none__', label: 'Type…' },
+  { value: 'door', label: 'Door' },
+  { value: 'window', label: 'Window' },
+  { value: 'garage_door', label: 'Garage door' },
+  { value: 'motion', label: 'Motion' },
+  { value: 'contact', label: 'Contact' },
+  { value: 'glass', label: 'Glass break' },
+  { value: 'smoke', label: 'Smoke' },
+  { value: 'carbon_monoxide', label: 'CO' },
+  { value: 'temperature', label: 'Temperature' },
+  { value: 'humidity', label: 'Humidity' },
+  { value: 'battery', label: 'Battery' },
+];
+
+// ---------------------------------------------------------------------------
+// EntityRow — one row in the child-entity list
+// ---------------------------------------------------------------------------
+
+function EntityRow({ entity }: { entity: DeviceState }) {
+  const [editing, setEditing] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [localName, setLocalName] = useState<string | null>(entity.displayName ?? null);
+  const [localClass, setLocalClass] = useState<string | null>(entity.device_class ?? null);
+
+  const displayName = localName ?? entity.name;
+  const stateVal = getEntityStateValue(entity);
+  const open = isEntityOpen(stateVal);
+
+  const saveName = async () => {
+    const name = nameInput.trim() || null;
+    try {
+      await updateDeviceSettings(entity.id, { display_name: name });
+      setLocalName(name);
+    } catch { /* ignore */ }
+    setEditing(false);
+  };
+
+  const saveClass = async (cls: string | null) => {
+    setLocalClass(cls);
+    try { await setDeviceClass(entity.id, cls, 'admin'); } catch { /* ignore */ }
+  };
+
+  return (
+    <div
+      className="group flex items-center gap-2 py-1.5 border-b last:border-b-0"
+      style={{ borderColor: 'var(--color-border)' }}
+    >
+      {/* State */}
+      <span
+        className="shrink-0 w-14 text-right text-xs font-medium"
+        style={{ color: open ? 'var(--color-warning, #f59e0b)' : 'var(--color-text-muted)' }}
+      >
+        {stateVal ?? '—'}
+      </span>
+
+      {/* Editable name */}
+      <div className="flex flex-1 items-center gap-1 min-w-0">
+        {editing ? (
+          <>
+            <input
+              autoFocus
+              type="text"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void saveName();
+                if (e.key === 'Escape') setEditing(false);
+              }}
+              className="flex-1 rounded border px-1.5 py-0.5 text-xs"
+              style={{
+                backgroundColor: 'var(--color-bg)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)',
+                outline: 'none',
+                minWidth: 0,
+              }}
+            />
+            <button onClick={() => void saveName()} className="rounded p-0.5 hover:bg-[var(--color-bg-hover)]">
+              <Check className="h-3 w-3" style={{ color: 'var(--color-success)' }} />
+            </button>
+            <button onClick={() => setEditing(false)} className="rounded p-0.5 hover:bg-[var(--color-bg-hover)]">
+              <X className="h-3 w-3" style={{ color: 'var(--color-text-muted)' }} />
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="truncate text-sm" style={{ color: 'var(--color-text)' }}>{displayName}</span>
+            <button
+              onClick={() => { setNameInput(displayName); setEditing(true); }}
+              className="shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[var(--color-bg-hover)]"
+            >
+              <Pencil className="h-3 w-3" style={{ color: 'var(--color-text-muted)' }} />
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Device class */}
+      <div className="shrink-0 w-28">
+        <Select
+          value={localClass ?? '__none__'}
+          onValueChange={(v) => void saveClass(v === '__none__' ? null : v)}
+          options={ENTITY_CLASS_OPTIONS}
+        />
+      </div>
+    </div>
+  );
+}
+
 type Inspector =
   | null
   | { kind: 'json' }
@@ -275,6 +404,14 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
   const merged = useDeviceMergedState(device?.id, device);
 
   const [inspector, setInspector] = useState<Inspector>(null);
+  const [editingHeader, setEditingHeader] = useState(false);
+  const [headerInput, setHeaderInput] = useState('');
+
+  const saveHeaderName = async () => {
+    const name = headerInput.trim() || null;
+    try { await updateDeviceSettings(device?.id ?? '', { display_name: name }); } catch { /* ignore */ }
+    setEditingHeader(false);
+  };
 
   const childDevices = useMemo(
     () => device ? devices.filter((d) => d.parentDeviceId === device.id) : [],
@@ -308,17 +445,100 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
   const panelSize = inspector?.kind === 'json' ? 'xl' : 'lg';
 
   return (
-    <div className="max-w-3xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-3xl mx-auto p-3 sm:p-4 lg:p-6 space-y-6">
       <Link href="/devices" className="inline-flex items-center gap-1 text-sm" style={{ color: 'var(--color-accent)' }}>
         <ArrowLeft className="h-4 w-4" /> Back to Devices
       </Link>
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">{device.displayName ?? device.name}</h1>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-1 min-w-0 items-center gap-2">
+          {editingHeader ? (
+            <>
+              <input
+                autoFocus
+                type="text"
+                value={headerInput}
+                onChange={(e) => setHeaderInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void saveHeaderName();
+                  if (e.key === 'Escape') setEditingHeader(false);
+                }}
+                className="flex-1 min-w-0 rounded-md border px-2 py-1 text-lg font-semibold"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)',
+                  outline: 'none',
+                }}
+              />
+              <button onClick={() => void saveHeaderName()} className="shrink-0 rounded-md p-1 hover:bg-[var(--color-bg-hover)]">
+                <Check className="h-4 w-4" style={{ color: 'var(--color-success)' }} />
+              </button>
+              <button onClick={() => setEditingHeader(false)} className="shrink-0 rounded-md p-1 hover:bg-[var(--color-bg-hover)]">
+                <X className="h-4 w-4" style={{ color: 'var(--color-text-muted)' }} />
+              </button>
+            </>
+          ) : (
+            <>
+              <h1 className="text-lg font-semibold truncate">{device.displayName ?? device.name}</h1>
+              <button
+                onClick={() => { setHeaderInput(device.displayName ?? device.name); setEditingHeader(true); }}
+                className="shrink-0 rounded-md p-1 hover:bg-[var(--color-bg-hover)]"
+                title="Rename device"
+              >
+                <Pencil className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
+              </button>
+            </>
+          )}
+        </div>
         <Badge variant={device.available ? 'success' : 'danger'}>
           {device.available ? 'Online' : 'Offline'}
         </Badge>
       </div>
+
+      {/* Entity summary — shown for hub/parent devices with child entities */}
+      {childDevices.length > 0 && (() => {
+        const withState = childDevices.filter((d) => getEntityStateValue(d) !== null);
+        const openOnes = withState.filter((d) => isEntityOpen(getEntityStateValue(d)));
+        const closedCount = withState.length - openOnes.length;
+        if (withState.length === 0) return null;
+        return (
+          <Card>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                Entity Status
+              </h2>
+              <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                {openOnes.length > 0 && (
+                  <span style={{ color: 'var(--color-warning, #f59e0b)' }}>
+                    {openOnes.length} open
+                  </span>
+                )}
+                <span>{closedCount} closed</span>
+              </div>
+            </div>
+            {openOnes.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {openOnes.map((d) => (
+                  <span
+                    key={d.id}
+                    className="rounded-full border px-2 py-0.5 text-xs font-medium"
+                    style={{
+                      borderColor: 'var(--color-warning, #f59e0b)',
+                      color: 'var(--color-warning, #f59e0b)',
+                      backgroundColor: 'var(--color-bg-secondary)',
+                    }}
+                  >
+                    {d.displayName ?? d.name}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs" style={{ color: 'var(--color-success)' }}>All closed</p>
+            )}
+          </Card>
+        );
+      })()}
 
       {/* Default card — resolved from the device-card-map or a per-user override */}
       <DeviceDefaultCardPanel deviceId={device.id} />
@@ -410,12 +630,12 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
           {/* Child devices (for hub/parent devices) */}
           {childDevices.length > 0 && (
             <div>
-              <div className="mb-2 text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+              <div className="mb-1 text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
                 Entities ({childDevices.length})
               </div>
-              <div className="space-y-2">
+              <div className="rounded-md border" style={{ borderColor: 'var(--color-border)' }}>
                 {childDevices.map((child) => (
-                  <DeviceCard key={child.id} device={child} />
+                  <EntityRow key={child.id} entity={child} />
                 ))}
               </div>
             </div>

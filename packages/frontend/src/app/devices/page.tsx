@@ -229,6 +229,7 @@ const ALL_COLUMNS: ColumnDef[] = [
   {
     key: 'state',
     label: 'State',
+    hideBelow: 'sm',
     render: (d) => (
       <span className="text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
         {getDeviceStateSummary(d)}

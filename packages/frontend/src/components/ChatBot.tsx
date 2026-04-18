@@ -164,11 +164,13 @@ export function LCARSAssistantInsetSync({
 
 export function AssistantHeaderButton({
   variant = 'default',
+  layout = 'icon',
   className,
   style,
   'data-sound': dataSound,
 }: {
   variant?: 'default' | 'lcars';
+  layout?: 'icon' | 'drawer';
   className?: string;
   style?: CSSProperties;
   'data-sound'?: string;
@@ -206,17 +208,21 @@ export function AssistantHeaderButton({
       }
       aria-expanded={open}
       className={clsx(
-        'flex shrink-0 items-center justify-center shadow-sm',
-        variant === 'default' &&
+        'shrink-0 items-center shadow-sm',
+        layout === 'drawer' &&
+          'flex w-full gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+        layout === 'icon' && 'flex justify-center',
+        layout === 'icon' && variant === 'default' &&
           'h-9 w-9 rounded-full transition-transform hover:scale-105 active:scale-95',
-        variant === 'lcars' &&
+        layout === 'icon' && variant === 'lcars' &&
           'lcars-chrome-item h-full min-h-0 min-w-[min(160px,28vw)] touch-manipulation gap-1.5 rounded-none px-3 shadow-none transition-[filter] hover:brightness-110 active:brightness-95',
         className,
       )}
       style={{
-        backgroundColor: 'var(--color-accent)',
-        color: '#fff',
-        ...(variant === 'lcars'
+        backgroundColor: layout === 'drawer' ? 'transparent' : 'var(--color-accent)',
+        color: layout === 'drawer' ? 'var(--color-sidebar-text)' : '#fff',
+        boxShadow: layout === 'drawer' ? 'none' : undefined,
+        ...(variant === 'lcars' && layout === 'icon'
           ? {
               fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
               fontWeight: 700,
@@ -229,7 +235,12 @@ export function AssistantHeaderButton({
         ...style,
       }}
     >
-      {variant === 'lcars' ? (
+      {layout === 'drawer' ? (
+        <>
+          <MessageSquare className="h-5 w-5 shrink-0" strokeWidth={2} />
+          <span>Assistant</span>
+        </>
+      ) : variant === 'lcars' ? (
         <>
           <MessageSquare className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
           <span>Assistant</span>
@@ -244,11 +255,13 @@ export function AssistantHeaderButton({
 /** Locations page — opens the shared right slide panel in map-layers mode (same shell as Assistant). */
 export function MapLayersHeaderButton({
   variant = 'default',
+  layout = 'icon',
   className,
   style,
   'data-sound': dataSound,
 }: {
   variant?: 'default' | 'lcars';
+  layout?: 'icon' | 'drawer';
   className?: string;
   style?: CSSProperties;
   'data-sound'?: string;
@@ -285,17 +298,21 @@ export function MapLayersHeaderButton({
       }
       aria-expanded={open && rightPanelMode === 'map_layers'}
       className={clsx(
-        'flex shrink-0 items-center justify-center shadow-sm',
-        variant === 'default' &&
+        'shrink-0 items-center shadow-sm',
+        layout === 'drawer' &&
+          'flex w-full gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+        layout === 'icon' && 'flex justify-center',
+        layout === 'icon' && variant === 'default' &&
           'h-9 w-9 rounded-full transition-transform hover:scale-105 active:scale-95',
-        variant === 'lcars' &&
+        layout === 'icon' && variant === 'lcars' &&
           'lcars-chrome-item h-full min-h-0 min-w-[min(160px,28vw)] touch-manipulation gap-1.5 rounded-none px-3 shadow-none transition-[filter] hover:brightness-110 active:brightness-95',
         className,
       )}
       style={{
-        backgroundColor: 'var(--color-accent)',
-        color: '#fff',
-        ...(variant === 'lcars'
+        backgroundColor: layout === 'drawer' ? 'transparent' : 'var(--color-accent)',
+        color: layout === 'drawer' ? 'var(--color-sidebar-text)' : '#fff',
+        boxShadow: layout === 'drawer' ? 'none' : undefined,
+        ...(variant === 'lcars' && layout === 'icon'
           ? {
               fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
               fontWeight: 700,
@@ -308,7 +325,12 @@ export function MapLayersHeaderButton({
         ...style,
       }}
     >
-      {variant === 'lcars' ? (
+      {layout === 'drawer' ? (
+        <>
+          <MapPinned className="h-5 w-5 shrink-0" strokeWidth={2} />
+          <span>Map layers</span>
+        </>
+      ) : variant === 'lcars' ? (
         <>
           <MapPinned className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
           <span>Map layers</span>

@@ -39,7 +39,7 @@ function AppShellMain({
 
   return (
     <main
-      className="transition-[margin-left,padding-bottom] duration-200 ease-in-out"
+      className="overflow-x-clip transition-[margin-left,padding-bottom] duration-200 ease-in-out"
       style={{
         ['--sidebar-w' as string]: `${sidebarWidth}px`,
         paddingBottom: paddingBottom || undefined,
