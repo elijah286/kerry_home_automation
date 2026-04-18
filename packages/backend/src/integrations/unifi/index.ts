@@ -53,6 +53,8 @@ interface EntryContext {
   protectHost: string;
   cameras: CameraInfo[];
   pollTimer: ReturnType<typeof setInterval> | null;
+  /** True while a pollCameras call is in flight — prevents overlapping polls. */
+  pollInFlight: boolean;
   /** Protect API client — null when no credentials (legacy go2rtc-only mode). */
   protectClient: ProtectClient | null;
   /** Cameras discovered from Protect (used to re-populate go2rtc after restart). */
@@ -221,6 +223,7 @@ export class UniFiIntegration implements Integration {
       protectHost,
       cameras: [],
       pollTimer: null,
+      pollInFlight: false,
       protectClient: null,
       discoveredCameras: [],
     };
@@ -531,10 +534,18 @@ export class UniFiIntegration implements Integration {
   }
 
   private async pollCameras(ctx: EntryContext): Promise<void> {
-    // Only poll the low-res (base) stream. HD snapshots aren't cached —
-    // grid tiles use low-res and fullscreen hits go2rtc live for HD.
-    await Promise.allSettled(
-      ctx.cameras.filter((c) => !isHdVariant(c.name)).map(async (cam) => {
+    // Skip if the previous poll is still running — prevents request pile-up
+    // when go2rtc is slow to respond (e.g. during startup or under load).
+    if (ctx.pollInFlight) return;
+    ctx.pollInFlight = true;
+    try {
+      // Only poll the low-res (base) stream. HD snapshots aren't cached.
+      // Stagger fetches 200ms apart so go2rtc doesn't receive a simultaneous
+      // burst of 9 frame.jpeg requests on every tick.
+      const cameras = ctx.cameras.filter((c) => !isHdVariant(c.name));
+      for (let i = 0; i < cameras.length; i++) {
+        const cam = cameras[i];
+        if (i > 0) await new Promise<void>((r) => setTimeout(r, 200));
         try {
           const res = await fetch(
             `${ctx.go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(cam.name)}`,
@@ -550,8 +561,10 @@ export class UniFiIntegration implements Integration {
         } catch {
           stateStore.update(this.makeCameraState(cam, ctx.go2rtcUrl, false));
         }
-      }),
-    );
+      }
+    } finally {
+      ctx.pollInFlight = false;
+    }
   }
 
   getCachedSnapshot(name: string): { buffer: Buffer; timestamp: number } | null {
