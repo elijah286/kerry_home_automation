@@ -279,7 +279,7 @@ function DeployProgress({
 
 export default function SoftwareUpdatePage() {
   const { isAdmin, loading } = useAuth();
-  const { openWithSourceFilter } = useSystemTerminal();
+  const { openWithSourceFilter, setCurrentSourceId } = useSystemTerminal();
   const [check, setCheck] = useState<CheckResponse | null>(null);
   const [checkLoading, setCheckLoading] = useState(false);
 
@@ -294,6 +294,12 @@ export default function SoftwareUpdatePage() {
   // value instead of a stale closure capture.
   const deployingRef = useRef(false);
   useEffect(() => { deployingRef.current = deploying; }, [deploying]);
+
+  // Set current source to software-update so the status window shows deployment logs.
+  useEffect(() => {
+    setCurrentSourceId('software-update');
+    return () => setCurrentSourceId(null);
+  }, [setCurrentSourceId]);
 
   // On mount, check if a deployment is already in progress
   useEffect(() => {
