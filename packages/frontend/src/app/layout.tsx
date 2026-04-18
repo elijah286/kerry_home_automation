@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Antonio } from 'next/font/google';
 import './globals.css';
 
@@ -21,6 +21,12 @@ import { ToastProvider } from '@/components/notifications/ToastProvider';
 export const metadata: Metadata = {
   title: 'HomeOS',
   description: 'Kerry HomeOS',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
