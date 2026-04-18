@@ -632,11 +632,14 @@ export function registerSystemRoutes(app: FastifyInstance): void {
       if (!manifest) {
         // CI hasn't published images for origin/main yet — nothing installable.
         updateAvailable = false;
-      } else if (containerVersionKnown && remoteMeta.versionLabel) {
-        // Best case: compare running container version against remote version.
-        // This catches the critical "git pulled but never rebuilt" drift where
-        // HEAD == origin/main but the running image is older.
-        updateAvailable = buildInfo.version !== remoteMeta.versionLabel;
+      } else if (containerVersionKnown) {
+        // Compare running container version against the MANIFEST version —
+        // this is the version that will actually be installed (deploy.sh pulls
+        // images by tag from release-manifest.json). Using app-version.json
+        // here would advertise a newer label than the images on ghcr.io when
+        // the CI post-release commit hasn't landed yet, causing the update to
+        // silently re-pull the previous version.
+        updateAvailable = buildInfo.version !== manifest.version;
       } else if (!containerVersionKnown) {
         // Container predates build-info — we can't know what's running.
         // Always offer the update so the user can install a version that WILL
@@ -717,7 +720,11 @@ export function registerSystemRoutes(app: FastifyInstance): void {
         },
         remote: {
           sha: remoteSha,
-          versionLabel: remoteMeta.versionLabel,
+          // Surface the MANIFEST version (what will actually install), not the
+          // app-version.json label at origin/main HEAD. Those can diverge
+          // between CI building images and CI committing the release manifest,
+          // and showing the uninstallable label confuses users.
+          versionLabel: manifest?.version ?? remoteMeta.versionLabel,
           description: remoteMeta.description,
         },
         commits,
