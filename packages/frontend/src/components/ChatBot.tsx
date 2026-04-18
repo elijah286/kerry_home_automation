@@ -39,6 +39,7 @@ import {
   Ear,
 } from 'lucide-react';
 import { useCookingTimers, formatCookingTimer } from '@/providers/CookingTimersProvider';
+import { useAuth } from '@/providers/AuthProvider';
 import { clsx } from 'clsx';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useLocationsMap } from '@/providers/LocationsMapContext';
@@ -618,6 +619,7 @@ function AssistantRightPanel() {
   const isMdUp = useMediaQuery('(min-width: 768px)');
   const { open, setOpen, lcarsDockInset, rightPanelMode, setRightPanelMode } = useAssistant();
   const { timers, addTimer, toggleTimer, resetTimer, removeTimer, stopTimer } = useCookingTimers();
+  const { refreshSession } = useAuth();
   const [fullscreen, setFullscreen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -830,6 +832,10 @@ function AssistantRightPanel() {
               // can actually see the destination page (but keep the assistant open).
               setFullscreen(false);
               router.push(event.navigate);
+            } else if (event.type === 'client_action' && event.action?.kind === 'refresh_auth') {
+              // UI preferences changed on the server; re-fetch the session so
+              // the theme/color mode/etc. applies instantly.
+              void refreshSession();
             } else if (event.type === 'client_action' && event.action?.kind === 'timer') {
               // Assistant is driving a kitchen timer. Run it against the local
               // CookingTimers context so the Timers sidebar updates instantly.
@@ -872,7 +878,7 @@ function AssistantRightPanel() {
       setIsStreaming(false);
       setToolStatuses([]);
     }
-  }, [router, speakText, timers, addTimer, stopTimer, toggleTimer, resetTimer, removeTimer]);
+  }, [router, speakText, timers, addTimer, stopTimer, toggleTimer, resetTimer, removeTimer, refreshSession]);
 
   const startListening = useCallback(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

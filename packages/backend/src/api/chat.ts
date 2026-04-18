@@ -239,6 +239,120 @@ const readTools: ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'list_alarms',
+      description:
+        'List all alarms/wake-up schedules configured in HomeOS. Each alarm has id, name, time (HH:MM), daysOfWeek (0=Sun..6=Sat), enabled, and devices (list of wake actions like turning on a light or opening a blind). Use to answer "what alarms do I have" or to find an alarm id for update/delete.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_alarm',
+      description:
+        'Create a new alarm/wake-up schedule. IMPORTANT: before calling this, you should know HOW the user wants to be woken (which device should activate). If they haven\'t said, ASK FIRST — e.g. "Sure, at 8 AM tomorrow. How should I wake you? I can turn on a light, open a blind, play a media player, or just create the alarm without any wake action." Only call with empty devices if the user explicitly says "no action" or "just remind me". Time is HH:MM (24-hour). daysOfWeek is an array of 0-6 (0=Sun, 6=Sat). For "tomorrow at 8am", compute tomorrow\'s day-of-week from today (in your system context) and pass that single day. For recurring, pass multiple days. Devices is an array of {deviceId, action, params} — use get_devices first to find IDs.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Short alarm name like "Wake up" or "Morning alarm"' },
+          time: { type: 'string', description: '24-hour time HH:MM (e.g. "08:00", "06:30")' },
+          daysOfWeek: {
+            type: 'array',
+            items: { type: 'number' },
+            description: 'Days to fire: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat. Example: [1,2,3,4,5] for weekdays, [6] for just Saturday.',
+          },
+          enabled: { type: 'boolean', description: 'Enabled by default. Set false to create disabled.' },
+          devices: {
+            type: 'array',
+            description: 'Wake actions — list of {deviceId, action, params}. action examples: "turn_on", "open", "set_brightness". params: optional per-action object like {brightness: 80}.',
+            items: {
+              type: 'object',
+              properties: {
+                deviceId: { type: 'string' },
+                action: { type: 'string' },
+                params: { type: 'object' },
+              },
+              required: ['deviceId', 'action'],
+            },
+          },
+        },
+        required: ['name', 'time', 'daysOfWeek'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_alarm',
+      description: 'Delete an existing alarm by id. Call list_alarms first to resolve the id from a name.',
+      parameters: {
+        type: 'object',
+        properties: { alarm_id: { type: 'string' } },
+        required: ['alarm_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_alarm',
+      description: 'Update an existing alarm — change time, days, enabled state, or wake devices. Only include fields you want to change. Call list_alarms first if you need the id.',
+      parameters: {
+        type: 'object',
+        properties: {
+          alarm_id: { type: 'string' },
+          name: { type: 'string' },
+          time: { type: 'string', description: 'HH:MM 24-hour' },
+          daysOfWeek: { type: 'array', items: { type: 'number' } },
+          enabled: { type: 'boolean' },
+          devices: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                deviceId: { type: 'string' },
+                action: { type: 'string' },
+                params: { type: 'object' },
+              },
+              required: ['deviceId', 'action'],
+            },
+          },
+        },
+        required: ['alarm_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_ui_preferences',
+      description:
+        'Read the current user\'s UI preferences: colorMode (light/dark/system), activeTheme (default, midnight, glass, forest, rose, slate, ocean, amber, lcars), fontSize (number), magnification (1.0=100%, 1.5=150%), lcarsVariant, lcarsSoundsEnabled.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_ui_preferences',
+      description:
+        'Change the current user\'s UI preferences. Any user can change their own preferences — no admin needed. Supported keys: colorMode ("light"|"dark"|"system"), activeTheme (one of: default, midnight, glass, forest, rose, slate, ocean, amber, lcars), fontSize (e.g. 14, 16, 18), magnification (e.g. 1.0, 1.25, 1.5), lcarsVariant, lcarsSoundsEnabled. Only include fields you want to change. Example: {"activeTheme":"default"} to switch back to the default theme.',
+      parameters: {
+        type: 'object',
+        properties: {
+          colorMode: { type: 'string', enum: ['light', 'dark', 'system'] },
+          activeTheme: { type: 'string', description: 'One of: default, midnight, glass, forest, rose, slate, ocean, amber, lcars' },
+          fontSize: { type: 'number' },
+          magnification: { type: 'number' },
+          lcarsVariant: { type: 'string' },
+          lcarsSoundsEnabled: { type: 'boolean' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'list_timers',
       description:
         'List all active cooking/kitchen timers the user currently has. Returns id, label, remaining seconds, and running state. Use before pause/resume/reset/delete when the user references a timer by name ("stop the pasta timer").',
@@ -1169,6 +1283,151 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
       };
     }
 
+    case 'list_alarms': {
+      const { rows } = await query<{
+        id: string;
+        name: string;
+        time: string;
+        days_of_week: number[];
+        enabled: boolean;
+        devices: unknown;
+      }>('SELECT id, name, time, days_of_week, enabled, devices FROM alarms ORDER BY time ASC');
+      return {
+        count: rows.length,
+        alarms: rows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          time: typeof r.time === 'string' ? r.time.slice(0, 5) : r.time,
+          daysOfWeek: r.days_of_week,
+          enabled: r.enabled,
+          devices: r.devices,
+        })),
+      };
+    }
+
+    case 'create_alarm': {
+      const name = String(args.name ?? '').trim();
+      const time = String(args.time ?? '').trim();
+      const daysOfWeek = Array.isArray(args.daysOfWeek) ? args.daysOfWeek.map(Number).filter((n) => n >= 0 && n <= 6) : [];
+      const enabled = args.enabled !== false;
+      const devices = Array.isArray(args.devices) ? args.devices : [];
+      if (!name) return { error: 'name is required' };
+      if (!/^\d{2}:\d{2}$/.test(time)) return { error: 'time must be HH:MM 24-hour format (e.g. "08:00")' };
+      if (daysOfWeek.length === 0) return { error: 'daysOfWeek must contain at least one day (0-6, where 0=Sun)' };
+      try {
+        const { rows } = await query<{ id: string }>(
+          `INSERT INTO alarms (name, time, days_of_week, enabled, devices, automation_id)
+           VALUES ($1, $2, $3, $4, $5, NULL)
+           RETURNING id`,
+          [name, time, daysOfWeek, enabled, JSON.stringify(devices)],
+        );
+        logger.info({ alarmId: rows[0].id, user: ctx.userId }, 'Alarm created via chat');
+        return {
+          success: true,
+          alarmId: rows[0].id,
+          message: `Alarm "${name}" created for ${time} on days ${daysOfWeek.join(',')}${devices.length > 0 ? ` with ${devices.length} wake action(s)` : ' (no wake actions — will just fire silently)'}.`,
+          navigatePath: '/alarms',
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { error: `Failed to create alarm: ${msg}` };
+      }
+    }
+
+    case 'update_alarm': {
+      const id = String(args.alarm_id ?? '').trim();
+      if (!id) return { error: 'alarm_id is required' };
+      const sets: string[] = [];
+      const values: unknown[] = [];
+      let i = 1;
+      if (typeof args.name === 'string') { sets.push(`name = $${i++}`); values.push(args.name); }
+      if (typeof args.time === 'string') {
+        if (!/^\d{2}:\d{2}$/.test(args.time)) return { error: 'time must be HH:MM' };
+        sets.push(`time = $${i++}`); values.push(args.time);
+      }
+      if (Array.isArray(args.daysOfWeek)) { sets.push(`days_of_week = $${i++}`); values.push(args.daysOfWeek); }
+      if (typeof args.enabled === 'boolean') { sets.push(`enabled = $${i++}`); values.push(args.enabled); }
+      if (Array.isArray(args.devices)) { sets.push(`devices = $${i++}::jsonb`); values.push(JSON.stringify(args.devices)); }
+      if (sets.length === 0) return { error: 'No fields to update' };
+      sets.push('updated_at = NOW()');
+      values.push(id);
+      const { rows } = await query<{ id: string }>(
+        `UPDATE alarms SET ${sets.join(', ')} WHERE id = $${i} RETURNING id`,
+        values,
+      );
+      if (rows.length === 0) return { error: 'Alarm not found' };
+      logger.info({ alarmId: id, user: ctx.userId }, 'Alarm updated via chat');
+      return { success: true, alarmId: id, message: `Alarm updated.` };
+    }
+
+    case 'delete_alarm': {
+      const id = String(args.alarm_id ?? '').trim();
+      if (!id) return { error: 'alarm_id is required' };
+      const result = await query('DELETE FROM alarms WHERE id = $1', [id]);
+      if ((result.rowCount ?? 0) === 0) return { error: 'Alarm not found' };
+      logger.info({ alarmId: id, user: ctx.userId }, 'Alarm deleted via chat');
+      return { success: true, message: 'Alarm deleted.' };
+    }
+
+    case 'get_ui_preferences': {
+      const { rows } = await query<{ ui_preferences: Record<string, unknown> | null }>(
+        'SELECT ui_preferences FROM users WHERE id = $1',
+        [ctx.userId],
+      );
+      if (rows.length === 0) return { error: 'User not found' };
+      return { preferences: rows[0].ui_preferences ?? {} };
+    }
+
+    case 'update_ui_preferences': {
+      const allowedKeys = ['colorMode', 'activeTheme', 'fontSize', 'magnification', 'lcarsVariant', 'lcarsSoundsEnabled'];
+      const validThemes = ['default', 'midnight', 'glass', 'forest', 'rose', 'slate', 'ocean', 'amber', 'lcars'];
+      const validColorModes = ['light', 'dark', 'system'];
+      const patch: Record<string, unknown> = {};
+      for (const k of allowedKeys) {
+        if (args[k] !== undefined) patch[k] = args[k];
+      }
+      if (Object.keys(patch).length === 0) return { error: 'No preferences to update' };
+      if (typeof patch.activeTheme === 'string' && !validThemes.includes(patch.activeTheme)) {
+        return { error: `Invalid activeTheme. Must be one of: ${validThemes.join(', ')}` };
+      }
+      if (typeof patch.colorMode === 'string' && !validColorModes.includes(patch.colorMode)) {
+        return { error: `Invalid colorMode. Must be one of: ${validColorModes.join(', ')}` };
+      }
+      // Read current prefs + any admin locks
+      const { rows } = await query<{ ui_preferences: Record<string, unknown> | null; ui_preferences_admin: Record<string, unknown> | null }>(
+        'SELECT ui_preferences, ui_preferences_admin FROM users WHERE id = $1',
+        [ctx.userId],
+      );
+      if (rows.length === 0) return { error: 'User not found' };
+      const currentPrefs = rows[0].ui_preferences ?? {};
+      const adminLocks = rows[0].ui_preferences_admin ?? {};
+      // Respect admin-locked keys — non-admins can't override them
+      const filtered: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(patch)) {
+        if (adminLocks[k] !== undefined && ctx.userRole !== 'admin') {
+          // Skip locked key
+          continue;
+        }
+        filtered[k] = v;
+      }
+      if (Object.keys(filtered).length === 0) {
+        return { error: 'All requested preferences are locked by admin policy.' };
+      }
+      const merged = { ...currentPrefs, ...filtered };
+      await query(
+        'UPDATE users SET ui_preferences = $1::jsonb, updated_at = NOW() WHERE id = $2',
+        [JSON.stringify(merged), ctx.userId],
+      );
+      logger.info({ user: ctx.userId, changed: Object.keys(filtered) }, 'UI preferences updated via chat');
+      return {
+        success: true,
+        updated: Object.keys(filtered),
+        preferences: merged,
+        message: `Updated: ${Object.keys(filtered).join(', ')}. The UI will refresh shortly.`,
+        clientAction: { kind: 'refresh_auth' },
+      };
+    }
+
     case 'list_timers': {
       // Timers live in the browser; the frontend passes its current list
       // as conversation context on each request. We stash it on the request
@@ -1665,6 +1924,9 @@ The HomeOS UI is your primary output surface. The chat window is for brief confi
 | "What did I make/cook on <date>" or meal plan questions | get_meal_plan with a date range → if the user wants a specific meal opened, use navigate_ui with that meal's navigatePath |
 | Start a cooking timer ("9 minute timer for the pasta") | manage_timer action=start, parse duration → seconds, infer short label from context ("Pasta", "Eggs", "Rice") |
 | Stop/pause/resume/reset/delete a timer | list_timers → find by label → manage_timer with the matching timer_id |
+| Set an alarm ("wake me at 7 tomorrow", "6:30 on weekdays") | FIRST ask how to wake them if not specified — "I can turn on a light, open a blind, play music, or just fire silently — what would you like?" THEN create_alarm with the appropriate devices. Compute daysOfWeek from today's date. |
+| List/change/delete an existing alarm | list_alarms → update_alarm / delete_alarm |
+| Change UI theme / dark mode / font size / magnification | update_ui_preferences ({activeTheme, colorMode, fontSize, magnification}). Available themes: default, midnight, glass, forest, rose, slate, ocean, amber, lcars. Always use the exact theme ID — e.g. "go back to normal" → activeTheme:"default". |
 | Open a specific recipe | navigate_ui /recipes?open=<uid> |
 | Show/find/list devices by type, area, or any criteria | get_devices → navigate_ui with the returned navigatePath (/devices?ids=...) |
 | Browse all devices | navigate_ui /devices |
@@ -1846,6 +2108,12 @@ const TOOL_LABELS: Record<string, string> = {
   get_meal_plan: 'Checking meal plan…',
   list_timers: 'Checking timers…',
   manage_timer: 'Updating timer…',
+  list_alarms: 'Checking alarms…',
+  create_alarm: 'Creating alarm…',
+  update_alarm: 'Updating alarm…',
+  delete_alarm: 'Deleting alarm…',
+  get_ui_preferences: 'Reading preferences…',
+  update_ui_preferences: 'Updating preferences…',
   navigate_ui: 'Navigating…',
   get_calendar_events: 'Loading calendar…',
   list_automations: 'Loading automations…',
