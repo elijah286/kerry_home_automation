@@ -18,6 +18,13 @@ WorkingDirectory=/opt/home-automation
 User=elijah286
 Group=elijah286
 Environment=HOME=/home/elijah286
+# Host-level provisioning BEFORE compose: installs intel-media-va-driver-non-free
+# if missing, writes correct RENDER_GID / VIDEO_GID into .env (so the go2rtc
+# container's group_add matches this host's actual render group), and sanity-
+# checks /dev/dri. The `+` prefix runs this as root even though the main
+# ExecStart runs as the deploy user. Failures log to journalctl but are
+# non-fatal — the stack still comes up even if apt-get hiccups.
+ExecStartPre=+/opt/home-automation/scripts/host-prereqs.sh
 # .env must exist here for compose (secrets, POSTGRES_PASSWORD, etc.)
 ExecStart=/usr/bin/docker compose -f /opt/home-automation/docker-compose.prod.yml up -d
 ExecStop=/usr/bin/docker compose -f /opt/home-automation/docker-compose.prod.yml stop

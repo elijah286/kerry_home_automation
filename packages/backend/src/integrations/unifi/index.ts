@@ -361,7 +361,15 @@ export class UniFiIntegration implements Integration {
   }
 
   private async go2rtcPutStream(baseUrl: string, name: string, rtspUrl: string): Promise<void> {
-    const url = `${baseUrl}/api/streams?name=${encodeURIComponent(name)}&src=${encodeURIComponent(rtspUrl)}`;
+    // Register through the ffmpeg source wrapper so any HLS fragmenting or
+    // MJPEG transcoding go2rtc has to do goes through the iGPU. We use VAAPI
+    // rather than QSV because the master-hardware image's ffmpeg is compiled
+    // with --disable-libmfx (so `#hardware=qsv` fails at init). VAAPI hits the
+    // same Intel iGPU via the iHD driver and gives the same CPU savings.
+    // `video=copy` / `audio=copy` keep native passthrough for WebRTC/MSE on
+    // the happy path — ffmpeg only does real work when a client asks for HLS.
+    const src = `ffmpeg:${rtspUrl}#video=copy#audio=copy#hardware=vaapi`;
+    const url = `${baseUrl}/api/streams?name=${encodeURIComponent(name)}&src=${encodeURIComponent(src)}`;
     const res = await fetch(url, { method: 'PUT', signal: AbortSignal.timeout(8_000) });
     if (!res.ok) {
       throw new Error(`go2rtc PUT stream failed: ${res.status}`);
@@ -548,6 +556,13 @@ export class UniFiIntegration implements Integration {
 
   getCachedSnapshot(name: string): { buffer: Buffer; timestamp: number } | null {
     return this.snapshotCache.get(name) ?? null;
+  }
+
+  /** Write a freshly-fetched snapshot into the shared cache so other clients
+   *  asking for the same camera get it immediately without another upstream
+   *  fetch. Called from the /snapshot route after a `?fresh=` bypass. */
+  setCachedSnapshot(name: string, buffer: Buffer): void {
+    this.snapshotCache.set(name, { buffer, timestamp: Date.now() });
   }
 
   getGo2rtcUrl(name: string): string | null {
