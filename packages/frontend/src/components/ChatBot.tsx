@@ -952,6 +952,13 @@ function AssistantRightPanel() {
   }, [router, enqueueAudio, clearAudioQueue, timers, addTimer, stopTimer, toggleTimer, resetTimer, removeTimer, refreshSession]);
 
   const startMediaRecorderSTT = useCallback(async () => {
+    // getUserMedia needs a secure context too (HTTPS or localhost).
+    if (typeof window !== 'undefined' && window.isSecureContext === false) {
+      setError(
+        'Voice input requires HTTPS. This page is served over plain HTTP, so the browser blocks microphone access. Use https://, access via localhost, or set up a LAN certificate.',
+      );
+      return;
+    }
     if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       setError('Voice input not supported in this browser.');
       return;
@@ -959,8 +966,15 @@ function AssistantRightPanel() {
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      setError('Microphone permission denied. Check browser settings.');
+    } catch (err) {
+      const name = err instanceof Error ? err.name : 'Error';
+      if (name === 'NotAllowedError') {
+        setError('Microphone permission denied. Check browser settings — or the page may need HTTPS to prompt for mic access.');
+      } else if (name === 'NotFoundError') {
+        setError('No microphone detected on this device.');
+      } else {
+        setError(`Microphone unavailable (${name}).`);
+      }
       return;
     }
     // Pick a MIME type MediaRecorder supports (Safari needs mp4/aac; Chrome/Firefox support webm/opus).
@@ -1007,6 +1021,15 @@ function AssistantRightPanel() {
   }, [sendMessage]);
 
   const startListening = useCallback(() => {
+    // Microphone requires a secure context (HTTPS) in every modern browser
+    // except on localhost. Accessing via a LAN IP over plain HTTP (e.g.
+    // http://192.168.68.125:3001) fails silently — make the reason visible.
+    if (typeof window !== 'undefined' && window.isSecureContext === false) {
+      setError(
+        'Voice input requires HTTPS. This page is served over plain HTTP, so the browser blocks microphone access. Use https://, access via localhost, or set up a LAN certificate.',
+      );
+      return;
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SR = (typeof window !== 'undefined') && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
     if (!SR) {
@@ -1035,14 +1058,19 @@ function AssistantRightPanel() {
         ? 'No speech detected. Try speaking again.'
         : e.error === 'network'
           ? 'Network error. Check your connection.'
-          : e.error === 'permission-denied'
-            ? 'Microphone permission denied. Check browser settings.'
+          : e.error === 'permission-denied' || e.error === 'not-allowed'
+            ? 'Microphone permission denied. Check browser settings — or the page may need HTTPS to prompt for mic access.'
             : `Voice input error: ${e.error}`;
       setError(errorMsg);
     };
     recognitionRef.current = rec;
-    rec.start();
-    setIsListening(true);
+    try {
+      rec.start();
+      setIsListening(true);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Could not start microphone: ${msg}`);
+    }
   }, [sendMessage, startMediaRecorderSTT]);
 
   const stopListening = useCallback(() => {
