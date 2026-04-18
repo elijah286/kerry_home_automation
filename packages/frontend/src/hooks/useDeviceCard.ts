@@ -24,7 +24,7 @@
 // flight and avoids showing another device's override briefly after id churn.
 // ---------------------------------------------------------------------------
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CardDescriptor, DeviceState } from '@ha/shared';
 import { useDevice } from './useDevice';
 import {
@@ -135,8 +135,10 @@ export function useDeviceCard(deviceId: string | undefined): UseDeviceCardResult
     }
   }, [deviceId, override]);
 
-  const card =
-    device && override !== undefined ? resolveDefaultCard(device, override) : null;
+  const card = useMemo(
+    () => device && override !== undefined ? resolveDefaultCard(device, override) : null,
+    [device, override],
+  );
 
   const isLoading = Boolean(deviceId) && override === undefined;
 
