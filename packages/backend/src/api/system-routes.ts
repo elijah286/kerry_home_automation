@@ -511,19 +511,17 @@ export function registerSystemRoutes(app: FastifyInstance): void {
     (async () => {
       try {
         const allEntries = getLogEntries();
-        const bufferSize = allEntries.length;
+        const lastReplayedTimestamp = allEntries.length > 0 ? allEntries[allEntries.length - 1]!.ts : 0;
 
         // Replay the buffer
         for (const entry of allEntries) {
           write(entry);
         }
 
-        // Subscribe to *new* entries only (skip the ones we just replayed).
-        // Track by reference since entries are immutable after logging.
-        const replayedIds = new Set(allEntries.map((e) => `${e.ts}:${e.msg.slice(0, 64)}`));
+        // Subscribe to *new* entries only (entries with ts > last replayed).
+        // This avoids deduplication ambiguity from rapid successive logs.
         const unsub = subscribeLogs((entry) => {
-          const id = `${entry.ts}:${entry.msg.slice(0, 64)}`;
-          if (!replayedIds.has(id)) {
+          if (entry.ts > lastReplayedTimestamp) {
             write(entry);
           }
         });
