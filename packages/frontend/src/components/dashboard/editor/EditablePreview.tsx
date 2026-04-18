@@ -105,6 +105,16 @@ export function EditablePreview({
         onDelete={() => onDeleteCard(selection)}
         onDragStart={() => startCardDrag(sectionIndex, ci)}
         onDragEnd={endDrag}
+        // Treat every card as a drop target (top half = insert before it,
+        // bottom half = insert after it). Without this, dropping on top of
+        // a tall card like the thermostat tile was nearly impossible — you
+        // had to precisely hit the 8-pixel DropZone between cards.
+        onDragOverCard={(half) =>
+          hoverCard(sectionIndex, half === 'top' ? ci : ci + 1)
+        }
+        onDropOverCard={(half) =>
+          dropCard(sectionIndex, half === 'top' ? ci : ci + 1)
+        }
       />
     );
   };

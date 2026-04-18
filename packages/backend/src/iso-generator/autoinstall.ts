@@ -112,10 +112,6 @@ autoinstall:
     - "chown ${cfg.username}:${cfg.username} /target/var/log/home-automation"
     # Make update script executable
     - "chmod +x /target${cfg.appDir}/scripts/update.sh"
-    # Install cron job (runs as root so it can sudo reboot)
-    - |
-      printf '%s\n' '*/5 * * * * root /opt/home-automation/scripts/update.sh >> /var/log/home-automation/update.log 2>&1' > /target/etc/cron.d/home-automation-update
-    - "chmod 644 /target/etc/cron.d/home-automation-update"
     # Allow admin user to reboot without password (needed for update script Layer 4)
     - |
       printf '%s\n' '${cfg.username} ALL=(ALL) NOPASSWD: /sbin/reboot' > /target/etc/sudoers.d/home-automation

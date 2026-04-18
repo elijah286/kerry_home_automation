@@ -109,8 +109,19 @@ export interface DiscoveredCamera {
   model: string;
   /** Whether Protect reports the camera as connected */
   connected: boolean;
-  /** Full RTSP URL for the best-quality stream */
+  /**
+   * Primary RTSP URL — the LOW-RES sub-stream.
+   * Used for grid tile snapshots and default live view. Lower CPU, lower
+   * bandwidth; fine for thumbnail/grid use.
+   */
   rtspUrl: string;
+  /**
+   * Optional HD RTSP URL — the HIGH-RES main stream.
+   * Registered in go2rtc as `{streamName}_hd` and used only when the user
+   * opens the fullscreen HD view. If the camera doesn't expose a second
+   * channel, this is undefined.
+   */
+  rtspUrlHd?: string;
 }
 
 // -- Client class -----------------------------------------------------------
@@ -232,25 +243,87 @@ export class ProtectClient {
     // Extract host for RTSP URLs (strip protocol/port from baseUrl)
     const protectHost = new URL(this.baseUrl).hostname;
 
+    // Proactively enable RTSP on all channels so we have sub-streams
+    // available for go2rtc. Cameras ship with only one channel's RTSP on
+    // by default; without this every stream is the full-res main channel.
+    const cameraApiBase = path.replace(/\/bootstrap$/, '/cameras');
+    for (const cam of cameras) {
+      await this.enableAllRtspChannels(cameraApiBase, cam).catch((err) => {
+        logger.warn({ err, cameraId: cam.id, name: cam.name }, 'Could not enable all RTSP channels');
+      });
+    }
+
     return cameras
-      .map((cam) => {
-        // Pick the highest-resolution enabled RTSP channel
-        const channel = cam.channels
+      .map((cam): DiscoveredCamera | null => {
+        // Pick the LOWEST-resolution enabled RTSP channel as the primary
+        // (sub-stream pattern — 10–20× less CPU to transmux than the main
+        // stream, plenty of quality for grid tiles). If there's a second
+        // channel available, register it as HD for fullscreen use.
+        const enabled = cam.channels
           .filter((ch) => ch.enabled && ch.isRtspEnabled && ch.rtspAlias)
-          .sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
+          .sort((a, b) => (a.width * a.height) - (b.width * b.height));
 
-        if (!channel) return null;
+        const low  = enabled[0];
+        const high = enabled[enabled.length - 1];
+        if (!low) return null;
 
-        return {
+        const result: DiscoveredCamera = {
           protectId: cam.id,
           name: cam.name,
           streamName: normalizeStreamName(cam.name),
           model: cam.type,
           connected: cam.state === 'CONNECTED',
-          rtspUrl: `rtsp://${protectHost}:7447/${channel.rtspAlias}`,
+          rtspUrl: `rtsp://${protectHost}:7447/${low.rtspAlias}`,
         };
+        if (high && high !== low) {
+          result.rtspUrlHd = `rtsp://${protectHost}:7447/${high.rtspAlias}`;
+        }
+        return result;
       })
       .filter((c): c is DiscoveredCamera => c !== null);
+  }
+
+  /**
+   * Turn on `isRtspEnabled` for every enabled channel on a camera, so
+   * go2rtc has low + medium + high sub-streams to pick from. No-op when
+   * already fully enabled. Silently swallows channel PATCH failures —
+   * any enabled-RTSP channel we get is better than none.
+   */
+  private async enableAllRtspChannels(cameraApiBase: string, cam: ProtectCamera): Promise<void> {
+    const patches = cam.channels
+      .filter((ch) => ch.enabled && !ch.isRtspEnabled)
+      .map((ch) => ({ id: ch.id, isRtspEnabled: true }));
+    if (patches.length === 0) return;
+
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Cookie: this.cookies,
+      Referer: `${this.baseUrl}/`,
+    };
+    if (this.csrfToken) headers['x-csrf-token'] = this.csrfToken;
+
+    const res = await request(`${this.baseUrl}${cameraApiBase}/${cam.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ channels: patches }),
+      timeout: 15_000,
+    });
+
+    if (res.status >= 200 && res.status < 300) {
+      // Reflect the change in-memory so downstream sort/filter sees enabled flags.
+      for (const p of patches) {
+        const ch = cam.channels.find((c) => c.id === p.id);
+        if (ch) ch.isRtspEnabled = true;
+      }
+      logger.info(
+        { cameraId: cam.id, name: cam.name, channelIds: patches.map((p) => p.id) },
+        'UniFi Protect: enabled additional RTSP channels (sub-streams now available)',
+      );
+    } else if (res.status !== 401) {
+      // 401 = session expired, caller re-logs-in; anything else is a real error but non-fatal.
+      throw new Error(`PATCH camera ${cam.id} RTSP channels failed: ${res.status}`);
+    }
   }
 }
 

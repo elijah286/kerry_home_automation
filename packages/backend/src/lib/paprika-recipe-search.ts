@@ -2,12 +2,28 @@
 // Load Paprika recipes from Redis (same store as paprika-routes) + text search
 // ---------------------------------------------------------------------------
 
-import type { IntegrationId, PaprikaRecipe } from '@ha/shared';
+import type { IntegrationId, PaprikaRecipe, PaprikaMeal } from '@ha/shared';
 import { redis } from '../state/redis.js';
 import * as entryStore from '../db/integration-entry-store.js';
 
 /** Must match `RECIPE_STORE_KEY` in api/paprika-routes.ts */
 const RECIPE_STORE_KEY = 'paprika:store:recipes';
+/** Must match the meals cache key in api/paprika-routes.ts */
+const MEALS_CACHE_KEY = 'paprika:meals';
+
+/**
+ * Read the currently-cached Paprika meal plan from Redis.
+ * Returns [] if no cache entry (will be populated next time the UI loads meals).
+ */
+export async function getPaprikaMealsFromStore(): Promise<PaprikaMeal[]> {
+  const cached = await redis.get(MEALS_CACHE_KEY);
+  if (!cached) return [];
+  try {
+    return JSON.parse(cached) as PaprikaMeal[];
+  } catch {
+    return [];
+  }
+}
 
 export async function isPaprikaConfigured(): Promise<boolean> {
   const entries = await entryStore.getEntries('paprika' as IntegrationId);

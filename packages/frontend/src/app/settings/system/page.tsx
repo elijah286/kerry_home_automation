@@ -8,10 +8,11 @@ import { useAuth } from '@/providers/AuthProvider';
 import {
   Cpu, ArrowLeft, RefreshCw, Loader2, Power, RotateCcw,
   HardDrive, MemoryStick, Activity, Terminal, AlertTriangle,
-  CheckCircle2, Container, Circle, Heart,
+  CheckCircle2, Container, Circle, Heart, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import Link from 'next/link';
 import { getApiBase, apiFetch } from '@/lib/api-base';
+import { SystemStatsGraph, type SystemMetric } from '@/components/viz/SystemStatsGraph';
 
 const API_BASE = getApiBase();
 
@@ -44,15 +45,32 @@ interface GaugeProps {
   icon: React.ElementType;
   percent: number;
   detail: string;
+  /** When provided, the gauge becomes clickable and reveals a time graph. */
+  metric?: SystemMetric;
+  expanded?: boolean;
+  onToggle?: () => void;
 }
 
-function Gauge({ label, icon: Icon, percent, detail }: GaugeProps) {
+function Gauge({ label, icon: Icon, percent, detail, metric, expanded, onToggle }: GaugeProps) {
   const color = percent > 85 ? 'var(--color-danger)' : percent > 65 ? 'var(--color-warning, #f59e0b)' : 'var(--color-accent)';
+  const expandable = metric !== undefined && onToggle !== undefined;
   return (
     <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-1.5 mb-2">
+      <div
+        className={`flex items-center gap-1.5 mb-2 ${expandable ? 'cursor-pointer select-none' : ''}`}
+        onClick={expandable ? onToggle : undefined}
+        role={expandable ? 'button' : undefined}
+        tabIndex={expandable ? 0 : undefined}
+        onKeyDown={expandable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle?.(); } } : undefined}
+        title={expandable ? (expanded ? 'Hide time graph' : 'Show time graph') : undefined}
+      >
         {createElement(Icon, { className: 'h-3.5 w-3.5', style: { color } })}
         <span className="text-xs font-medium">{label}</span>
+        {expandable && (
+          expanded
+            ? <ChevronUp className="h-3 w-3" style={{ color: 'var(--color-text-muted)' }} />
+            : <ChevronDown className="h-3 w-3" style={{ color: 'var(--color-text-muted)' }} />
+        )}
       </div>
       <div className="w-full rounded-full h-1.5 overflow-hidden mb-1"
         style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
@@ -63,6 +81,7 @@ function Gauge({ label, icon: Icon, percent, detail }: GaugeProps) {
         <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{detail}</span>
         <span className="text-xs font-mono" style={{ color }}>{percent}%</span>
       </div>
+      {expandable && expanded && <SystemStatsGraph metric={metric!} />}
     </div>
   );
 }
@@ -371,6 +390,7 @@ export default function SystemPage() {
   const { isAdmin, loading: authLoading } = useAuth();
   const [stats, setStats] = useState<SystemStats | null>(null);
   const [statsError, setStatsError] = useState(false);
+  const [expandedMetric, setExpandedMetric] = useState<SystemMetric | null>(null);
   const [logLines, setLogLines] = useState<string[]>([]);
   const [logLoading, setLogLoading] = useState(false);
 
@@ -441,7 +461,7 @@ export default function SystemPage() {
 
   if (authLoading) {
     return (
-      <div className="max-w-3xl mx-auto p-4 lg:p-6 flex justify-center py-16">
+      <div className="max-w-3xl xl:max-w-5xl mx-auto p-4 lg:p-6 flex justify-center py-16">
         <Loader2 className="h-6 w-6 animate-spin" style={{ color: 'var(--color-text-muted)' }} />
       </div>
     );
@@ -449,7 +469,7 @@ export default function SystemPage() {
 
   if (!isAdmin) {
     return (
-      <div className="max-w-3xl mx-auto p-4 lg:p-6 space-y-4">
+      <div className="max-w-3xl xl:max-w-5xl mx-auto p-4 lg:p-6 space-y-4">
         <div className="flex items-center gap-3">
           <Link href="/settings" className="p-1 rounded-lg hover:bg-[var(--color-bg-hover)]">
             <ArrowLeft className="h-4 w-4" style={{ color: 'var(--color-text-muted)' }} />
@@ -474,7 +494,7 @@ export default function SystemPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-3xl xl:max-w-5xl mx-auto p-4 lg:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Link href="/settings" className="p-1 rounded-lg hover:bg-[var(--color-bg-hover)]">
@@ -505,24 +525,33 @@ export default function SystemPage() {
           )}
         </div>
         {stats ? (
-          <div className="flex gap-6 flex-wrap">
+          <div className="flex gap-6 flex-wrap items-start">
             <Gauge
               label="CPU"
               icon={Activity}
               percent={stats.cpu.percent}
               detail={`${stats.cpu.cores} cores`}
+              metric="cpu"
+              expanded={expandedMetric === 'cpu'}
+              onToggle={() => setExpandedMetric((m) => m === 'cpu' ? null : 'cpu')}
             />
             <Gauge
               label="Memory"
               icon={MemoryStick}
               percent={stats.memory.percent}
               detail={`${formatBytes(stats.memory.used)} / ${formatBytes(stats.memory.total)}`}
+              metric="memory"
+              expanded={expandedMetric === 'memory'}
+              onToggle={() => setExpandedMetric((m) => m === 'memory' ? null : 'memory')}
             />
             <Gauge
               label="Disk"
               icon={HardDrive}
               percent={stats.disk.percent}
               detail={`${formatBytes(stats.disk.used)} / ${formatBytes(stats.disk.total)}`}
+              metric="disk"
+              expanded={expandedMetric === 'disk'}
+              onToggle={() => setExpandedMetric((m) => m === 'disk' ? null : 'disk')}
             />
           </div>
         ) : (

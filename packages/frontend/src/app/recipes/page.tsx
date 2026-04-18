@@ -260,6 +260,7 @@ function RecipesPageContent() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [pinnedUids, setPinnedUids] = useState<Set<string> | null>(null);
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<PaprikaRecipe | null>(null);
   const todayRef = useRef<HTMLDivElement>(null);
@@ -307,6 +308,25 @@ function RecipesPageContent() {
 
   useEffect(() => { loadData(); }, []);
 
+  // Apply ?uids= param from assistant navigation (exact UID set), then clean URL
+  const uidsParam = searchParams.get('uids');
+  useEffect(() => {
+    if (!uidsParam) return;
+    setPinnedUids(new Set(uidsParam.split(',').map((u) => u.trim()).filter(Boolean)));
+    setSearch('');
+    setSelectedCategory('');
+    router.replace('/recipes', { scroll: false });
+  }, [uidsParam, router]);
+
+  // Apply ?q= search param from assistant navigation, then clean URL
+  const qParam = searchParams.get('q');
+  useEffect(() => {
+    if (!qParam) return;
+    setSearch(qParam);
+    setPinnedUids(null);
+    router.replace('/recipes', { scroll: false });
+  }, [qParam, router]);
+
   const openUid = searchParams.get('open');
   useEffect(() => {
     if (!openUid || loading || recipes.length === 0) return;
@@ -328,15 +348,22 @@ function RecipesPageContent() {
   };
 
   const filteredRecipes = useMemo(() => {
+    // When the assistant pins exact UIDs, show only those (preserving match order)
+    if (pinnedUids) {
+      const ordered = [...pinnedUids]
+        .map((uid) => recipes.find((r) => r.uid === uid))
+        .filter((r): r is typeof recipes[number] => r !== undefined);
+      return ordered;
+    }
     return recipes.filter((r) => {
       if (search) {
         const q = search.toLowerCase();
-        if (!r.name.toLowerCase().includes(q) && !r.ingredients.toLowerCase().includes(q) && !r.source.toLowerCase().includes(q)) return false;
+        if (!r.name.toLowerCase().includes(q) && !r.ingredients.toLowerCase().includes(q) && !(r.source ?? '').toLowerCase().includes(q)) return false;
       }
       if (selectedCategory && !r.categories.includes(selectedCategory)) return false;
       return true;
     });
-  }, [recipes, search, selectedCategory]);
+  }, [recipes, search, selectedCategory, pinnedUids]);
 
   const topCategories = useMemo(() => {
     const counts = new Map<string, number>();
@@ -456,6 +483,28 @@ function RecipesPageContent() {
 
         {/* Recipes Tab */}
         <Tabs.Content value="recipes" forceMount className="pt-4 space-y-4 data-[state=inactive]:hidden">
+
+          {/* AI filtered banner */}
+          {pinnedUids && (
+            <div
+              className="flex items-center justify-between rounded-lg px-3 py-2 text-xs"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-accent) 10%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--color-accent) 25%, transparent)',
+                color: 'var(--color-accent)',
+              }}
+            >
+              <span>✦ {filteredRecipes.length} recipe{filteredRecipes.length !== 1 ? 's' : ''} matched by AI assistant</span>
+              <button
+                onClick={() => { setPinnedUids(null); setSearch(''); }}
+                className="ml-3 rounded px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-70"
+                style={{ backgroundColor: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}
+              >
+                Clear
+              </button>
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2">
             <div className="relative flex-1 min-w-48">
               <Search className="absolute left-2.5 top-2 h-4 w-4" style={{ color: 'var(--color-text-muted)' }} />
@@ -463,7 +512,7 @@ function RecipesPageContent() {
                 type="text"
                 placeholder="Search recipes..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => { setSearch(e.target.value); setPinnedUids(null); }}
                 className="w-full rounded-md border pl-8 pr-3 py-1.5 text-sm"
                 style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
               />

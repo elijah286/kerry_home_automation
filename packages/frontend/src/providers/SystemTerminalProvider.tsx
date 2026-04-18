@@ -122,7 +122,7 @@ export function SystemTerminalProvider({
   const initLogIntegrationWhitelistIfNeeded = useCallback(() => {
     setLogIntegrationWhitelistState((prev) => {
       if (prev !== null) return prev;
-      const all = [SYSTEM_LOG_SOURCE_ID, 'software-update', ...KNOWN_INTEGRATIONS.map((i) => i.id)];
+      const all = [SYSTEM_LOG_SOURCE_ID, 'software-update', 'cameras', ...KNOWN_INTEGRATIONS.map((i) => i.id)];
       try {
         localStorage.setItem(STORAGE_LOG_INTEGRATION_WHITELIST, JSON.stringify(all));
       } catch {
@@ -251,6 +251,7 @@ export function SystemTerminalProvider({
           onClose={() => setOpen(false)}
           placement="bottom"
           panelHeightPx={statusLcarsFullscreen ? bottomDockHeightPx : TERMINAL_PANEL_HEIGHT}
+          onHeightChange={setBottomDockHeightPx}
         />
       )}
     </SystemTerminalContext.Provider>
@@ -268,5 +269,5 @@ export function useSystemTerminalBottomInset(): number {
   const ctx = useContext(SystemTerminalContext);
   if (!ctx?.canUse || !ctx.open) return 0;
   if (ctx.terminalDockPlacement === 'top') return 0;
-  return ctx.statusLcarsFullscreen ? ctx.bottomDockHeightPx : TERMINAL_PANEL_HEIGHT;
+  return ctx.bottomDockHeightPx;
 }

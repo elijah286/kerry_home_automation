@@ -32,11 +32,18 @@ import {
   Plus,
   Pencil,
   MapPinned,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Ear,
 } from 'lucide-react';
 import { useCookingTimers, formatCookingTimer } from '@/providers/CookingTimersProvider';
+import { useAuth } from '@/providers/AuthProvider';
 import { clsx } from 'clsx';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useLocationsMap } from '@/providers/LocationsMapContext';
+import { useAuth } from '@/providers/AuthProvider';
 import { getApiBase, apiFetch } from '@/lib/api-base';
 
 interface Message {
@@ -610,15 +617,94 @@ function MapLayersSidebarBody() {
 
 function AssistantRightPanel() {
   const router = useRouter();
+  const { refreshSession } = useAuth();
   const isMdUp = useMediaQuery('(min-width: 768px)');
-  const { open, setOpen, lcarsDockInset, rightPanelMode } = useAssistant();
+  const { open, setOpen, lcarsDockInset, rightPanelMode, setRightPanelMode } = useAssistant();
+  const { timers, addTimer, toggleTimer, resetTimer, removeTimer, stopTimer } = useCookingTimers();
+  const { refreshSession } = useAuth();
   const [fullscreen, setFullscreen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [toolStatuses, setToolStatuses] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [passiveListening, setPassiveListening] = useState(false);
+  const [wakeWord, setWakeWord] = useState('hey home');
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
+  const ttsEnabledRef = useRef(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const passiveRecRef = useRef<any>(null);
+  const wakeWordRef = useRef('hey home');
+  const passiveListeningRef = useRef(false);
+  const streamingTextRef = useRef('');
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Audio queue for server-synthesized TTS. Chunks arrive with monotonic
+  // `seq` numbers; we play them in order even if a later sentence finishes
+  // synthesis before an earlier one.
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const audioQueueRef = useRef<{ seq: number; url: string }[]>([]);
+  const audioNextSeqRef = useRef(0);
+  const audioPlayingRef = useRef(false);
+
+  const clearAudioQueue = useCallback(() => {
+    for (const item of audioQueueRef.current) URL.revokeObjectURL(item.url);
+    audioQueueRef.current = [];
+    audioNextSeqRef.current = 0;
+    audioPlayingRef.current = false;
+    const el = audioElRef.current;
+    if (el) {
+      el.pause();
+      el.removeAttribute('src');
+      el.load();
+    }
+  }, []);
+
+  const playNextAudio = useCallback(() => {
+    if (audioPlayingRef.current) return;
+    const queue = audioQueueRef.current;
+    const want = audioNextSeqRef.current;
+    const idx = queue.findIndex((q) => q.seq === want);
+    if (idx === -1) return;
+    const [item] = queue.splice(idx, 1);
+    audioNextSeqRef.current = want + 1;
+    audioPlayingRef.current = true;
+    if (!audioElRef.current) audioElRef.current = new Audio();
+    const el = audioElRef.current;
+    el.src = item.url;
+    el.onended = () => {
+      URL.revokeObjectURL(item.url);
+      audioPlayingRef.current = false;
+      playNextAudio();
+    };
+    el.onerror = () => {
+      URL.revokeObjectURL(item.url);
+      audioPlayingRef.current = false;
+      playNextAudio();
+    };
+    el.play().catch(() => {
+      audioPlayingRef.current = false;
+    });
+  }, []);
+
+  const enqueueAudio = useCallback((seq: number, base64: string, mime: string) => {
+    if (!ttsEnabledRef.current) return;
+    // Decode base64 → Blob URL
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: mime || 'audio/mpeg' });
+    const url = URL.createObjectURL(blob);
+    audioQueueRef.current.push({ seq, url });
+    playNextAudio();
+  }, [playNextAudio]);
 
   const dockInFrame = lcarsDockInset !== null && isMdUp && !fullscreen;
 
@@ -626,7 +712,7 @@ function AssistantRightPanel() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, loading]);
+  }, [messages, loading, toolStatuses]);
 
   useEffect(() => {
     if (open && rightPanelMode === 'assistant' && inputRef.current) {
@@ -645,6 +731,36 @@ function AssistantRightPanel() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open, fullscreen, setOpen]);
 
+  // Fetch admin-configured wake word on mount
+  useEffect(() => {
+    apiFetch(`${getApiBase()}/api/settings/assistant_wake_word`)
+      .then((r) => r.json())
+      .then((d: { value?: unknown }) => {
+        const w = (typeof d.value === 'string' ? d.value.trim() : '') || 'hey home';
+        setWakeWord(w);
+        wakeWordRef.current = w;
+      })
+      .catch(() => {});
+  }, []);
+
+  // Load chat history when assistant opens
+  useEffect(() => {
+    if (!open || rightPanelMode !== 'assistant' || messages.length > 0) return;
+    const loadHistory = async () => {
+      try {
+        const res = await apiFetch(`${getApiBase()}/api/chat/history`);
+        if (res.ok) {
+          const data = await res.json() as { messages: Array<{ role: 'user' | 'assistant'; content: string }> };
+          setMessages(data.messages);
+        }
+      } catch (err) {
+        // Silently fail — don't show error to user
+        console.error('Failed to load chat history:', err);
+      }
+    };
+    loadHistory();
+  }, [open, rightPanelMode]);
+
   const inputValRef = useRef(input);
   inputValRef.current = input;
   const messagesRef = useRef(messages);
@@ -652,52 +768,302 @@ function AssistantRightPanel() {
   const loadingRef = useRef(loading);
   loadingRef.current = loading;
 
-  const sendMessage = useCallback(async () => {
-    const text = inputValRef.current.trim();
+  const toggleTts = useCallback(() => {
+    const next = !ttsEnabledRef.current;
+    ttsEnabledRef.current = next;
+    setTtsEnabled(next);
+    if (!next) clearAudioQueue();
+  }, [clearAudioQueue]);
+
+  const stopMessage = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setLoading(false);
+      setIsStreaming(false);
+    }
+    clearAudioQueue();
+  }, [clearAudioQueue]);
+
+  const sendMessage = useCallback(async (overrideText?: string) => {
+    const text = (overrideText ?? inputValRef.current).trim();
     if (!text || loadingRef.current) return;
 
     setInput('');
     setError(null);
+    setToolStatuses([]);
+    setIsStreaming(false);
+    streamingTextRef.current = '';
+    clearAudioQueue();
+
     const newMessages: Message[] = [...messagesRef.current, { role: 'user', content: text }];
     setMessages(newMessages);
     setLoading(true);
 
+    let assistantMsgAdded = false;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    // Snapshot current client-side state to give the LLM awareness of things
+    // that only live in the browser (kitchen timers, etc.). Sent as `context`
+    // on each request so the assistant can answer "stop the pasta timer" etc.
+    const clientContext = {
+      timers: timers.map((t) => ({
+        id: t.id,
+        label: t.label,
+        totalSeconds: t.totalSeconds,
+        remainingSeconds: t.remainingSeconds,
+        running: t.running,
+      })),
+    };
+
     try {
-      const res = await apiFetch(`${getApiBase()}/api/chat`, {
+      const res = await apiFetch(`${getApiBase()}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ messages: newMessages, context: clientContext, tts: ttsEnabledRef.current }),
+        signal: controller.signal,
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Something went wrong');
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        setError(data.error ?? 'Something went wrong');
         setLoading(false);
         return;
       }
 
-      setMessages([...newMessages, { role: 'assistant', content: data.reply }]);
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-      if (data.navigate) {
-        router.push(data.navigate);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() ?? '';
+        for (const part of parts) {
+          if (!part.startsWith('data: ')) continue;
+          try {
+            const event = JSON.parse(part.slice(6)) as {
+              type: string; text?: string; tool?: string; label?: string; navigate?: string; error?: string;
+              seq?: number; data?: string; mime?: string;
+              action?: {
+                kind?: string;
+                action?: string;
+                label?: string;
+                seconds?: number;
+                timerId?: string;
+              };
+            };
+            if (event.type === 'token' && event.text) {
+              if (!assistantMsgAdded) {
+                assistantMsgAdded = true;
+                setIsStreaming(true);
+                streamingTextRef.current = event.text;
+                setMessages((prev) => [...prev, { role: 'assistant', content: event.text! }]);
+              } else {
+                streamingTextRef.current += event.text;
+                const t = streamingTextRef.current;
+                setMessages((prev) => {
+                  const next = [...prev];
+                  next[next.length - 1] = { role: 'assistant', content: t };
+                  return next;
+                });
+              }
+            } else if (event.type === 'tool_status' && event.label) {
+              setToolStatuses((prev) => [...prev.filter((s) => s !== event.label), event.label!]);
+            } else if (event.type === 'navigate' && event.navigate) {
+              // Backend fires this the moment navigate_ui runs — navigate
+              // immediately instead of waiting for the LLM's narration to finish.
+              // If we're in fullscreen, collapse to the side panel so the user
+              // can actually see the destination page (but keep the assistant open).
+              setFullscreen(false);
+              router.push(event.navigate);
+            } else if (event.type === 'audio' && event.data && typeof event.seq === 'number') {
+              enqueueAudio(event.seq, event.data, event.mime ?? 'audio/mpeg');
+            } else if (event.type === 'ui_preferences_update') {
+              void refreshSession();
+            } else if (event.type === 'audio_end') {
+              // No-op — queue drains on its own. Reserved for future UI state.
+            } else if (event.type === 'client_action' && event.action?.kind === 'refresh_auth') {
+              // UI preferences changed on the server; re-fetch the session so
+              // the theme/color mode/etc. applies instantly.
+              void refreshSession();
+            } else if (event.type === 'client_action' && event.action?.kind === 'data_changed') {
+              // Assistant mutated a server resource (alarm, automation, etc).
+              // Broadcast a global event so any mounted page showing that
+              // resource can refetch without requiring a page reload.
+              const resources = Array.isArray(
+                (event.action as { resources?: unknown }).resources,
+              )
+                ? ((event.action as { resources: string[] }).resources)
+                : [];
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                  new CustomEvent('ha:data-changed', { detail: { resources } }),
+                );
+              }
+              // Also nudge Next.js to re-run any server components on the
+              // current route (harmless if there are none to refresh).
+              try { router.refresh(); } catch { /* noop */ }
+            } else if (event.type === 'client_action' && event.action?.kind === 'timer') {
+              // Assistant is driving a kitchen timer. Run it against the local
+              // CookingTimers context so the Timers sidebar updates instantly.
+              const a = event.action;
+              if (a.action === 'start' && a.label && typeof a.seconds === 'number') {
+                addTimer(a.label, a.seconds);
+              } else if (a.action === 'pause' && a.timerId) {
+                stopTimer(a.timerId);
+              } else if (a.action === 'resume' && a.timerId) {
+                toggleTimer(a.timerId);
+              } else if (a.action === 'reset' && a.timerId) {
+                resetTimer(a.timerId);
+              } else if (a.action === 'delete' && a.timerId) {
+                removeTimer(a.timerId);
+              }
+            } else if (event.type === 'done') {
+              setToolStatuses([]);
+              if (event.navigate) {
+                setFullscreen(false);
+                router.push(event.navigate);
+              }
+            } else if (event.type === 'error' && event.error) {
+              setError(event.error);
+            }
+          } catch {
+            // malformed SSE chunk — skip
+          }
+        }
       }
-    } catch {
-      setError('Failed to connect to server');
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        // Request was cancelled by user — don't show error
+      } else {
+        setError('Failed to connect to server');
+      }
     } finally {
+      abortControllerRef.current = null;
       setLoading(false);
+      setIsStreaming(false);
+      setToolStatuses([]);
     }
-  }, [router]);
+  }, [router, enqueueAudio, clearAudioQueue, timers, addTimer, stopTimer, toggleTimer, resetTimer, removeTimer, refreshSession]);
+
+  const startListening = useCallback(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (typeof window !== 'undefined') && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+    if (!SR) {
+      setError('Voice input not supported in this browser. Try Chrome or Edge.');
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rec = new SR() as any;
+    rec.lang = 'en-US';
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.onresult = (e: { results: SpeechRecognitionResultList }) => {
+      const transcript = Array.from(e.results).map((r) => r[0].transcript).join('');
+      setInput(transcript);
+      if (e.results[e.results.length - 1].isFinal) {
+        setIsListening(false);
+        recognitionRef.current = null;
+        void sendMessage(transcript);
+      }
+    };
+    rec.onend = () => setIsListening(false);
+    rec.onerror = (e: { error: string }) => {
+      setIsListening(false);
+      const errorMsg = e.error === 'no-speech'
+        ? 'No speech detected. Try speaking again.'
+        : e.error === 'network'
+          ? 'Network error. Check your connection.'
+          : e.error === 'permission-denied'
+            ? 'Microphone permission denied. Check browser settings.'
+            : `Voice input error: ${e.error}`;
+      setError(errorMsg);
+    };
+    recognitionRef.current = rec;
+    rec.start();
+    setIsListening(true);
+  }, [sendMessage]);
+
+  const stopListening = useCallback(() => {
+    recognitionRef.current?.stop();
+    setIsListening(false);
+  }, []);
+
+  // Passive (always-on) listening — watches for wake word, then fires active mic
+  const stopPassiveListening = useCallback(() => {
+    const rec = passiveRecRef.current;
+    passiveRecRef.current = null;
+    passiveListeningRef.current = false;
+    setPassiveListening(false);
+    rec?.stop();
+  }, []);
+
+  const startPassiveListening = useCallback(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (typeof window !== 'undefined') && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+    if (!SR) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rec = new SR() as any;
+    rec.lang = 'en-US';
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = (e: { results: SpeechRecognitionResultList }) => {
+      const transcript = Array.from(e.results)
+        .map((r) => r[0].transcript).join(' ').toLowerCase().trim();
+      if (transcript.includes(wakeWordRef.current.toLowerCase())) {
+        passiveRecRef.current = null;
+        passiveListeningRef.current = false;
+        rec.stop();
+        setPassiveListening(false);
+        setOpen(true);
+        setRightPanelMode('assistant');
+        setTimeout(() => startListening(), 150);
+      }
+    };
+    rec.onend = () => {
+      if (passiveRecRef.current === rec && passiveListeningRef.current) {
+        setTimeout(() => { if (passiveListeningRef.current) startPassiveListening(); }, 300);
+      }
+    };
+    rec.onerror = () => {
+      if (passiveRecRef.current === rec && passiveListeningRef.current) {
+        setTimeout(() => { if (passiveListeningRef.current) startPassiveListening(); }, 1000);
+      }
+    };
+    passiveRecRef.current = rec;
+    passiveListeningRef.current = true;
+    setPassiveListening(true);
+    rec.start();
+  }, [startListening, setOpen, setRightPanelMode]);
+
+  const togglePassiveListening = useCallback(() => {
+    if (passiveListeningRef.current) stopPassiveListening();
+    else startPassiveListening();
+  }, [startPassiveListening, stopPassiveListening]);
+
+  // Stop passive listening when tab hidden, restart when visible
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        if (passiveListeningRef.current) passiveRecRef.current?.stop();
+      } else {
+        if (passiveListeningRef.current) setTimeout(() => startPassiveListening(), 500);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [startPassiveListening]);
 
   const close = useCallback(() => {
     setOpen(false);
     setFullscreen(false);
   }, [setOpen]);
 
-  /** Docked panels use `right: contentRight`; `translateX(100%)` alone leaves that inset visible. */
-  const dockedSlideOffPx =
-    dockInFrame && lcarsDockInset
-      ? lcarsDockInset.contentRight + 24
-      : 0;
+  const dockedSlideOffPx = dockInFrame && lcarsDockInset ? lcarsDockInset.contentRight + 24 : 0;
 
   const panelTransform = open
     ? fullscreen
@@ -711,7 +1077,7 @@ function AssistantRightPanel() {
 
   return (
     <>
-      {/* Backdrop: tap outside to close on narrow screens */}
+      {/* Backdrop */}
       <div
         className={clsx(
           'fixed inset-0 z-[48] bg-black/45 transition-opacity duration-200 md:hidden',
@@ -770,6 +1136,7 @@ function AssistantRightPanel() {
         }
         aria-hidden={!open}
       >
+        {/* Header */}
         <div
           className="flex shrink-0 items-center gap-2 px-4 py-3"
           style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
@@ -788,6 +1155,38 @@ function AssistantRightPanel() {
                 ? 'Map layers'
                 : 'AI Assistant'}
           </span>
+          {rightPanelMode === 'assistant' && (
+            <>
+              {/* Always-on wake word toggle */}
+              <button
+                type="button"
+                onClick={togglePassiveListening}
+                className="relative rounded-md p-1 transition-colors hover:bg-white/20"
+                aria-label={passiveListening ? `Always-on listening active — say "${wakeWord}"` : 'Enable always-on wake word'}
+                title={passiveListening ? `Always-on · say "${wakeWord}" to activate` : `Enable always-on · will listen for "${wakeWord}"`}
+              >
+                <Ear className={`h-4 w-4 ${passiveListening ? '' : 'opacity-50'}`} />
+                {passiveListening && (
+                  <span
+                    className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full animate-pulse"
+                    style={{ backgroundColor: '#4ade80' }}
+                  />
+                )}
+              </button>
+              {/* TTS toggle */}
+              <button
+                type="button"
+                onClick={toggleTts}
+                className="rounded-md p-1 transition-colors hover:bg-white/20"
+                aria-label={ttsEnabled ? 'Mute voice responses' : 'Enable voice responses'}
+                title={ttsEnabled ? 'Voice responses on — click to mute' : 'Voice responses off — click to enable'}
+              >
+                {ttsEnabled
+                  ? <Volume2 className="h-4 w-4" />
+                  : <VolumeX className="h-4 w-4 opacity-60" />}
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={() => setFullscreen(!fullscreen)}
@@ -820,6 +1219,7 @@ function AssistantRightPanel() {
           </div>
         ) : (
           <>
+            {/* Messages */}
             <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
               {messages.length === 0 && !loading && (
                 <div className="flex h-full flex-col items-center justify-center px-4 text-center">
@@ -850,16 +1250,34 @@ function AssistantRightPanel() {
                 <ChatBubble key={i} msg={msg} />
               ))}
 
-              {loading && (
+              {/* Thinking / tool status indicator — hidden once text starts streaming */}
+              {loading && !isStreaming && (
                 <div className="flex items-start gap-2">
                   <div
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+                    className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
                     style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
                   >
                     <Bot className="h-3 w-3" />
                   </div>
-                  <div className="rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                    <Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--color-text-muted)' }} />
+                  <div
+                    className="rounded-lg px-3 py-2 text-xs"
+                    style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text-muted)' }}
+                  >
+                    {toolStatuses.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {toolStatuses.map((s) => (
+                          <div key={s} className="flex items-center gap-1.5">
+                            <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                            <span>{s}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                        <span>Thinking…</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -877,6 +1295,7 @@ function AssistantRightPanel() {
               )}
             </div>
 
+            {/* Input row */}
             <div className="shrink-0 border-t p-3" style={{ borderColor: 'var(--color-border)' }}>
               <div className="flex gap-2">
                 <input
@@ -886,27 +1305,63 @@ function AssistantRightPanel() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      sendMessage();
+                      void sendMessage();
                     }
                   }}
-                  placeholder="Ask something..."
+                  placeholder={isListening ? 'Listening…' : 'Ask something…'}
                   className="flex-1 rounded-md border px-3 py-2 text-sm transition-colors"
                   style={{
-                    backgroundColor: 'var(--color-bg-secondary)',
-                    borderColor: 'var(--color-border)',
+                    backgroundColor: isListening
+                      ? 'color-mix(in srgb, var(--color-danger) 8%, var(--color-bg-secondary))'
+                      : 'var(--color-bg-secondary)',
+                    borderColor: isListening ? 'var(--color-danger)' : 'var(--color-border)',
                     color: 'var(--color-text)',
                   }}
                   disabled={loading}
                 />
+                {/* Mic button */}
                 <button
                   type="button"
-                  onClick={sendMessage}
-                  disabled={loading || !input.trim()}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-50"
-                  style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
+                  onClick={isListening ? stopListening : startListening}
+                  disabled={loading}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-40"
+                  style={{
+                    backgroundColor: isListening
+                      ? 'var(--color-danger, #ef4444)'
+                      : 'var(--color-bg-secondary)',
+                    color: isListening ? '#fff' : 'var(--color-text-secondary)',
+                    border: '1px solid var(--color-border)',
+                  }}
+                  aria-label={isListening ? 'Stop listening' : 'Start voice input'}
+                  title={isListening ? 'Stop listening' : 'Speak your message'}
                 >
-                  <Send className="h-4 w-4" />
+                  {isListening
+                    ? <MicOff className="h-4 w-4" />
+                    : <Mic className="h-4 w-4" />}
                 </button>
+                {/* Send or Stop button */}
+                {loading ? (
+                  <button
+                    type="button"
+                    onClick={stopMessage}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors"
+                    style={{ backgroundColor: '#ef4444', color: '#fff' }}
+                    title="Stop responding"
+                    aria-label="Stop responding"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void sendMessage()}
+                    disabled={!input.trim()}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
           </>

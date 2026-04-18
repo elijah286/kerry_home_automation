@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import type { FastifyInstance } from 'fastify';
-import type { Automation, AutomationCreate, AutomationExecutionLog, AutomationUpdate, DeviceCommand, IntegrationId, UserRole } from '@ha/shared';
+import type { Automation, AutomationCreate, AutomationExecutionLog, AutomationUpdate, DeviceCommand, DeviceState, IntegrationId, UserRole } from '@ha/shared';
 import { KNOWN_INTEGRATIONS, Permission, ROLE_PERMISSIONS } from '@ha/shared';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
@@ -15,8 +15,10 @@ import { query } from '../db/pool.js';
 import { logger } from '../logger.js';
 import { authenticate } from './auth.js';
 import * as entryStore from '../db/integration-entry-store.js';
+import { tryFastPath } from './chat-fast-path.js';
 import {
   getPaprikaRecipesFromStore,
+  getPaprikaMealsFromStore,
   isPaprikaConfigured,
   searchPaprikaRecipes,
 } from '../lib/paprika-recipe-search.js';
@@ -27,7 +29,11 @@ import {
   type PendingAutomationOp,
 } from '../lib/chat-automation-proposals.js';
 import { applyAutomationProposal } from '../lib/apply-automation-proposal.js';
-import { apiKeyForActiveProvider, loadLlmRuntimeSettings } from './llm-config.js';
+import { apiKeyFor, loadLlmRuntimeSettings, type TtsVoice } from './llm-config.js';
+import { extractSentences, stripMarkdownForTts, synthesizeSentence } from './tts.js';
+import { effectiveUiPreferences, mergeUserPreferences } from '../lib/ui-preferences.js';
+import { VALID_UI_THEME_IDS, type ValidUiThemeId } from '@ha/shared';
+import { loadChatHistory, saveChatMessage, cleanupOldMessages } from './chat-history.js';
 
 // ---------------------------------------------------------------------------
 // Tool definitions for OpenAI function calling
@@ -117,9 +123,27 @@ const readTools: ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'set_theme',
+      description: 'Change the active UI theme for the current user. Takes effect immediately across all of HomeOS — the browser does not need to refresh. Use this whenever the user asks to switch, change, set, or try a theme (e.g. "change the theme to lcars", "switch to dark mode", "make it forest"). Valid theme IDs: default, midnight, glass, forest, rose, slate, ocean, amber, lcars. Map natural phrases to IDs: "dark"/"night" → midnight, "light"/"default" → default, "star trek"/"lcars" → lcars. After the tool succeeds, reply with ONE short sentence confirming the change — do not list other themes.',
+      parameters: {
+        type: 'object',
+        properties: {
+          theme: {
+            type: 'string',
+            enum: ['default', 'midnight', 'glass', 'forest', 'rose', 'slate', 'ocean', 'amber', 'lcars'],
+            description: 'The theme ID to activate.',
+          },
+        },
+        required: ['theme'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'navigate_ui',
       description:
-        'Navigate the user interface to a specific page. Use when the user asks to see something or go to a page. Paths: /devices, /cameras, /calendar, /settings, /integrations, /areas, /alarms, /recipes, /settings/automations. To open a specific Paprika recipe after search_recipes, use /recipes?open=<recipe_uid> with the uid from the search result.',
+        'Navigate the UI to a page — PRIMARY response tool for any "show/find/list/open" request. Always navigate first, then reply with one brief sentence. Paths: /devices, /cameras, /calendar, /settings, /integrations, /areas, /alarms, /settings/automations. Recipes: /recipes?uids=uid1,uid2,uid3 (use the navigatePath returned by search_recipes — this shows exactly the matched recipes), /recipes?open=<uid> (single recipe), /recipes (bare list). Devices: /devices?ids=id1,id2 (exact set from get_devices), /devices?type=<type>&area=<area> (filtered browse). Cameras: /cameras?open=<cameraName> opens a specific camera in fullscreen (use the device name from get_devices of type camera, e.g. "living_room", "driveway", "front_porch") — use this for "show me / fullscreen / open the X camera" requests.',
       parameters: {
         type: 'object',
         properties: {
@@ -134,7 +158,7 @@ const readTools: ChatCompletionTool[] = [
     function: {
       name: 'search_recipes',
       description:
-        "Search the user's Paprika recipe library as synced in HomeOS (names, ingredients, directions, notes, source). Use whenever the user asks to find recipes by ingredients, keywords, cuisine, or dish type — do NOT tell them to search only in the Paprika app. Call this tool with their criteria. If results are few, try broader terms or match_all_terms=false. After listing matches, offer navigate_ui to /recipes or /recipes?open=<uid> for a specific recipe.",
+        "Search the user's Paprika recipe library (names, ingredients, directions, notes, source). Call whenever the user asks about recipes by ingredient, keyword, cuisine, or dish type. The result includes a navigatePath field — always call navigate_ui with that path immediately after. It encodes the exact UIDs of matches so the UI shows precisely those recipes. Never list results in chat. Reply with one brief sentence: 'Showing X pork-and-vegetable recipes — want to open one?' If zero matches, suggest broadening the search.",
       parameters: {
         type: 'object',
         properties: {
@@ -199,6 +223,182 @@ const readTools: ChatCompletionTool[] = [
             description: 'Optional — only include feeds whose label contains this text (case-insensitive)',
           },
         },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'manage_timer',
+      description:
+        'Create, start, pause, resume, reset, or delete a kitchen/cooking timer. The timer runs in the browser (the user sees it in the Timers sidebar) — this tool instructs the UI to perform the action. For "start a 9 minute timer for the pasta", action="start", label="Pasta", seconds=540. For natural speech, parse the duration: "9 minutes" → seconds=540, "1 hour 30 min" → seconds=5400, "45 sec" → seconds=45. Come up with a concise label from the user\'s phrasing ("for the pasta" → "Pasta", "boil eggs" → "Eggs"). For stop/pause/resume/reset/delete, use list_timers first to get the timer id unless the user gave exactly one timer name.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['start', 'pause', 'resume', 'reset', 'delete'],
+            description: 'What to do. "start" creates a new timer and starts it. Others need a timer_id.',
+          },
+          label: {
+            type: 'string',
+            description: 'For action=start: short label (e.g. "Pasta", "Eggs"). Title case, under 24 chars. Required for start.',
+          },
+          seconds: {
+            type: 'number',
+            description: 'For action=start: total duration in seconds. Required for start.',
+          },
+          timer_id: {
+            type: 'string',
+            description: 'For pause/resume/reset/delete: the id of the target timer (from list_timers).',
+          },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_alarms',
+      description:
+        'List all alarms/wake-up schedules configured in HomeOS. Each alarm has id, name, time (HH:MM), daysOfWeek (0=Sun..6=Sat), enabled, and devices (list of wake actions like turning on a light or opening a blind). Use to answer "what alarms do I have" or to find an alarm id for update/delete.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_alarm',
+      description:
+        'Create a new alarm/wake-up schedule. IMPORTANT: before calling this, you should know HOW the user wants to be woken (which device should activate). If they haven\'t said, ASK FIRST — e.g. "Sure, at 8 AM tomorrow. How should I wake you? I can turn on a light, open a blind, play a media player, or just create the alarm without any wake action." Only call with empty devices if the user explicitly says "no action" or "just remind me". Time is HH:MM (24-hour). daysOfWeek is an array of 0-6 (0=Sun, 6=Sat). For "tomorrow at 8am", compute tomorrow\'s day-of-week from today (in your system context) and pass that single day. For recurring, pass multiple days. Devices is an array of {deviceId, action, params} — use get_devices first to find IDs.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Short alarm name like "Wake up" or "Morning alarm"' },
+          time: { type: 'string', description: '24-hour time HH:MM (e.g. "08:00", "06:30")' },
+          daysOfWeek: {
+            type: 'array',
+            items: { type: 'number' },
+            description: 'Days to fire: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat. Example: [1,2,3,4,5] for weekdays, [6] for just Saturday.',
+          },
+          enabled: { type: 'boolean', description: 'Enabled by default. Set false to create disabled.' },
+          devices: {
+            type: 'array',
+            description: 'Wake actions — list of {deviceId, action, params}. action examples: "turn_on", "open", "set_brightness". params: optional per-action object like {brightness: 80}.',
+            items: {
+              type: 'object',
+              properties: {
+                deviceId: { type: 'string' },
+                action: { type: 'string' },
+                params: { type: 'object' },
+              },
+              required: ['deviceId', 'action'],
+            },
+          },
+        },
+        required: ['name', 'time', 'daysOfWeek'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_alarm',
+      description: 'Delete an existing alarm by id. Call list_alarms first to resolve the id from a name.',
+      parameters: {
+        type: 'object',
+        properties: { alarm_id: { type: 'string' } },
+        required: ['alarm_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_alarm',
+      description: 'Update an existing alarm — change time, days, enabled state, or wake devices. Only include fields you want to change. Call list_alarms first if you need the id.',
+      parameters: {
+        type: 'object',
+        properties: {
+          alarm_id: { type: 'string' },
+          name: { type: 'string' },
+          time: { type: 'string', description: 'HH:MM 24-hour' },
+          daysOfWeek: { type: 'array', items: { type: 'number' } },
+          enabled: { type: 'boolean' },
+          devices: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                deviceId: { type: 'string' },
+                action: { type: 'string' },
+                params: { type: 'object' },
+              },
+              required: ['deviceId', 'action'],
+            },
+          },
+        },
+        required: ['alarm_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_ui_preferences',
+      description:
+        'Read the current user\'s UI preferences: colorMode (light/dark/system), activeTheme (default, midnight, glass, forest, rose, slate, ocean, amber, lcars), fontSize (number), magnification (1.0=100%, 1.5=150%), lcarsVariant, lcarsSoundsEnabled.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_ui_preferences',
+      description:
+        'Change the current user\'s UI preferences. Any user can change their own preferences — no admin needed. Supported keys: colorMode ("light"|"dark"|"system"), activeTheme (one of: default, midnight, glass, forest, rose, slate, ocean, amber, lcars), fontSize (e.g. 14, 16, 18), magnification (e.g. 1.0, 1.25, 1.5), lcarsVariant, lcarsSoundsEnabled. Only include fields you want to change. Example: {"activeTheme":"default"} to switch back to the default theme.',
+      parameters: {
+        type: 'object',
+        properties: {
+          colorMode: { type: 'string', enum: ['light', 'dark', 'system'] },
+          activeTheme: { type: 'string', description: 'One of: default, midnight, glass, forest, rose, slate, ocean, amber, lcars' },
+          fontSize: { type: 'number' },
+          magnification: { type: 'number' },
+          lcarsVariant: { type: 'string' },
+          lcarsSoundsEnabled: { type: 'boolean' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_timers',
+      description:
+        'List all active cooking/kitchen timers the user currently has. Returns id, label, remaining seconds, and running state. Use before pause/resume/reset/delete when the user references a timer by name ("stop the pasta timer").',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_meal_plan',
+      description:
+        'Look up meals the user planned/made on specific dates from the Paprika meal plan. Use for questions like "what did I make last Sunday", "what\'s on the meal plan for next week", "did I cook chicken this week". Returns meals within a date range with their recipe UID (use with /recipes?open=<uid> to open the recipe). Dates are YYYY-MM-DD. Today\'s date is available in your system context.',
+      parameters: {
+        type: 'object',
+        properties: {
+          start_date: {
+            type: 'string',
+            description: 'Start of range (inclusive), YYYY-MM-DD format. Example: "2026-04-12" for last Sunday.',
+          },
+          end_date: {
+            type: 'string',
+            description: 'End of range (inclusive), YYYY-MM-DD format. For a single day, set end_date = start_date.',
+          },
+        },
+        required: ['start_date', 'end_date'],
       },
     },
   },
@@ -432,9 +632,22 @@ function hasPermission(role: UserRole, p: Permission): boolean {
 // Tool execution
 // ---------------------------------------------------------------------------
 
+interface TimerSnapshot {
+  id: string;
+  label: string;
+  totalSeconds: number;
+  remainingSeconds: number;
+  running: boolean;
+}
+
+interface ClientContext {
+  timers?: TimerSnapshot[];
+}
+
 interface ToolContext {
   userRole: UserRole;
   userId: string;
+  clientContext?: ClientContext;
 }
 
 interface AutomationRow {
@@ -550,6 +763,60 @@ const automationPermissionTools = [
   'commit_automation_change',
 ];
 
+/**
+ * Verify that a device command actually took effect by comparing device
+ * state before and after. Returns:
+ *   true  — state changed as expected
+ *   false — state clearly did NOT change as expected (report failure)
+ *   null  — can't determine (unknown state shape, transitional state, etc.)
+ */
+function verifyCommandEffect(
+  cmd: DeviceCommand,
+  before: DeviceState | undefined,
+  after: DeviceState | undefined,
+): boolean | null {
+  if (!after) return null; // Device disappeared or never found
+  const b = before as unknown as Record<string, unknown>;
+  const a = after as unknown as Record<string, unknown>;
+
+  switch (cmd.action) {
+    case 'turn_on':
+      if (typeof a.on === 'boolean') return a.on === true;
+      if (typeof a.power === 'string') return a.power.toLowerCase() !== 'off';
+      return null;
+    case 'turn_off':
+      if (typeof a.on === 'boolean') return a.on === false;
+      if (typeof a.power === 'string') return a.power.toLowerCase() === 'off';
+      return null;
+    case 'open':
+      // Cover opened — position should be > 0 or 'opening' transient state OK
+      if (typeof a.position === 'number') return a.position > 0 || (typeof a.opening === 'boolean' && a.opening);
+      if (typeof a.open === 'boolean') return a.open === true;
+      return null;
+    case 'close':
+      if (typeof a.position === 'number') return a.position === 0 || (typeof a.closing === 'boolean' && a.closing);
+      if (typeof a.open === 'boolean') return a.open === false;
+      return null;
+    case 'set_brightness': {
+      const target = typeof cmd.brightness === 'number' ? cmd.brightness : null;
+      if (target == null || typeof a.brightness !== 'number') return null;
+      // Allow ±5% tolerance
+      return Math.abs(a.brightness - target) <= 5;
+    }
+    case 'set_position': {
+      const target = typeof cmd.position === 'number' ? cmd.position : null;
+      if (target == null || typeof a.position !== 'number') return null;
+      // Mid-transition is acceptable success signal too (opening/closing flag)
+      if (typeof a.opening === 'boolean' && a.opening) return true;
+      if (typeof a.closing === 'boolean' && a.closing) return true;
+      return Math.abs(a.position - target) <= 5;
+    }
+    default:
+      // Don't know how to verify this specific action — assume OK (no false alarm).
+      return null;
+  }
+}
+
 async function executeTool(name: string, args: Record<string, unknown>, ctx: ToolContext): Promise<unknown> {
   if (automationPermissionTools.includes(name) && !hasPermission(ctx.userRole, Permission.ManageAutomations)) {
     return {
@@ -585,7 +852,7 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
           .map(([id]) => id);
         devices = devices.filter((d) => d.userAreaId && matchingAreaIds.includes(d.userAreaId));
       }
-      return devices.map((d) => {
+      const deviceSummaries = devices.map((d) => {
         const summary: Record<string, unknown> = {
           id: d.id,
           name: d.displayName || d.name,
@@ -606,6 +873,15 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
         else if (d.type === 'sprinkler') { summary.running = d.running; summary.currentZone = d.currentZone; }
         return summary;
       });
+      const idList = deviceSummaries.map((d) => d.id as string).join(',');
+      return {
+        count: deviceSummaries.length,
+        devices: deviceSummaries,
+        navigatePath: deviceSummaries.length > 0 ? `/devices?ids=${encodeURIComponent(idList)}` : null,
+        hint: deviceSummaries.length === 0
+          ? 'No devices matched those filters.'
+          : `Call navigate_ui with the navigatePath above — it contains the exact IDs of the ${deviceSummaries.length} matched devices. The UI will show precisely those devices with an "AI filtered" banner. Do NOT list them in chat; reply with one brief sentence instead.`,
+      };
     }
 
     case 'get_device_state': {
@@ -692,13 +968,46 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
         ...(args.zoneId != null && { zoneId: String(args.zoneId) }),
         ...(args.duration != null && { duration: Number(args.duration) }),
       } as DeviceCommand;
+
+      // Snapshot state BEFORE sending so we can verify the command took effect.
+      const beforeState = stateStore.get(cmd.deviceId);
+
       try {
         await registry.handleCommand(cmd);
-        return { success: true, message: `Command ${args.action} sent to ${args.deviceId}` };
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        return { success: false, error: message };
+        return { success: false, error: message, message: `Command failed: ${message}` };
       }
+
+      // Wait briefly for the integration to push the new state. Most
+      // integrations update stateStore within 200-800ms; covers may take
+      // longer because they have mechanical transitions.
+      const waitMs = cmd.type === 'cover' || cmd.type === 'garage_door' ? 1500 : 800;
+      await new Promise((r) => setTimeout(r, waitMs));
+
+      const afterState = stateStore.get(cmd.deviceId);
+      const verified = verifyCommandEffect(cmd, beforeState, afterState);
+
+      if (verified === false) {
+        // We can see the state and it didn't change as expected — report honestly.
+        return {
+          success: false,
+          commandSent: true,
+          verified: false,
+          beforeState,
+          afterState,
+          message: `Command "${cmd.action}" was sent but the device state did not change as expected. It may be unreachable, already at the target, or the integration may not report state changes reliably. DO NOT claim this worked — tell the user it appears to have failed and suggest they check the device.`,
+        };
+      }
+
+      return {
+        success: true,
+        verified: verified === true, // null = unknown, true = confirmed
+        afterState,
+        message: verified === true
+          ? `Command ${cmd.action} confirmed on ${cmd.deviceId}.`
+          : `Command ${cmd.action} sent to ${cmd.deviceId} (state change not verified).`,
+      };
     }
 
     case 'get_device_history': {
@@ -846,6 +1155,38 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
       return { navigate: String(args.path) };
     }
 
+    case 'set_theme': {
+      const raw = String(args.theme ?? '').trim();
+      if (!(VALID_UI_THEME_IDS as readonly string[]).includes(raw)) {
+        return {
+          success: false,
+          error: `Invalid theme. Must be one of: ${VALID_UI_THEME_IDS.join(', ')}.`,
+        };
+      }
+      const theme = raw as ValidUiThemeId;
+
+      const { rows } = await query<{ ui_preferences: unknown; ui_preferences_admin: unknown }>(
+        'SELECT ui_preferences, ui_preferences_admin FROM users WHERE id = $1',
+        [ctx.userId],
+      );
+      if (rows.length === 0) {
+        return { success: false, error: 'User not found.' };
+      }
+      const { locks } = effectiveUiPreferences(rows[0].ui_preferences, rows[0].ui_preferences_admin);
+      if (locks.activeTheme) {
+        return {
+          success: false,
+          error: 'The active theme is admin-locked for this user and cannot be changed from the assistant.',
+        };
+      }
+      const merged = mergeUserPreferences(rows[0].ui_preferences, { activeTheme: theme });
+      await query(
+        'UPDATE users SET ui_preferences = $1::jsonb, updated_at = NOW() WHERE id = $2',
+        [JSON.stringify(merged), ctx.userId],
+      );
+      return { success: true, activeTheme: theme, uiPreferencesUpdated: true };
+    }
+
     case 'search_recipes': {
       const configured = await isPaprikaConfigured();
       if (!configured) {
@@ -868,6 +1209,7 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
         maxResults: limit,
         matchAllTerms,
       });
+      const uidList = hits.map((h) => h.uid).join(',');
       return {
         totalInLibrary: recipes.length,
         matchCount: hits.length,
@@ -878,12 +1220,12 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
           total_time: h.total_time,
           source: h.source,
           rating: h.rating,
-          openPath: `/recipes?open=${encodeURIComponent(h.uid)}`,
         })),
+        navigatePath: hits.length > 0 ? `/recipes?uids=${encodeURIComponent(uidList)}` : null,
         hint:
           hits.length === 0
-            ? 'No recipes matched. Try fewer words, synonyms, or match_all_terms=false. Ingredients use the wording from Paprika (e.g. "cilantro" vs "coriander").'
-            : 'Summarize matches by name. Offer navigate_ui to /recipes or to openPath for one recipe.',
+            ? 'No recipes matched. Try fewer words, synonyms, or match_all_terms=false.'
+            : `Call navigate_ui with the navigatePath above — it contains the exact UIDs of the ${hits.length} matches so the page shows precisely those recipes. Do NOT list them in chat; reply with one brief sentence instead.`,
       };
     }
 
@@ -991,6 +1333,260 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
           error: f.error,
           storedEventCount: f.events.length,
         })),
+      };
+    }
+
+    case 'list_alarms': {
+      const { rows } = await query<{
+        id: string;
+        name: string;
+        time: string;
+        days_of_week: number[];
+        enabled: boolean;
+        devices: unknown;
+      }>('SELECT id, name, time, days_of_week, enabled, devices FROM alarms ORDER BY time ASC');
+      return {
+        count: rows.length,
+        alarms: rows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          time: typeof r.time === 'string' ? r.time.slice(0, 5) : r.time,
+          daysOfWeek: r.days_of_week,
+          enabled: r.enabled,
+          devices: r.devices,
+        })),
+      };
+    }
+
+    case 'create_alarm': {
+      const name = String(args.name ?? '').trim();
+      const time = String(args.time ?? '').trim();
+      const daysOfWeek = Array.isArray(args.daysOfWeek) ? args.daysOfWeek.map(Number).filter((n) => n >= 0 && n <= 6) : [];
+      const enabled = args.enabled !== false;
+      const devices = Array.isArray(args.devices) ? args.devices : [];
+      if (!name) return { error: 'name is required' };
+      if (!/^\d{2}:\d{2}$/.test(time)) return { error: 'time must be HH:MM 24-hour format (e.g. "08:00")' };
+      if (daysOfWeek.length === 0) return { error: 'daysOfWeek must contain at least one day (0-6, where 0=Sun)' };
+      try {
+        const { rows } = await query<{ id: string }>(
+          `INSERT INTO alarms (name, time, days_of_week, enabled, devices, automation_id)
+           VALUES ($1, $2, $3, $4, $5, NULL)
+           RETURNING id`,
+          [name, time, daysOfWeek, enabled, JSON.stringify(devices)],
+        );
+        logger.info({ alarmId: rows[0].id, user: ctx.userId }, 'Alarm created via chat');
+        return {
+          success: true,
+          alarmId: rows[0].id,
+          message: `Alarm "${name}" created for ${time} on days ${daysOfWeek.join(',')}${devices.length > 0 ? ` with ${devices.length} wake action(s)` : ' (no wake actions — will just fire silently)'}.`,
+          navigatePath: '/alarms',
+          clientAction: { kind: 'data_changed', resources: ['alarms'] },
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { error: `Failed to create alarm: ${msg}` };
+      }
+    }
+
+    case 'update_alarm': {
+      const id = String(args.alarm_id ?? '').trim();
+      if (!id) return { error: 'alarm_id is required' };
+      const sets: string[] = [];
+      const values: unknown[] = [];
+      let i = 1;
+      if (typeof args.name === 'string') { sets.push(`name = $${i++}`); values.push(args.name); }
+      if (typeof args.time === 'string') {
+        if (!/^\d{2}:\d{2}$/.test(args.time)) return { error: 'time must be HH:MM' };
+        sets.push(`time = $${i++}`); values.push(args.time);
+      }
+      if (Array.isArray(args.daysOfWeek)) { sets.push(`days_of_week = $${i++}`); values.push(args.daysOfWeek); }
+      if (typeof args.enabled === 'boolean') { sets.push(`enabled = $${i++}`); values.push(args.enabled); }
+      if (Array.isArray(args.devices)) { sets.push(`devices = $${i++}::jsonb`); values.push(JSON.stringify(args.devices)); }
+      if (sets.length === 0) return { error: 'No fields to update' };
+      sets.push('updated_at = NOW()');
+      values.push(id);
+      const { rows } = await query<{ id: string }>(
+        `UPDATE alarms SET ${sets.join(', ')} WHERE id = $${i} RETURNING id`,
+        values,
+      );
+      if (rows.length === 0) return { error: 'Alarm not found' };
+      logger.info({ alarmId: id, user: ctx.userId }, 'Alarm updated via chat');
+      return {
+        success: true,
+        alarmId: id,
+        message: `Alarm updated.`,
+        clientAction: { kind: 'data_changed', resources: ['alarms'] },
+      };
+    }
+
+    case 'delete_alarm': {
+      const id = String(args.alarm_id ?? '').trim();
+      if (!id) return { error: 'alarm_id is required' };
+      const result = await query('DELETE FROM alarms WHERE id = $1', [id]);
+      if ((result.rowCount ?? 0) === 0) return { error: 'Alarm not found' };
+      logger.info({ alarmId: id, user: ctx.userId }, 'Alarm deleted via chat');
+      return {
+        success: true,
+        message: 'Alarm deleted.',
+        clientAction: { kind: 'data_changed', resources: ['alarms'] },
+      };
+    }
+
+    case 'get_ui_preferences': {
+      if (ctx.userId.startsWith('tunnel:')) {
+        return { error: 'Remote/tunnel sessions do not have local preferences. Sign in directly on the hub to manage UI settings.' };
+      }
+      const { rows } = await query<{ ui_preferences: Record<string, unknown> | null }>(
+        'SELECT ui_preferences FROM users WHERE id = $1',
+        [ctx.userId],
+      );
+      if (rows.length === 0) return { error: 'User not found' };
+      return { preferences: rows[0].ui_preferences ?? {} };
+    }
+
+    case 'update_ui_preferences': {
+      if (ctx.userId.startsWith('tunnel:')) {
+        return { error: 'Remote/tunnel sessions cannot change local preferences. Sign in directly on the hub to change theme or display settings.' };
+      }
+      const allowedKeys = ['colorMode', 'activeTheme', 'fontSize', 'magnification', 'lcarsVariant', 'lcarsSoundsEnabled'];
+      const validThemes = ['default', 'midnight', 'glass', 'forest', 'rose', 'slate', 'ocean', 'amber', 'lcars'];
+      const validColorModes = ['light', 'dark', 'system'];
+      const patch: Record<string, unknown> = {};
+      for (const k of allowedKeys) {
+        if (args[k] !== undefined) patch[k] = args[k];
+      }
+      if (Object.keys(patch).length === 0) return { error: 'No preferences to update' };
+      if (typeof patch.activeTheme === 'string' && !validThemes.includes(patch.activeTheme)) {
+        return { error: `Invalid activeTheme. Must be one of: ${validThemes.join(', ')}` };
+      }
+      if (typeof patch.colorMode === 'string' && !validColorModes.includes(patch.colorMode)) {
+        return { error: `Invalid colorMode. Must be one of: ${validColorModes.join(', ')}` };
+      }
+      // Read current prefs + any admin locks
+      const { rows } = await query<{ ui_preferences: Record<string, unknown> | null; ui_preferences_admin: Record<string, unknown> | null }>(
+        'SELECT ui_preferences, ui_preferences_admin FROM users WHERE id = $1',
+        [ctx.userId],
+      );
+      if (rows.length === 0) return { error: 'User not found' };
+      const currentPrefs = rows[0].ui_preferences ?? {};
+      const adminLocks = rows[0].ui_preferences_admin ?? {};
+      // Respect admin-locked keys — non-admins can't override them
+      const filtered: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(patch)) {
+        if (adminLocks[k] !== undefined && ctx.userRole !== 'admin') {
+          // Skip locked key
+          continue;
+        }
+        filtered[k] = v;
+      }
+      if (Object.keys(filtered).length === 0) {
+        return { error: 'All requested preferences are locked by admin policy.' };
+      }
+      const merged = { ...currentPrefs, ...filtered };
+      await query(
+        'UPDATE users SET ui_preferences = $1::jsonb, updated_at = NOW() WHERE id = $2',
+        [JSON.stringify(merged), ctx.userId],
+      );
+      logger.info({ user: ctx.userId, changed: Object.keys(filtered) }, 'UI preferences updated via chat');
+      return {
+        success: true,
+        updated: Object.keys(filtered),
+        preferences: merged,
+        message: `Updated: ${Object.keys(filtered).join(', ')}. The UI will refresh shortly.`,
+        clientAction: { kind: 'refresh_auth' },
+      };
+    }
+
+    case 'list_timers': {
+      // Timers live in the browser; the frontend passes its current list
+      // as conversation context on each request. We stash it on the request
+      // in ToolContext.clientContext. If missing, tell the LLM there are none.
+      const timers = ctx.clientContext?.timers ?? [];
+      return {
+        count: timers.length,
+        timers: timers.map((t) => ({
+          id: t.id,
+          label: t.label,
+          totalSeconds: t.totalSeconds,
+          remainingSeconds: t.remainingSeconds,
+          running: t.running,
+        })),
+      };
+    }
+
+    case 'manage_timer': {
+      const action = String(args.action ?? '');
+      const allowed = ['start', 'pause', 'resume', 'reset', 'delete'];
+      if (!allowed.includes(action)) {
+        return { error: `Invalid action. Must be one of: ${allowed.join(', ')}.` };
+      }
+      if (action === 'start') {
+        const seconds = Math.round(Number(args.seconds));
+        const label = String(args.label ?? '').trim();
+        if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 24 * 3600) {
+          return { error: 'For action=start, seconds must be between 1 and 86400.' };
+        }
+        if (!label) return { error: 'For action=start, label is required.' };
+        return {
+          clientAction: {
+            kind: 'timer',
+            action: 'start',
+            label,
+            seconds,
+          },
+          success: true,
+          message: `Timer "${label}" (${Math.floor(seconds / 60)}m ${seconds % 60}s) queued to start.`,
+        };
+      }
+      const timerId = String(args.timer_id ?? '').trim();
+      if (!timerId) {
+        return { error: `For action=${action}, timer_id is required. Call list_timers first.` };
+      }
+      return {
+        clientAction: {
+          kind: 'timer',
+          action,
+          timerId,
+        },
+        success: true,
+        message: `Timer ${action} queued for id ${timerId}.`,
+      };
+    }
+
+    case 'get_meal_plan': {
+      const startRaw = String(args.start_date ?? '').trim();
+      const endRaw = String(args.end_date ?? '').trim();
+      const iso = /^\d{4}-\d{2}-\d{2}$/;
+      if (!iso.test(startRaw) || !iso.test(endRaw)) {
+        return { error: 'start_date and end_date must be YYYY-MM-DD.' };
+      }
+      if (!(await isPaprikaConfigured())) {
+        return { error: 'Paprika is not configured. Add credentials in Integrations settings.' };
+      }
+
+      // Inclusive date comparison using string ordering (YYYY-MM-DD is lex-sortable)
+      const [start, end] = startRaw <= endRaw ? [startRaw, endRaw] : [endRaw, startRaw];
+      const allMeals = await getPaprikaMealsFromStore();
+      const inRange = allMeals
+        .filter((m) => m.date >= start && m.date <= end)
+        .sort((a, b) => (a.date === b.date ? a.order_flag - b.order_flag : a.date.localeCompare(b.date)));
+
+      const meals = inRange.map((m) => ({
+        date: m.date,
+        name: m.name,
+        recipeUid: m.recipe_uid,
+        // navigatePath for opening the recipe directly
+        navigatePath: m.recipe_uid ? `/recipes?open=${encodeURIComponent(m.recipe_uid)}` : null,
+      }));
+
+      return {
+        range: { start, end },
+        count: meals.length,
+        meals,
+        hint:
+          meals.length === 0
+            ? 'No meals planned in that range.'
+            : `Found ${meals.length} meal${meals.length === 1 ? '' : 's'}. If opening a specific one, call navigate_ui with that meal's navigatePath.`,
       };
     }
 
@@ -1283,7 +1879,7 @@ function buildDeviceInventory(devices: ReturnType<typeof stateStore.getAll>, are
     if (!grouped.has(areaName)) grouped.set(areaName, []);
     const name = d.displayName || d.name;
     const aliases = d.aliases?.length ? ` [${d.aliases.join(', ')}]` : '';
-    grouped.get(areaName)!.push(`- ${name} (${d.type})${aliases}`);
+    grouped.get(areaName)!.push(`- ${name} (${d.type}) [id:${d.id}]${aliases}`);
   }
 
   const sections: string[] = [];
@@ -1364,16 +1960,16 @@ This is the complete list of controllable devices in the system, grouped by area
 ${buildDeviceInventory(devices, areaMap)}
 
 ## DEVICE RESOLUTION RULES — follow these strictly
-1. Use the Device Inventory above to identify which devices match the user's request. Match against device name AND aliases using case-insensitive partial matching.
-2. The inventory does NOT contain device IDs or current state. Once you identify the target device(s), call get_devices (with type and/or area filters when possible) to get device IDs and current state before acting.
-3. Exactly one match → call get_devices to get the ID, then act immediately. No confirmation needed.
-4. Multiple matches → list them briefly and ask which one.
-5. Zero matches in the inventory → tell the user the device was not found. Do NOT guess or fabricate. Suggest similar device names from the inventory if possible.
-6. For bulk operations ("turn off all kitchen lights"), call get_devices with the appropriate type and/or area filter, then send_command for each matching device.
+1. The Device Inventory above contains every device with its **[id:xxx]** — use these IDs directly. Do NOT call get_devices just to look up an ID you already have.
+2. Exactly one inventory match → use its ID, call send_command immediately. No confirmation needed.
+3. Multiple inventory matches → list them briefly and ask which one.
+4. Zero inventory matches → tell the user the device was not found. Do NOT guess or fabricate. Suggest similar names if possible.
+5. Only call get_devices when you need CURRENT STATE (e.g. "is the light on?", "what's the brightness?") — not for IDs.
+6. For bulk operations ("turn off all kitchen lights") → use the IDs directly from the inventory for each matching device, send_command for each in parallel.
 7. On confirmation ("yes", "go ahead", etc.) → execute immediately, no follow-up questions.
 8. Command fails → retry once, then report the error concisely.
 9. Confirm AFTER acting, not before. Be concise: "Done — turned on Patio Flood."
-10. To add or change **device aliases** (nicknames, alternate phrasing), call update_device_settings with the device ID from get_devices and add_aliases (merge) or aliases (full replace). Never use update_integration_entry for device names — that tool is only for integration bridge entries.
+10. To add or change **device aliases**, call update_device_settings with add_aliases (merge) or aliases (full replace). Never use update_integration_entry for device names.
 
 ## Calendar
 - Use **get_calendar_events** for upcoming events, schedule, and "what is on the calendar". Respect days_ahead. If feeds report errors or empty data, explain (feeds sync from the Calendar integration; user may need to open Calendar or refresh the integration).
@@ -1383,12 +1979,59 @@ ${buildDeviceInventory(devices, areaMap)}
 - If you have automation tools: use list_automations / get_automation to answer questions. To change anything: (1) prepare_automation_change with a clear summary, (2) ask the user to confirm explicitly, (3) only then commit_automation_change with the returned proposal_id. Do not commit without clear user confirmation.
 - Automation definitions use triggers (time, device_state, sun, manual), optional conditions, and actions (device_command, delay, etc.). Prefer small, testable changes.
 
+## UI-First Interaction Protocol — follow this strictly for every response
+
+The HomeOS UI is your primary output surface. The chat window is for brief confirmations, clarifying questions, and errors — NOT for displaying data that the UI can show.
+
+### The rule
+**Navigate first, then say one sentence.** If a page exists that can show the requested information, call navigate_ui immediately. Your chat reply should be ≤ 2 sentences: what you did + one offer to refine.
+
+### When to navigate (don't list in chat)
+| User intent | Action |
+|---|---|
+| Find/show/list recipes by any criteria | search_recipes → navigate_ui with the returned navigatePath (/recipes?uids=...) |
+| "What did I make/cook on <date>" or meal plan questions | get_meal_plan with a date range → if the user wants a specific meal opened, use navigate_ui with that meal's navigatePath |
+| Start a cooking timer ("9 minute timer for the pasta") | manage_timer action=start, parse duration → seconds, infer short label from context ("Pasta", "Eggs", "Rice") |
+| Stop/pause/resume/reset/delete a timer | list_timers → find by label → manage_timer with the matching timer_id |
+| Set an alarm ("wake me at 7 tomorrow", "6:30 on weekdays") | FIRST ask how to wake them if not specified — "I can turn on a light, open a blind, play music, or just fire silently — what would you like?" THEN create_alarm with the appropriate devices. Compute daysOfWeek from today's date. |
+| List/change/delete an existing alarm | list_alarms → update_alarm / delete_alarm |
+| Change UI theme / dark mode / font size / magnification | update_ui_preferences ({activeTheme, colorMode, fontSize, magnification}). Available themes: default, midnight, glass, forest, rose, slate, ocean, amber, lcars. Always use the exact theme ID — e.g. "go back to normal" → activeTheme:"default". |
+| Open a specific recipe | navigate_ui /recipes?open=<uid> |
+| Show/find/list devices by type, area, or any criteria | get_devices → navigate_ui with the returned navigatePath (/devices?ids=...) |
+| Browse all devices | navigate_ui /devices |
+| Show cameras (grid of all) | navigate_ui /cameras |
+| Show/fullscreen/open a specific camera | navigate_ui /cameras?open=<cameraName> (use the device name, e.g. living_room, driveway) |
+| Show calendar / schedule | navigate_ui /calendar |
+| Show automations | navigate_ui /settings/automations |
+| Go to settings, integrations, areas, alarms | navigate_ui <path> |
+
+### When to respond in chat (don't navigate)
+- Single-fact status: "Is the garage open?", "What's the thermostat set to?" → answer directly, no navigation
+- Action confirmation: "Done — turned off the patio lights." (≤1 sentence)
+- Error or failure explanation
+- Clarifying question when intent is ambiguous
+- Follow-up refinement after user responds to your offer
+
+### Never do these
+- Never list more than 3 items in chat when a UI page can show them
+- Never show a recipe list in chat — always call navigate_ui with the navigatePath from search_recipes
+- Never use /recipes?q=<keyword> — that re-runs a dumb keyword search; use ?uids= instead
+- Never dump a device list in chat — call get_devices then navigate_ui with the returned navigatePath
+- Never use /devices?type= or /devices?area= for filtered results — get_devices returns a navigatePath with exact IDs; use that
+- Never say "Here are the results:" followed by a long list
+
+### Chat reply format after navigating
+✓ "Showing 4 pork-and-vegetable recipes — want to open one?"
+✓ "Navigated to Cameras."
+✗ Never: "Here are 20 chicken recipes: 1. Chicken Parm... 2. Butter Chicken..."
+
 ## Paprika / recipes
-- The household recipe library is Paprika, synced into HomeOS and shown under **Recipes** (Replicator in LCARS). When the user asks to find recipes by ingredients or keywords, **always call search_recipes** with a short query — never defer to "search in the Paprika app only."
-- After search_recipes returns matches, list recipe names (and optional time/source). Offer to open the list with navigate_ui to \`/recipes\` or a specific recipe with \`/recipes?open=<uid>\` using the uid from the tool result.
+- Recipe library is Paprika, synced into HomeOS under **Recipes**. Always call search_recipes for ingredient/keyword queries.
+- After search_recipes: use the navigatePath field in the result — it's /recipes?uids=... with the exact matched UIDs. Call navigate_ui with that path. The UI will show precisely those recipes with an "AI filtered" banner.
+- For one specific recipe: navigate_ui /recipes?open=<uid>.
 
 ## Navigation
-When the user asks to "show" or "go to" something, use navigate_ui. Paths: /devices, /cameras, /calendar, /settings, /integrations, /areas, /alarms, /recipes, /settings/automations, or /recipes?open=<recipe_uid> after a search.
+navigate_ui paths: /devices?ids=id1,id2 (exact), /devices?type=X&area=Y (browse), /cameras, /calendar, /settings, /integrations, /areas, /alarms, /recipes, /settings/automations, /recipes?uids=uid1,uid2 (exact AI results), /recipes?open=<uid>.
 
 ## Integration setup guidelines
 - When a user asks to set up an integration, call get_integration_setup_info first.
@@ -1523,6 +2166,40 @@ async function runAnthropicChatWithTools(opts: {
 }
 
 // ---------------------------------------------------------------------------
+// Tool display labels for SSE streaming status events
+// ---------------------------------------------------------------------------
+
+const TOOL_LABELS: Record<string, string> = {
+  get_devices: 'Fetching devices…',
+  get_device_state: 'Reading device state…',
+  update_device_settings: 'Updating device…',
+  search_recipes: 'Searching recipes…',
+  get_meal_plan: 'Checking meal plan…',
+  list_timers: 'Checking timers…',
+  manage_timer: 'Updating timer…',
+  list_alarms: 'Checking alarms…',
+  create_alarm: 'Creating alarm…',
+  update_alarm: 'Updating alarm…',
+  delete_alarm: 'Deleting alarm…',
+  get_ui_preferences: 'Reading preferences…',
+  update_ui_preferences: 'Updating preferences…',
+  navigate_ui: 'Navigating…',
+  set_theme: 'Changing theme…',
+  get_calendar_events: 'Loading calendar…',
+  list_automations: 'Loading automations…',
+  get_automation: 'Reading automation…',
+  prepare_automation_change: 'Preparing change…',
+  commit_automation_change: 'Applying change…',
+  send_device_command: 'Sending command…',
+  search_web: 'Searching the web…',
+  fetch_url: 'Reading page…',
+  create_integration_entry: 'Setting up integration…',
+  restart_integration: 'Restarting integration…',
+  get_integration_setup_info: 'Loading setup info…',
+  add_device_to_area: 'Updating area…',
+};
+
+// ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
 
@@ -1533,14 +2210,23 @@ export function registerChatRoutes(app: FastifyInstance): void {
     async (req, reply) => {
       const user = req.user!;
       const llmSettings = await loadLlmRuntimeSettings();
-      const active = apiKeyForActiveProvider(llmSettings);
+      const active = apiKeyFor('chat', llmSettings);
 
       if (!active) {
         const err =
-          llmSettings.provider === 'anthropic'
+          llmSettings.chatProvider === 'anthropic'
             ? 'Anthropic API key not configured. Go to Settings → LLM Integration to add one.'
             : 'OpenAI API key not configured. Go to Settings → LLM Integration to add one.';
         return reply.code(400).send({ error: err });
+      }
+
+      // --- Fast path: handle simple device commands without LLM ---
+      const lastMessage = req.body.messages.at(-1);
+      if (lastMessage?.role === 'user' && req.body.messages.length === 1) {
+        const fast = await tryFastPath(lastMessage.content, user.role);
+        if (fast.handled) {
+          return { reply: fast.reply ?? 'Done.' };
+        }
       }
 
       const tools = getToolsForRole(user.role);
@@ -1639,14 +2325,390 @@ export function registerChatRoutes(app: FastifyInstance): void {
     },
   );
 
+  // ---------------------------------------------------------------------------
+  // POST /api/chat/stream — SSE streaming version with tool status events
+  // ---------------------------------------------------------------------------
+  app.post<{ Body: { messages: Array<{ role: string; content: string }>; tts?: boolean; context?: ClientContext } }>(
+    '/api/chat/stream',
+    { preHandler: [authenticate] },
+    async (req, reply) => {
+      // Manually echo CORS headers — reply.hijack() below bypasses @fastify/cors,
+      // so we must add them ourselves to match the plugin's behavior.
+      const originHeader = req.headers.origin;
+      const corsHeaders: Record<string, string> = {};
+      if (originHeader) {
+        corsHeaders['Access-Control-Allow-Origin'] = originHeader;
+        corsHeaders['Access-Control-Allow-Credentials'] = 'true';
+        corsHeaders['Vary'] = 'Origin';
+      }
+
+      reply.hijack();
+      reply.raw.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+        ...corsHeaders,
+      });
+
+      let closed = false;
+      req.raw.on('close', () => { closed = true; });
+
+      const emit = (obj: object) => {
+        if (closed) return;
+        reply.raw.write(`data: ${JSON.stringify(obj)}\n\n`);
+      };
+
+      const user = req.user!;
+
+      // --- TTS pipeline (sentence-streaming) -----------------------------
+      // Buffers assistant text, flushes on sentence boundaries, and emits
+      // 'audio' SSE events in monotonic seq order so the client can play
+      // them back in sequence even if later synthesis finishes first.
+      const ttsRequested = req.body.tts !== false;
+      let ttsBuffer = '';
+      let ttsSeq = 0;
+      let lastTtsEmit: Promise<void> = Promise.resolve();
+      const ttsAll: Promise<void>[] = [];
+      let ttsKey: string | undefined;
+      let ttsVoice = 'sage';
+      let ttsInstructions = '';
+      let ttsEnabled = false;
+
+      const enqueueTts = (text: string) => {
+        const cleaned = stripMarkdownForTts(text);
+        if (!cleaned || !ttsKey) return;
+        const n = ttsSeq++;
+        const prev = lastTtsEmit;
+        const synth = synthesizeSentence(cleaned, {
+          apiKey: ttsKey,
+          voice: ttsVoice as TtsVoice,
+          instructions: ttsInstructions,
+        }).catch((err) => {
+          logger.warn({ err, seq: n }, 'tts synth failed');
+          return null;
+        });
+        const p = Promise.all([prev, synth]).then(([, buf]) => {
+          if (buf && !closed) {
+            emit({ type: 'audio', seq: n, mime: 'audio/mpeg', data: buf.toString('base64') });
+          }
+        });
+        lastTtsEmit = p;
+        ttsAll.push(p);
+      };
+
+      const feedTts = (delta: string) => {
+        if (!ttsEnabled) return;
+        ttsBuffer += delta;
+        const { sentences, rest } = extractSentences(ttsBuffer);
+        ttsBuffer = rest;
+        for (const s of sentences) enqueueTts(s);
+      };
+
+      const flushTts = async () => {
+        if (!ttsEnabled) return;
+        if (ttsBuffer.trim()) {
+          const tail = ttsBuffer;
+          ttsBuffer = '';
+          enqueueTts(tail);
+        }
+        await Promise.all(ttsAll);
+        if (!closed) emit({ type: 'audio_end' });
+      };
+
+      // --- Performance instrumentation ---
+      const t0 = Date.now();
+      const tMark = (label: string) => {
+        const elapsed = Date.now() - t0;
+        logger.info({ perf: label, ms: elapsed, user: user.username }, `[chat-perf] ${label} +${elapsed}ms`);
+      };
+
+      try {
+        const llmSettings = await loadLlmRuntimeSettings();
+        const active = apiKeyFor('chat', llmSettings);
+        tMark('llm_settings_loaded');
+
+        if (!active) {
+          const err = llmSettings.chatProvider === 'anthropic'
+            ? 'Anthropic API key not configured. Go to Settings → LLM Integration to add one.'
+            : 'OpenAI API key not configured. Go to Settings → LLM Integration to add one.';
+          emit({ type: 'error', error: err });
+          reply.raw.end();
+          return;
+        }
+
+        // Resolve TTS (independent of chat provider — TTS is always OpenAI).
+        if (ttsRequested && llmSettings.ttsEnabled) {
+          const ttsActive = apiKeyFor('tts', llmSettings);
+          if (ttsActive) {
+            ttsKey = ttsActive.key;
+            ttsVoice = llmSettings.ttsVoice;
+            ttsInstructions = llmSettings.ttsInstructions;
+            ttsEnabled = true;
+          }
+        }
+
+        // Fast path: handle simple device commands without LLM
+        const lastMessage = req.body.messages.at(-1);
+        if (lastMessage?.role === 'user' && req.body.messages.length === 1) {
+          const fast = await tryFastPath(lastMessage.content, user.role);
+          tMark(fast.handled ? 'fast_path_hit' : 'fast_path_miss');
+          if (fast.handled) {
+            const reply_text = fast.reply ?? 'Done.';
+            // Save to history (fire-and-forget)
+            saveChatMessage(user.id, 'user', lastMessage.content);
+            saveChatMessage(user.id, 'assistant', reply_text);
+            emit({ type: 'token', text: reply_text });
+            feedTts(reply_text);
+            await flushTts();
+            emit({ type: 'done' });
+            reply.raw.end();
+            return;
+          }
+        }
+
+        // Save incoming user message to history
+        if (lastMessage?.role === 'user') {
+          saveChatMessage(user.id, 'user', lastMessage.content);
+        }
+
+        const tools = getToolsForRole(user.role);
+        const toolCtx: ToolContext = {
+          userRole: user.role,
+          userId: user.id,
+          clientContext: req.body.context,
+        };
+        const systemPrompt = await buildSystemPrompt(user);
+        tMark(`system_prompt_built (${systemPrompt.length} chars, ${tools.length} tools)`);
+        const conversation = req.body.messages.map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        }));
+
+        let navigateTo: string | undefined;
+        let assistantResponse = ''; // Collect assistant response for history
+        const MAX_ITERATIONS = 10;
+
+        if (active.kind === 'anthropic') {
+          const anthropic = new Anthropic({ apiKey: active.key });
+          const anthropicTools = openAiToolsToAnthropic(tools);
+          let msgs = clientMessagesToAnthropic(conversation);
+
+          for (let i = 0; i < MAX_ITERATIONS; i++) {
+            if (closed) break;
+
+            const tLlmStart = Date.now();
+            // Anthropic prompt caching: mark the system prompt (and the tail
+            // of the tools list) with cache_control: ephemeral. Anthropic will
+            // reuse the cached content for 5 minutes — on cache hits this is
+            // ~2-4x faster and ~90% cheaper. For a home-automation assistant
+            // whose system prompt + tools change rarely, this is a huge win.
+            const streamObj = anthropic.messages.stream({
+              model: llmSettings.anthropicModel,
+              max_tokens: 8192,
+              temperature: 0.3,
+              system: [
+                {
+                  type: 'text',
+                  text: systemPrompt,
+                  cache_control: { type: 'ephemeral' },
+                },
+              ],
+              messages: msgs,
+              tools: anthropicTools.length > 0
+                ? anthropicTools.map((t, idx) =>
+                    idx === anthropicTools.length - 1
+                      ? { ...t, cache_control: { type: 'ephemeral' as const } }
+                      : t,
+                  )
+                : anthropicTools,
+            });
+
+            for await (const event of streamObj) {
+              if (closed) break;
+              if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+                assistantResponse += event.delta.text;
+                emit({ type: 'token', text: event.delta.text });
+                feedTts(event.delta.text);
+              }
+            }
+
+            const finalMsg = await streamObj.finalMessage();
+            tMark(`llm_iter_${i}_done (${Date.now() - tLlmStart}ms, model=${llmSettings.anthropicModel})`);
+            const toolUses: Array<{ id: string; name: string; input: Record<string, unknown> }> = [];
+            for (const block of finalMsg.content) {
+              if (block.type === 'tool_use') {
+                toolUses.push({
+                  id: block.id,
+                  name: block.name,
+                  input: (typeof block.input === 'object' && block.input !== null
+                    ? (block.input as Record<string, unknown>) : {}),
+                });
+              }
+            }
+
+            if (toolUses.length === 0) {
+              // Save assistant response to history (fire-and-forget)
+              if (assistantResponse) {
+                saveChatMessage(user.id, 'assistant', assistantResponse);
+              }
+              await flushTts();
+              emit({ type: 'done', ...(navigateTo ? { navigate: navigateTo } : {}) });
+              tMark('total_anthropic');
+              break;
+            }
+
+            msgs.push({ role: 'assistant', content: finalMsg.content as unknown as ContentBlockParam[] });
+            const toolResultBlocks: ContentBlockParam[] = [];
+
+            for (const tu of toolUses) {
+              if (closed) break;
+              emit({ type: 'tool_status', tool: tu.name, label: TOOL_LABELS[tu.name] ?? `Running ${tu.name}…` });
+              const tToolStart = Date.now();
+              logger.info({ tool: tu.name, args: tu.input, user: user.username }, 'Chat stream tool call');
+              const result = await executeTool(tu.name, tu.input, toolCtx);
+              tMark(`tool_${tu.name} (${Date.now() - tToolStart}ms)`);
+              if (tu.name === 'navigate_ui' && typeof result === 'object' && result !== null && 'navigate' in result) {
+                navigateTo = (result as { navigate: string }).navigate;
+                // Emit navigate IMMEDIATELY — do not wait for the LLM's
+                // "I'm opening it now…" narration to finish on the next
+                // iteration. Frontend can navigate while the LLM is still
+                // generating its response text.
+                emit({ type: 'navigate', navigate: navigateTo });
+              }
+              if (
+                tu.name === 'set_theme' && typeof result === 'object' && result !== null
+                && 'uiPreferencesUpdated' in result
+                && (result as { uiPreferencesUpdated?: unknown }).uiPreferencesUpdated
+              ) {
+                emit({ type: 'ui_preferences_update' });
+              }
+              // Relay client-side actions (timers, etc.) to the frontend.
+              if (typeof result === 'object' && result !== null && 'clientAction' in result) {
+                const ca = (result as { clientAction: Record<string, unknown> }).clientAction;
+                emit({ type: 'client_action', action: ca });
+              }
+              toolResultBlocks.push({
+                type: 'tool_result',
+                tool_use_id: tu.id,
+                content: JSON.stringify(result),
+              });
+            }
+
+            msgs.push({ role: 'user', content: toolResultBlocks });
+          }
+        } else {
+          // OpenAI streaming
+          const openai = new OpenAI({ apiKey: active.key });
+          const msgs: ChatCompletionMessageParam[] = [
+            { role: 'system', content: systemPrompt },
+            ...conversation.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+          ];
+
+          for (let i = 0; i < MAX_ITERATIONS; i++) {
+            if (closed) break;
+
+            const stream = await openai.chat.completions.create({
+              model: llmSettings.openaiModel,
+              messages: msgs,
+              tools,
+              temperature: 0.3,
+              stream: true,
+            });
+
+            let content = '';
+            const tcAcc = new Map<number, { id: string; name: string; args: string }>();
+
+            for await (const chunk of stream) {
+              if (closed) break;
+              const delta = chunk.choices[0]?.delta;
+              if (delta?.content) {
+                emit({ type: 'token', text: delta.content });
+                content += delta.content;
+                assistantResponse += delta.content;
+                feedTts(delta.content);
+              }
+              if (delta?.tool_calls) {
+                for (const tc of delta.tool_calls) {
+                  const idx = tc.index ?? 0;
+                  const ex = tcAcc.get(idx) ?? { id: '', name: '', args: '' };
+                  if (tc.id) ex.id = tc.id;
+                  if (tc.function?.name) ex.name = tc.function.name;
+                  if (tc.function?.arguments) ex.args += tc.function.arguments;
+                  tcAcc.set(idx, ex);
+                }
+              }
+            }
+
+            const toolCalls = [...tcAcc.entries()].sort(([a], [b]) => a - b).map(([, v]) => v);
+
+            if (toolCalls.length === 0) {
+              // Save assistant response to history (fire-and-forget)
+              if (assistantResponse) {
+                saveChatMessage(user.id, 'assistant', assistantResponse);
+              }
+              await flushTts();
+              emit({ type: 'done', ...(navigateTo ? { navigate: navigateTo } : {}) });
+              break;
+            }
+
+            msgs.push({
+              role: 'assistant',
+              content: content || null,
+              tool_calls: toolCalls.map((tc) => ({
+                id: tc.id,
+                type: 'function' as const,
+                function: { name: tc.name, arguments: tc.args },
+              })),
+            });
+
+            for (const tc of toolCalls) {
+              if (closed) break;
+              emit({ type: 'tool_status', tool: tc.name, label: TOOL_LABELS[tc.name] ?? `Running ${tc.name}…` });
+              const args = JSON.parse(tc.args);
+              logger.info({ tool: tc.name, args, user: user.username }, 'Chat stream tool call');
+              const result = await executeTool(tc.name, args, toolCtx);
+              if (tc.name === 'navigate_ui' && typeof result === 'object' && result !== null && 'navigate' in result) {
+                navigateTo = (result as { navigate: string }).navigate;
+                // Emit navigate immediately (don't wait for LLM to finish narrating)
+                emit({ type: 'navigate', navigate: navigateTo });
+              }
+              if (
+                tc.name === 'set_theme' && typeof result === 'object' && result !== null
+                && 'uiPreferencesUpdated' in result
+                && (result as { uiPreferencesUpdated?: unknown }).uiPreferencesUpdated
+              ) {
+                emit({ type: 'ui_preferences_update' });
+              }
+              if (typeof result === 'object' && result !== null && 'clientAction' in result) {
+                const ca = (result as { clientAction: Record<string, unknown> }).clientAction;
+                emit({ type: 'client_action', action: ca });
+              }
+              msgs.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
+            }
+          }
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error({ err }, 'Chat stream error');
+        emit({ type: 'error', error: `LLM error: ${message}` });
+      }
+
+      reply.raw.end();
+    },
+  );
+
+  // GET /api/chat/history — Load chat history for the current user (last 24 hours)
+  app.get('/api/chat/history', { preHandler: [authenticate] }, loadChatHistory);
+
   // Test connection — verify the API key works by making a minimal API call
   app.post('/api/chat/test', { preHandler: [authenticate] }, async (_req, reply) => {
     const llmSettings = await loadLlmRuntimeSettings();
-    const active = apiKeyForActiveProvider(llmSettings);
+    const active = apiKeyFor('chat', llmSettings);
 
     if (!active) {
       const err =
-        llmSettings.provider === 'anthropic'
+        llmSettings.chatProvider === 'anthropic'
           ? 'Anthropic API key not configured'
           : 'OpenAI API key not configured';
       return reply.code(400).send({ error: err });

@@ -32,13 +32,21 @@ export function AppVersionLabel({
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
+
+    const fetchVersion = async () => {
       for (const url of appVersionFetchUrls()) {
         try {
-          const r = await fetch(url);
-          if (!r.ok) continue;
-          const j = (await r.json()) as { versionLabel?: string };
-          if (!cancelled && j.versionLabel) {
+          const r = await fetch(url, { cache: 'no-store' });
+          const j = (await r.json()) as { versionLabel?: string | null };
+          if (cancelled) return;
+          // 503 with explicit versionLabel: null means "backend honestly doesn't know".
+          // Show that truth instead of falling back to the baked bundle version
+          // (which would also be a lie — the bundle can predate the running container).
+          if (!r.ok && j.versionLabel === null) {
+            setLabel('v?');
+            return;
+          }
+          if (r.ok && j.versionLabel) {
             setLabel(j.versionLabel);
             return;
           }
@@ -46,9 +54,14 @@ export function AppVersionLabel({
           /* try next */
         }
       }
-    })();
+    };
+
+    // Initial fetch, then poll every 60s so the header stays in sync with what the backend actually reports.
+    void fetchVersion();
+    const id = window.setInterval(() => void fetchVersion(), 60_000);
     return () => {
       cancelled = true;
+      window.clearInterval(id);
     };
   }, []);
 

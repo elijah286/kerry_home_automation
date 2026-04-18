@@ -287,17 +287,18 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
         height: filterPanelHeight,
         zIndex: 46,
         display: 'flex',
-        flexDirection: statusFullscreen ? 'column' : 'row',
+        flexDirection: 'column',
         alignItems: 'stretch',
-        justifyContent: statusFullscreen ? 'flex-start' : 'center',
+        justifyContent: 'flex-start',
         gap: statusFullscreen ? 6 : 4,
-        padding: statusFullscreen ? '10px 8px 12px' : '14px 8px 12px',
+        padding: statusFullscreen ? '10px 8px 12px' : '8px 8px 8px',
         boxSizing: 'border-box',
         pointerEvents: 'auto',
         background: '#000',
         border: 'none',
         outline: 'none',
         boxShadow: 'none',
+        overflowY: 'auto',
       }}
     >
       {statusFullscreen && (
@@ -391,32 +392,30 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
             </button>
           ))}
         </div>
-        {statusFullscreen && (
-          <div style={{ display: 'flex', justifyContent: 'center', width: '100%', background: '#000' }}>
-            <button
-              type="button"
-              onClick={() => {
-                initLogIntegrationWhitelistIfNeeded();
-                setLogIntegrationFilterPanelOpen(true);
-              }}
-              aria-pressed={logIntegrationFilterPanelOpen}
-              className={`lcars-btn lcars-btn--pill${
-                logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null ? ' lcars-btn--active' : ''
-              }`}
-              style={{
-                background:
-                  logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
-                    ? colors.navActive
-                    : colors.muted,
-                minWidth: '100%',
-                minHeight: 36,
-                fontSize: 11,
-              }}
-            >
-              Sources
-            </button>
-          </div>
-        )}
+        <div style={{ display: 'flex', justifyContent: 'center', width: '100%', background: '#000' }}>
+          <button
+            type="button"
+            onClick={() => {
+              initLogIntegrationWhitelistIfNeeded();
+              setLogIntegrationFilterPanelOpen(!logIntegrationFilterPanelOpen);
+            }}
+            aria-pressed={logIntegrationFilterPanelOpen}
+            className={`lcars-btn lcars-btn--pill${
+              logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null ? ' lcars-btn--active' : ''
+            }`}
+            style={{
+              background:
+                logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
+                  ? colors.navActive
+                  : colors.muted,
+              minWidth: '100%',
+              minHeight: 36,
+              fontSize: 11,
+            }}
+          >
+            Sources
+          </button>
+        </div>
         <div
           style={{
             display: 'flex',
@@ -770,13 +769,11 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
             panelHeightPx={statusBodyH}
             topOffsetPx={statusBodyTop}
             lcarsTopStackedChrome={useStackedStatusChrome}
-            lcarsFrameHandlesControls={useStackedStatusChrome}
+            lcarsFrameHandlesControls
             onStatusInteraction={bumpStatusInteraction}
             rightInsetPx={LCARS_STATUS_FILTER_RAIL_W}
-            lcarsStatusAuto={
-              useStackedStatusChrome
-                ? undefined
-                : { flashPeriodMs, onAutoClick: onAutoButtonClick }
+            onHeightChange={(h) =>
+              setStatusViewerBandH(useStackedStatusChrome ? h + STATUS_SEPARATOR_H + STATUS_STACK_GAP : h)
             }
           />
           {/* Filter buttons — right-aligned in the status body area */}

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Settings, Palette, Clock, Puzzle, Users, ChevronRight, MapPin, Bot, Zap,
   ToggleLeft, LayoutGrid, LayoutDashboard, HardDrive, Server, UserCircle, Download,
-  Sparkles,
+  Sparkles, Tablet,
 } from 'lucide-react';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -73,6 +73,7 @@ const groups: { title?: string; items: SettingsItem[] }[] = [
         adminOnly: true,
       },
       { href: '/settings/llm', icon: Bot, label: 'LLM Integration', description: 'OpenAI and Claude keys, model, and active provider' },
+      { href: '/settings/kiosk', icon: Tablet, label: 'Kiosk & Display', description: 'Set up a wall-mounted tablet with always-on wake word and screen lock', adminOnly: true },
       { href: '/integrations', icon: Puzzle, label: 'Integrations', description: 'Manage connected services and bridges' },
       { href: '/settings/users', icon: Users, label: 'Manage Users', description: 'Add and manage user accounts' },
       { href: '/settings/server-installer', icon: HardDrive, label: 'Server Installer', description: 'Generate a bootable Ubuntu ISO pre-configured for this hub' },
@@ -96,7 +97,7 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="max-w-2xl mx-auto p-4 lg:p-6">
+    <div className="max-w-2xl xl:max-w-5xl mx-auto p-4 lg:p-6">
       {/* Page header */}
       <div className="flex items-center gap-3 mb-5">
         <div
@@ -108,7 +109,7 @@ export default function SettingsPage() {
         <h1 className="text-lg font-semibold">Settings</h1>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 xl:grid xl:grid-cols-2 xl:gap-4 xl:space-y-0">
         {visibleGroups.map((group) => (
           <div key={group.title}>
             {group.title && (

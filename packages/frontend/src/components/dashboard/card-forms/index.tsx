@@ -117,13 +117,14 @@ function StructuredDispatcher({ card, onChange }: CardFormProps) {
       return <ButtonForm card={card} onChange={onChange} />;
     case 'iframe-sandbox':
       return <IframeForm card={card} onChange={onChange} />;
+    case 'thermostat':
+      return <ThermostatForm card={card} onChange={onChange} />;
     case 'light-tile':
     case 'fan-tile':
     case 'cover-tile':
     case 'lock-tile':
     case 'switch-tile':
     case 'media-tile':
-    case 'thermostat':
     case 'vehicle':
     case 'camera':
     case 'alarm-panel':
@@ -269,13 +270,31 @@ function IframeForm({ card, onChange }: { card: Extract<CardDescriptor, { type: 
 
 // -- Device tiles (all share "entity + optional name + optional icon") -----
 
+// Maps each tile card type to the device type(s) that make sense for it.
+// Passed to EntityField so the picker only surfaces compatible devices.
+const TILE_DEVICE_TYPES: Partial<Record<CardDescriptor['type'], string[]>> = {
+  'light-tile':  ['light'],
+  'fan-tile':    ['fan'],
+  'cover-tile':  ['cover'],
+  'switch-tile': ['switch'],
+  'media-tile':  ['media_player'],
+  'camera':      ['camera'],
+  'vehicle':     ['vehicle'],
+  'alarm-panel': ['doorbell'], // closest approximation in the device graph
+};
+
 function EntityTileForm({ card, onChange }: { card: Extract<CardDescriptor, { entity: string }>; onChange: (c: CardDescriptor) => void }) {
   const bag = card as unknown as { entity: string; name?: string; icon?: string };
+  const deviceTypes = TILE_DEVICE_TYPES[card.type];
   const patch = (u: Partial<{ entity: string; name: string | undefined; icon: string | undefined }>) =>
     onChange({ ...card, ...u } as CardDescriptor);
   return (
     <FieldGroup>
-      <EntityField value={bag.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField
+        value={bag.entity}
+        onChange={(entity) => patch({ entity })}
+        deviceTypes={deviceTypes}
+      />
       <TextField label="Name (optional)" value={bag.name} onChange={(name) => patch({ name })} />
       <IconPickerField value={bag.icon} onChange={(icon) => patch({ icon })} />
     </FieldGroup>
@@ -284,11 +303,13 @@ function EntityTileForm({ card, onChange }: { card: Extract<CardDescriptor, { en
 
 // -- Data cards ------------------------------------------------------------
 
+const SENSOR_TYPES = ['sensor', 'helper_sensor', 'helper_number', 'helper_counter'];
+
 function SensorValueForm({ card, onChange }: { card: Extract<CardDescriptor, { type: 'sensor-value' }>; onChange: (c: CardDescriptor) => void }) {
   const patch = usePatch(card, onChange);
   return (
     <FieldGroup>
-      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} deviceTypes={SENSOR_TYPES} />
       <TextField label="Name" value={card.name} onChange={(name) => patch({ name })} />
       <IconPickerField value={card.icon} onChange={(icon) => patch({ icon })} />
       <SegmentedField
@@ -329,7 +350,7 @@ function GaugeForm({ card, onChange }: { card: Extract<CardDescriptor, { type: '
   const patch = usePatch(card, onChange);
   return (
     <FieldGroup>
-      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} deviceTypes={SENSOR_TYPES} />
       <TextField label="Name" value={card.name} onChange={(name) => patch({ name })} />
       <div className="grid grid-cols-2 gap-2">
         <NumberField label="Min" value={card.min} onChange={(v) => patch({ min: v ?? 0 })} />
@@ -412,7 +433,7 @@ function StatisticForm({ card, onChange }: { card: Extract<CardDescriptor, { typ
   const patch = usePatch(card, onChange);
   return (
     <FieldGroup>
-      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} deviceTypes={SENSOR_TYPES} />
       <TextField label="Name" value={card.name} onChange={(name) => patch({ name })} />
       <SegmentedField
         label="Statistic"
@@ -748,13 +769,77 @@ function YamlFallback({ card, onChange }: CardFormProps) {
   );
 }
 
+// -- Thermostat -------------------------------------------------------------
+//
+// The thermostat schema already carries HA-parity options (size, presets, fan,
+// humidity, mode, history). Earlier we routed it through EntityTileForm which
+// exposed only name/entity/icon — so editing a thermostat felt broken. This
+// dedicated form surfaces the full option set as visibility toggles + a size
+// segmented control, matching how Home Assistant's climate card presents its
+// "features" list.
+function ThermostatForm({
+  card,
+  onChange,
+}: {
+  card: Extract<CardDescriptor, { type: 'thermostat' }>;
+  onChange: (c: CardDescriptor) => void;
+}) {
+  const patch = usePatch(card, onChange);
+  return (
+    <FieldGroup>
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} deviceTypes={['thermostat']} />
+      <TextField label="Name (optional)" value={card.name} onChange={(name) => patch({ name })} />
+      <SegmentedField
+        label="Size"
+        hint="Compact is a single-line summary; hero fills the card column."
+        value={card.size}
+        onChange={(size) => patch({ size })}
+        options={[
+          { value: 'compact', label: 'Compact' },
+          { value: 'default', label: 'Normal' },
+          { value: 'hero', label: 'Large' },
+        ]}
+      />
+      <FieldShell label="Controls" hint="Which controls to surface on the tile.">
+        <div className="flex flex-col gap-1.5">
+          <CheckboxField
+            label="Mode selector (heat / cool / auto / off)"
+            value={card.showModeControl}
+            onChange={(showModeControl) => patch({ showModeControl })}
+          />
+          <CheckboxField
+            label="Preset buttons (home / away / sleep …)"
+            value={card.showPresets}
+            onChange={(showPresets) => patch({ showPresets })}
+          />
+          <CheckboxField
+            label="Fan mode selector"
+            value={card.showFanControl}
+            onChange={(showFanControl) => patch({ showFanControl })}
+          />
+          <CheckboxField
+            label="Indoor humidity chip"
+            value={card.showHumidity}
+            onChange={(showHumidity) => patch({ showHumidity })}
+          />
+          <CheckboxField
+            label="Inline setpoint/temperature history"
+            value={card.showHistory}
+            onChange={(showHistory) => patch({ showHistory })}
+          />
+        </div>
+      </FieldShell>
+    </FieldGroup>
+  );
+}
+
 // -- New rich-card forms ----------------------------------------------------
 
 function TeslaForm({ card, onChange }: { card: Extract<CardDescriptor, { type: 'tesla' }>; onChange: (c: CardDescriptor) => void }) {
   const patch = usePatch(card, onChange);
   return (
     <FieldGroup>
-      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} deviceTypes={['vehicle']} />
       <TextField label="Name (optional)" value={card.name} onChange={(name) => patch({ name })} />
       <CheckboxField label="Hide vehicle image" value={card.hideImage} onChange={(hideImage) => patch({ hideImage })} />
       <SegmentedField
@@ -795,7 +880,7 @@ function DoorWindowForm({ card, onChange }: { card: Extract<CardDescriptor, { ty
   const patch = usePatch(card, onChange);
   return (
     <FieldGroup>
-      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} deviceTypes={['sensor', 'garage_door']} />
       <TextField label="Name (optional)" value={card.name} onChange={(name) => patch({ name })} />
       <SegmentedField
         label="Visual"
@@ -832,7 +917,7 @@ function BatteryForm({ card, onChange }: { card: Extract<CardDescriptor, { type:
   const patch = usePatch(card, onChange);
   return (
     <FieldGroup>
-      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} deviceTypes={['sensor', 'vehicle']} />
       <TextField label="Name (optional)" value={card.name} onChange={(name) => patch({ name })} />
       <SegmentedField
         label="Style"
@@ -856,6 +941,7 @@ function BatteryForm({ card, onChange }: { card: Extract<CardDescriptor, { type:
 function WeatherForm({ card, onChange }: { card: Extract<CardDescriptor, { type: 'weather' }>; onChange: (c: CardDescriptor) => void }) {
   const patch = usePatch(card, onChange);
   const togglePane = (pane: 'current' | 'hourly' | 'daily' | 'alerts' | 'radar') => {
+
     const current = card.panes ?? [];
     const next = current.includes(pane)
       ? current.filter((p) => p !== pane)
@@ -865,7 +951,7 @@ function WeatherForm({ card, onChange }: { card: Extract<CardDescriptor, { type:
   const has = (p: string) => (card.panes ?? []).includes(p as 'current');
   return (
     <FieldGroup>
-      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} />
+      <EntityField value={card.entity} onChange={(entity) => patch({ entity })} deviceTypes={['weather']} />
       <TextField label="Name (optional)" value={card.name} onChange={(name) => patch({ name })} />
       <FieldShell label="Panes" hint="Which sections to render, in order.">
         <div className="flex flex-wrap gap-2">
@@ -914,15 +1000,54 @@ function WeatherForm({ card, onChange }: { card: Extract<CardDescriptor, { type:
         ]}
       />
       <SegmentedField
-        label="Size"
-        value={card.size}
-        onChange={(size) => patch({ size })}
+        label="Mode"
+        value={card.mode}
+        onChange={(mode) => patch({ mode })}
         options={[
           { value: 'compact', label: 'Compact' },
-          { value: 'default', label: 'Default' },
-          { value: 'hero', label: 'Hero' },
+          { value: 'normal', label: 'Normal' },
+          { value: 'expanded', label: 'Expanded' },
         ]}
       />
+      <FieldShell label="Details" hint="Which chips/stats to show on the current conditions pane.">
+        <div className="grid grid-cols-2 gap-1">
+          <CheckboxField
+            label="Humidity"
+            value={card.showHumidity}
+            onChange={(showHumidity) => patch({ showHumidity })}
+          />
+          <CheckboxField
+            label="Wind"
+            value={card.showWind}
+            onChange={(showWind) => patch({ showWind })}
+          />
+          <CheckboxField
+            label="Feels like"
+            value={card.showFeelsLike}
+            onChange={(showFeelsLike) => patch({ showFeelsLike })}
+          />
+          <CheckboxField
+            label="Dew point"
+            value={card.showDewpoint}
+            onChange={(showDewpoint) => patch({ showDewpoint })}
+          />
+          <CheckboxField
+            label="Precipitation %"
+            value={card.showPrecipitation}
+            onChange={(showPrecipitation) => patch({ showPrecipitation })}
+          />
+          <CheckboxField
+            label="Daily hi / lo"
+            value={card.showHighLow}
+            onChange={(showHighLow) => patch({ showHighLow })}
+          />
+          <CheckboxField
+            label="Alert badge"
+            value={card.showAlertBadge}
+            onChange={(showAlertBadge) => patch({ showAlertBadge })}
+          />
+        </div>
+      </FieldShell>
     </FieldGroup>
   );
 }

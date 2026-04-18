@@ -17,7 +17,7 @@
 // instance — only its type/class.
 // ---------------------------------------------------------------------------
 
-import type { CardDescriptor, DeviceState, DeviceType } from '@ha/shared';
+import { weatherCardSchema, type CardDescriptor, type DeviceState, type DeviceType } from '@ha/shared';
 
 type CardFactory = (device: DeviceState) => CardDescriptor;
 
@@ -141,10 +141,9 @@ const DEVICE_CARD_MAP: Partial<Record<MapKey, CardFactory>> = {
   }),
 
   // -- Weather (composite) -------------------------------------------------
-  // `weather` card isn't implemented yet — falls back to sensor-value until
-  // the composite card lands. Wired here so the map flips automatically on
-  // implementation.
-  weather: (d) => ({ type: 'sensor-value', entity: d.id, style: 'big', format: 'temperature' }),
+  // Parse through the schema so every defaulted field is populated without
+  // listing 15+ toggle flags inline here.
+  weather: (d) => weatherCardSchema.parse({ type: 'weather', entity: d.id }),
 
   // -- Garage doors / generic door & window sensors ------------------------
   garage_door: (d) => ({ type: 'cover-tile', entity: d.id, showPositionControl: false, visual: 'garage', showPercentage: false }),

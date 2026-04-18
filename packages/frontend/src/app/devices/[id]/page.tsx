@@ -20,6 +20,8 @@ import type { CoverState, DeviceState, GarageDoorState, NetworkDeviceState, Weat
 import { getApiBase, apiFetch } from '@/lib/api-base';
 import { DeviceClassControl } from '@/components/DeviceClassControl';
 import { DeviceDefaultCardPanel } from '@/components/DeviceDefaultCardPanel';
+import { DeviceHistoryDefault } from '@/components/DeviceHistoryDefault';
+import { Collapsible } from '@/components/ui/Collapsible';
 import { useAuth } from '@/providers/AuthProvider';
 
 const API_BASE = getApiBase();
@@ -58,11 +60,24 @@ function DeviceSettings({ deviceId, device }: { deviceId: string; device: Device
   const saveSetting = async (body: Record<string, unknown>) => {
     setSaving(true);
     try {
-      await apiFetch(`${API_BASE}/api/devices/${encodeURIComponent(deviceId)}/settings`, {
+      const res = await apiFetch(`${API_BASE}/api/devices/${encodeURIComponent(deviceId)}/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData?.message || 'Failed to save');
+      }
+      // Refetch settings to confirm persistence
+      const settingsRes = await apiFetch(`${API_BASE}/api/devices/${encodeURIComponent(deviceId)}/settings`);
+      const settingsData = await settingsRes.json();
+      setRetentionDays(settingsData.settings.history_retention_days);
+      setDisplayName(settingsData.settings.display_name);
+      setAreaId(settingsData.settings.area_id);
+      setAliases(settingsData.settings.aliases ?? []);
+    } catch (e) {
+      console.error('Failed to save device settings:', e);
     } finally {
       setSaving(false);
     }
@@ -308,97 +323,113 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
       {/* Default card — resolved from the device-card-map or a per-user override */}
       <DeviceDefaultCardPanel deviceId={device.id} />
 
-      {/* Live state — structured UI for every JSON field */}
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <div>
-            <h2 className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
-              Live state
-            </h2>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-              One control-style row per field. Select a field to open history in the sidebar. Raw JSON is available on demand.
-            </p>
-          </div>
+      {/* Details — collapsed by default. Lower-level info, endpoints, and
+          specialised controls live here. Each field row in the live state
+          tree is its own interactive widget and doubles as a history
+          drill-in (click → slide panel). */}
+      <Collapsible
+        title="Details"
+        subtitle="Endpoints, live state, and specialised controls."
+        action={
           <button
             type="button"
-            onClick={() => setInspector({ kind: 'json' })}
-            className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--color-bg-hover)] shrink-0"
+            onClick={(e) => { e.stopPropagation(); setInspector({ kind: 'json' }); }}
+            className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
             style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
           >
             <Braces className="h-3.5 w-3.5" />
             Raw JSON
           </button>
+        }
+      >
+        <div className="space-y-4">
+          {/* Specialized controls — same dispatch as before */}
+          <div>
+            <div className="mb-2 text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+              Controls
+            </div>
+            {vizConfig?.useWeatherCard ? (
+              <WeatherCard device={device as WeatherState} />
+            ) : vizConfig?.useCoverControl ? (
+              <CoverControl device={device as CoverState | GarageDoorState} />
+            ) : (
+              <DeviceCard device={device} variant="detail" />
+            )}
+          </div>
+
+          {/* Live state — one row per JSON field, click to open history */}
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+                Live state
+              </div>
+              {merged.loading && !merged.error && (
+                <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Syncing…
+                </div>
+              )}
+            </div>
+            <DeviceLiveStateTree
+              data={display as unknown}
+              onFieldSelect={(path, value) => setInspector({ kind: 'field', path, value })}
+            />
+          </div>
+
+          {/* Network-linked mirrors of this device */}
+          {networkLinked.length > 0 && (
+            <div>
+              <div className="mb-2 text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+                Same device elsewhere in HomeOS
+              </div>
+              <ul className="space-y-1.5 text-sm">
+                {networkLinked.map((lid) => {
+                  const linked = getDevice(lid);
+                  const lab = linked?.displayName ?? linked?.name ?? lid;
+                  return (
+                    <li key={lid}>
+                      <Link
+                        href={`/devices/${encodeURIComponent(lid)}`}
+                        className="hover:underline"
+                        style={{ color: 'var(--color-accent)' }}
+                      >
+                        {lab}
+                      </Link>
+                      {linked ? (
+                        <span className="text-xs ml-1.5" style={{ color: 'var(--color-text-muted)' }}>
+                          ({linked.integration})
+                        </span>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {/* Child devices (for hub/parent devices) */}
+          {childDevices.length > 0 && (
+            <div>
+              <div className="mb-2 text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+                Entities ({childDevices.length})
+              </div>
+              <div className="space-y-2">
+                {childDevices.map((child) => (
+                  <DeviceCard key={child.id} device={child} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-        {merged.loading && !merged.error && (
-          <div className="flex items-center gap-2 text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Syncing with API…
-          </div>
-        )}
-        <DeviceLiveStateTree
-          data={display as unknown}
-          onFieldSelect={(path, value) => setInspector({ kind: 'field', path, value })}
-        />
-      </Card>
+      </Collapsible>
 
-      {networkLinked.length > 0 && (
-          <Card>
-            <h2 className="text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-              Same device elsewhere in HomeOS
-            </h2>
-            <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
-              Matched by MAC address or by LAN IP (e.g. media players that report the same IP as this client).
-            </p>
-            <ul className="space-y-1.5 text-sm">
-              {networkLinked.map((lid) => {
-                const linked = getDevice(lid);
-                const lab = linked?.displayName ?? linked?.name ?? lid;
-                return (
-                  <li key={lid}>
-                    <Link
-                      href={`/devices/${encodeURIComponent(lid)}`}
-                      className="hover:underline"
-                      style={{ color: 'var(--color-accent)' }}
-                    >
-                      {lab}
-                    </Link>
-                    {linked ? (
-                      <span className="text-xs ml-1.5" style={{ color: 'var(--color-text-muted)' }}>
-                        ({linked.integration})
-                      </span>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
-        )}
-
-      {/* Controls — specialized or default */}
-      <Card>
-        <h2 className="text-sm font-medium mb-3" style={{ color: 'var(--color-text-secondary)' }}>Controls</h2>
-        {vizConfig?.useWeatherCard ? (
-          <WeatherCard device={device as WeatherState} />
-        ) : vizConfig?.useCoverControl ? (
-          <CoverControl device={device as CoverState | GarageDoorState} />
-        ) : (
-          <DeviceCard device={device} variant="detail" />
-        )}
-      </Card>
-
-      {/* Child devices (for hub/parent devices) */}
-      {childDevices.length > 0 && (
-        <Card>
-          <h2 className="text-sm font-medium mb-3" style={{ color: 'var(--color-text-secondary)' }}>
-            Entities ({childDevices.length})
-          </h2>
-          <div className="space-y-2">
-            {childDevices.map((child) => (
-              <DeviceCard key={child.id} device={child} />
-            ))}
-          </div>
-        </Card>
-      )}
+      {/* History — collapsed by default. Device-class-aware default view. */}
+      <Collapsible
+        title="History"
+        subtitle="Default history view for this device class."
+      >
+        <DeviceHistoryDefault device={device} />
+      </Collapsible>
 
       {/* Device settings */}
       <Card>

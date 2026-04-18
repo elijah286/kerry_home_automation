@@ -50,6 +50,22 @@ function readBuildInfoEnv(): BuildInfo {
 }
 
 /**
+ * Parse the image tag from HA_BACKEND_IMAGE (set in .env, pinned during install).
+ * Example: "ghcr.io/elijah286/ha-backend:v3.55.0" → { version: "v3.55.0", sha: "" }
+ * This reflects what docker compose actually launched — the definitive "what's deployed"
+ * signal when the container image itself predates build-info.json.
+ */
+function readBuildInfoFromPinnedImage(): BuildInfo {
+  const img = (process.env.HA_BACKEND_IMAGE ?? '').trim();
+  if (!img) return { version: '', sha: '' };
+  const tag = img.split(':').pop() ?? '';
+  const version = normalizeVersion(tag);
+  // Ignore sliding tags that don't reflect a real version
+  if (!version || version === 'latest' || version === 'main') return { version: '', sha: '' };
+  return { version, sha: '' };
+}
+
+/**
  * Read OCI labels from the running container (hostname is the container ID in Docker).
  * Only runs inside a container with the Docker CLI + socket (production backend image).
  */
@@ -85,7 +101,12 @@ function mergeBuildInfo(...parts: BuildInfo[]): BuildInfo {
 }
 
 function loadBuildInfo(): BuildInfo {
-  return mergeBuildInfo(readBuildInfoFile(), readBuildInfoDocker(), readBuildInfoEnv());
+  return mergeBuildInfo(
+    readBuildInfoFile(),         // /app/build-info.json — most reliable
+    readBuildInfoDocker(),       // OCI labels on running container
+    readBuildInfoEnv(),          // HA_CONTAINER_VERSION override
+    readBuildInfoFromPinnedImage(), // HA_BACKEND_IMAGE tag — what .env pinned
+  );
 }
 
 export const buildInfo = loadBuildInfo();

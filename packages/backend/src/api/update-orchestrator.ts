@@ -436,12 +436,22 @@ export async function detectInFlightDeploy() {
 
 export function registerUpdateProgressSSE(app: FastifyInstance) {
   app.get('/api/system/update/progress', async (req: FastifyRequest, reply: FastifyReply) => {
+    // Echo CORS headers — reply.hijack() bypasses @fastify/cors
+    const originHeader = req.headers.origin;
+    const corsHeaders: Record<string, string> = {};
+    if (originHeader) {
+      corsHeaders['Access-Control-Allow-Origin'] = originHeader;
+      corsHeaders['Access-Control-Allow-Credentials'] = 'true';
+      corsHeaders['Vary'] = 'Origin';
+    }
+
     reply.hijack();
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
+      ...corsHeaders,
     });
 
     // Send all existing progress events (replay for reconnecting clients)
