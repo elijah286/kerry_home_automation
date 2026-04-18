@@ -687,10 +687,22 @@ function AssistantRightPanel() {
     el.onerror = () => {
       URL.revokeObjectURL(item.url);
       audioPlayingRef.current = false;
+      // eslint-disable-next-line no-console
+      console.warn('[tts] audio element error', el.error);
       playNextAudio();
     };
-    el.play().catch(() => {
+    el.play().catch((err: Error) => {
       audioPlayingRef.current = false;
+      // eslint-disable-next-line no-console
+      console.warn('[tts] audio.play() rejected:', err.name, err.message);
+      // Autoplay blocked or device issue — clear the queue so we don't keep
+      // piling up broken plays, and surface a visible error the user can act on.
+      if (err.name === 'NotAllowedError') {
+        setError('Browser blocked voice playback — click anywhere on the page once, then try again.');
+      } else {
+        setError(`Voice playback failed: ${err.message}`);
+      }
+      URL.revokeObjectURL(item.url);
     });
   }, []);
 
