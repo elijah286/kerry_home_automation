@@ -53,6 +53,14 @@ jobs:
         id: version
         run: |
           set -e
+          # Catch up to origin/main in case a concurrent release commit landed
+          # while this workflow was waiting on the concurrency group. Without
+          # this, two PRs merging back-to-back can both compute the same new
+          # version (both see the pre-release tip), then the second run's
+          # "Commit release" step fails on a manifest rebase conflict — and
+          # its images end up orphaned under the first run's tag.
+          git fetch origin main --quiet
+          git reset --hard origin/main
           # Find the last release commit (the one that committed the previous release-manifest)
           LAST_RELEASE_COMMIT=$(git log --format='%H' --grep='^ci: release v' -n 1 || echo "")
           if [ -z "$LAST_RELEASE_COMMIT" ]; then
