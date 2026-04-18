@@ -503,22 +503,19 @@ export function registerSystemRoutes(app: FastifyInstance): void {
       reply.raw.write(`data: ${JSON.stringify({ type: 'entry', entry })}\n\n`);
     };
 
-    // On client connect, replay recent software-update entries from the in-memory
-    // log buffer. These are written in real-time by the update orchestrator; the
-    // in-memory buffer survives SSE disconnects and is more current than the
-    // persisted .update-progress.jsonl (which has the orchestrator's own events,
-    // not live pino logs).
+    // On client connect, replay all recent entries from the in-memory log buffer
+    // so the status window shows continuity across SSE reconnects, device reboots,
+    // or backend restarts. The buffer is populated in real-time by all logging
+    // sources (orchestrator, integrations, system events, etc.) and survives
+    // transient disconnects.
     (async () => {
       try {
         const allEntries = getLogEntries();
-        const softwareUpdateEntries = allEntries.filter(
-          (e) => e.context?.integration === 'software-update'
-        );
-        for (const entry of softwareUpdateEntries) {
+        for (const entry of allEntries) {
           write(entry);
         }
       } catch (err) {
-        logger.debug({ err }, 'Failed to replay software-update logs');
+        logger.debug({ err }, 'Failed to replay log buffer');
       }
 
       // Now stream live updates
