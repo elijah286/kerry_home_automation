@@ -524,34 +524,49 @@ function InlineRename({
 function DeviceAliases({ deviceId }: { deviceId: string }) {
   const [aliases, setAliases] = useState<string[] | null>(null);
   const [input, setInput] = useState('');
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     setAliases(null);
     setInput('');
+    setSaveError(null);
     apiFetch(`${getApiBase()}/api/devices/${encodeURIComponent(deviceId)}/settings`)
       .then((r) => r.json())
       .then((d: { settings?: { aliases?: string[] } }) => setAliases(d.settings?.aliases ?? []))
       .catch(() => setAliases([]));
   }, [deviceId]);
 
-  const save = async (next: string[]) => {
+  const save = async (next: string[], prev: string[]) => {
     setAliases(next);
-    await updateDeviceSettings(deviceId, { aliases: next }).catch(() => {});
+    setSaveError(null);
+    try {
+      await updateDeviceSettings(deviceId, { aliases: next });
+    } catch (err) {
+      setAliases(prev);
+      setSaveError(err instanceof Error ? err.message : 'Failed to save aliases');
+    }
   };
 
   const add = () => {
     const alias = input.trim();
     if (!alias || (aliases ?? []).includes(alias)) { setInput(''); return; }
-    void save([...(aliases ?? []), alias]);
+    const prev = aliases ?? [];
+    void save([...prev, alias], prev);
     setInput('');
   };
 
-  const remove = (alias: string) => void save((aliases ?? []).filter((a) => a !== alias));
+  const remove = (alias: string) => {
+    const prev = aliases ?? [];
+    void save(prev.filter((a) => a !== alias), prev);
+  };
 
   if (aliases === null) return null;
 
   return (
     <div className="flex flex-col gap-1.5 w-full">
+      {saveError && (
+        <span className="text-[11px]" style={{ color: 'var(--color-danger, #ef4444)' }}>{saveError}</span>
+      )}
       <div className="flex flex-wrap gap-1">
         {aliases.map((a) => (
           <span

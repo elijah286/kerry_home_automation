@@ -139,6 +139,9 @@ export function SystemTerminalDock({
   const viewMenuAnchorRef = useRef<HTMLDivElement>(null);
   const viewMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const [viewMenuRect, setViewMenuRect] = useState<{ left: number; top: number } | null>(null);
+  const [sourcesMenuOpen, setSourcesMenuOpen] = useState(false);
+  const sourcesMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const [sourcesMenuRect, setSourcesMenuRect] = useState<{ left: number; top: number } | null>(null);
   const [entries, setEntries] = useState<LogEntry[]>([]);
   /** Row expanded by click — full JSON + deep links */
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
@@ -220,21 +223,30 @@ export function SystemTerminalDock({
     scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
   }, [filtered, logAutoScroll]);
 
-  /** Close the view-switcher dropdown on outside click or Escape. */
+  /** Close dropdowns on outside click or Escape. */
   useEffect(() => {
-    if (!viewMenuOpen) return;
+    if (!viewMenuOpen && !sourcesMenuOpen) return;
     const onDown = (e: MouseEvent) => {
-      if (!viewMenuAnchorRef.current) return;
-      if (!viewMenuAnchorRef.current.contains(e.target as Node)) setViewMenuOpen(false);
+      if (viewMenuOpen && viewMenuAnchorRef.current && !viewMenuAnchorRef.current.contains(e.target as Node)) {
+        setViewMenuOpen(false);
+      }
+      if (sourcesMenuOpen && sourcesMenuTriggerRef.current && !sourcesMenuTriggerRef.current.contains(e.target as Node)) {
+        setSourcesMenuOpen(false);
+      }
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setViewMenuOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setViewMenuOpen(false);
+        setSourcesMenuOpen(false);
+      }
+    };
     window.addEventListener('mousedown', onDown);
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('mousedown', onDown);
       window.removeEventListener('keydown', onKey);
     };
-  }, [viewMenuOpen]);
+  }, [viewMenuOpen, sourcesMenuOpen]);
 
   const onScroll = useCallback(() => {
     onStatusInteraction?.();
@@ -487,30 +499,82 @@ export function SystemTerminalDock({
             </button>
 
             {placement === 'bottom' && (
-              <button
-                type="button"
-                onClick={() => {
-                  initLogIntegrationWhitelistIfNeeded();
-                  setLogIntegrationFilterPanelOpen(!logIntegrationFilterPanelOpen);
-                }}
-                aria-pressed={logIntegrationFilterPanelOpen}
-                aria-label="Filter log by source"
-                title="Filter by source"
-                className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors"
-                style={{
-                  backgroundColor:
-                    logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
-                      ? 'var(--color-accent)'
-                      : 'var(--color-bg-secondary)',
-                  color:
-                    logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
-                      ? '#fff'
-                      : 'var(--color-text-secondary)',
-                }}
-              >
-                <Filter className="h-3.5 w-3.5" aria-hidden />
-                <span className="hidden lg:inline">Sources</span>
-              </button>
+              <div className="relative shrink-0">
+                <button
+                  ref={sourcesMenuTriggerRef}
+                  type="button"
+                  onClick={() => {
+                    initLogIntegrationWhitelistIfNeeded();
+                    const el = sourcesMenuTriggerRef.current;
+                    if (el) {
+                      const r = el.getBoundingClientRect();
+                      setSourcesMenuRect({ left: r.left, top: r.bottom + 4 });
+                    }
+                    setSourcesMenuOpen((v) => !v);
+                  }}
+                  aria-pressed={sourcesMenuOpen}
+                  aria-label="Filter log by source"
+                  title="Filter by source"
+                  className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors"
+                  style={{
+                    backgroundColor:
+                      logIntegrationWhitelist !== null
+                        ? 'var(--color-accent)'
+                        : 'var(--color-bg-secondary)',
+                    color:
+                      logIntegrationWhitelist !== null
+                        ? '#fff'
+                        : 'var(--color-text-secondary)',
+                  }}
+                >
+                  <Filter className="h-3.5 w-3.5" aria-hidden />
+                  <span className="hidden lg:inline">Sources</span>
+                </button>
+
+                {sourcesMenuOpen && sourcesMenuRect && (
+                  <div
+                    className="fixed z-[9999] min-w-[220px] max-h-72 overflow-auto rounded-md border shadow-xl"
+                    style={{
+                      left: sourcesMenuRect.left,
+                      top: sourcesMenuRect.top,
+                      backgroundColor: 'var(--color-bg)',
+                      borderColor: 'var(--color-border)',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLogIntegrationWhitelist(null);
+                        setSourcesMenuOpen(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs hover:bg-white/5 border-b"
+                      style={{
+                        color: logIntegrationWhitelist === null ? 'var(--color-accent)' : 'var(--color-text)',
+                        borderColor: 'var(--color-border)',
+                        backgroundColor: logIntegrationWhitelist === null ? 'color-mix(in srgb, var(--color-accent) 18%, transparent)' : 'transparent',
+                      }}
+                    >
+                      <div className="font-semibold">All sources</div>
+                    </button>
+                    {/* Current button — would be implemented with context about what's on-screen */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Placeholder: would filter to currently visible source
+                        setSourcesMenuOpen(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs hover:bg-white/5 border-b"
+                      style={{
+                        color: 'var(--color-text)',
+                        borderColor: 'var(--color-border)',
+                      }}
+                    >
+                      <div className="font-semibold">Current</div>
+                      <div className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>On-screen source</div>
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
 
             <button
