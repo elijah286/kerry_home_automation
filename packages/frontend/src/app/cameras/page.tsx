@@ -6,6 +6,7 @@ import { Settings2, Eye, EyeOff } from 'lucide-react';
 import { getApiBase, apiFetch, authQueryParam, authHeaders } from '@/lib/api-base';
 import { SlidePanel } from '@/components/ui/SlidePanel';
 import { useBreadcrumbOverride } from '@/providers/BreadcrumbOverrideProvider';
+import { useSystemTerminal } from '@/providers/SystemTerminalProvider';
 
 /**
  * Push a log line into the system terminal / status window. Fire-and-forget —
@@ -912,16 +913,23 @@ export default function CamerasPage() {
   const [playerQuality,  setPlayerQuality]  = useState<Quality>('sd');
 
   const { setExtra } = useBreadcrumbOverride();
+  const { setCurrentSourceId } = useSystemTerminal();
 
   // Inject camera name as extra breadcrumb while a camera is open.
+  // Also set the current source ID for the status window "Current" filter.
   useEffect(() => {
     if (fullscreenCam) {
       setExtra([{ href: '/cameras', label: fullscreenCam.label, current: true }]);
+      setCurrentSourceId('cameras');
     } else {
       setExtra([]);
+      setCurrentSourceId(null);
     }
-    return () => setExtra([]);
-  }, [fullscreenCam, setExtra]);
+    return () => {
+      setExtra([]);
+      setCurrentSourceId(null);
+    };
+  }, [fullscreenCam, setExtra, setCurrentSourceId]);
 
   // Reset mode/quality to defaults when switching cameras.
   useEffect(() => {
