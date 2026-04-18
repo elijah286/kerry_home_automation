@@ -18,6 +18,7 @@ import * as entryStore from '../db/integration-entry-store.js';
 import { tryFastPath } from './chat-fast-path.js';
 import {
   getPaprikaRecipesFromStore,
+  getPaprikaMealsFromStore,
   isPaprikaConfigured,
   searchPaprikaRecipes,
 } from '../lib/paprika-recipe-search.js';
@@ -201,6 +202,28 @@ const readTools: ChatCompletionTool[] = [
             description: 'Optional — only include feeds whose label contains this text (case-insensitive)',
           },
         },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_meal_plan',
+      description:
+        'Look up meals the user planned/made on specific dates from the Paprika meal plan. Use for questions like "what did I make last Sunday", "what\'s on the meal plan for next week", "did I cook chicken this week". Returns meals within a date range with their recipe UID (use with /recipes?open=<uid> to open the recipe). Dates are YYYY-MM-DD. Today\'s date is available in your system context.',
+      parameters: {
+        type: 'object',
+        properties: {
+          start_date: {
+            type: 'string',
+            description: 'Start of range (inclusive), YYYY-MM-DD format. Example: "2026-04-12" for last Sunday.',
+          },
+          end_date: {
+            type: 'string',
+            description: 'End of range (inclusive), YYYY-MM-DD format. For a single day, set end_date = start_date.',
+          },
+        },
+        required: ['start_date', 'end_date'],
       },
     },
   },
@@ -1093,6 +1116,43 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
       };
     }
 
+    case 'get_meal_plan': {
+      const startRaw = String(args.start_date ?? '').trim();
+      const endRaw = String(args.end_date ?? '').trim();
+      const iso = /^\d{4}-\d{2}-\d{2}$/;
+      if (!iso.test(startRaw) || !iso.test(endRaw)) {
+        return { error: 'start_date and end_date must be YYYY-MM-DD.' };
+      }
+      if (!(await isPaprikaConfigured())) {
+        return { error: 'Paprika is not configured. Add credentials in Integrations settings.' };
+      }
+
+      // Inclusive date comparison using string ordering (YYYY-MM-DD is lex-sortable)
+      const [start, end] = startRaw <= endRaw ? [startRaw, endRaw] : [endRaw, startRaw];
+      const allMeals = await getPaprikaMealsFromStore();
+      const inRange = allMeals
+        .filter((m) => m.date >= start && m.date <= end)
+        .sort((a, b) => (a.date === b.date ? a.order_flag - b.order_flag : a.date.localeCompare(b.date)));
+
+      const meals = inRange.map((m) => ({
+        date: m.date,
+        name: m.name,
+        recipeUid: m.recipe_uid,
+        // navigatePath for opening the recipe directly
+        navigatePath: m.recipe_uid ? `/recipes?open=${encodeURIComponent(m.recipe_uid)}` : null,
+      }));
+
+      return {
+        range: { start, end },
+        count: meals.length,
+        meals,
+        hint:
+          meals.length === 0
+            ? 'No meals planned in that range.'
+            : `Found ${meals.length} meal${meals.length === 1 ? '' : 's'}. If opening a specific one, call navigate_ui with that meal's navigatePath.`,
+      };
+    }
+
     case 'list_automations': {
       const { rows } = await query<AutomationRow>(
         'SELECT * FROM automations ORDER BY group_name NULLS LAST, name',
@@ -1493,6 +1553,7 @@ The HomeOS UI is your primary output surface. The chat window is for brief confi
 | User intent | Action |
 |---|---|
 | Find/show/list recipes by any criteria | search_recipes → navigate_ui with the returned navigatePath (/recipes?uids=...) |
+| "What did I make/cook on <date>" or meal plan questions | get_meal_plan with a date range → if the user wants a specific meal opened, use navigate_ui with that meal's navigatePath |
 | Open a specific recipe | navigate_ui /recipes?open=<uid> |
 | Show/find/list devices by type, area, or any criteria | get_devices → navigate_ui with the returned navigatePath (/devices?ids=...) |
 | Browse all devices | navigate_ui /devices |
@@ -1671,6 +1732,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_device_state: 'Reading device state…',
   update_device_settings: 'Updating device…',
   search_recipes: 'Searching recipes…',
+  get_meal_plan: 'Checking meal plan…',
   navigate_ui: 'Navigating…',
   get_calendar_events: 'Loading calendar…',
   list_automations: 'Loading automations…',
