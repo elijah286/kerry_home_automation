@@ -121,7 +121,7 @@ const readTools: ChatCompletionTool[] = [
     function: {
       name: 'navigate_ui',
       description:
-        'Navigate the UI to a page — PRIMARY response tool for any "show/find/list/open" request. Always navigate first, then reply with one brief sentence. Paths: /devices, /cameras, /calendar, /settings, /integrations, /areas, /alarms, /settings/automations. Recipes: /recipes?uids=uid1,uid2,uid3 (use the navigatePath returned by search_recipes — this shows exactly the matched recipes), /recipes?open=<uid> (single recipe), /recipes (bare list). Devices: /devices?ids=id1,id2 (exact set from get_devices), /devices?type=<type>&area=<area> (filtered browse).',
+        'Navigate the UI to a page — PRIMARY response tool for any "show/find/list/open" request. Always navigate first, then reply with one brief sentence. Paths: /devices, /cameras, /calendar, /settings, /integrations, /areas, /alarms, /settings/automations. Recipes: /recipes?uids=uid1,uid2,uid3 (use the navigatePath returned by search_recipes — this shows exactly the matched recipes), /recipes?open=<uid> (single recipe), /recipes (bare list). Devices: /devices?ids=id1,id2 (exact set from get_devices), /devices?type=<type>&area=<area> (filtered browse). Cameras: /cameras?open=<cameraName> opens a specific camera in fullscreen (use the device name from get_devices of type camera, e.g. "living_room", "driveway", "front_porch") — use this for "show me / fullscreen / open the X camera" requests.',
       parameters: {
         type: 'object',
         properties: {
@@ -1496,7 +1496,8 @@ The HomeOS UI is your primary output surface. The chat window is for brief confi
 | Open a specific recipe | navigate_ui /recipes?open=<uid> |
 | Show/find/list devices by type, area, or any criteria | get_devices → navigate_ui with the returned navigatePath (/devices?ids=...) |
 | Browse all devices | navigate_ui /devices |
-| Show cameras | navigate_ui /cameras |
+| Show cameras (grid of all) | navigate_ui /cameras |
+| Show/fullscreen/open a specific camera | navigate_ui /cameras?open=<cameraName> (use the device name, e.g. living_room, driveway) |
 | Show calendar / schedule | navigate_ui /calendar |
 | Show automations | navigate_ui /settings/automations |
 | Go to settings, integrations, areas, alarms | navigate_ui <path> |

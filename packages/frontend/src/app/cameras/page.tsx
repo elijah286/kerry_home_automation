@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo, memo, type CSSProperties } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { X, Settings2, Eye, EyeOff } from 'lucide-react';
 import { getApiBase, apiFetch, authQueryParam, authHeaders } from '@/lib/api-base';
 import { useLCARSFrame } from '@/components/lcars/LCARSFrameContext';
@@ -771,6 +772,30 @@ export default function CamerasPage() {
     const id = window.setInterval(loadCameras, 15_000);
     return () => window.clearInterval(id);
   }, []);
+
+  // Open a camera in fullscreen when ?open=<name> is in the URL.
+  // Lets the assistant navigate directly to a specific camera view, e.g.
+  //   /cameras?open=living_room
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const target = searchParams.get('open');
+    if (!target || cameras.length === 0) return;
+    // Match by exact name, then case-insensitive name, then label contains.
+    const needle = target.toLowerCase();
+    const match =
+      cameras.find((c) => c.name === target) ??
+      cameras.find((c) => c.name.toLowerCase() === needle) ??
+      cameras.find((c) => c.label.toLowerCase().includes(needle));
+    if (match) {
+      setFullscreenCam(match);
+      // Strip the param from the URL so back/refresh doesn't re-trigger
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('open');
+      const q = params.toString();
+      router.replace(q ? `/cameras?${q}` : '/cameras');
+    }
+  }, [cameras, searchParams, router]);
 
   const onRecover = () => {
     setRecovering(true);
