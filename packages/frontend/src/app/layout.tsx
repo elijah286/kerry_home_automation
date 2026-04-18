@@ -32,6 +32,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" data-theme="dark" className={antonio.variable} suppressHydrationWarning>
+      <head>
+        {/* Belt-and-suspenders: Next's `viewport` export should inject this,
+            but we also render it literally in the root layout so the meta
+            tag is guaranteed to appear in the production HTML regardless of
+            build-mode quirks. Without it, iOS Safari uses a ~980px virtual
+            viewport and renders the whole app desktop-shrunk. */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+      </head>
       <body>
         <AuthProvider>
           <ThemeProvider>
