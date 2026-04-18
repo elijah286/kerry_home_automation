@@ -137,6 +137,8 @@ export function SystemTerminalDock({
   } = useSystemTerminal();
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
   const viewMenuAnchorRef = useRef<HTMLDivElement>(null);
+  const viewMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const [viewMenuRect, setViewMenuRect] = useState<{ left: number; top: number } | null>(null);
   const [entries, setEntries] = useState<LogEntry[]>([]);
   /** Row expanded by click — full JSON + deep links */
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
@@ -336,8 +338,16 @@ export function SystemTerminalDock({
         {/* View switcher — click to swap between Logs and Performance */}
         <div ref={viewMenuAnchorRef} className="relative shrink-0">
           <button
+            ref={viewMenuTriggerRef}
             type="button"
-            onClick={() => setViewMenuOpen((v) => !v)}
+            onClick={() => {
+              const el = viewMenuTriggerRef.current;
+              if (el) {
+                const r = el.getBoundingClientRect();
+                setViewMenuRect({ left: r.left, top: r.bottom + 4 });
+              }
+              setViewMenuOpen((v) => !v);
+            }}
             aria-haspopup="menu"
             aria-expanded={viewMenuOpen}
             className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors hover:bg-white/5"
@@ -363,11 +373,13 @@ export function SystemTerminalDock({
               aria-label={connected ? 'Live' : 'Reconnecting'}
             />
           </button>
-          {viewMenuOpen && (
+          {viewMenuOpen && viewMenuRect && (
             <div
               role="menu"
-              className="absolute left-0 top-full z-[60] mt-1 min-w-[160px] overflow-hidden rounded-md border shadow-xl"
+              className="fixed z-[9999] min-w-[180px] overflow-hidden rounded-md border shadow-xl"
               style={{
+                left: viewMenuRect.left,
+                top: viewMenuRect.top,
                 backgroundColor: 'var(--color-bg)',
                 borderColor: 'var(--color-border)',
               }}
