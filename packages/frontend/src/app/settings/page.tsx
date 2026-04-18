@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Settings, Palette, Clock, Puzzle, Users, ChevronRight, MapPin, Bot, Zap,
   ToggleLeft, LayoutGrid, LayoutDashboard, HardDrive, Server, UserCircle, Download,
-  Sparkles,
+  Sparkles, Tablet,
 } from 'lucide-react';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -73,6 +73,7 @@ const groups: { title?: string; items: SettingsItem[] }[] = [
         adminOnly: true,
       },
       { href: '/settings/llm', icon: Bot, label: 'LLM Integration', description: 'OpenAI and Claude keys, model, and active provider' },
+      { href: '/settings/kiosk', icon: Tablet, label: 'Kiosk & Display', description: 'Set up a wall-mounted tablet with always-on wake word and screen lock', adminOnly: true },
       { href: '/integrations', icon: Puzzle, label: 'Integrations', description: 'Manage connected services and bridges' },
       { href: '/settings/users', icon: Users, label: 'Manage Users', description: 'Add and manage user accounts' },
       { href: '/settings/server-installer', icon: HardDrive, label: 'Server Installer', description: 'Generate a bootable Ubuntu ISO pre-configured for this hub' },

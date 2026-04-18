@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import {
   ArrowLeft, Bot, Loader2, Eye, EyeOff, Check, Zap,
-  CircleAlert, ChevronDown, AlertTriangle,
+  CircleAlert, ChevronDown, AlertTriangle, Mic,
 } from 'lucide-react';
 import { getApiBase, apiFetch } from '@/lib/api-base';
 
@@ -132,6 +132,10 @@ export default function LlmSettingsPage() {
   const [openAiModel,    setOpenAiModel]     = useState<string>(OPENAI_MODELS[0].id);
   const [anthropicModel, setAnthropicModel]  = useState<string>(ANTHROPIC_MODELS[0].id);
 
+  const [wakeWord,   setWakeWord]   = useState('hey home');
+  const [wakeWordSaving, setWakeWordSaving] = useState(false);
+  const [wakeWordSaved,  setWakeWordSaved]  = useState(false);
+
   const [loading,    setLoading]   = useState(true);
   const [saving,     setSaving]    = useState(false);
   const [saved,      setSaved]     = useState(false);
@@ -149,6 +153,7 @@ export default function LlmSettingsPage() {
       'llm_anthropic_api_key',
       'llm_openai_model',
       'llm_anthropic_model',
+      'assistant_wake_word',
     ] as const;
 
     Promise.all(
@@ -156,7 +161,7 @@ export default function LlmSettingsPage() {
         apiFetch(`${API_BASE}/api/settings/${k}`).then((r) => r.json() as Promise<{ value?: unknown }>),
       ),
     )
-      .then(([p, openaiExplicit, legacy, anth, om, am]) => {
+      .then(([p, openaiExplicit, legacy, anth, om, am, ww]) => {
         const pv = readSetting(p);
         const resolvedProvider: LlmProviderId =
           pv === 'anthropic' ? 'anthropic' : 'openai';
@@ -179,6 +184,8 @@ export default function LlmSettingsPage() {
         if (omm) setOpenAiModel(omm);
         const amm = readSetting(am);
         if (amm) setAnthropicModel(amm);
+        const wwv = readSetting(ww);
+        if (wwv) setWakeWord(wwv);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -647,6 +654,72 @@ export default function LlmSettingsPage() {
           <li>System overview — &quot;Which integrations are connected?&quot;</li>
         </ul>
       </Card>
+
+      {/* Wake word */}
+      {!loading && (
+        <Card>
+          <div className="flex items-center gap-2 mb-1">
+            <Mic className="h-4 w-4 shrink-0" style={{ color: 'var(--color-accent)' }} />
+            <h2 className="text-sm font-medium">Wake Word</h2>
+          </div>
+          <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
+            Phrase that activates always-on listening mode. Used by the assistant panel&apos;s passive mic and the kiosk app.
+            2–4 syllables work best (e.g. &quot;hey home&quot;, &quot;hey kerry&quot;, &quot;ok hub&quot;).
+          </p>
+
+          <div className="flex items-end gap-3 flex-wrap">
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>Wake phrase</p>
+              <input
+                type="text"
+                value={wakeWord}
+                onChange={(e) => { setWakeWord(e.target.value); setWakeWordSaved(false); }}
+                placeholder="hey home"
+                maxLength={40}
+                className="rounded-lg border px-3 py-2 text-sm w-48 transition-colors"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)',
+                }}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={async () => {
+                setWakeWordSaving(true);
+                try {
+                  await putSetting('assistant_wake_word', wakeWord.trim() || 'hey home');
+                  setWakeWordSaved(true);
+                  setTimeout(() => setWakeWordSaved(false), 2000);
+                } catch {
+                  // error surfaced via putSetting throw
+                } finally {
+                  setWakeWordSaving(false);
+                }
+              }}
+              disabled={wakeWordSaving}
+              className="rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+              style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
+            >
+              {wakeWordSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : wakeWordSaved ? (
+                <span className="flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Saved</span>
+              ) : (
+                'Save'
+              )}
+            </button>
+          </div>
+
+          {wakeWord.trim() && (
+            <p className="mt-3 text-xs italic" style={{ color: 'var(--color-text-muted)' }}>
+              Say &ldquo;{wakeWord.trim()}&rdquo; to activate the assistant
+            </p>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

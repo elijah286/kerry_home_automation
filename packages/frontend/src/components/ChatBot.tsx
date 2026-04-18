@@ -36,6 +36,7 @@ import {
   MicOff,
   Volume2,
   VolumeX,
+  Ear,
 } from 'lucide-react';
 import { useCookingTimers, formatCookingTimer } from '@/providers/CookingTimersProvider';
 import { clsx } from 'clsx';
@@ -615,7 +616,7 @@ function MapLayersSidebarBody() {
 function AssistantRightPanel() {
   const router = useRouter();
   const isMdUp = useMediaQuery('(min-width: 768px)');
-  const { open, setOpen, lcarsDockInset, rightPanelMode } = useAssistant();
+  const { open, setOpen, lcarsDockInset, rightPanelMode, setRightPanelMode } = useAssistant();
   const [fullscreen, setFullscreen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -625,11 +626,17 @@ function AssistantRightPanel() {
   const [error, setError] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [passiveListening, setPassiveListening] = useState(false);
+  const [wakeWord, setWakeWord] = useState('hey home');
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const ttsEnabledRef = useRef(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const passiveRecRef = useRef<any>(null);
+  const wakeWordRef = useRef('hey home');
+  const passiveListeningRef = useRef(false);
   const streamingTextRef = useRef('');
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -657,6 +664,18 @@ function AssistantRightPanel() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, fullscreen, setOpen]);
+
+  // Fetch admin-configured wake word on mount
+  useEffect(() => {
+    apiFetch(`${getApiBase()}/api/settings/assistant_wake_word`)
+      .then((r) => r.json())
+      .then((d: { value?: unknown }) => {
+        const w = (typeof d.value === 'string' ? d.value.trim() : '') || 'hey home';
+        setWakeWord(w);
+        wakeWordRef.current = w;
+      })
+      .catch(() => {});
+  }, []);
 
   // Load chat history when assistant opens
   useEffect(() => {
@@ -862,6 +881,71 @@ function AssistantRightPanel() {
     setIsListening(false);
   }, []);
 
+  // Passive (always-on) listening — watches for wake word, then fires active mic
+  const stopPassiveListening = useCallback(() => {
+    const rec = passiveRecRef.current;
+    passiveRecRef.current = null;
+    passiveListeningRef.current = false;
+    setPassiveListening(false);
+    rec?.stop();
+  }, []);
+
+  const startPassiveListening = useCallback(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (typeof window !== 'undefined') && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+    if (!SR) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rec = new SR() as any;
+    rec.lang = 'en-US';
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.onresult = (e: { results: SpeechRecognitionResultList }) => {
+      const transcript = Array.from(e.results)
+        .map((r) => r[0].transcript).join(' ').toLowerCase().trim();
+      if (transcript.includes(wakeWordRef.current.toLowerCase())) {
+        passiveRecRef.current = null;
+        passiveListeningRef.current = false;
+        rec.stop();
+        setPassiveListening(false);
+        setOpen(true);
+        setRightPanelMode('assistant');
+        setTimeout(() => startListening(), 150);
+      }
+    };
+    rec.onend = () => {
+      if (passiveRecRef.current === rec && passiveListeningRef.current) {
+        setTimeout(() => { if (passiveListeningRef.current) startPassiveListening(); }, 300);
+      }
+    };
+    rec.onerror = () => {
+      if (passiveRecRef.current === rec && passiveListeningRef.current) {
+        setTimeout(() => { if (passiveListeningRef.current) startPassiveListening(); }, 1000);
+      }
+    };
+    passiveRecRef.current = rec;
+    passiveListeningRef.current = true;
+    setPassiveListening(true);
+    rec.start();
+  }, [startListening, setOpen, setRightPanelMode]);
+
+  const togglePassiveListening = useCallback(() => {
+    if (passiveListeningRef.current) stopPassiveListening();
+    else startPassiveListening();
+  }, [startPassiveListening, stopPassiveListening]);
+
+  // Stop passive listening when tab hidden, restart when visible
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        if (passiveListeningRef.current) passiveRecRef.current?.stop();
+      } else {
+        if (passiveListeningRef.current) setTimeout(() => startPassiveListening(), 500);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [startPassiveListening]);
+
   const close = useCallback(() => {
     setOpen(false);
     setFullscreen(false);
@@ -960,17 +1044,36 @@ function AssistantRightPanel() {
                 : 'AI Assistant'}
           </span>
           {rightPanelMode === 'assistant' && (
-            <button
-              type="button"
-              onClick={toggleTts}
-              className="rounded-md p-1 transition-colors hover:bg-white/20"
-              aria-label={ttsEnabled ? 'Mute voice responses' : 'Enable voice responses'}
-              title={ttsEnabled ? 'Voice responses on — click to mute' : 'Voice responses off — click to enable'}
-            >
-              {ttsEnabled
-                ? <Volume2 className="h-4 w-4" />
-                : <VolumeX className="h-4 w-4 opacity-60" />}
-            </button>
+            <>
+              {/* Always-on wake word toggle */}
+              <button
+                type="button"
+                onClick={togglePassiveListening}
+                className="relative rounded-md p-1 transition-colors hover:bg-white/20"
+                aria-label={passiveListening ? `Always-on listening active — say "${wakeWord}"` : 'Enable always-on wake word'}
+                title={passiveListening ? `Always-on · say "${wakeWord}" to activate` : `Enable always-on · will listen for "${wakeWord}"`}
+              >
+                <Ear className={`h-4 w-4 ${passiveListening ? '' : 'opacity-50'}`} />
+                {passiveListening && (
+                  <span
+                    className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full animate-pulse"
+                    style={{ backgroundColor: '#4ade80' }}
+                  />
+                )}
+              </button>
+              {/* TTS toggle */}
+              <button
+                type="button"
+                onClick={toggleTts}
+                className="rounded-md p-1 transition-colors hover:bg-white/20"
+                aria-label={ttsEnabled ? 'Mute voice responses' : 'Enable voice responses'}
+                title={ttsEnabled ? 'Voice responses on — click to mute' : 'Voice responses off — click to enable'}
+              >
+                {ttsEnabled
+                  ? <Volume2 className="h-4 w-4" />
+                  : <VolumeX className="h-4 w-4 opacity-60" />}
+              </button>
+            </>
           )}
           <button
             type="button"
