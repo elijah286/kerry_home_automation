@@ -143,6 +143,7 @@ export function SystemTerminalDock({
   const viewMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const [viewMenuRect, setViewMenuRect] = useState<{ left: number; top: number } | null>(null);
   const [sourcesMenuOpen, setSourcesMenuOpen] = useState(false);
+  const sourcesMenuAnchorRef = useRef<HTMLDivElement>(null);
   const sourcesMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const [sourcesMenuRect, setSourcesMenuRect] = useState<{ left: number; top: number } | null>(null);
   const [entries, setEntries] = useState<LogEntry[]>([]);
@@ -233,7 +234,7 @@ export function SystemTerminalDock({
       if (viewMenuOpen && viewMenuAnchorRef.current && !viewMenuAnchorRef.current.contains(e.target as Node)) {
         setViewMenuOpen(false);
       }
-      if (sourcesMenuOpen && sourcesMenuTriggerRef.current && !sourcesMenuTriggerRef.current.contains(e.target as Node)) {
+      if (sourcesMenuOpen && sourcesMenuAnchorRef.current && !sourcesMenuAnchorRef.current.contains(e.target as Node)) {
         setSourcesMenuOpen(false);
       }
     };
@@ -502,7 +503,7 @@ export function SystemTerminalDock({
             </button>
 
             {placement === 'bottom' && (
-              <div className="relative shrink-0">
+              <div ref={sourcesMenuAnchorRef} className="relative shrink-0">
                 <button
                   ref={sourcesMenuTriggerRef}
                   type="button"

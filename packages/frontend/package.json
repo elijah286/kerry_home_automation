@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3001",
+    "dev": "next dev",
     "build": "rimraf out && next build",
     "build:mobile": "rimraf out && cross-env CAPACITOR_STATIC=1 next build",
     "build:mobile:sync": "npm run build:mobile && cap sync",
