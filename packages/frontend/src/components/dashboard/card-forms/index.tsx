@@ -1000,15 +1000,54 @@ function WeatherForm({ card, onChange }: { card: Extract<CardDescriptor, { type:
         ]}
       />
       <SegmentedField
-        label="Size"
-        value={card.size}
-        onChange={(size) => patch({ size })}
+        label="Mode"
+        value={card.mode}
+        onChange={(mode) => patch({ mode })}
         options={[
           { value: 'compact', label: 'Compact' },
-          { value: 'default', label: 'Default' },
-          { value: 'hero', label: 'Hero' },
+          { value: 'normal', label: 'Normal' },
+          { value: 'expanded', label: 'Expanded' },
         ]}
       />
+      <FieldShell label="Details" hint="Which chips/stats to show on the current conditions pane.">
+        <div className="grid grid-cols-2 gap-1">
+          <CheckboxField
+            label="Humidity"
+            value={card.showHumidity}
+            onChange={(showHumidity) => patch({ showHumidity })}
+          />
+          <CheckboxField
+            label="Wind"
+            value={card.showWind}
+            onChange={(showWind) => patch({ showWind })}
+          />
+          <CheckboxField
+            label="Feels like"
+            value={card.showFeelsLike}
+            onChange={(showFeelsLike) => patch({ showFeelsLike })}
+          />
+          <CheckboxField
+            label="Dew point"
+            value={card.showDewpoint}
+            onChange={(showDewpoint) => patch({ showDewpoint })}
+          />
+          <CheckboxField
+            label="Precipitation %"
+            value={card.showPrecipitation}
+            onChange={(showPrecipitation) => patch({ showPrecipitation })}
+          />
+          <CheckboxField
+            label="Daily hi / lo"
+            value={card.showHighLow}
+            onChange={(showHighLow) => patch({ showHighLow })}
+          />
+          <CheckboxField
+            label="Alert badge"
+            value={card.showAlertBadge}
+            onChange={(showAlertBadge) => patch({ showAlertBadge })}
+          />
+        </div>
+      </FieldShell>
     </FieldGroup>
   );
 }
