@@ -404,18 +404,33 @@ export function registerSystemRoutes(app: FastifyInstance): void {
   });
 
   // POST /api/system/log — push a log line from the frontend into the status
-  // window (e.g. camera tier failures). Frontend-originated so severity is
-  // limited to info|warn|error, and the message is bounded to 500 chars.
-  app.post<{ Body: { level?: 'info' | 'warn' | 'error'; source?: string; message?: string; meta?: Record<string, unknown> } }>(
+  // window (e.g. camera tier failures). `integration` is the critical field:
+  // it's what the status window's source filter keys off so users can
+  // downselect to just the relevant subsystem. Severity is clamped to
+  // info|warn|error and message is bounded to 500 chars.
+  app.post<{
+    Body: {
+      level?: 'info' | 'warn' | 'error';
+      /** Integration id for the status-window source filter (e.g. 'unifi') */
+      integration?: string;
+      /** Free-form source tag, shown in meta; NOT used for filtering */
+      source?: string;
+      message?: string;
+      meta?: Record<string, unknown>;
+    }
+  }>(
     '/api/system/log',
     { preHandler: terminalAccess },
     async (req, reply) => {
       const body = req.body ?? {};
-      const level   = body.level === 'error' || body.level === 'warn' ? body.level : 'info';
-      const source  = (body.source ?? 'client').slice(0, 64);
-      const message = (body.message ?? '').slice(0, 500);
+      const level       = body.level === 'error' || body.level === 'warn' ? body.level : 'info';
+      const integration = body.integration ? String(body.integration).slice(0, 64) : undefined;
+      const source      = body.source ? String(body.source).slice(0, 64) : 'client';
+      const message     = (body.message ?? '').slice(0, 500);
       if (!message) return reply.code(400).send({ error: 'message required' });
-      logger[level]({ source, ...(body.meta ?? {}) }, message);
+      const context: Record<string, unknown> = { source, ...(body.meta ?? {}) };
+      if (integration) context.integration = integration;
+      logger[level](context, message);
       return { ok: true };
     },
   );

@@ -2,20 +2,33 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Settings2, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Settings2, Eye, EyeOff, Terminal } from 'lucide-react';
 import { getApiBase, apiFetch, authQueryParam, authHeaders } from '@/lib/api-base';
 import { SlidePanel } from '@/components/ui/SlidePanel';
+import { useSystemTerminal } from '@/providers/SystemTerminalProvider';
 
 /**
  * Push a log line into the system terminal / status window. Fire-and-forget —
  * we never block the UI on logging, and we don't surface network failures.
+ *
+ * `integration` is the key that drives the status-window source filter.
+ * All camera log lines use 'unifi' so they group under the existing
+ * UniFi filter in the panel — that way the user can downselect to just
+ * camera/UniFi events when diagnosing a stream.
  */
-function logToStatus(level: 'info' | 'warn' | 'error', source: string, message: string, meta?: Record<string, unknown>): void {
+const CAMERAS_LOG_INTEGRATION = 'unifi';
+
+function logToStatus(
+  level: 'info' | 'warn' | 'error',
+  message: string,
+  meta?: Record<string, unknown>,
+  integration: string = CAMERAS_LOG_INTEGRATION,
+): void {
   try {
     void apiFetch(`${getApiBase()}/api/system/log`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ level, source, message, meta }),
+      body: JSON.stringify({ level, integration, source: 'cameras-ui', message, meta }),
     }).catch(() => { /* ignore */ });
   } catch { /* ignore */ }
 }
@@ -103,17 +116,17 @@ function CameraPlayer({
   // forced mode the user asked for a specific tier so we don't override it.
   const degrade = useCallback(() => {
     if (mode !== 'auto') {
-      logToStatus('warn', 'cameras', `Forced tier '${tierRef.current}' failed for ${streamName}`, { camera: streamName, tier: tierRef.current });
+      logToStatus('warn', `Camera ${streamName}: forced tier '${tierRef.current}' failed`, { camera: streamName, tier: tierRef.current });
       emit(tierRef.current, 'failed');
       onErrorRef.current?.();
       return;
     }
     const next = nextAutoTier(tierRef.current);
     if (next) {
-      logToStatus('info', 'cameras', `Camera ${streamName}: ${tierRef.current} failed, falling back to ${next}`, { camera: streamName, from: tierRef.current, to: next });
+      logToStatus('info', `Camera ${streamName}: ${tierRef.current} failed, falling back to ${next}`, { camera: streamName, from: tierRef.current, to: next });
       setActiveTier(next);
     } else {
-      logToStatus('error', 'cameras', `Camera ${streamName}: all streaming tiers failed`, { camera: streamName });
+      logToStatus('error', `Camera ${streamName}: all streaming tiers failed`, { camera: streamName });
       emit(tierRef.current, 'failed');
       onErrorRef.current?.();
     }
@@ -491,6 +504,8 @@ function InlineCameraPlayer({ cam, onClose }: { cam: CameraInfo; onClose: () => 
   const [quality, setQuality] = useState<Quality>(cam.hasHd ? 'hd' : 'sd');
   const [tier,    setTier]    = useState<Tier>(() => initialTier('auto'));
   const [status,  setStatus]  = useState<PlayerStatus>('connecting');
+  const { openWithSourceFilter } = useSystemTerminal();
+  const viewLogs = () => openWithSourceFilter(CAMERAS_LOG_INTEGRATION);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -512,14 +527,25 @@ function InlineCameraPlayer({ cam, onClose }: { cam: CameraInfo; onClose: () => 
     <div className="flex flex-col gap-2">
       {/* Toolbar: stays in normal page flow */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back to grid
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to grid
+          </button>
+          <button
+            type="button"
+            onClick={viewLogs}
+            className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+            title="Open the status window filtered to camera/UniFi logs"
+          >
+            <Terminal className="h-3.5 w-3.5" />
+            View logs
+          </button>
+        </div>
         <span className="text-sm font-medium text-zinc-100">{cam.label}</span>
         <div className="flex items-center gap-2">
           {cam.hasHd && (
@@ -572,10 +598,19 @@ function InlineCameraPlayer({ cam, onClose }: { cam: CameraInfo; onClose: () => 
         )}
       </div>
 
-      <div className="text-xs text-zinc-400">
+      <div className="flex items-center gap-2 text-xs">
         <span className={status === 'failed' ? 'text-red-400' : 'text-zinc-400'}>
           {statusText}
         </span>
+        {status === 'failed' && (
+          <button
+            type="button"
+            onClick={viewLogs}
+            className="underline decoration-dotted underline-offset-2 text-zinc-300 hover:text-zinc-100"
+          >
+            Open logs for this camera →
+          </button>
+        )}
       </div>
     </div>
   );
