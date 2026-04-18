@@ -420,19 +420,34 @@ function saveSettings(s: CameraSettings) {
 // ffmpeg pipelines when the user isn't looking.
 // ---------------------------------------------------------------------------
 
+// Stagger delay between tiles so they don't all start HLS at the same time.
+// 9 tiles × 600ms = last tile starts at ~5.4s, spreading ffmpeg session spin-up
+// across the whole warmup window instead of pegging all CPU cores at once.
+const TILE_STAGGER_MS = 600;
+
 const CameraTile = memo(function CameraTile({
   cam,
+  index,
   onSelect,
 }: {
   cam: CameraInfo;
+  index: number;
   onSelect: () => void;
 }) {
   const [visible, setVisible] = useState(true);
   const [inView,  setInView]  = useState(true);
+  const [ready,   setReady]   = useState(index === 0); // first tile starts immediately
   const [tier,    setTier]    = useState<Tier>(() => initialTier('auto'));
   const [status,  setStatus]  = useState<PlayerStatus>('connecting');
   const [idleRev, setIdleRev] = useState(0);
   const tileRef = useRef<HTMLDivElement | null>(null);
+
+  // Stagger HLS start so tiles don't all open ffmpeg sessions simultaneously.
+  useEffect(() => {
+    if (index === 0) return;
+    const t = window.setTimeout(() => setReady(true), index * TILE_STAGGER_MS);
+    return () => window.clearTimeout(t);
+  }, [index]);
 
   // Track page visibility (tab switched away / browser minimized)
   useEffect(() => {
@@ -453,7 +468,7 @@ const CameraTile = memo(function CameraTile({
     return () => obs.disconnect();
   }, []);
 
-  const active = visible && inView;
+  const active = ready && visible && inView;
 
   // When the tile is NOT active, refresh the static snapshot every 10s so
   // the grid doesn't show a completely frozen image after a long idle.
@@ -475,13 +490,9 @@ const CameraTile = memo(function CameraTile({
           mode="auto"
           quality="sd"
           fit="cover"
-          // Always-on fresh snapshot requests. CameraPlayer only polls snapshots
-          // while HLS is warming up or has failed — so this is a no-op most of
-          // the time. While it IS polling, `?fresh=500` tells the backend to
-          // bypass its 1s cache and pull a new frame from go2rtc, pinning
-          // tile-underlay update rate at ~2fps instead of being gated by the
-          // shared poll cycle (which can slip past 1s under iGPU load).
-          highFrequencySnapshots
+          // Tiles use the shared backend cache (no fresh= param) — they only need
+          // a snapshot underlay while HLS warms up, not 2fps live preview.
+          // Fresh snapshots are reserved for the fullscreen player.
           onTierChange={(t, s) => { setTier(t); setStatus(s); }}
         />
       ) : (
@@ -1022,10 +1033,11 @@ export default function CamerasPage() {
             className="grid gap-1"
             style={{ gridTemplateColumns: `repeat(${settings.columns}, minmax(0, 1fr))` }}
           >
-            {visibleCameras.map((cam) => (
+            {visibleCameras.map((cam, i) => (
               <CameraTile
                 key={cam.name}
                 cam={cam}
+                index={i}
                 onSelect={() => setFullscreenCam(cam)}
               />
             ))}
