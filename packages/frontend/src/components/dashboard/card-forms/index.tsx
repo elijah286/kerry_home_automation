@@ -843,34 +843,39 @@ function TeslaForm({ card, onChange }: { card: Extract<CardDescriptor, { type: '
       <TextField label="Name (optional)" value={card.name} onChange={(name) => patch({ name })} />
       <CheckboxField label="Hide vehicle image" value={card.hideImage} onChange={(hideImage) => patch({ hideImage })} />
       <SegmentedField
-        label="Image source"
+        label="Display mode"
         value={card.imageSource}
         onChange={(imageSource) => patch({ imageSource })}
         options={[
           { value: 'auto', label: 'Auto' },
           { value: 'compositor', label: 'Live render' },
           { value: 'silhouette', label: 'Silhouette' },
+          { value: 'live-map', label: 'Live map' },
         ]}
       />
-      <SegmentedField
-        label="View angle"
-        value={card.imageView}
-        onChange={(imageView) => patch({ imageView })}
-        options={[
-          { value: 'STUD_3QTR', label: '3/4' },
-          { value: 'STUD_SIDE', label: 'Side' },
-          { value: 'STUD_REAR', label: 'Rear' },
-          { value: 'STUD_SEAT', label: 'Interior' },
-        ]}
-      />
-      <NumberField
-        label="Image size (250–1920)"
-        value={card.imageSize}
-        min={250}
-        max={1920}
-        step={10}
-        onChange={(imageSize) => patch({ imageSize: imageSize ?? 720 })}
-      />
+      {card.imageSource !== 'live-map' && card.imageSource !== 'silhouette' && (
+        <>
+          <SegmentedField
+            label="View angle"
+            value={card.imageView}
+            onChange={(imageView) => patch({ imageView })}
+            options={[
+              { value: 'STUD_3QTR', label: '3/4' },
+              { value: 'STUD_SIDE', label: 'Side' },
+              { value: 'STUD_REAR', label: 'Rear' },
+              { value: 'STUD_SEAT', label: 'Interior' },
+            ]}
+          />
+          <NumberField
+            label="Image size (250–1920)"
+            value={card.imageSize}
+            min={250}
+            max={1920}
+            step={10}
+            onChange={(imageSize) => patch({ imageSize: imageSize ?? 720 })}
+          />
+        </>
+      )}
       <CheckboxField label="Show map link" value={card.showMap} onChange={(showMap) => patch({ showMap })} />
     </FieldGroup>
   );
@@ -1000,15 +1005,54 @@ function WeatherForm({ card, onChange }: { card: Extract<CardDescriptor, { type:
         ]}
       />
       <SegmentedField
-        label="Size"
-        value={card.size}
-        onChange={(size) => patch({ size })}
+        label="Mode"
+        value={card.mode}
+        onChange={(mode) => patch({ mode })}
         options={[
           { value: 'compact', label: 'Compact' },
-          { value: 'default', label: 'Default' },
-          { value: 'hero', label: 'Hero' },
+          { value: 'normal', label: 'Normal' },
+          { value: 'expanded', label: 'Expanded' },
         ]}
       />
+      <FieldShell label="Details" hint="Which chips/stats to show on the current conditions pane.">
+        <div className="grid grid-cols-2 gap-1">
+          <CheckboxField
+            label="Humidity"
+            value={card.showHumidity}
+            onChange={(showHumidity) => patch({ showHumidity })}
+          />
+          <CheckboxField
+            label="Wind"
+            value={card.showWind}
+            onChange={(showWind) => patch({ showWind })}
+          />
+          <CheckboxField
+            label="Feels like"
+            value={card.showFeelsLike}
+            onChange={(showFeelsLike) => patch({ showFeelsLike })}
+          />
+          <CheckboxField
+            label="Dew point"
+            value={card.showDewpoint}
+            onChange={(showDewpoint) => patch({ showDewpoint })}
+          />
+          <CheckboxField
+            label="Precipitation %"
+            value={card.showPrecipitation}
+            onChange={(showPrecipitation) => patch({ showPrecipitation })}
+          />
+          <CheckboxField
+            label="Daily hi / lo"
+            value={card.showHighLow}
+            onChange={(showHighLow) => patch({ showHighLow })}
+          />
+          <CheckboxField
+            label="Alert badge"
+            value={card.showAlertBadge}
+            onChange={(showAlertBadge) => patch({ showAlertBadge })}
+          />
+        </div>
+      </FieldShell>
     </FieldGroup>
   );
 }

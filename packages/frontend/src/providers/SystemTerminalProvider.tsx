@@ -26,6 +26,9 @@ export { SYSTEM_LOG_SOURCE_ID, TERMINAL_PANEL_HEIGHT } from '@/lib/terminal-cons
 
 export type TerminalLogFilter = 'all' | 'info' | 'warn' | 'error';
 
+/** Which panel the Status window is currently showing. */
+export type StatusDockView = 'logs' | 'performance';
+
 /** `terminal` = multiline pino-style (timestamps + context); `digest` = one short line per entry. */
 export type TerminalLogDetailStyle = 'terminal' | 'digest';
 
@@ -68,6 +71,12 @@ interface SystemTerminalContextValue {
   initLogIntegrationWhitelistIfNeeded: () => void;
   /** Open the terminal pre-filtered to a specific source (e.g. 'software-update'). */
   openWithSourceFilter: (source: string) => void;
+  /** Which view the dock is currently showing (logs vs performance graphs). */
+  dockView: StatusDockView;
+  setDockView: (v: StatusDockView) => void;
+  /** Time window (ms) for the performance view graphs. */
+  perfRangeMs: number;
+  setPerfRangeMs: (v: number) => void;
 }
 
 const SystemTerminalContext = createContext<SystemTerminalContextValue | null>(null);
@@ -95,6 +104,8 @@ export function SystemTerminalProvider({
   const [bottomDockHeightPx, setBottomDockHeightPx] = useState(TERMINAL_PANEL_HEIGHT);
   const [logIntegrationWhitelist, setLogIntegrationWhitelistState] = useState<string[] | null>(null);
   const [logIntegrationFilterPanelOpen, setLogIntegrationFilterPanelOpen] = useState(false);
+  const [dockView, setDockView] = useState<StatusDockView>('logs');
+  const [perfRangeMs, setPerfRangeMs] = useState<number>(86_400_000);
 
   useEffect(() => {
     try {
@@ -219,6 +230,10 @@ export function SystemTerminalProvider({
       setLogIntegrationFilterPanelOpen,
       initLogIntegrationWhitelistIfNeeded,
       openWithSourceFilter,
+      dockView,
+      setDockView,
+      perfRangeMs,
+      setPerfRangeMs,
     }),
     [
       canUse,
@@ -239,6 +254,8 @@ export function SystemTerminalProvider({
       logIntegrationFilterPanelOpen,
       initLogIntegrationWhitelistIfNeeded,
       openWithSourceFilter,
+      dockView,
+      perfRangeMs,
     ],
   );
 

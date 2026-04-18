@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { ChevronRight, Menu } from 'lucide-react';
 import { clsx } from 'clsx';
 import { getBreadcrumbItems, type BreadcrumbItem } from '@/lib/appBreadcrumbs';
+import { useBreadcrumbOverride, mergeBreadcrumbItems } from '@/providers/BreadcrumbOverrideProvider';
 import { HeaderToolbar } from './HeaderToolbar';
 
 function Separator({ className }: { className?: string }) {
@@ -89,7 +90,8 @@ export function BreadcrumbTrail({
  */
 export function AppHeaderBar({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
   const pathname = usePathname();
-  const items = getBreadcrumbItems(pathname ?? '/');
+  const { extra } = useBreadcrumbOverride();
+  const items = mergeBreadcrumbItems(getBreadcrumbItems(pathname ?? '/'), extra);
 
   return (
     <header

@@ -6,22 +6,41 @@ import { query } from '../db/pool.js';
 
 export type LlmProviderId = 'openai' | 'anthropic';
 
+export const TTS_VOICES = [
+  'alloy', 'ash', 'ballad', 'coral', 'echo',
+  'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse',
+] as const;
+export type TtsVoice = typeof TTS_VOICES[number];
+
+export const DEFAULT_TTS_INSTRUCTIONS =
+  'Speak warmly and conversationally, like a helpful home assistant. Keep energy natural, not overly cheerful. Pause briefly between sentences.';
+
 export interface LlmRuntimeSettings {
+  /** Legacy single "active provider" — kept for back-compat; prefer chatProvider. */
   provider: LlmProviderId;
+  /** Provider used for the chat endpoint (reasoning + tool calls). */
+  chatProvider: LlmProviderId;
   /** OpenAI key (merges legacy `llm_api_key` when `llm_openai_api_key` unset) */
   openaiApiKey: string | undefined;
   anthropicApiKey: string | undefined;
   openaiModel: string;
   anthropicModel: string;
+  ttsEnabled: boolean;
+  ttsVoice: TtsVoice;
+  ttsInstructions: string;
 }
 
 const LLM_SETTING_KEYS = [
   'llm_provider',
+  'chat_provider',
   'llm_openai_api_key',
   'llm_anthropic_api_key',
   'llm_api_key',
   'llm_openai_model',
   'llm_anthropic_model',
+  'tts_enabled',
+  'tts_voice',
+  'tts_instructions',
 ] as const;
 
 /**
@@ -65,21 +84,57 @@ export async function loadLlmRuntimeSettings(): Promise<LlmRuntimeSettings> {
   const openaiModel = asTrimmedString(map.get('llm_openai_model')) ?? 'gpt-4o';
   const anthropicModel = asTrimmedString(map.get('llm_anthropic_model')) ?? 'claude-sonnet-4-6';
 
+  // chat_provider supersedes legacy llm_provider for the chat endpoint.
+  let chatProvider: LlmProviderId = provider;
+  const rawChat = asTrimmedString(map.get('chat_provider'));
+  if (rawChat === 'anthropic') chatProvider = 'anthropic';
+  else if (rawChat === 'openai') chatProvider = 'openai';
+
+  const rawTtsEnabled = map.get('tts_enabled');
+  const ttsEnabled = rawTtsEnabled === true || asTrimmedString(rawTtsEnabled) === 'true';
+  const rawVoice = asTrimmedString(map.get('tts_voice')) ?? 'sage';
+  const ttsVoice: TtsVoice = (TTS_VOICES as readonly string[]).includes(rawVoice)
+    ? (rawVoice as TtsVoice)
+    : 'sage';
+  const ttsInstructions = asTrimmedString(map.get('tts_instructions')) ?? DEFAULT_TTS_INSTRUCTIONS;
+
   return {
     provider,
+    chatProvider,
     openaiApiKey,
     anthropicApiKey,
     openaiModel,
     anthropicModel,
+    ttsEnabled,
+    ttsVoice,
+    ttsInstructions,
   };
 }
 
-export function apiKeyForActiveProvider(settings: LlmRuntimeSettings): { kind: LlmProviderId; key: string } | undefined {
-  if (settings.provider === 'openai' && settings.openaiApiKey) {
+export type LlmJob = 'chat' | 'tts';
+
+/**
+ * Resolve which provider+key to use for a given job.
+ * - 'chat' follows the configured chatProvider.
+ * - 'tts' is hard-routed to OpenAI (only provider offering gpt-4o-mini-tts).
+ */
+export function apiKeyFor(
+  job: LlmJob,
+  settings: LlmRuntimeSettings,
+): { kind: LlmProviderId; key: string } | undefined {
+  if (job === 'tts') {
+    return settings.openaiApiKey ? { kind: 'openai', key: settings.openaiApiKey } : undefined;
+  }
+  if (settings.chatProvider === 'openai' && settings.openaiApiKey) {
     return { kind: 'openai', key: settings.openaiApiKey };
   }
-  if (settings.provider === 'anthropic' && settings.anthropicApiKey) {
+  if (settings.chatProvider === 'anthropic' && settings.anthropicApiKey) {
     return { kind: 'anthropic', key: settings.anthropicApiKey };
   }
   return undefined;
+}
+
+/** @deprecated Use `apiKeyFor('chat', settings)` instead. */
+export function apiKeyForActiveProvider(settings: LlmRuntimeSettings): { kind: LlmProviderId; key: string } | undefined {
+  return apiKeyFor('chat', settings);
 }

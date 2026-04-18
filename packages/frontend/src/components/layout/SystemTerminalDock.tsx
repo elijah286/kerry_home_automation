@@ -3,9 +3,9 @@
 import Link from 'next/link';
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GripHorizontal } from 'lucide-react';
+import { GripHorizontal, Activity, ScrollText, ChevronDown, ArrowDown } from 'lucide-react';
 import { clsx } from 'clsx';
-import { X, AlertTriangle, Info, AlertOctagon, ListTree, Braces, Maximize2, Minimize2, Filter } from 'lucide-react';
+import { X, AlertTriangle, Info, AlertOctagon, Braces, Maximize2, Minimize2, Filter } from 'lucide-react';
 import { useTheme } from '@/providers/ThemeProvider';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { SYSTEM_LOG_SOURCE_ID, TERMINAL_PANEL_HEIGHT } from '@/lib/terminal-constants';
@@ -14,6 +14,8 @@ import {
   type TerminalLogFilter,
 } from '@/providers/SystemTerminalProvider';
 import { LogIntegrationFilterPanel, logIntegrationFilterPanelWidthPx } from '@/components/layout/LogIntegrationFilterPanel';
+import { StatusPerformanceView } from '@/components/layout/StatusPerformanceView';
+import { SYSTEM_STATS_RANGE_PRESETS } from '@/components/viz/SystemStatsGraph';
 import {
   formatLogPrimaryLine,
   formatTerminalLogLines,
@@ -128,7 +130,15 @@ export function SystemTerminalDock({
     logIntegrationFilterPanelOpen,
     setLogIntegrationFilterPanelOpen,
     initLogIntegrationWhitelistIfNeeded,
+    dockView,
+    setDockView,
+    perfRangeMs,
+    setPerfRangeMs,
   } = useSystemTerminal();
+  const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const viewMenuAnchorRef = useRef<HTMLDivElement>(null);
+  const viewMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const [viewMenuRect, setViewMenuRect] = useState<{ left: number; top: number } | null>(null);
   const [entries, setEntries] = useState<LogEntry[]>([]);
   /** Row expanded by click — full JSON + deep links */
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
@@ -209,6 +219,22 @@ export function SystemTerminalDock({
     if (!logAutoScroll || !scrollerRef.current) return;
     scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
   }, [filtered, logAutoScroll]);
+
+  /** Close the view-switcher dropdown on outside click or Escape. */
+  useEffect(() => {
+    if (!viewMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!viewMenuAnchorRef.current) return;
+      if (!viewMenuAnchorRef.current.contains(e.target as Node)) setViewMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setViewMenuOpen(false); };
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [viewMenuOpen]);
 
   const onScroll = useCallback(() => {
     onStatusInteraction?.();
@@ -309,120 +335,233 @@ export function SystemTerminalDock({
         className="flex shrink-0 items-center gap-1.5 border-b px-2 py-1.5 overflow-x-auto"
         style={{ borderColor: 'var(--color-border)' }}
       >
-        {/* Title + live indicator group — collapses to dot only when narrow */}
-        <div className="flex shrink-0 items-center gap-1.5">
-          <ListTree className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--color-accent)' }} aria-hidden />
-          <span
-            className="hidden md:inline text-[10px] font-semibold uppercase tracking-wider shrink-0"
-            style={{ color: 'var(--color-text-secondary)' }}
-          >
-            Status
-          </span>
-          <span
-            className="flex shrink-0 items-center gap-1"
-            title={connected ? 'Live — streaming new log lines' : 'Disconnected — reconnecting'}
-            aria-label={connected ? 'Live' : 'Disconnected'}
-          >
-            <span
-              className={clsx('block h-1.5 w-1.5 rounded-full', connected ? 'animate-pulse' : '')}
-              style={{ backgroundColor: connected ? 'var(--color-success)' : 'var(--color-text-muted)' }}
-              aria-hidden
-            />
-            <span
-              className="hidden lg:inline text-[10px] uppercase tracking-wide"
-              style={{ color: connected ? 'var(--color-success)' : 'var(--color-text-muted)' }}
-            >
-              {connected ? 'Live' : 'Off'}
-            </span>
-          </span>
-        </div>
-
-        {/* Segmented filter control */}
-        <div
-          className="flex shrink-0 items-center rounded-md p-0.5"
-          style={{ backgroundColor: 'var(--color-bg-secondary)' }}
-          role="group"
-          aria-label="Log level filter"
-        >
-          {FILTER_OPTIONS.map((opt) => {
-            const active = filter === opt.id;
-            const Icon =
-              opt.id === 'info' ? Info :
-              opt.id === 'warn' ? AlertTriangle :
-              opt.id === 'error' ? AlertOctagon : null;
-            return (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => setFilter(opt.id)}
-                aria-pressed={active}
-                title={opt.label}
-                className={clsx(
-                  'flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors',
-                )}
-                style={{
-                  backgroundColor: active ? 'var(--color-accent)' : 'transparent',
-                  color: active ? '#fff' : 'var(--color-text-secondary)',
-                }}
-              >
-                {Icon && <Icon className="h-3 w-3" />}
-                <span className={Icon ? 'hidden sm:inline' : ''}>{opt.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Spacer pushes utility buttons to the right */}
-        <div className="flex-1 min-w-[8px]" aria-hidden />
-
-        {/* Utility buttons — icon-only by default; label appears on wider screens */}
-        {placement === 'bottom' && (
+        {/* View switcher — click to swap between Logs and Performance */}
+        <div ref={viewMenuAnchorRef} className="relative shrink-0">
           <button
+            ref={viewMenuTriggerRef}
             type="button"
             onClick={() => {
-              initLogIntegrationWhitelistIfNeeded();
-              setLogIntegrationFilterPanelOpen(!logIntegrationFilterPanelOpen);
+              const el = viewMenuTriggerRef.current;
+              if (el) {
+                const r = el.getBoundingClientRect();
+                setViewMenuRect({ left: r.left, top: r.bottom + 4 });
+              }
+              setViewMenuOpen((v) => !v);
             }}
-            aria-pressed={logIntegrationFilterPanelOpen}
-            aria-label="Filter log by source"
-            title="Filter by source"
-            className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors"
-            style={{
-              backgroundColor:
-                logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
-                  ? 'var(--color-accent)'
-                  : 'var(--color-bg-secondary)',
-              color:
-                logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
-                  ? '#fff'
-                  : 'var(--color-text-secondary)',
-            }}
+            aria-haspopup="menu"
+            aria-expanded={viewMenuOpen}
+            className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors hover:bg-white/5"
+            style={{ color: 'var(--color-text)' }}
+            title="Switch view"
           >
-            <Filter className="h-3.5 w-3.5" aria-hidden />
-            <span className="hidden lg:inline">Sources</span>
+            {dockView === 'performance' ? (
+              <Activity className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--color-accent)' }} aria-hidden />
+            ) : (
+              <ScrollText className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--color-accent)' }} aria-hidden />
+            )}
+            <span>{dockView === 'performance' ? 'Performance' : 'Logs'}</span>
+            <ChevronDown
+              className={clsx('h-3 w-3 shrink-0 transition-transform', viewMenuOpen && 'rotate-180')}
+              style={{ color: 'var(--color-text-muted)' }}
+              aria-hidden
+            />
+            {/* Connection dot — placed inside trigger to keep Status identity compact */}
+            <span
+              className={clsx('ml-1 block h-1.5 w-1.5 rounded-full', connected ? 'animate-pulse' : '')}
+              style={{ backgroundColor: connected ? 'var(--color-success)' : 'var(--color-text-muted)' }}
+              title={connected ? 'Live — streaming updates' : 'Reconnecting…'}
+              aria-label={connected ? 'Live' : 'Reconnecting'}
+            />
           </button>
-        )}
+          {viewMenuOpen && viewMenuRect && (
+            <div
+              role="menu"
+              className="fixed z-[9999] min-w-[180px] overflow-hidden rounded-md border shadow-xl"
+              style={{
+                left: viewMenuRect.left,
+                top: viewMenuRect.top,
+                backgroundColor: 'var(--color-bg)',
+                borderColor: 'var(--color-border)',
+              }}
+            >
+              {([
+                { id: 'logs' as const, label: 'Logs', desc: 'Live log stream', Icon: ScrollText },
+                { id: 'performance' as const, label: 'Performance', desc: 'CPU + memory graphs', Icon: Activity },
+              ]).map((item) => {
+                const active = dockView === item.id;
+                const Icon = item.Icon;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={active}
+                    onClick={() => {
+                      setDockView(item.id);
+                      setViewMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-white/5"
+                    style={{
+                      backgroundColor: active ? 'color-mix(in srgb, var(--color-accent) 18%, transparent)' : 'transparent',
+                      color: 'var(--color-text)',
+                    }}
+                  >
+                    <Icon
+                      className="h-3.5 w-3.5 shrink-0"
+                      style={{ color: active ? 'var(--color-accent)' : 'var(--color-text-muted)' }}
+                      aria-hidden
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold">{item.label}</div>
+                      <div className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                        {item.desc}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
-        <button
-          type="button"
-          onClick={() => setLogDetailStyle(logDetailStyle === 'terminal' ? 'digest' : 'terminal')}
-          aria-pressed={logDetailStyle === 'terminal'}
-          aria-label={
-            logDetailStyle === 'terminal'
-              ? 'Switch to one-line log summaries'
-              : 'Show full terminal-style log lines'
-          }
-          title={logDetailStyle === 'terminal' ? 'Showing full lines — click for digest' : 'Showing digest — click for full lines'}
-          className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors"
-          style={{
-            backgroundColor:
-              logDetailStyle === 'terminal' ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-            color: logDetailStyle === 'terminal' ? '#fff' : 'var(--color-text-secondary)',
-          }}
-        >
-          <Braces className="h-3.5 w-3.5" aria-hidden />
-          <span className="hidden lg:inline">{logDetailStyle === 'terminal' ? 'Lines' : 'Digest'}</span>
-        </button>
+        {/* Middle section — depends on view */}
+        {dockView === 'logs' ? (
+          <div
+            className="flex shrink-0 items-center rounded-md p-0.5"
+            style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+            role="group"
+            aria-label="Log level filter"
+          >
+            {FILTER_OPTIONS.map((opt) => {
+              const active = filter === opt.id;
+              const Icon =
+                opt.id === 'info' ? Info :
+                opt.id === 'warn' ? AlertTriangle :
+                opt.id === 'error' ? AlertOctagon : null;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setFilter(opt.id)}
+                  aria-pressed={active}
+                  title={opt.label}
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors"
+                  style={{
+                    backgroundColor: active ? 'var(--color-accent)' : 'transparent',
+                    color: active ? '#fff' : 'var(--color-text-secondary)',
+                  }}
+                >
+                  {Icon && <Icon className="h-3 w-3" />}
+                  <span className={Icon ? 'hidden sm:inline' : ''}>{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {/* Spacer */}
+        <div className="flex-1 min-w-[8px]" aria-hidden />
+
+        {/* Right side — switches with view */}
+        {dockView === 'logs' ? (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setLogAutoScroll(!logAutoScroll);
+                if (!logAutoScroll && scrollerRef.current) {
+                  scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
+                }
+              }}
+              aria-pressed={logAutoScroll}
+              aria-label={logAutoScroll ? 'Auto-scroll on' : 'Auto-scroll off'}
+              title={logAutoScroll ? 'Auto-scroll on — click to pause' : 'Auto-scroll off — click to follow tail'}
+              className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors"
+              style={{
+                backgroundColor: logAutoScroll ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                color: logAutoScroll ? '#fff' : 'var(--color-text-secondary)',
+              }}
+            >
+              <ArrowDown className="h-3.5 w-3.5" aria-hidden />
+              <span className="hidden lg:inline">Auto</span>
+            </button>
+
+            {placement === 'bottom' && (
+              <button
+                type="button"
+                onClick={() => {
+                  initLogIntegrationWhitelistIfNeeded();
+                  setLogIntegrationFilterPanelOpen(!logIntegrationFilterPanelOpen);
+                }}
+                aria-pressed={logIntegrationFilterPanelOpen}
+                aria-label="Filter log by source"
+                title="Filter by source"
+                className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors"
+                style={{
+                  backgroundColor:
+                    logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
+                      ? 'var(--color-accent)'
+                      : 'var(--color-bg-secondary)',
+                  color:
+                    logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
+                      ? '#fff'
+                      : 'var(--color-text-secondary)',
+                }}
+              >
+                <Filter className="h-3.5 w-3.5" aria-hidden />
+                <span className="hidden lg:inline">Sources</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setLogDetailStyle(logDetailStyle === 'terminal' ? 'digest' : 'terminal')}
+              aria-pressed={logDetailStyle === 'terminal'}
+              aria-label={
+                logDetailStyle === 'terminal'
+                  ? 'Switch to one-line log summaries'
+                  : 'Show full terminal-style log lines'
+              }
+              title={logDetailStyle === 'terminal' ? 'Showing full lines — click for digest' : 'Showing digest — click for full lines'}
+              className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors"
+              style={{
+                backgroundColor:
+                  logDetailStyle === 'terminal' ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+                color: logDetailStyle === 'terminal' ? '#fff' : 'var(--color-text-secondary)',
+              }}
+            >
+              <Braces className="h-3.5 w-3.5" aria-hidden />
+              <span className="hidden lg:inline">{logDetailStyle === 'terminal' ? 'Lines' : 'Digest'}</span>
+            </button>
+          </>
+        ) : (
+          <div
+            className="flex shrink-0 items-center rounded-md p-0.5"
+            style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+            role="group"
+            aria-label="Performance time window"
+          >
+            {SYSTEM_STATS_RANGE_PRESETS.map((r) => {
+              const active = perfRangeMs === r.ms;
+              return (
+                <button
+                  key={r.label}
+                  type="button"
+                  onClick={() => setPerfRangeMs(r.ms)}
+                  aria-pressed={active}
+                  title={`Last ${r.label}`}
+                  className="rounded px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors"
+                  style={{
+                    backgroundColor: active ? 'var(--color-accent)' : 'transparent',
+                    color: active ? '#fff' : 'var(--color-text-secondary)',
+                  }}
+                >
+                  {r.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {placement === 'bottom' && (
           <button
@@ -479,7 +618,21 @@ export function SystemTerminalDock({
           <GripHorizontal className="h-3 w-3 opacity-50" style={{ color: 'var(--color-text-secondary)' }} />
         </div>
       )}
+      {/* Performance view body */}
+      {dockView === 'performance' && (
+        <div
+          className="min-h-0 flex-1 overflow-auto"
+          style={{
+            paddingBottom: placement === 'top' ? 12 : undefined,
+            paddingTop: placement === 'bottom' ? 10 : undefined,
+          }}
+        >
+          <StatusPerformanceView rangeMs={perfRangeMs} />
+        </div>
+      )}
+
       {/* Log body */}
+      {dockView === 'logs' && (
       <div
         ref={scrollerRef}
         onScroll={onScroll}
@@ -625,6 +778,7 @@ export function SystemTerminalDock({
           })
         )}
       </div>
+      )}
     </div>
     </>
   );
