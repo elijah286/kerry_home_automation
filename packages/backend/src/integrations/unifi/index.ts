@@ -534,33 +534,33 @@ export class UniFiIntegration implements Integration {
   }
 
   private async pollCameras(ctx: EntryContext): Promise<void> {
-    // Skip if the previous poll is still running — prevents request pile-up
-    // when go2rtc is slow to respond (e.g. during startup or under load).
     if (ctx.pollInFlight) return;
     ctx.pollInFlight = true;
     try {
-      // Only poll the low-res (base) stream. HD snapshots aren't cached.
-      // Stagger fetches 200ms apart so go2rtc doesn't receive a simultaneous
-      // burst of 9 frame.jpeg requests on every tick.
       const cameras = ctx.cameras.filter((c) => !isHdVariant(c.name));
-      for (let i = 0; i < cameras.length; i++) {
-        const cam = cameras[i];
-        if (i > 0) await new Promise<void>((r) => setTimeout(r, 200));
-        try {
-          const res = await fetch(
-            `${ctx.go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(cam.name)}`,
-            { signal: AbortSignal.timeout(5000) },
-          );
-          if (res.ok) {
-            const buffer = Buffer.from(await res.arrayBuffer());
-            this.snapshotCache.set(cam.name, { buffer, timestamp: Date.now() });
-            stateStore.update(this.makeCameraState(cam, ctx.go2rtcUrl, true));
-          } else {
-            stateStore.update(this.makeCameraState(cam, ctx.go2rtcUrl, false));
-          }
-        } catch {
-          stateStore.update(this.makeCameraState(cam, ctx.go2rtcUrl, false));
-        }
+      // Run in parallel but cap at 3 concurrent go2rtc requests to avoid
+      // bursting all 9 at once while still completing the cycle in ~3s.
+      const CONCURRENCY = 3;
+      for (let i = 0; i < cameras.length; i += CONCURRENCY) {
+        await Promise.allSettled(
+          cameras.slice(i, i + CONCURRENCY).map(async (cam) => {
+            try {
+              const res = await fetch(
+                `${ctx.go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(cam.name)}`,
+                { signal: AbortSignal.timeout(8000) },
+              );
+              if (res.ok) {
+                const buffer = Buffer.from(await res.arrayBuffer());
+                this.snapshotCache.set(cam.name, { buffer, timestamp: Date.now() });
+                stateStore.update(this.makeCameraState(cam, ctx.go2rtcUrl, true));
+              } else {
+                stateStore.update(this.makeCameraState(cam, ctx.go2rtcUrl, false));
+              }
+            } catch {
+              stateStore.update(this.makeCameraState(cam, ctx.go2rtcUrl, false));
+            }
+          }),
+        );
       }
     } finally {
       ctx.pollInFlight = false;
