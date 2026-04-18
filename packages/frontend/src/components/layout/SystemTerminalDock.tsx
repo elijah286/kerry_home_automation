@@ -92,6 +92,7 @@ export function SystemTerminalDock({
   lcarsStatusAuto,
   rightInsetPx = 0,
   onHeightChange,
+  currentSourceId,
 }: {
   sidebarOffsetPx: number;
   onClose: () => void;
@@ -113,6 +114,8 @@ export function SystemTerminalDock({
   rightInsetPx?: number;
   /** Called when user drags the resize handle to a new height */
   onHeightChange?: (h: number) => void;
+  /** Current on-screen source (e.g. camera entity ID) for the "Current" filter option */
+  currentSourceId?: string;
 }) {
   const { activeTheme } = useTheme();
   const isMdUp = useMediaQuery('(min-width: 768px)');
@@ -556,21 +559,41 @@ export function SystemTerminalDock({
                     >
                       <div className="font-semibold">All sources</div>
                     </button>
-                    {/* Current button — would be implemented with context about what's on-screen */}
+
+                    {currentSourceId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLogIntegrationWhitelist([currentSourceId]);
+                          setSourcesMenuOpen(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs hover:bg-white/5 border-b"
+                        style={{
+                          color: logIntegrationWhitelist?.[0] === currentSourceId ? 'var(--color-accent)' : 'var(--color-text)',
+                          borderColor: 'var(--color-border)',
+                          backgroundColor: logIntegrationWhitelist?.[0] === currentSourceId ? 'color-mix(in srgb, var(--color-accent) 18%, transparent)' : 'transparent',
+                        }}
+                      >
+                        <div className="font-semibold">Current</div>
+                        <div className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>On-screen source</div>
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => {
-                        // Placeholder: would filter to currently visible source
+                        initLogIntegrationWhitelistIfNeeded();
+                        setLogIntegrationFilterPanelOpen(true);
                         setSourcesMenuOpen(false);
                       }}
-                      className="w-full px-3 py-2 text-left text-xs hover:bg-white/5 border-b"
+                      className="w-full px-3 py-2 text-left text-xs hover:bg-white/5"
                       style={{
                         color: 'var(--color-text)',
                         borderColor: 'var(--color-border)',
                       }}
                     >
-                      <div className="font-semibold">Current</div>
-                      <div className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>On-screen source</div>
+                      <div className="font-semibold">Select sources</div>
+                      <div className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>Choose multiple</div>
                     </button>
                   </div>
                 )}
