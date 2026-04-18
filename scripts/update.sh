@@ -135,22 +135,6 @@ if [[ -f "$APP/deploy/standby/updating.html" && -d "$STANDBY_WWW" ]]; then
   trap restore_standby_page EXIT
 fi
 
-# Sync host nginx config if it changed and reload nginx if running
-NGINX_SITE=/etc/nginx/sites-available/home-automation.conf
-NGINX_SRC="$APP/deploy/standby/nginx-ha.conf"
-if command -v nginx >/dev/null 2>&1 && systemctl is-active --quiet nginx 2>/dev/null; then
-  if [[ -f "$NGINX_SITE" ]] && ! diff -q "$NGINX_SRC" "$NGINX_SITE" >/dev/null 2>&1; then
-    log "nginx config changed — syncing and reloading..."
-    cp -a "$NGINX_SRC" "$NGINX_SITE"
-    if nginx -t 2>/dev/null; then
-      systemctl reload nginx && log "✓ nginx reloaded" || log "✗ nginx reload failed (config kept)"
-    else
-      log "✗ nginx config test failed — skipping reload, reverting"
-      ha_git checkout "$APP/deploy/standby/nginx-ha.conf"
-    fi
-  fi
-fi
-
 log "Rebuilding containers..."
 COMPOSE_OUT=$(mktemp)
 if ! compose_build_up >"$COMPOSE_OUT" 2>&1; then
