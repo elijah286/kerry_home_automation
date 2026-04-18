@@ -306,252 +306,177 @@ export function SystemTerminalDock({
       {/* Header — filters (hidden when LCARS frame handles controls) */}
       {!lcarsFrameHandlesControls && (
       <div
-        className={clsx(
-          'flex shrink-0 border-b',
-          lcarsTop ? 'flex-col gap-1.5 px-2 py-2' : 'items-center gap-2 px-3 py-2',
-          isLCARS && !lcarsTop ? 'gap-1 px-2 py-1' : '',
-        )}
+        className="flex shrink-0 items-center gap-1.5 border-b px-2 py-1.5 overflow-x-auto"
         style={{ borderColor: 'var(--color-border)' }}
       >
-        <div
-          className={clsx(
-            'flex min-w-0 items-center',
-            lcarsTop ? 'w-full justify-between gap-2' : 'contents',
-          )}
-        >
-          {!isLCARS && <ListTree className="h-4 w-4 shrink-0" style={{ color: 'var(--color-accent)' }} />}
+        {/* Title + live indicator group — collapses to dot only when narrow */}
+        <div className="flex shrink-0 items-center gap-1.5">
+          <ListTree className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--color-accent)' }} aria-hidden />
           <span
-            className={clsx(
-              'shrink-0 font-semibold uppercase tracking-wide',
-              isLCARS ? 'font-mono text-[8px] leading-none' : 'text-xs',
-            )}
+            className="hidden md:inline text-[10px] font-semibold uppercase tracking-wider shrink-0"
             style={{ color: 'var(--color-text-secondary)' }}
           >
-            Status window
+            Status
           </span>
-          {!lcarsTop && (
-            <div
-              className={clsx(
-                'flex flex-1 flex-wrap items-center justify-center sm:justify-start',
-                isLCARS ? 'gap-1' : 'gap-1.5',
-              )}
-            >
-              {FILTER_OPTIONS.map((opt) => {
-                const active = filter === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setFilter(opt.id)}
-                    className={clsx(
-                      'font-medium transition-colors',
-                      isLCARS
-                        ? 'rounded-none px-2 py-0.5 font-mono text-[7px] font-bold uppercase tracking-tight'
-                        : 'rounded-md px-2.5 py-1 text-xs',
-                    )}
-                    style={{
-                      backgroundColor: active ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                      color: active ? '#fff' : 'var(--color-text-secondary)',
-                    }}
-                  >
-                    {!isLCARS && opt.id === 'info' && (
-                      <Info className="mr-1 inline h-3 w-3 align-text-bottom opacity-80" />
-                    )}
-                    {!isLCARS && opt.id === 'warn' && (
-                      <AlertTriangle className="mr-1 inline h-3 w-3 align-text-bottom opacity-80" />
-                    )}
-                    {!isLCARS && opt.id === 'error' && (
-                      <AlertOctagon className="mr-1 inline h-3 w-3 align-text-bottom opacity-80" />
-                    )}
-                    {isLCARS
-                      ? opt.id === 'error'
-                        ? 'Err'
-                        : opt.id === 'warn'
-                          ? 'Warn'
-                          : opt.label
-                      : opt.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
           <span
-            className={clsx(
-              'shrink-0 uppercase',
-              lcarsTop ? 'inline font-mono text-[8px]' : 'hidden sm:inline',
-              !lcarsTop && isLCARS ? 'font-mono text-[7px]' : !lcarsTop ? 'text-[10px]' : '',
-            )}
-            style={{ color: connected ? 'var(--color-success)' : 'var(--color-text-muted)' }}
+            className="flex shrink-0 items-center gap-1"
+            title={connected ? 'Live — streaming new log lines' : 'Disconnected — reconnecting'}
+            aria-label={connected ? 'Live' : 'Disconnected'}
           >
-            {connected ? 'Live' : '…'}
+            <span
+              className={clsx('block h-1.5 w-1.5 rounded-full', connected ? 'animate-pulse' : '')}
+              style={{ backgroundColor: connected ? 'var(--color-success)' : 'var(--color-text-muted)' }}
+              aria-hidden
+            />
+            <span
+              className="hidden lg:inline text-[10px] uppercase tracking-wide"
+              style={{ color: connected ? 'var(--color-success)' : 'var(--color-text-muted)' }}
+            >
+              {connected ? 'Live' : 'Off'}
+            </span>
           </span>
+        </div>
+
+        {/* Segmented filter control */}
+        <div
+          className="flex shrink-0 items-center rounded-md p-0.5"
+          style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+          role="group"
+          aria-label="Log level filter"
+        >
+          {FILTER_OPTIONS.map((opt) => {
+            const active = filter === opt.id;
+            const Icon =
+              opt.id === 'info' ? Info :
+              opt.id === 'warn' ? AlertTriangle :
+              opt.id === 'error' ? AlertOctagon : null;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setFilter(opt.id)}
+                aria-pressed={active}
+                title={opt.label}
+                className={clsx(
+                  'flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors',
+                )}
+                style={{
+                  backgroundColor: active ? 'var(--color-accent)' : 'transparent',
+                  color: active ? '#fff' : 'var(--color-text-secondary)',
+                }}
+              >
+                {Icon && <Icon className="h-3 w-3" />}
+                <span className={Icon ? 'hidden sm:inline' : ''}>{opt.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Spacer pushes utility buttons to the right */}
+        <div className="flex-1 min-w-[8px]" aria-hidden />
+
+        {/* Utility buttons — icon-only by default; label appears on wider screens */}
+        {placement === 'bottom' && (
           <button
             type="button"
-            onClick={() => setLogDetailStyle(logDetailStyle === 'terminal' ? 'digest' : 'terminal')}
-            aria-pressed={logDetailStyle === 'terminal'}
-            aria-label={
-              logDetailStyle === 'terminal'
-                ? 'Switch to one-line log summaries'
-                : 'Show full terminal-style log lines'
-            }
-            className={clsx(
-              'shrink-0 transition-colors',
-              isLCARS
-                ? lcarsTop
-                  ? 'rounded-none px-2.5 py-1 font-mono text-[8px] font-bold uppercase'
-                  : 'rounded-none px-2 py-0.5 font-mono text-[7px] font-bold uppercase'
-                : 'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium',
-            )}
+            onClick={() => {
+              initLogIntegrationWhitelistIfNeeded();
+              setLogIntegrationFilterPanelOpen(!logIntegrationFilterPanelOpen);
+            }}
+            aria-pressed={logIntegrationFilterPanelOpen}
+            aria-label="Filter log by source"
+            title="Filter by source"
+            className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors"
             style={{
               backgroundColor:
-                logDetailStyle === 'terminal' ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-              color: logDetailStyle === 'terminal' ? '#fff' : 'var(--color-text-secondary)',
+                logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
+                  ? 'var(--color-accent)'
+                  : 'var(--color-bg-secondary)',
+              color:
+                logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
+                  ? '#fff'
+                  : 'var(--color-text-secondary)',
             }}
           >
-            {!isLCARS && <Braces className="h-3.5 w-3.5 opacity-90" />}
-            <span className={clsx(!isLCARS && 'hidden sm:inline')}>
-              {logDetailStyle === 'terminal' ? 'Digest' : 'Lines'}
-            </span>
+            <Filter className="h-3.5 w-3.5" aria-hidden />
+            <span className="hidden lg:inline">Sources</span>
           </button>
-          {placement === 'bottom' && (
-            <button
-              type="button"
-              onClick={() => {
-                initLogIntegrationWhitelistIfNeeded();
-                setLogIntegrationFilterPanelOpen(!logIntegrationFilterPanelOpen);
-              }}
-              aria-pressed={logIntegrationFilterPanelOpen}
-              aria-label="Filter log by integration"
-              className={clsx(
-                'flex shrink-0 items-center gap-1 text-xs font-medium transition-colors',
-                isLCARS
-                  ? 'rounded-none px-2 py-0.5 font-mono text-[7px] font-bold uppercase tracking-tight'
-                  : 'rounded-md px-2 py-1',
-              )}
-              style={{
-                backgroundColor:
-                  logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
-                    ? 'var(--color-accent)'
-                    : 'var(--color-bg-secondary)',
-                color:
-                  logIntegrationFilterPanelOpen || logIntegrationWhitelist !== null
-                    ? '#fff'
-                    : 'var(--color-text-secondary)',
-              }}
-            >
-              {!isLCARS && <Filter className="h-3.5 w-3.5 opacity-90" />}
-              <span className="hidden sm:inline">Sources</span>
-            </button>
-          )}
-          {placement === 'bottom' && (
-            <button
-              type="button"
-              onClick={() => setStatusLcarsFullscreen(!statusLcarsFullscreen)}
-              aria-pressed={statusLcarsFullscreen}
-              aria-label={
-                statusLcarsFullscreen
-                  ? 'Restore default status window height'
-                  : 'Expand status window toward full screen'
-              }
-              className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
-              style={{
-                backgroundColor: statusLcarsFullscreen ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                color: statusLcarsFullscreen ? '#fff' : 'var(--color-text-secondary)',
-              }}
-            >
-              {statusLcarsFullscreen ? (
-                <Minimize2 className="h-3.5 w-3.5 opacity-90" />
-              ) : (
-                <Maximize2 className="h-3.5 w-3.5 opacity-90" />
-              )}
-              <span className="hidden sm:inline">
-                {statusLcarsFullscreen ? 'Dock' : 'Full screen'}
-              </span>
-            </button>
-          )}
-          {lcarsStatusAuto && isLCARS && lcarsTop && !lcarsFrameHandlesControls ? (
-            <button
-              type="button"
-              data-lcars-auto-scroll-btn
-              onClick={lcarsStatusAuto.onAutoClick}
-              aria-pressed={logAutoScroll}
-              aria-label={
-                logAutoScroll
-                  ? 'Auto-scroll log tail: on. Click to pause following new lines.'
-                  : 'Auto-scroll log tail: off. Click to follow new lines.'
-              }
-              className={clsx(
-                'shrink-0 transition-colors',
-                lcarsTop ? 'rounded-none px-2.5 py-1 font-mono text-[8px] font-bold uppercase' : '',
-                lcarsStatusAuto.flashPeriodMs != null ? 'lcars-auto-scroll-nudge' : '',
-              )}
-              style={{
-                backgroundColor: logAutoScroll ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                color: logAutoScroll ? '#fff' : 'var(--color-text-secondary)',
-                ...(lcarsStatusAuto.flashPeriodMs != null
-                  ? { animationDuration: `${lcarsStatusAuto.flashPeriodMs}ms` }
-                  : {}),
-              }}
-            >
-              Auto
-            </button>
-          ) : null}
+        )}
+
+        <button
+          type="button"
+          onClick={() => setLogDetailStyle(logDetailStyle === 'terminal' ? 'digest' : 'terminal')}
+          aria-pressed={logDetailStyle === 'terminal'}
+          aria-label={
+            logDetailStyle === 'terminal'
+              ? 'Switch to one-line log summaries'
+              : 'Show full terminal-style log lines'
+          }
+          title={logDetailStyle === 'terminal' ? 'Showing full lines — click for digest' : 'Showing digest — click for full lines'}
+          className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors"
+          style={{
+            backgroundColor:
+              logDetailStyle === 'terminal' ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+            color: logDetailStyle === 'terminal' ? '#fff' : 'var(--color-text-secondary)',
+          }}
+        >
+          <Braces className="h-3.5 w-3.5" aria-hidden />
+          <span className="hidden lg:inline">{logDetailStyle === 'terminal' ? 'Lines' : 'Digest'}</span>
+        </button>
+
+        {placement === 'bottom' && (
           <button
             type="button"
-            onClick={onClose}
-            className={clsx(
-              'shrink-0 transition-colors hover:bg-white/10',
-              isLCARS
-                ? lcarsTop
-                  ? 'px-2 py-1 font-mono text-[9px] font-bold uppercase'
-                  : 'px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase'
-                : 'rounded-md p-1.5',
+            onClick={() => setStatusLcarsFullscreen(!statusLcarsFullscreen)}
+            aria-pressed={statusLcarsFullscreen}
+            aria-label={
+              statusLcarsFullscreen
+                ? 'Restore default status window height'
+                : 'Expand status window toward full screen'
+            }
+            title={statusLcarsFullscreen ? 'Restore' : 'Expand'}
+            className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors"
+            style={{
+              backgroundColor: statusLcarsFullscreen ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
+              color: statusLcarsFullscreen ? '#fff' : 'var(--color-text-secondary)',
+            }}
+          >
+            {statusLcarsFullscreen ? (
+              <Minimize2 className="h-3.5 w-3.5" aria-hidden />
+            ) : (
+              <Maximize2 className="h-3.5 w-3.5" aria-hidden />
             )}
-            style={{ color: 'var(--color-text-secondary)' }}
-            aria-label="Close status window"
-          >
-            {isLCARS ? '×' : <X className="h-4 w-4" />}
+            <span className="hidden lg:inline">{statusLcarsFullscreen ? 'Dock' : 'Expand'}</span>
           </button>
-        </div>
-        {lcarsTop && (
-          <div
-            className="grid w-full grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:justify-end"
-            role="group"
-            aria-label="Log level filter"
-          >
-            {FILTER_OPTIONS.map((opt) => {
-              const active = filter === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setFilter(opt.id)}
-                  className="rounded-none px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-wide transition-colors sm:min-w-[5.5rem]"
-                  style={{
-                    backgroundColor: active ? 'var(--color-accent)' : 'var(--color-bg-secondary)',
-                    color: active ? '#fff' : 'var(--color-text-secondary)',
-                    border: '2px solid #000',
-                  }}
-                >
-                  {opt.id === 'error' ? 'Errors' : opt.id === 'warn' ? 'Warnings' : opt.label}
-                </button>
-              );
-            })}
-          </div>
         )}
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 rounded-md p-1 transition-colors hover:bg-white/10"
+          style={{ color: 'var(--color-text-secondary)' }}
+          aria-label="Close status window"
+          title="Close"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
       )}
 
       {placement === 'top' && (
         <div
           onPointerDown={onResizePointerDown}
-          className="absolute inset-x-0 bottom-0 z-10 flex h-[6px] cursor-ns-resize items-center justify-center select-none"
-          style={{ touchAction: 'none' }}
+          className="absolute inset-x-0 bottom-0 z-20 flex h-[8px] cursor-ns-resize items-center justify-center select-none"
+          style={{
+            touchAction: 'none',
+            background: lcarsTopStackedChrome ? 'transparent' : 'rgba(0,0,0,0.4)',
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+          }}
           title="Drag to resize"
+          aria-label="Resize status window"
+          role="separator"
         >
-          {!lcarsTopStackedChrome && (
-            <GripHorizontal className="h-3 w-3 opacity-30" style={{ color: 'var(--color-text-secondary)' }} />
-          )}
+          <GripHorizontal className="h-3 w-3 opacity-50" style={{ color: 'var(--color-text-secondary)' }} />
         </div>
       )}
       {/* Log body */}
@@ -562,7 +487,12 @@ export function SystemTerminalDock({
           'min-h-0 flex-1 overflow-auto font-mono leading-relaxed',
           isLCARS ? 'px-2 py-0.5 text-[8px] leading-tight' : 'px-3 py-2 text-[11px]',
         )}
-        style={{ color: 'var(--color-text)' }}
+        style={{
+          color: 'var(--color-text)',
+          /* Reserve room for splitter bars so log text never collides with the resize handle */
+          paddingBottom: placement === 'top' ? 12 : undefined,
+          paddingTop: placement === 'bottom' ? 10 : undefined,
+        }}
       >
         {filtered.length === 0 ? (
           <span style={{ color: 'var(--color-text-muted)' }}>No log lines for this filter.</span>
