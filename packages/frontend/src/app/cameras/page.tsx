@@ -71,6 +71,7 @@ function CameraPlayer({
   name,
   mode,
   quality = 'sd',
+  highFrequencySnapshots = false,
   onTierChange,
   onError,
 }: {
@@ -78,6 +79,13 @@ function CameraPlayer({
   mode: PlayerMode;
   /** 'sd' = low-res sub-stream (default, low CPU); 'hd' = high-res main stream */
   quality?: Quality;
+  /**
+   * Fullscreen mode flag. When true, the snapshot underlay requests fresh
+   * frames at 2fps (bypasses the shared 1s backend cache with ?fresh=500)
+   * so the user gets responsive live updates while HLS is warming up.
+   * Grid tiles leave this false to stay on the shared cached frames.
+   */
+  highFrequencySnapshots?: boolean;
   onTierChange?: (tier: Tier, status: PlayerStatus) => void;
   onError?: () => void;
 }) {
@@ -316,7 +324,12 @@ function CameraPlayer({
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
-  const snapshotSrc = `${getApiBase()}/api/cameras/${encodeURIComponent(name)}/snapshot?r=${snapshotRev}${authQueryParam(true)}`;
+  // Fullscreen (highFrequencySnapshots=true) requests `fresh=500` so the
+  // backend bypasses its 1s cache and fetches a new frame from go2rtc when
+  // our 500ms polling rolls around — net effect: 2fps live preview while
+  // HLS warms up, vs the cached ~1fps tiles get.
+  const freshParam = highFrequencySnapshots ? '&fresh=500' : '';
+  const snapshotSrc = `${getApiBase()}/api/cameras/${encodeURIComponent(name)}/snapshot?r=${snapshotRev}${freshParam}${authQueryParam(true)}`;
   const showUnderlay = pollSnapshots && activeTier !== 'snapshot';
 
   if (activeTier === 'snapshot') {
@@ -588,6 +601,10 @@ function InlineCameraPlayer({ cam, onClose }: { cam: CameraInfo; onClose: () => 
           name={cam.name}
           mode={mode}
           quality={quality}
+          // 2fps fresh snapshots while HLS is still warming up, so the user
+          // gets a responsive preview instead of a frame every ~1s. Drops
+          // back to 0 once HLS is live (the video element takes over).
+          highFrequencySnapshots={status === 'connecting'}
           onTierChange={(t, s) => { setTier(t); setStatus(s); }}
         />
 
