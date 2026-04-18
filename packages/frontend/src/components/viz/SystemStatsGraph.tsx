@@ -17,10 +17,10 @@ interface Sample {
 }
 
 export const SYSTEM_STATS_RANGE_PRESETS = [
+  { label: '5m',  ms: 300_000 },
+  { label: '15m', ms: 900_000 },
+  { label: '30m', ms: 1_800_000 },
   { label: '1h',  ms: 3_600_000 },
-  { label: '6h',  ms: 21_600_000 },
-  { label: '24h', ms: 86_400_000 },
-  { label: '7d',  ms: 604_800_000 },
 ] as const;
 
 const RANGE_PRESETS = SYSTEM_STATS_RANGE_PRESETS;
