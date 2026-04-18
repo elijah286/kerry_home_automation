@@ -356,12 +356,12 @@ export default function IntegrationsPage() {
   }, [integrationData, search, sortMode, devices]);
 
   return (
-    <div className="max-w-5xl mx-auto p-4 lg:p-6 space-y-4">
+    <div className="max-w-5xl mx-auto p-3 sm:p-4 lg:p-6 space-y-4">
       <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: 'color-mix(in srgb, var(--color-accent) 15%, transparent)' }}>
           <Puzzle className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h1 className="text-lg font-semibold">Integrations</h1>
           <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
             {Object.keys(integrationData).length} integration{Object.keys(integrationData).length !== 1 ? 's' : ''}
