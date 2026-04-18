@@ -122,7 +122,7 @@ export function SystemTerminalProvider({
   const initLogIntegrationWhitelistIfNeeded = useCallback(() => {
     setLogIntegrationWhitelistState((prev) => {
       if (prev !== null) return prev;
-      const all = [SYSTEM_LOG_SOURCE_ID, 'software-update', ...KNOWN_INTEGRATIONS.map((i) => i.id)];
+      const all = [SYSTEM_LOG_SOURCE_ID, 'software-update', 'cameras', ...KNOWN_INTEGRATIONS.map((i) => i.id)];
       try {
         localStorage.setItem(STORAGE_LOG_INTEGRATION_WHITELIST, JSON.stringify(all));
       } catch {

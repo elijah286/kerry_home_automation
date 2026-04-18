@@ -330,6 +330,19 @@ export default function AlarmsPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Re-fetch when the assistant (or any other source) signals this resource
+  // changed — e.g. LLM created/deleted an alarm.
+  useEffect(() => {
+    const onChanged = (e: Event) => {
+      const detail = (e as CustomEvent<{ resources?: string[] }>).detail;
+      if (!detail?.resources || detail.resources.includes('alarms')) {
+        void loadData();
+      }
+    };
+    window.addEventListener('ha:data-changed', onChanged);
+    return () => window.removeEventListener('ha:data-changed', onChanged);
+  }, [loadData]);
+
   const allEnabled = alarms.length > 0 && alarms.every((a) => a.enabled);
   const anyEnabled = alarms.some((a) => a.enabled);
 

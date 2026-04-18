@@ -14,6 +14,7 @@ import { logger } from '../logger.js';
 import { requirePermission, requireRole } from './auth.js';
 import { automationEngine } from '../automations/engine.js';
 import { getLogEntries, subscribeLogs, type LogEntry } from '../log-buffer.js';
+import { query } from '../db/pool.js';
 import { gitProcessEnv } from '../git-env.js';
 import { buildInfo } from '../build-version.js';
 import {
@@ -398,10 +399,95 @@ export function registerSystemRoutes(app: FastifyInstance): void {
     }
   });
 
+  // GET /api/system/stats/history — time-series CPU / memory / disk samples
+  // for the health graphs on the System page. Returns rows sorted oldest→newest.
+  app.get<{ Querystring: { from?: string; to?: string } }>(
+    '/api/system/stats/history',
+    { preHandler: adminOnly },
+    async (req, reply) => {
+      const now = Date.now();
+      const fromMs = req.query.from ? Date.parse(req.query.from) : now - 24 * 60 * 60_000;
+      const toMs   = req.query.to   ? Date.parse(req.query.to)   : now;
+      if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || fromMs >= toMs) {
+        return reply.code(400).send({ error: 'invalid from/to' });
+      }
+      try {
+        const res = await query<{
+          ts: Date;
+          cpu_percent: number;
+          memory_percent: number;
+          disk_percent: number;
+          memory_used: string;
+          memory_total: string;
+          disk_used: string;
+          disk_total: string;
+        }>(
+          `SELECT ts, cpu_percent, memory_percent, disk_percent,
+                  memory_used::text, memory_total::text,
+                  disk_used::text, disk_total::text
+             FROM system_stats_history
+            WHERE ts >= $1 AND ts <= $2
+            ORDER BY ts ASC`,
+          [new Date(fromMs).toISOString(), new Date(toMs).toISOString()],
+        );
+        return {
+          samples: res.rows.map((r) => ({
+            ts:             new Date(r.ts).getTime(),
+            cpuPercent:     r.cpu_percent,
+            memoryPercent:  r.memory_percent,
+            diskPercent:    r.disk_percent,
+            memoryUsed:     Number(r.memory_used),
+            memoryTotal:    Number(r.memory_total),
+            diskUsed:       Number(r.disk_used),
+            diskTotal:      Number(r.disk_total),
+          })),
+        };
+      } catch (err) {
+        logger.error({ err }, 'system stats history query failed');
+        return reply.code(500).send({ error: 'history query failed' });
+      }
+    },
+  );
+
   // GET /api/system/logs — recent backend log lines (system terminal)
   app.get('/api/system/logs', { preHandler: terminalAccess }, async () => {
     return { entries: getLogEntries() };
   });
+
+  // POST /api/system/log — push a log line from the frontend into the status
+  // window (e.g. camera tier failures). `integration` is the critical field:
+  // it's what the status window's source filter keys off so users can
+  // downselect to just the relevant subsystem. Severity is clamped to
+  // info|warn|error and message is bounded to 500 chars.
+  app.post<{
+    Body: {
+      level?: 'info' | 'warn' | 'error';
+      /** Integration id for the status-window source filter (e.g. 'unifi') */
+      integration?: string;
+      /** Free-form source tag, shown in meta; NOT used for filtering */
+      source?: string;
+      message?: string;
+      meta?: Record<string, unknown>;
+    }
+  }>(
+    '/api/system/log',
+    { preHandler: terminalAccess },
+    async (req, reply) => {
+      const body = req.body ?? {};
+      const level       = body.level === 'error' || body.level === 'warn' ? body.level : 'info';
+      const integration = body.integration ? String(body.integration).slice(0, 64) : undefined;
+      const source      = body.source ? String(body.source).slice(0, 64) : 'client';
+      const message     = (body.message ?? '').slice(0, 500);
+      if (!message) return reply.code(400).send({ error: 'message required' });
+      const context: Record<string, unknown> = { source, ...(body.meta ?? {}) };
+      if (integration) context.integration = integration;
+      logger[level](context, message);
+      return { ok: true };
+    },
+  );
+
+  // Kick off the system health monitor (CPU / disk alarms → status window).
+  startSystemHealthMonitor();
 
   // GET /api/system/logs/stream — SSE of new log lines after connect
   app.get('/api/system/logs/stream', { preHandler: terminalAccess }, async (req, reply) => {
@@ -787,4 +873,127 @@ export function registerSystemRoutes(app: FastifyInstance): void {
     logger.info('Automations reloaded via system controls');
     return { ok: true, message: 'Automations reloaded' };
   });
+}
+
+// ---------------------------------------------------------------------------
+// System health monitor — samples CPU + disk on an interval; emits
+// logger.error when thresholds are crossed so the status window alarms.
+// Dedupes: only emits on state transitions (OK → critical) and every 10 min
+// while critical, so we don't flood the log.
+// ---------------------------------------------------------------------------
+
+const CPU_CRITICAL_PERCENT = 85;
+const DISK_CRITICAL_PERCENT = 90;
+const MONITOR_INTERVAL_MS = 30_000;
+const RE_ALARM_MS = 10 * 60_000;
+
+interface AlarmState {
+  active: boolean;
+  lastEmittedAt: number;
+}
+
+const alarmState: Record<'cpu' | 'disk', AlarmState> = {
+  cpu:  { active: false, lastEmittedAt: 0 },
+  disk: { active: false, lastEmittedAt: 0 },
+};
+
+let monitorTimer: ReturnType<typeof setInterval> | null = null;
+
+function maybeEmitAlarm(
+  key: 'cpu' | 'disk',
+  isCritical: boolean,
+  message: string,
+  meta: Record<string, unknown>,
+): void {
+  const state = alarmState[key];
+  const now = Date.now();
+
+  if (isCritical) {
+    const justTransitioned = !state.active;
+    const reAlarmDue = now - state.lastEmittedAt >= RE_ALARM_MS;
+    if (justTransitioned || reAlarmDue) {
+      logger.error({ source: 'system-monitor', alarm: key, ...meta }, message);
+      state.lastEmittedAt = now;
+    }
+    state.active = true;
+  } else if (state.active) {
+    logger.info({ source: 'system-monitor', alarm: key, ...meta }, `${key.toUpperCase()} back to normal`);
+    state.active = false;
+    state.lastEmittedAt = 0;
+  }
+}
+
+const STATS_HISTORY_RETENTION_MS = 7 * 24 * 60 * 60_000;
+const STATS_PRUNE_INTERVAL_MS    = 60 * 60_000; // hourly
+let lastPruneAt = 0;
+
+async function recordStatsSample(
+  cpuPercent: number,
+  disk: { used: number; total: number },
+): Promise<void> {
+  try {
+    const totalMem = os.totalmem();
+    const freeMem  = os.freemem();
+    const memUsed  = totalMem - freeMem;
+    const memPct   = totalMem > 0 ? Math.round((memUsed / totalMem) * 100) : 0;
+    const diskPct  = disk.total > 0 ? Math.round((disk.used / disk.total) * 100) : 0;
+
+    await query(
+      `INSERT INTO system_stats_history
+         (ts, cpu_percent, memory_percent, memory_used, memory_total,
+          disk_percent, disk_used, disk_total)
+       VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7)`,
+      [cpuPercent, memPct, memUsed, totalMem, diskPct, disk.used, disk.total],
+    );
+
+    // Prune opportunistically — hourly, from the same tick as a sample.
+    const now = Date.now();
+    if (now - lastPruneAt > STATS_PRUNE_INTERVAL_MS) {
+      lastPruneAt = now;
+      await query(
+        `DELETE FROM system_stats_history WHERE ts < NOW() - INTERVAL '${STATS_HISTORY_RETENTION_MS} milliseconds'`,
+      ).catch((err) => logger.warn({ err }, 'system_stats_history prune failed'));
+    }
+  } catch (err) {
+    // Non-fatal — alarms still fire even if DB write fails.
+    logger.warn({ err, source: 'system-monitor' }, 'Could not persist stats sample');
+  }
+}
+
+async function sampleAndAlarm(): Promise<void> {
+  try {
+    const [cpuPercent, disk] = await Promise.all([
+      getCpuPercent(),
+      getDiskBytes('/'),
+    ]);
+
+    maybeEmitAlarm(
+      'cpu',
+      cpuPercent >= CPU_CRITICAL_PERCENT,
+      `CPU critical: ${cpuPercent}% across ${os.cpus().length} cores`,
+      { percent: cpuPercent, cores: os.cpus().length },
+    );
+
+    const diskPercent = disk.total > 0 ? Math.round((disk.used / disk.total) * 100) : 0;
+    const freeGb = disk.total > 0 ? Math.round((disk.total - disk.used) / 1e9) : 0;
+    maybeEmitAlarm(
+      'disk',
+      diskPercent >= DISK_CRITICAL_PERCENT,
+      `Disk critical: ${diskPercent}% used, ${freeGb} GB free on /`,
+      { percent: diskPercent, freeBytes: disk.total - disk.used, totalBytes: disk.total },
+    );
+
+    // Persist for the time-series graph — runs in parallel with alarm dedupe.
+    void recordStatsSample(cpuPercent, disk);
+  } catch (err) {
+    logger.warn({ err, source: 'system-monitor' }, 'System health sample failed');
+  }
+}
+
+export function startSystemHealthMonitor(): void {
+  if (monitorTimer) return;
+  // First sample is delayed a few seconds to let the process finish booting.
+  setTimeout(() => void sampleAndAlarm(), 5_000);
+  monitorTimer = setInterval(() => void sampleAndAlarm(), MONITOR_INTERVAL_MS);
+  logger.info({ source: 'system-monitor' }, 'System health monitor started');
 }

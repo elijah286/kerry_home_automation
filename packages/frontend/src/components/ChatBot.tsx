@@ -39,6 +39,7 @@ import {
   Ear,
 } from 'lucide-react';
 import { useCookingTimers, formatCookingTimer } from '@/providers/CookingTimersProvider';
+import { useAuth } from '@/providers/AuthProvider';
 import { clsx } from 'clsx';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useLocationsMap } from '@/providers/LocationsMapContext';
@@ -619,6 +620,8 @@ function AssistantRightPanel() {
   const { refreshSession } = useAuth();
   const isMdUp = useMediaQuery('(min-width: 768px)');
   const { open, setOpen, lcarsDockInset, rightPanelMode, setRightPanelMode } = useAssistant();
+  const { timers, addTimer, toggleTimer, resetTimer, removeTimer, stopTimer } = useCookingTimers();
+  const { refreshSession } = useAuth();
   const [fullscreen, setFullscreen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -801,11 +804,24 @@ function AssistantRightPanel() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    // Snapshot current client-side state to give the LLM awareness of things
+    // that only live in the browser (kitchen timers, etc.). Sent as `context`
+    // on each request so the assistant can answer "stop the pasta timer" etc.
+    const clientContext = {
+      timers: timers.map((t) => ({
+        id: t.id,
+        label: t.label,
+        totalSeconds: t.totalSeconds,
+        remainingSeconds: t.remainingSeconds,
+        running: t.running,
+      })),
+    };
+
     try {
       const res = await apiFetch(`${getApiBase()}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages, tts: ttsEnabledRef.current }),
+        body: JSON.stringify({ messages: newMessages, context: clientContext, tts: ttsEnabledRef.current }),
         signal: controller.signal,
       });
 
@@ -832,6 +848,13 @@ function AssistantRightPanel() {
             const event = JSON.parse(part.slice(6)) as {
               type: string; text?: string; tool?: string; label?: string; navigate?: string; error?: string;
               seq?: number; data?: string; mime?: string;
+              action?: {
+                kind?: string;
+                action?: string;
+                label?: string;
+                seconds?: number;
+                timerId?: string;
+              };
             };
             if (event.type === 'token' && event.text) {
               if (!assistantMsgAdded) {
@@ -863,6 +886,42 @@ function AssistantRightPanel() {
               void refreshSession();
             } else if (event.type === 'audio_end') {
               // No-op — queue drains on its own. Reserved for future UI state.
+            } else if (event.type === 'client_action' && event.action?.kind === 'refresh_auth') {
+              // UI preferences changed on the server; re-fetch the session so
+              // the theme/color mode/etc. applies instantly.
+              void refreshSession();
+            } else if (event.type === 'client_action' && event.action?.kind === 'data_changed') {
+              // Assistant mutated a server resource (alarm, automation, etc).
+              // Broadcast a global event so any mounted page showing that
+              // resource can refetch without requiring a page reload.
+              const resources = Array.isArray(
+                (event.action as { resources?: unknown }).resources,
+              )
+                ? ((event.action as { resources: string[] }).resources)
+                : [];
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                  new CustomEvent('ha:data-changed', { detail: { resources } }),
+                );
+              }
+              // Also nudge Next.js to re-run any server components on the
+              // current route (harmless if there are none to refresh).
+              try { router.refresh(); } catch { /* noop */ }
+            } else if (event.type === 'client_action' && event.action?.kind === 'timer') {
+              // Assistant is driving a kitchen timer. Run it against the local
+              // CookingTimers context so the Timers sidebar updates instantly.
+              const a = event.action;
+              if (a.action === 'start' && a.label && typeof a.seconds === 'number') {
+                addTimer(a.label, a.seconds);
+              } else if (a.action === 'pause' && a.timerId) {
+                stopTimer(a.timerId);
+              } else if (a.action === 'resume' && a.timerId) {
+                toggleTimer(a.timerId);
+              } else if (a.action === 'reset' && a.timerId) {
+                resetTimer(a.timerId);
+              } else if (a.action === 'delete' && a.timerId) {
+                removeTimer(a.timerId);
+              }
             } else if (event.type === 'done') {
               setToolStatuses([]);
               if (event.navigate) {
@@ -889,7 +948,7 @@ function AssistantRightPanel() {
       setIsStreaming(false);
       setToolStatuses([]);
     }
-  }, [router, enqueueAudio, clearAudioQueue, refreshSession]);
+  }, [router, enqueueAudio, clearAudioQueue, timers, addTimer, stopTimer, toggleTimer, resetTimer, removeTimer, refreshSession]);
 
   const startListening = useCallback(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

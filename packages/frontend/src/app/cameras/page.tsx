@@ -1,11 +1,37 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo, memo, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { X, Settings2, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Settings2, Eye, EyeOff, Terminal } from 'lucide-react';
 import { getApiBase, apiFetch, authQueryParam, authHeaders } from '@/lib/api-base';
-import { useLCARSFrame } from '@/components/lcars/LCARSFrameContext';
 import { SlidePanel } from '@/components/ui/SlidePanel';
+import { useSystemTerminal } from '@/providers/SystemTerminalProvider';
+
+/**
+ * Push a log line into the system terminal / status window. Fire-and-forget —
+ * we never block the UI on logging, and we don't surface network failures.
+ *
+ * `integration` is the key that drives the status-window source filter.
+ * All camera log lines use 'unifi' so they group under the existing
+ * UniFi filter in the panel — that way the user can downselect to just
+ * camera/UniFi events when diagnosing a stream.
+ */
+const CAMERAS_LOG_INTEGRATION = 'cameras';
+
+function logToStatus(
+  level: 'info' | 'warn' | 'error',
+  message: string,
+  meta?: Record<string, unknown>,
+  integration: string = CAMERAS_LOG_INTEGRATION,
+): void {
+  try {
+    void apiFetch(`${getApiBase()}/api/system/log`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level, integration, source: 'cameras-ui', message, meta }),
+    }).catch(() => { /* ignore */ });
+  } catch { /* ignore */ }
+}
 
 // ---------------------------------------------------------------------------
 // Camera live player with tiered fallback:
@@ -39,17 +65,27 @@ function initialTier(mode: PlayerMode): Tier {
   return mode === 'auto' ? AUTO_TIER_ORDER[0] : (mode as Tier);
 }
 
+type Quality = 'sd' | 'hd';
+
 function CameraPlayer({
   name,
   mode,
+  quality = 'sd',
   onTierChange,
   onError,
 }: {
   name: string;
   mode: PlayerMode;
+  /** 'sd' = low-res sub-stream (default, low CPU); 'hd' = high-res main stream */
+  quality?: Quality;
   onTierChange?: (tier: Tier, status: PlayerStatus) => void;
   onError?: () => void;
 }) {
+  // The go2rtc stream name is the camera name with an `_hd` suffix for HD.
+  // Snapshot endpoint intentionally uses the base name — snapshots are
+  // served from the backend cache populated by low-res polling.
+  const streamName = quality === 'hd' ? `${name}_hd` : name;
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [activeTier, setActiveTier] = useState<Tier>(() => initialTier(mode));
   const [status, setStatus] = useState<PlayerStatus>('connecting');
@@ -67,31 +103,34 @@ function CameraPlayer({
     onTierChangeRef.current?.(t, s);
     if (process.env.NODE_ENV !== 'production') {
       // eslint-disable-next-line no-console
-      console.info(`[camera:${name}] ${t} → ${s}`);
+      console.info(`[camera:${streamName}] ${t} → ${s}`);
     }
-  }, [name]);
+  }, [streamName]);
 
-  // Reset to the user-selected starting tier whenever name or mode changes.
+  // Reset to the user-selected starting tier whenever stream or mode changes.
   useEffect(() => {
     setActiveTier(initialTier(mode));
-  }, [name, mode]);
+  }, [streamName, mode]);
 
   // Degrade one tier. In 'auto' mode drops to the next auto fallback; in a
   // forced mode the user asked for a specific tier so we don't override it.
   const degrade = useCallback(() => {
     if (mode !== 'auto') {
+      logToStatus('warn', `Camera ${streamName}: forced tier '${tierRef.current}' failed`, { camera: streamName, tier: tierRef.current });
       emit(tierRef.current, 'failed');
       onErrorRef.current?.();
       return;
     }
     const next = nextAutoTier(tierRef.current);
     if (next) {
+      logToStatus('info', `Camera ${streamName}: ${tierRef.current} failed, falling back to ${next}`, { camera: streamName, from: tierRef.current, to: next });
       setActiveTier(next);
     } else {
+      logToStatus('error', `Camera ${streamName}: all streaming tiers failed`, { camera: streamName });
       emit(tierRef.current, 'failed');
       onErrorRef.current?.();
     }
-  }, [mode, emit]);
+  }, [mode, streamName, emit]);
 
   // -------------------------------------------------------------------------
   // Tier 1 (manual only): WebRTC
@@ -140,7 +179,7 @@ function CameraPlayer({
         await pc.setLocalDescription(offer);
         armWatchdog();
 
-        const res = await apiFetch(`${getApiBase()}/api/cameras/${encodeURIComponent(name)}/webrtc`, {
+        const res = await apiFetch(`${getApiBase()}/api/cameras/${encodeURIComponent(streamName)}/webrtc`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/sdp' },
           body: offer.sdp ?? '',
@@ -187,7 +226,7 @@ function CameraPlayer({
         video.srcObject = null;
       }
     };
-  }, [activeTier, name, degrade, emit]);
+  }, [activeTier, streamName, degrade, emit]);
 
   // -------------------------------------------------------------------------
   // Tier 1 (auto default): HLS
@@ -199,7 +238,7 @@ function CameraPlayer({
     const video = videoRef.current;
     if (!video) return;
 
-    const src = `${getApiBase()}/api/cameras/${encodeURIComponent(name)}/hls/stream.m3u8${authQueryParam(false)}`;
+    const src = `${getApiBase()}/api/cameras/${encodeURIComponent(streamName)}/hls/stream.m3u8${authQueryParam(false)}`;
     let hls: import('hls.js').default | null = null;
     let watchdog: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
@@ -227,6 +266,13 @@ function CameraPlayer({
           backBufferLength: 10,
           maxBufferLength: 10,
           liveSyncDurationCount: 2,
+          // Propagate auth (Bearer token for remote access, cookies for local)
+          // to every segment/playlist request — hls.js does its own XHRs.
+          xhrSetup: (xhr) => {
+            const headers = authHeaders();
+            for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
+            xhr.withCredentials = true;
+          },
         });
         hls.loadSource(src);
         hls.attachMedia(video);
@@ -245,7 +291,7 @@ function CameraPlayer({
       video.removeAttribute('src');
       try { video.load(); } catch { /* noop */ }
     };
-  }, [activeTier, name, degrade, emit]);
+  }, [activeTier, streamName, degrade, emit]);
 
   // -------------------------------------------------------------------------
   // Snapshot polling — used as tier 2 AND as an underlay while HLS/WebRTC
@@ -316,6 +362,8 @@ function CameraPlayer({
 interface CameraInfo {
   name: string;
   label: string;
+  /** True when the backend has a registered `{name}_hd` stream available */
+  hasHd?: boolean;
 }
 
 interface CameraSettings {
@@ -446,11 +494,18 @@ const TIER_LABEL: Record<Tier, string> = {
   snapshot: 'Snapshot',
 };
 
-function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => void }) {
-  const [mode,   setMode]   = useState<PlayerMode>('auto');
-  const [tier,   setTier]   = useState<Tier>(() => initialTier('auto'));
-  const [status, setStatus] = useState<PlayerStatus>('connecting');
-  const frame = useLCARSFrame();
+/**
+ * Large in-page camera player. Renders inside the normal page chrome (no
+ * fixed/overlay positioning) so the app shell, header, and status window
+ * stay visible around it.
+ */
+function InlineCameraPlayer({ cam, onClose }: { cam: CameraInfo; onClose: () => void }) {
+  const [mode,    setMode]    = useState<PlayerMode>('auto');
+  const [quality, setQuality] = useState<Quality>(cam.hasHd ? 'hd' : 'sd');
+  const [tier,    setTier]    = useState<Tier>(() => initialTier('auto'));
+  const [status,  setStatus]  = useState<PlayerStatus>('connecting');
+  const { openWithSourceFilter } = useSystemTerminal();
+  const viewLogs = () => openWithSourceFilter(CAMERAS_LOG_INTEGRATION);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -461,32 +516,78 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
   useEffect(() => {
     setTier(initialTier(mode));
     setStatus('connecting');
-  }, [cam.name, mode]);
-
-  const overlayStyle: CSSProperties = frame
-    ? {
-        position: 'fixed',
-        top: frame.contentTop,
-        left: frame.contentLeft,
-        right: frame.contentRight,
-        bottom: frame.contentBottom,
-        zIndex: 40,
-        borderRadius: 8,
-      }
-    : { position: 'fixed', inset: 0, zIndex: 50 };
+  }, [cam.name, mode, quality]);
 
   const statusText =
     status === 'live'       ? `Live · ${TIER_LABEL[tier]}` :
     status === 'connecting' ? `Connecting · ${TIER_LABEL[tier]}…` :
-    `No stream — all tiers failed. Open Settings → Diagnostics.`;
+    `No stream — all tiers failed. Check the status window for details.`;
 
   return (
-    <div className="flex flex-col bg-black" style={overlayStyle}>
-      <div className="relative flex-1">
+    <div className="flex flex-col gap-2">
+      {/* Toolbar: stays in normal page flow */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to grid
+          </button>
+          <button
+            type="button"
+            onClick={viewLogs}
+            className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+            title="Open the status window filtered to camera/UniFi logs"
+          >
+            <Terminal className="h-3.5 w-3.5" />
+            View logs
+          </button>
+        </div>
+        <span className="text-sm font-medium text-zinc-100">{cam.label}</span>
+        <div className="flex items-center gap-2">
+          {cam.hasHd && (
+            <div className="flex overflow-hidden rounded-md border border-zinc-700 bg-zinc-900/60 text-[11px] text-zinc-300">
+              {(['sd', 'hd'] as Quality[]).map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => setQuality(q)}
+                  className={`px-2.5 py-1 font-medium uppercase transition-colors ${
+                    quality === q ? 'bg-zinc-100 text-zinc-900' : 'hover:bg-zinc-800'
+                  }`}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex overflow-hidden rounded-md border border-zinc-700 bg-zinc-900/60 text-[11px] text-zinc-300">
+            {(['auto', 'webrtc', 'hls', 'snapshot'] as PlayerMode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                className={`px-2.5 py-1 transition-colors ${
+                  mode === m ? 'bg-zinc-100 text-zinc-900' : 'hover:bg-zinc-800'
+                }`}
+              >
+                {m === 'auto' ? 'Auto' : TIER_LABEL[m as Tier]}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Player — fills the content area vertically but never scrolls the page */}
+      <div className="relative w-full overflow-hidden rounded-md bg-black" style={{ height: 'calc(100vh - 14rem)', minHeight: '300px' }}>
         <CameraPlayer
-          key={`${cam.name}:${mode}`}
+          key={`${cam.name}:${mode}:${quality}`}
           name={cam.name}
           mode={mode}
+          quality={quality}
           onTierChange={(t, s) => { setTier(t); setStatus(s); }}
         />
 
@@ -495,39 +596,21 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
             <div className="h-6 w-6 rounded-full border-2 border-white/30 border-t-white/80 animate-spin drop-shadow-md" />
           </div>
         )}
+      </div>
 
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-4 py-3">
-          <span className="text-sm font-medium text-white drop-shadow-sm">{cam.label}</span>
-          <div className="pointer-events-auto flex items-center gap-2">
-            <div className="flex overflow-hidden rounded-md border border-white/10 bg-black/40 text-[11px] text-white/80 backdrop-blur-sm">
-              {(['auto', 'webrtc', 'hls', 'snapshot'] as PlayerMode[]).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMode(m)}
-                  className={`px-2.5 py-1 transition-colors ${
-                    mode === m ? 'bg-white/15 text-white' : 'hover:bg-white/10'
-                  }`}
-                >
-                  {m === 'auto' ? 'Auto' : TIER_LABEL[m as Tier]}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/80 backdrop-blur-sm transition-colors hover:bg-black/60 hover:text-white"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/60 to-transparent px-4 py-3">
-          <span className={`text-[11px] ${status === 'failed' ? 'text-red-300' : 'text-white/60'}`}>
-            {statusText}
-          </span>
-        </div>
+      <div className="flex items-center gap-2 text-xs">
+        <span className={status === 'failed' ? 'text-red-400' : 'text-zinc-400'}>
+          {statusText}
+        </span>
+        {status === 'failed' && (
+          <button
+            type="button"
+            onClick={viewLogs}
+            className="underline decoration-dotted underline-offset-2 text-zinc-300 hover:text-zinc-100"
+          >
+            Open logs for this camera →
+          </button>
+        )}
       </div>
     </div>
   );
@@ -860,31 +943,32 @@ export default function CamerasPage() {
             Could not reach the camera API — showing a static list. Check that the backend on port 3000 is running.
           </div>
         )}
-        {allHidden && (
+        {allHidden && !fullscreenCam && (
           <div className="mb-3 rounded-md border border-zinc-700/80 bg-zinc-900/50 px-3 py-2 text-xs text-zinc-400">
             All cameras are hidden. Open Settings to show some.
           </div>
         )}
-        <div
-          className="grid gap-1"
-          style={{ gridTemplateColumns: `repeat(${settings.columns}, minmax(0, 1fr))` }}
-        >
-          {visibleCameras.map((cam) => (
-            <CameraTile
-              key={cam.name}
-              cam={cam}
-              onSelect={() => setFullscreenCam(cam)}
-            />
-          ))}
-        </div>
-      </div>
 
-      {fullscreenCam && (
-        <FullscreenCamera
-          cam={fullscreenCam}
-          onClose={() => setFullscreenCam(null)}
-        />
-      )}
+        {fullscreenCam ? (
+          <InlineCameraPlayer
+            cam={fullscreenCam}
+            onClose={() => setFullscreenCam(null)}
+          />
+        ) : (
+          <div
+            className="grid gap-1"
+            style={{ gridTemplateColumns: `repeat(${settings.columns}, minmax(0, 1fr))` }}
+          >
+            {visibleCameras.map((cam) => (
+              <CameraTile
+                key={cam.name}
+                cam={cam}
+                onSelect={() => setFullscreenCam(cam)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       <SettingsPanel
         open={showSettings}

@@ -7,6 +7,7 @@ import { SYSTEM_LOG_SOURCE_ID } from '@/lib/terminal-constants';
 /** Non-integration log sources that appear in the filter panel. */
 const EXTRA_SOURCES = [
   { id: 'software-update', name: 'Software Update' },
+  { id: 'cameras',         name: 'Cameras' },
 ] as const;
 
 const ALL_SOURCE_IDS = [

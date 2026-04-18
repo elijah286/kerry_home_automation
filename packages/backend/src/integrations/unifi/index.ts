@@ -11,10 +11,18 @@ import { eventBus } from '../../state/event-bus.js';
 import * as entryStore from '../../db/integration-entry-store.js';
 import { ProtectClient, type DiscoveredCamera } from './protect-client.js';
 
-const POLL_INTERVAL_MS = 3_000;
+const POLL_INTERVAL_MS = 1_000;
 
 /** Default go2rtc URL when none is provided — Docker service name. */
 export const UNIFI_DEFAULT_GO2RTC_URL = 'http://go2rtc:1984';
+
+/** Suffix for the high-res variant of a stream in go2rtc. */
+const HD_SUFFIX = '_hd';
+
+/** True if this go2rtc stream name is the HD variant of another camera. */
+function isHdVariant(name: string): boolean {
+  return name.endsWith(HD_SUFFIX);
+}
 
 function normalizeGo2rtcBaseUrl(url: string): string {
   const t = url.trim();
@@ -269,8 +277,9 @@ export class UniFiIntegration implements Integration {
       this.lastError = null;
     }
 
-    // Register device states
+    // Register device states (skip HD variants — they're the same logical camera)
     for (const cam of cameras) {
+      if (isHdVariant(cam.name)) continue;
       stateStore.update(this.makeCameraState(cam, go2rtcUrl, true));
     }
 
@@ -295,15 +304,27 @@ export class UniFiIntegration implements Integration {
 
     const currentSet = new Set(currentStreams);
 
-    // Add new/updated streams
+    // Add new/updated streams. We register up to TWO streams per camera:
+    //   `{name}`      — low-res sub-stream (default, used by grid + snapshots)
+    //   `{name}_hd`   — high-res main stream (only if camera exposes one)
     for (const cam of cameras) {
       try {
         await this.go2rtcPutStream(ctx.go2rtcUrl, cam.streamName, cam.rtspUrl);
         if (!currentSet.has(cam.streamName)) {
           logger.info(
             { entryId: ctx.entryId, stream: cam.streamName },
-            'UniFi: added camera stream to go2rtc',
+            'UniFi: added low-res stream to go2rtc',
           );
+        }
+        if (cam.rtspUrlHd) {
+          const hdName = `${cam.streamName}_hd`;
+          await this.go2rtcPutStream(ctx.go2rtcUrl, hdName, cam.rtspUrlHd);
+          if (!currentSet.has(hdName)) {
+            logger.info(
+              { entryId: ctx.entryId, stream: hdName },
+              'UniFi: added HD stream to go2rtc',
+            );
+          }
         }
       } catch (err) {
         logger.warn(
@@ -314,8 +335,16 @@ export class UniFiIntegration implements Integration {
     }
 
     // Remove streams that no longer exist in Protect (only streams we manage)
-    const discoveredNames = new Set(cameras.map((c) => c.streamName));
-    const previousNames = new Set(ctx.discoveredCameras.map((c) => c.streamName));
+    const discoveredNames = new Set<string>();
+    for (const c of cameras) {
+      discoveredNames.add(c.streamName);
+      if (c.rtspUrlHd) discoveredNames.add(`${c.streamName}_hd`);
+    }
+    const previousNames = new Set<string>();
+    for (const c of ctx.discoveredCameras) {
+      previousNames.add(c.streamName);
+      if (c.rtspUrlHd) previousNames.add(`${c.streamName}_hd`);
+    }
     for (const name of previousNames) {
       if (!discoveredNames.has(name)) {
         try {
@@ -449,7 +478,7 @@ export class UniFiIntegration implements Integration {
     const nextNames = new Set(streams);
     for (const cam of ctx.cameras) {
       if (!nextNames.has(cam.name)) {
-        stateStore.remove(cam.deviceId);
+        if (!isHdVariant(cam.name)) stateStore.remove(cam.deviceId);
         this.snapshotCache.delete(cam.name);
       }
     }
@@ -461,6 +490,7 @@ export class UniFiIntegration implements Integration {
     }));
     ctx.cameras = newCameras;
     for (const cam of newCameras) {
+      if (isHdVariant(cam.name)) continue;
       stateStore.update(this.makeCameraState(cam, ctx.go2rtcUrl, true));
     }
     void this.pollCameras(ctx);
@@ -493,8 +523,10 @@ export class UniFiIntegration implements Integration {
   }
 
   private async pollCameras(ctx: EntryContext): Promise<void> {
+    // Only poll the low-res (base) stream. HD snapshots aren't cached —
+    // grid tiles use low-res and fullscreen hits go2rtc live for HD.
     await Promise.allSettled(
-      ctx.cameras.map(async (cam) => {
+      ctx.cameras.filter((c) => !isHdVariant(c.name)).map(async (cam) => {
         try {
           const res = await fetch(
             `${ctx.go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(cam.name)}`,
@@ -530,9 +562,21 @@ export class UniFiIntegration implements Integration {
   getCameraNames(): string[] {
     const names: string[] = [];
     for (const ctx of this.entries.values()) {
-      for (const cam of ctx.cameras) names.push(cam.name);
+      for (const cam of ctx.cameras) {
+        if (isHdVariant(cam.name)) continue;
+        names.push(cam.name);
+      }
     }
     return names;
+  }
+
+  /** True if this camera has a registered HD variant available. */
+  hasHdVariant(name: string): boolean {
+    const hd = `${name}${HD_SUFFIX}`;
+    for (const ctx of this.entries.values()) {
+      if (ctx.cameras.some((c) => c.name === hd)) return true;
+    }
+    return false;
   }
 
   async stop(): Promise<void> {
