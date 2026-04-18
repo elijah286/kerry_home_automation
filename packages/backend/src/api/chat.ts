@@ -1327,6 +1327,7 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
           alarmId: rows[0].id,
           message: `Alarm "${name}" created for ${time} on days ${daysOfWeek.join(',')}${devices.length > 0 ? ` with ${devices.length} wake action(s)` : ' (no wake actions — will just fire silently)'}.`,
           navigatePath: '/alarms',
+          clientAction: { kind: 'data_changed', resources: ['alarms'] },
         };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -1370,6 +1371,9 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
     }
 
     case 'get_ui_preferences': {
+      if (ctx.userId.startsWith('tunnel:')) {
+        return { error: 'Remote/tunnel sessions do not have local preferences. Sign in directly on the hub to manage UI settings.' };
+      }
       const { rows } = await query<{ ui_preferences: Record<string, unknown> | null }>(
         'SELECT ui_preferences FROM users WHERE id = $1',
         [ctx.userId],
@@ -1379,6 +1383,9 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
     }
 
     case 'update_ui_preferences': {
+      if (ctx.userId.startsWith('tunnel:')) {
+        return { error: 'Remote/tunnel sessions cannot change local preferences. Sign in directly on the hub to change theme or display settings.' };
+      }
       const allowedKeys = ['colorMode', 'activeTheme', 'fontSize', 'magnification', 'lcarsVariant', 'lcarsSoundsEnabled'];
       const validThemes = ['default', 'midnight', 'glass', 'forest', 'rose', 'slate', 'ocean', 'amber', 'lcars'];
       const validColorModes = ['light', 'dark', 'system'];
