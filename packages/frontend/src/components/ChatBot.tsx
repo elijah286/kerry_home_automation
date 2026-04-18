@@ -786,10 +786,16 @@ function AssistantRightPanel() {
             } else if (event.type === 'navigate' && event.navigate) {
               // Backend fires this the moment navigate_ui runs — navigate
               // immediately instead of waiting for the LLM's narration to finish.
+              // If we're in fullscreen, collapse to the side panel so the user
+              // can actually see the destination page (but keep the assistant open).
+              setFullscreen(false);
               router.push(event.navigate);
             } else if (event.type === 'done') {
               setToolStatuses([]);
-              if (event.navigate) router.push(event.navigate);
+              if (event.navigate) {
+                setFullscreen(false);
+                router.push(event.navigate);
+              }
               if (streamingTextRef.current) speakText(streamingTextRef.current);
             } else if (event.type === 'error' && event.error) {
               setError(event.error);
