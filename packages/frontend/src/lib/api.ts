@@ -58,10 +58,20 @@ export async function updateDeviceSettings(
     aliases?: string[];
   },
 ): Promise<{ ok: boolean }> {
-  return fetchApi(`/api/devices/${encodeURIComponent(deviceId)}/settings`, {
-    method: 'PUT',
-    body: JSON.stringify(settings),
-  });
+  const { aliases, ...rest } = settings;
+  if (aliases !== undefined) {
+    await fetchApi(`/api/devices/${encodeURIComponent(deviceId)}/aliases`, {
+      method: 'PUT',
+      body: JSON.stringify({ aliases }),
+    });
+  }
+  if (Object.keys(rest).length > 0) {
+    return fetchApi(`/api/devices/${encodeURIComponent(deviceId)}/settings`, {
+      method: 'PUT',
+      body: JSON.stringify(rest),
+    });
+  }
+  return { ok: true };
 }
 
 // Paprika

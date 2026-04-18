@@ -896,4 +896,21 @@ export function registerRoutes(app: FastifyInstance): void {
       return { ok: true };
     },
   );
+
+  app.put<{ Params: { id: string }; Body: { aliases: string[] } }>(
+    '/api/devices/:id/aliases',
+    { preHandler: [requireRole('admin')] },
+    async (req) => {
+      const aliases: string[] = Array.isArray(req.body?.aliases) ? req.body.aliases : [];
+      await query(
+        `INSERT INTO device_settings (device_id, history_enabled, aliases, updated_at)
+         VALUES ($1, TRUE, $2, NOW())
+         ON CONFLICT (device_id) DO UPDATE SET aliases = EXCLUDED.aliases, updated_at = NOW()`,
+        [req.params.id, aliases],
+      );
+      const device = stateStore.get(req.params.id);
+      if (device) stateStore.update({ ...device, aliases: aliases.length ? aliases : undefined });
+      return { ok: true };
+    },
+  );
 }
