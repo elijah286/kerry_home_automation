@@ -43,7 +43,6 @@ import { useAuth } from '@/providers/AuthProvider';
 import { clsx } from 'clsx';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useLocationsMap } from '@/providers/LocationsMapContext';
-import { useAuth } from '@/providers/AuthProvider';
 import { getApiBase, apiFetch } from '@/lib/api-base';
 
 interface Message {
@@ -621,7 +620,6 @@ function AssistantRightPanel() {
   const isMdUp = useMediaQuery('(min-width: 768px)');
   const { open, setOpen, lcarsDockInset, rightPanelMode, setRightPanelMode } = useAssistant();
   const { timers, addTimer, toggleTimer, resetTimer, removeTimer, stopTimer } = useCookingTimers();
-  const { refreshSession } = useAuth();
   const [fullscreen, setFullscreen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
