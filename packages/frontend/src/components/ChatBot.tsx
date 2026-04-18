@@ -836,6 +836,23 @@ function AssistantRightPanel() {
               // UI preferences changed on the server; re-fetch the session so
               // the theme/color mode/etc. applies instantly.
               void refreshSession();
+            } else if (event.type === 'client_action' && event.action?.kind === 'data_changed') {
+              // Assistant mutated a server resource (alarm, automation, etc).
+              // Broadcast a global event so any mounted page showing that
+              // resource can refetch without requiring a page reload.
+              const resources = Array.isArray(
+                (event.action as { resources?: unknown }).resources,
+              )
+                ? ((event.action as { resources: string[] }).resources)
+                : [];
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                  new CustomEvent('ha:data-changed', { detail: { resources } }),
+                );
+              }
+              // Also nudge Next.js to re-run any server components on the
+              // current route (harmless if there are none to refresh).
+              try { router.refresh(); } catch { /* noop */ }
             } else if (event.type === 'client_action' && event.action?.kind === 'timer') {
               // Assistant is driving a kitchen timer. Run it against the local
               // CookingTimers context so the Timers sidebar updates instantly.

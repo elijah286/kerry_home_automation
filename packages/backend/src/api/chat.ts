@@ -1358,7 +1358,12 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
       );
       if (rows.length === 0) return { error: 'Alarm not found' };
       logger.info({ alarmId: id, user: ctx.userId }, 'Alarm updated via chat');
-      return { success: true, alarmId: id, message: `Alarm updated.` };
+      return {
+        success: true,
+        alarmId: id,
+        message: `Alarm updated.`,
+        clientAction: { kind: 'data_changed', resources: ['alarms'] },
+      };
     }
 
     case 'delete_alarm': {
@@ -1367,7 +1372,11 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
       const result = await query('DELETE FROM alarms WHERE id = $1', [id]);
       if ((result.rowCount ?? 0) === 0) return { error: 'Alarm not found' };
       logger.info({ alarmId: id, user: ctx.userId }, 'Alarm deleted via chat');
-      return { success: true, message: 'Alarm deleted.' };
+      return {
+        success: true,
+        message: 'Alarm deleted.',
+        clientAction: { kind: 'data_changed', resources: ['alarms'] },
+      };
     }
 
     case 'get_ui_preferences': {
