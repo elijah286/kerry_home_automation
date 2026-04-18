@@ -254,9 +254,13 @@ function CameraPlayer({
 
   useEffect(() => {
     if (!pollSnapshots) return;
-    const id = window.setInterval(() => setSnapshotRev((n) => n + 1), 500);
+    // 500ms while actively using snapshots as the primary tier; 2000ms (slow)
+    // while connecting a video tier — that's just an underlay to cover the
+    // black frame during HLS/WebRTC handshake, not a live feed.
+    const intervalMs = activeTier === 'snapshot' ? 1000 : 2000;
+    const id = window.setInterval(() => setSnapshotRev((n) => n + 1), intervalMs);
     return () => window.clearInterval(id);
-  }, [pollSnapshots]);
+  }, [pollSnapshots, activeTier]);
 
   useEffect(() => {
     if (activeTier === 'snapshot') emit('snapshot', 'connecting');
@@ -343,7 +347,9 @@ function saveSettings(s: CameraSettings) {
 }
 
 // ---------------------------------------------------------------------------
-// Camera tile — snapshot polling at 500 ms (~2 fps)
+// Camera tile — snapshot polling at 1000 ms (1 fps), paused when tab hidden
+// or viewport off-screen. A single-page grid of 10 cameras was previously
+// producing ~20 rq/s to the backend; now it's ~10 rq/s when visible, 0 when not.
 // ---------------------------------------------------------------------------
 
 const CameraTile = memo(function CameraTile({
@@ -356,12 +362,37 @@ const CameraTile = memo(function CameraTile({
   const [rev,    setRev]    = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [error,  setError]  = useState(false);
+  const [visible, setVisible] = useState(true);
+  const [inView,  setInView]  = useState(true);
+  const tileRef = useRef<HTMLDivElement | null>(null);
 
+  // Track page visibility (tab switched away / browser minimized)
   useEffect(() => {
-    if (error) return;
-    const t = window.setInterval(() => setRev((n) => n + 1), 500);
+    const onVis = () => setVisible(document.visibilityState === 'visible');
+    onVis();
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  // Track viewport visibility (scrolled off-screen) — stop polling tiles the
+  // user can't see. Avoids wasting bandwidth on off-screen camera tiles.
+  useEffect(() => {
+    if (!tileRef.current) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting),
+      { threshold: 0.01 },
+    );
+    obs.observe(tileRef.current);
+    return () => obs.disconnect();
+  }, []);
+
+  // Poll snapshots at 1fps, only when visible AND in-view AND not in an error
+  // back-off state. This is the single biggest backend-load reducer.
+  useEffect(() => {
+    if (error || !visible || !inView) return;
+    const t = window.setInterval(() => setRev((n) => n + 1), 1000);
     return () => window.clearInterval(t);
-  }, [error]);
+  }, [error, visible, inView]);
 
   useEffect(() => {
     if (!error) return;
@@ -371,6 +402,7 @@ const CameraTile = memo(function CameraTile({
 
   return (
     <div
+      ref={tileRef}
       className="relative aspect-video cursor-pointer overflow-hidden rounded-sm bg-black"
       onClick={onSelect}
     >

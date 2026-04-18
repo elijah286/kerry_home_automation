@@ -475,8 +475,16 @@ if [ -f "/standby/standby.html.bak" ]; then
 fi
 
 # --- Cleanup ---
-docker image prune -f >/dev/null 2>&1 || true
-ls -1t /app/backups/pre-deploy-*.dump 2>/dev/null | tail -n +11 | xargs rm -f 2>/dev/null || true
+# Keep only the single most recent pre-deploy backup (for rollback safety).
+# Old policy kept 10, which ate disk — home hub only needs rollback to "previous".
+ls -1t /app/backups/pre-deploy-*.dump 2>/dev/null | tail -n +2 | xargs rm -f 2>/dev/null || true
+
+# Aggressive docker prune — remove all unused images (including dangling
+# layers from previous versions), build cache, and stopped containers.
+# Only touches images not referenced by a running container.
+docker image prune -a -f >/dev/null 2>&1 || true
+docker builder prune -a -f >/dev/null 2>&1 || true
+docker volume prune -f >/dev/null 2>&1 || true
 
 # --- Done ---
 emit "done" "completed" "DEPLOY_DONE_MSG_PLACEHOLDER"

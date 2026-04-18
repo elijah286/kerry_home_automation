@@ -31,6 +31,13 @@ import { requirePermission, requireRole } from './auth.js';
 const GO2RTC_FETCH_INIT_MS = 12_000;
 const GO2RTC_WEBRTC_MS = 20_000;
 
+/**
+ * Coalesces concurrent snapshot requests for the same camera. When N tiles
+ * all ask at the same moment (e.g. initial grid mount), they share a single
+ * upstream fetch instead of stampeding go2rtc.
+ */
+const snapshotInflight = new Map<string, Promise<Buffer>>();
+
 /** go2rtc waits for this JSON before sending fMP4 over WebSocket (see https://go2rtc.org/internal/api/ws/). */
 const GO2RTC_MSE_REQUEST = JSON.stringify({
   type: 'mse',
@@ -91,30 +98,56 @@ export function registerRoutes(app: FastifyInstance): void {
     return reply.status(ok ? 200 : 503).send({ ok, time: Date.now(), checks });
   });
 
-  // Camera snapshot — serve from backend cache (instant), fallback to live fetch from integration
+  // Camera snapshot — serve from backend cache (instant), with request coalescing
+  // so N concurrent clients asking for the same camera share ONE upstream fetch.
+  // Also short-cache live fetches for 500ms to absorb tile polling bursts.
   app.get<{ Params: { name: string } }>('/api/cameras/:name/snapshot', async (req, reply) => {
     const unifi = registry.get('unifi') as UniFiIntegration | undefined;
     const cached = unifi?.getCachedSnapshot(req.params.name);
 
     if (cached) {
       reply.header('Content-Type', 'image/jpeg');
-      reply.header('Cache-Control', 'no-cache, no-store');
+      // Allow browsers/proxies to coalesce duplicate concurrent tile fetches
+      reply.header('Cache-Control', 'private, max-age=1');
       reply.header('X-Snapshot-Age', String(Date.now() - cached.timestamp));
       return reply.send(cached.buffer);
+    }
+
+    // Coalesce concurrent live fetches for the same camera — multiple tiles
+    // requesting simultaneously should share one upstream request.
+    const coalesceKey = req.params.name;
+    const inflight = snapshotInflight.get(coalesceKey);
+    if (inflight) {
+      try {
+        const buf = await inflight;
+        reply.header('Content-Type', 'image/jpeg');
+        reply.header('Cache-Control', 'private, max-age=1');
+        return reply.send(buf);
+      } catch {
+        return reply.code(502).send({ error: 'Snapshot unavailable' });
+      }
     }
 
     // Live fetch through integration
     const go2rtcUrl = unifi?.getGo2rtcUrl(req.params.name);
     if (!go2rtcUrl) return reply.code(503).send({ error: 'UniFi Protect not configured. Add an instance in Integrations.' });
 
-    try {
+    const fetchPromise = (async () => {
       const res = await fetch(`${go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(req.params.name)}`, {
         signal: AbortSignal.timeout(GO2RTC_FETCH_INIT_MS),
       });
-      if (!res.ok) return reply.code(502).send({ error: 'Snapshot unavailable' });
+      if (!res.ok) throw new Error('Snapshot unavailable');
+      return Buffer.from(await res.arrayBuffer());
+    })();
+    snapshotInflight.set(coalesceKey, fetchPromise);
+    // Clear the inflight entry once resolved/rejected so subsequent requests
+    // can trigger a new fetch after the cache would have gone stale.
+    fetchPromise.finally(() => snapshotInflight.delete(coalesceKey));
+
+    try {
+      const buffer = await fetchPromise;
       reply.header('Content-Type', 'image/jpeg');
-      reply.header('Cache-Control', 'no-cache, no-store');
-      const buffer = Buffer.from(await res.arrayBuffer());
+      reply.header('Cache-Control', 'private, max-age=1');
       return reply.send(buffer);
     } catch {
       return reply.code(502).send({ error: 'go2rtc not reachable' });
