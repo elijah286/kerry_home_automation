@@ -187,7 +187,16 @@ const ALL_COLUMNS: ColumnDef[] = [
   {
     key: 'name',
     label: 'Name',
-    render: (d) => <InlineRename deviceId={d.id} currentName={d.displayName ?? d.name} size="sm" />,
+    render: (d) => (
+      <div className="flex flex-col gap-0.5">
+        <InlineRename deviceId={d.id} currentName={d.displayName ?? d.name} size="sm" />
+        {d.aliases && d.aliases.length > 0 && (
+          <span className="text-[11px] leading-tight" style={{ color: 'var(--color-text-muted)' }}>
+            {d.aliases.join(', ')}
+          </span>
+        )}
+      </div>
+    ),
   },
   {
     key: 'type',
