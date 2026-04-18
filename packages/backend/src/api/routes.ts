@@ -4,6 +4,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
+import { Readable } from 'node:stream';
 import type { DeviceCommand, DeviceState, IntegrationId } from '@ha/shared';
 import { KNOWN_INTEGRATIONS, Permission } from '@ha/shared';
 import { stateStore } from '../state/store.js';
@@ -248,11 +249,16 @@ export function registerRoutes(app: FastifyInstance): void {
       const ct = res.headers.get('content-type') ?? 'application/octet-stream';
       reply.header('Content-Type', ct);
       reply.header('Cache-Control', 'no-cache');
-      // Playlists are text; segments/init are binary.
+      const cl = res.headers.get('content-length');
+      if (cl) reply.header('Content-Length', cl);
+      // Playlists are small text — buffer is fine.
       if (ct.includes('mpegurl') || ct.startsWith('text/')) {
         return reply.send(await res.text());
       }
-      return reply.send(Buffer.from(await res.arrayBuffer()));
+      // Stream binary segments/init chunks directly through without buffering
+      // into memory. Avoids blocking the Node.js event loop on large TS segment
+      // downloads, which was causing health check timeouts with 9 concurrent streams.
+      return reply.send(Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]));
     } catch {
       return reply.code(502).send({ error: 'go2rtc not reachable' });
     }
