@@ -475,6 +475,13 @@ const CameraTile = memo(function CameraTile({
           mode="auto"
           quality="sd"
           fit="cover"
+          // Always-on fresh snapshot requests. CameraPlayer only polls snapshots
+          // while HLS is warming up or has failed — so this is a no-op most of
+          // the time. While it IS polling, `?fresh=500` tells the backend to
+          // bypass its 1s cache and pull a new frame from go2rtc, pinning
+          // tile-underlay update rate at ~2fps instead of being gated by the
+          // shared poll cycle (which can slip past 1s under iGPU load).
+          highFrequencySnapshots
           onTierChange={(t, s) => { setTier(t); setStatus(s); }}
         />
       ) : (
