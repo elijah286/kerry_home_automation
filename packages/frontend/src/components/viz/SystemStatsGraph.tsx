@@ -16,12 +16,14 @@ interface Sample {
   diskPercent: number;
 }
 
-const RANGE_PRESETS = [
+export const SYSTEM_STATS_RANGE_PRESETS = [
+  { label: '5m',  ms: 300_000 },
+  { label: '15m', ms: 900_000 },
+  { label: '30m', ms: 1_800_000 },
   { label: '1h',  ms: 3_600_000 },
-  { label: '6h',  ms: 21_600_000 },
-  { label: '24h', ms: 86_400_000 },
-  { label: '7d',  ms: 604_800_000 },
 ] as const;
+
+const RANGE_PRESETS = SYSTEM_STATS_RANGE_PRESETS;
 
 const METRIC_LABEL: Record<SystemMetric, string> = {
   cpu:    'CPU',
@@ -40,21 +42,44 @@ function valueForMetric(s: Sample, metric: SystemMetric): number {
   return s.diskPercent;
 }
 
-export function SystemStatsGraph({ metric, height = 180 }: { metric: SystemMetric; height?: number }) {
+export function SystemStatsGraph({
+  metric,
+  height = 180,
+  controlledRangeMs,
+  hideRangePicker,
+  smooth,
+}: {
+  metric: SystemMetric;
+  height?: number;
+  /** When provided, the caller controls the time window and the internal picker is hidden. */
+  controlledRangeMs?: number;
+  /** Hide the internal range-preset buttons (e.g. when a parent renders its own). */
+  hideRangePicker?: boolean;
+  /** Apply a moving-average smoothing window to the plotted series (CPU is spiky). */
+  smooth?: boolean;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const plotRef = useRef<UPlotInstance | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const uPlotCtorRef = useRef<any>(null);
 
-  const [rangeMs, setRangeMs] = useState<number>(RANGE_PRESETS[2].ms);
+  const [internalRangeMs, setRangeMs] = useState<number>(RANGE_PRESETS[2].ms);
+  const rangeMs = controlledRangeMs ?? internalRangeMs;
   const [samples, setSamples] = useState<Sample[] | null>(null);
   const [error,   setError]   = useState<string | null>(null);
 
-  // Fetch history whenever the range changes, and then every 10s so the
-  // graph keeps pace with live samples without hammering the backend.
+  // Strategy:
+  //   1. On mount / range change, fetch persisted history (backend writes a
+  //      sample every 30s into system_stats_history).
+  //   2. Every ~400ms, fetch /api/system/stats for the instantaneous CPU/memory
+  //      snapshot and append it to the local series — gives a live rolling
+  //      feed without waiting for the 30s persistence cadence.
+  //   3. Every 30s, re-pull history so long-running sessions stay accurate and
+  //      old in-memory samples drop out of the time window.
   useEffect(() => {
     let cancelled = false;
-    const load = () => {
+
+    const loadHistory = () => {
       const now = Date.now();
       const from = new Date(now - rangeMs).toISOString();
       const to   = new Date(now).toISOString();
@@ -63,14 +88,51 @@ export function SystemStatsGraph({ metric, height = 180 }: { metric: SystemMetri
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           const data = (await r.json()) as { samples: Sample[] };
           if (cancelled) return;
-          setSamples(data.samples);
+          setSamples((prev) => {
+            // Keep any live samples newer than the latest persisted one so the
+            // rolling live tail doesn't jump backwards when history refreshes.
+            const latest = data.samples[data.samples.length - 1]?.ts ?? 0;
+            const liveTail = (prev ?? []).filter((s) => s.ts > latest);
+            return [...data.samples, ...liveTail];
+          });
           setError(null);
         })
         .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); });
     };
-    load();
-    const id = window.setInterval(load, 10_000);
-    return () => { cancelled = true; window.clearInterval(id); };
+
+    const pollLive = () => {
+      void apiFetch(`${getApiBase()}/api/system/stats`)
+        .then(async (r) => {
+          if (!r.ok) return;
+          const data = (await r.json()) as {
+            cpu: { percent: number };
+            memory: { percent: number };
+            disk: { percent: number };
+          };
+          if (cancelled) return;
+          const sample: Sample = {
+            ts: Date.now(),
+            cpuPercent: data.cpu.percent,
+            memoryPercent: data.memory.percent,
+            diskPercent: data.disk.percent,
+          };
+          setSamples((prev) => {
+            const cutoff = Date.now() - rangeMs;
+            const next = [...(prev ?? []), sample].filter((s) => s.ts >= cutoff);
+            return next;
+          });
+        })
+        .catch(() => { /* transient — next tick will retry */ });
+    };
+
+    loadHistory();
+    const liveId = window.setInterval(pollLive, 400);
+    const histId = window.setInterval(loadHistory, 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(liveId);
+      window.clearInterval(histId);
+    };
   }, [rangeMs]);
 
   // uPlot data arrays: [timestamps_in_seconds, values_0_to_100]
@@ -82,8 +144,26 @@ export function SystemStatsGraph({ metric, height = 180 }: { metric: SystemMetri
       ts[i] = samples[i].ts / 1000;
       vs[i] = valueForMetric(samples[i], metric);
     }
+    if (smooth && vs.length > 2) {
+      // Centered moving average — window scales with sample density so the
+      // smoothing reads as a trend, not a jittery tick. Capped so short
+      // series don't flatten to a single point.
+      const win = Math.min(9, Math.max(3, Math.round(vs.length / 40)));
+      const half = Math.floor(win / 2);
+      const smoothed = new Float64Array(vs.length);
+      for (let i = 0; i < vs.length; i++) {
+        let sum = 0;
+        let n = 0;
+        for (let j = Math.max(0, i - half); j <= Math.min(vs.length - 1, i + half); j++) {
+          sum += vs[j];
+          n++;
+        }
+        smoothed[i] = sum / n;
+      }
+      return [ts, smoothed];
+    }
     return [ts, vs];
-  }, [samples, metric]);
+  }, [samples, metric, smooth]);
 
   // Build / rebuild the uPlot instance whenever the data changes.
   useEffect(() => {
@@ -166,32 +246,36 @@ export function SystemStatsGraph({ metric, height = 180 }: { metric: SystemMetri
     };
   }, [plotData, metric, height]);
 
+  const showPicker = !hideRangePicker && controlledRangeMs === undefined;
+
   return (
     <div className="mt-3">
-      <div className="mb-2 flex items-center gap-1 text-[11px]">
-        {RANGE_PRESETS.map((r) => (
-          <button
-            key={r.label}
-            type="button"
-            onClick={() => setRangeMs(r.ms)}
-            className="rounded border px-2 py-0.5 transition-colors"
-            style={{
-              borderColor: rangeMs === r.ms ? 'var(--color-accent)' : 'var(--color-border)',
-              backgroundColor: rangeMs === r.ms
-                ? 'color-mix(in srgb, var(--color-accent) 15%, transparent)'
-                : 'transparent',
-              color: 'var(--color-text-secondary)',
-            }}
-          >
-            {r.label}
-          </button>
-        ))}
-        {samples && (
-          <span className="ml-auto text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
-            {samples.length} samples
-          </span>
-        )}
-      </div>
+      {showPicker && (
+        <div className="mb-2 flex items-center gap-1 text-[11px]">
+          {RANGE_PRESETS.map((r) => (
+            <button
+              key={r.label}
+              type="button"
+              onClick={() => setRangeMs(r.ms)}
+              className="rounded border px-2 py-0.5 transition-colors"
+              style={{
+                borderColor: rangeMs === r.ms ? 'var(--color-accent)' : 'var(--color-border)',
+                backgroundColor: rangeMs === r.ms
+                  ? 'color-mix(in srgb, var(--color-accent) 15%, transparent)'
+                  : 'transparent',
+                color: 'var(--color-text-secondary)',
+              }}
+            >
+              {r.label}
+            </button>
+          ))}
+          {samples && (
+            <span className="ml-auto text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+              {samples.length} samples
+            </span>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="rounded border px-2 py-1.5 text-[11px]"

@@ -41,6 +41,9 @@ export function generateAutoinstallYaml(cfg: AutoinstallConfig): string {
 
   // Must match scripts/update.sh and server system routes: full stack + sidecars (e.g. roborock-bridge)
   // live in docker-compose.prod.yml, not the dev-only docker-compose.yml.
+  // ExecStartPre=+scripts/host-prereqs.sh runs as root every boot and handles
+  // Intel iGPU driver install, RENDER_GID/VIDEO_GID detection → .env, and
+  // /dev/dri sanity checks. Keeps the system zero-touch across hardware moves.
   const serviceUnit = [
     '[Unit]',
     'Description=Home Automation',
@@ -50,6 +53,7 @@ export function generateAutoinstallYaml(cfg: AutoinstallConfig): string {
     '',
     '[Service]',
     `WorkingDirectory=${cfg.appDir}`,
+    `ExecStartPre=+${cfg.appDir}/scripts/host-prereqs.sh`,
     'ExecStart=/usr/bin/docker compose -f docker-compose.prod.yml up --build',
     'ExecStop=/usr/bin/docker compose -f docker-compose.prod.yml down',
     'Restart=on-failure',
@@ -91,6 +95,13 @@ autoinstall:
     - git
     - curl
     - openssh-server
+    # Intel iGPU hardware video acceleration — enables VAAPI in the go2rtc
+    # container so camera HLS/MJPEG transcoding uses the iGPU instead of
+    # pegging the CPU. Safe on AMD/other hardware — packages install
+    # cleanly, just go unused.
+    - intel-media-va-driver-non-free
+    - intel-gpu-tools
+    - vainfo
   user-data:
     disable_root: false
   late-commands:

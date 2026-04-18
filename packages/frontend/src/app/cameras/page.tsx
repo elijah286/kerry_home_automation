@@ -71,6 +71,8 @@ function CameraPlayer({
   name,
   mode,
   quality = 'sd',
+  fit = 'contain',
+  highFrequencySnapshots = false,
   onTierChange,
   onError,
 }: {
@@ -78,6 +80,15 @@ function CameraPlayer({
   mode: PlayerMode;
   /** 'sd' = low-res sub-stream (default, low CPU); 'hd' = high-res main stream */
   quality?: Quality;
+  /** 'contain' = letterbox (fullscreen); 'cover' = fill (grid tiles). */
+  fit?: 'contain' | 'cover';
+  /**
+   * Fullscreen mode flag. When true, the snapshot underlay requests fresh
+   * frames at 2fps (bypasses the shared 1s backend cache with ?fresh=500)
+   * so the user gets responsive live updates while HLS is warming up.
+   * Grid tiles leave this false to stay on the shared cached frames.
+   */
+  highFrequencySnapshots?: boolean;
   onTierChange?: (tier: Tier, status: PlayerStatus) => void;
   onError?: () => void;
 }) {
@@ -316,8 +327,14 @@ function CameraPlayer({
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
-  const snapshotSrc = `${getApiBase()}/api/cameras/${encodeURIComponent(name)}/snapshot?r=${snapshotRev}${authQueryParam(true)}`;
+  // Fullscreen (highFrequencySnapshots=true) requests `fresh=500` so the
+  // backend bypasses its 1s cache and fetches a new frame from go2rtc when
+  // our 500ms polling rolls around — net effect: 2fps live preview while
+  // HLS warms up, vs the cached ~1fps tiles get.
+  const freshParam = highFrequencySnapshots ? '&fresh=500' : '';
+  const snapshotSrc = `${getApiBase()}/api/cameras/${encodeURIComponent(name)}/snapshot?r=${snapshotRev}${freshParam}${authQueryParam(true)}`;
   const showUnderlay = pollSnapshots && activeTier !== 'snapshot';
+  const fitClass = fit === 'cover' ? 'object-cover' : 'object-contain';
 
   if (activeTier === 'snapshot') {
     return (
@@ -325,7 +342,7 @@ function CameraPlayer({
       <img
         src={snapshotSrc}
         alt=""
-        className="absolute inset-0 h-full w-full object-contain"
+        className={`absolute inset-0 h-full w-full ${fitClass}`}
         onLoad={() => emit('snapshot', 'live')}
         onError={() => emit('snapshot', 'failed')}
       />
@@ -339,7 +356,7 @@ function CameraPlayer({
         <img
           src={snapshotSrc}
           alt=""
-          className="absolute inset-0 h-full w-full object-contain"
+          className={`absolute inset-0 h-full w-full ${fitClass}`}
         />
       )}
       <video
@@ -347,7 +364,7 @@ function CameraPlayer({
         autoPlay
         muted
         playsInline
-        className={`absolute inset-0 h-full w-full object-contain bg-black transition-opacity ${
+        className={`absolute inset-0 h-full w-full ${fitClass} bg-black transition-opacity ${
           status === 'live' ? 'opacity-100' : 'opacity-0'
         }`}
       />
@@ -396,9 +413,11 @@ function saveSettings(s: CameraSettings) {
 }
 
 // ---------------------------------------------------------------------------
-// Camera tile — snapshot polling at 1000 ms (1 fps), paused when tab hidden
-// or viewport off-screen. A single-page grid of 10 cameras was previously
-// producing ~20 rq/s to the backend; now it's ~10 rq/s when visible, 0 when not.
+// Camera tile — reuses CameraPlayer in auto mode, so every tile starts on HLS
+// as soon as the stream is ready and shows a snapshot underlay while it warms
+// up. Still gated by page + viewport visibility: off-screen / backgrounded
+// tiles drop down to a single static snapshot so we're not running 9 live
+// ffmpeg pipelines when the user isn't looking.
 // ---------------------------------------------------------------------------
 
 const CameraTile = memo(function CameraTile({
@@ -408,11 +427,11 @@ const CameraTile = memo(function CameraTile({
   cam: CameraInfo;
   onSelect: () => void;
 }) {
-  const [rev,    setRev]    = useState(0);
-  const [loaded, setLoaded] = useState(false);
-  const [error,  setError]  = useState(false);
   const [visible, setVisible] = useState(true);
   const [inView,  setInView]  = useState(true);
+  const [tier,    setTier]    = useState<Tier>(() => initialTier('auto'));
+  const [status,  setStatus]  = useState<PlayerStatus>('connecting');
+  const [idleRev, setIdleRev] = useState(0);
   const tileRef = useRef<HTMLDivElement | null>(null);
 
   // Track page visibility (tab switched away / browser minimized)
@@ -423,8 +442,7 @@ const CameraTile = memo(function CameraTile({
     return () => document.removeEventListener('visibilitychange', onVis);
   }, []);
 
-  // Track viewport visibility (scrolled off-screen) — stop polling tiles the
-  // user can't see. Avoids wasting bandwidth on off-screen camera tiles.
+  // Track viewport visibility (scrolled off-screen)
   useEffect(() => {
     if (!tileRef.current) return;
     const obs = new IntersectionObserver(
@@ -435,19 +453,15 @@ const CameraTile = memo(function CameraTile({
     return () => obs.disconnect();
   }, []);
 
-  // Poll snapshots at 1fps, only when visible AND in-view AND not in an error
-  // back-off state. This is the single biggest backend-load reducer.
-  useEffect(() => {
-    if (error || !visible || !inView) return;
-    const t = window.setInterval(() => setRev((n) => n + 1), 1000);
-    return () => window.clearInterval(t);
-  }, [error, visible, inView]);
+  const active = visible && inView;
 
+  // When the tile is NOT active, refresh the static snapshot every 10s so
+  // the grid doesn't show a completely frozen image after a long idle.
   useEffect(() => {
-    if (!error) return;
-    const t = window.setTimeout(() => { setError(false); setLoaded(false); }, 10_000);
-    return () => window.clearTimeout(t);
-  }, [error]);
+    if (active) return;
+    const t = window.setInterval(() => setIdleRev((n) => n + 1), 10_000);
+    return () => window.clearInterval(t);
+  }, [active]);
 
   return (
     <div
@@ -455,30 +469,43 @@ const CameraTile = memo(function CameraTile({
       className="relative aspect-video cursor-pointer overflow-hidden rounded-sm bg-black"
       onClick={onSelect}
     >
-      {error ? (
-        <div className="flex h-full items-center justify-center">
-          <span className="text-[11px] text-zinc-500">No signal</span>
-        </div>
+      {active ? (
+        <CameraPlayer
+          name={cam.name}
+          mode="auto"
+          quality="sd"
+          fit="cover"
+          // Always-on fresh snapshot requests. CameraPlayer only polls snapshots
+          // while HLS is warming up or has failed — so this is a no-op most of
+          // the time. While it IS polling, `?fresh=500` tells the backend to
+          // bypass its 1s cache and pull a new frame from go2rtc, pinning
+          // tile-underlay update rate at ~2fps instead of being gated by the
+          // shared poll cycle (which can slip past 1s under iGPU load).
+          highFrequencySnapshots
+          onTierChange={(t, s) => { setTier(t); setStatus(s); }}
+        />
       ) : (
-        <>
-          {!loaded && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center">
-              <div className="h-4 w-4 rounded-full border-2 border-zinc-600 border-t-zinc-300 animate-spin" />
-            </div>
-          )}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${rev}${authQueryParam(true)}`}
-            alt={cam.label}
-            className="absolute inset-0 h-full w-full object-cover"
-            onLoad={() => setLoaded(true)}
-            onError={() => { setError(true); setLoaded(false); }}
-          />
-        </>
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${idleRev}${authQueryParam(true)}`}
+          alt={cam.label}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
       )}
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-4">
+      {active && status === 'failed' && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black">
+          <span className="text-[11px] text-zinc-500">No signal</span>
+        </div>
+      )}
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-center gap-2 bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-4">
         <span className="text-xs font-medium text-white drop-shadow-sm">{cam.label}</span>
+        {active && tier === 'hls' && status === 'live' && (
+          <span className="rounded bg-red-500/85 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
+            Live
+          </span>
+        )}
       </div>
     </div>
   );
@@ -588,12 +615,23 @@ function InlineCameraPlayer({ cam, onClose }: { cam: CameraInfo; onClose: () => 
           name={cam.name}
           mode={mode}
           quality={quality}
+          // 2fps fresh snapshots while HLS is still warming up, so the user
+          // gets a responsive preview instead of a frame every ~1s. Drops
+          // back to 0 once HLS is live (the video element takes over).
+          highFrequencySnapshots={status === 'connecting'}
           onTierChange={(t, s) => { setTier(t); setStatus(s); }}
         />
 
+        {/* Small unobtrusive badge while HLS warms up — the snapshot underlay
+            is already showing the scene, so we don't cover it with a big
+            center spinner. Status bar below still spells out 'Connecting · HLS…'. */}
         {status === 'connecting' && (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-            <div className="h-6 w-6 rounded-full border-2 border-white/30 border-t-white/80 animate-spin drop-shadow-md" />
+          <div className="pointer-events-none absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 backdrop-blur-sm">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
+            </span>
+            <span className="text-[10px] font-medium uppercase tracking-wider text-white/90">Live in…</span>
           </div>
         )}
       </div>

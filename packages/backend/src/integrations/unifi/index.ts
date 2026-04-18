@@ -558,6 +558,13 @@ export class UniFiIntegration implements Integration {
     return this.snapshotCache.get(name) ?? null;
   }
 
+  /** Write a freshly-fetched snapshot into the shared cache so other clients
+   *  asking for the same camera get it immediately without another upstream
+   *  fetch. Called from the /snapshot route after a `?fresh=` bypass. */
+  setCachedSnapshot(name: string, buffer: Buffer): void {
+    this.snapshotCache.set(name, { buffer, timestamp: Date.now() });
+  }
+
   getGo2rtcUrl(name: string): string | null {
     for (const ctx of this.entries.values()) {
       if (ctx.cameras.some((c) => c.name === name)) {
