@@ -344,7 +344,12 @@ function CameraPlayer({
         alt=""
         className={`absolute inset-0 h-full w-full ${fitClass}`}
         onLoad={() => emit('snapshot', 'live')}
-        onError={() => emit('snapshot', 'failed')}
+        onError={() => {
+          // In auto mode, individual snapshot failures are transient — the
+          // polling interval will retry automatically. Never emit 'failed'
+          // from snapshot in auto mode; worst case the user sees a stale frame.
+          if (mode !== 'auto') emit('snapshot', 'failed');
+        }}
       />
     );
   }
@@ -434,18 +439,19 @@ const CameraTile = memo(function CameraTile({
   index: number;
   onSelect: () => void;
 }) {
-  const [visible, setVisible] = useState(true);
-  const [inView,  setInView]  = useState(true);
-  const [ready,   setReady]   = useState(index === 0); // first tile starts immediately
-  const [tier,    setTier]    = useState<Tier>(() => initialTier('auto'));
-  const [status,  setStatus]  = useState<PlayerStatus>('connecting');
-  const [idleRev, setIdleRev] = useState(0);
+  const [visible,    setVisible]    = useState(true);
+  const [inView,     setInView]     = useState(true);
+  const [hlsReady,   setHlsReady]   = useState(index === 0);
+  const [tier,       setTier]       = useState<Tier>(() => initialTier('auto'));
+  const [status,     setStatus]     = useState<PlayerStatus>('connecting');
+  const [snapshotRev, setSnapshotRev] = useState(0);
   const tileRef = useRef<HTMLDivElement | null>(null);
 
-  // Stagger HLS start so tiles don't all open ffmpeg sessions simultaneously.
+  // Stagger HLS start only — snapshot is always shown immediately so the
+  // tile is never black, even before HLS has started.
   useEffect(() => {
     if (index === 0) return;
-    const t = window.setTimeout(() => setReady(true), index * TILE_STAGGER_MS);
+    const t = window.setTimeout(() => setHlsReady(true), index * TILE_STAGGER_MS);
     return () => window.clearTimeout(t);
   }, [index]);
 
@@ -468,15 +474,18 @@ const CameraTile = memo(function CameraTile({
     return () => obs.disconnect();
   }, []);
 
-  const active = ready && visible && inView;
+  const pageActive = visible && inView;
+  const hlsActive  = hlsReady && pageActive;
 
-  // When the tile is NOT active, refresh the static snapshot every 10s so
-  // the grid doesn't show a completely frozen image after a long idle.
+  // Refresh the base snapshot every 5s so the grid never looks frozen.
+  // CameraPlayer takes over with live HLS once it's active.
   useEffect(() => {
-    if (active) return;
-    const t = window.setInterval(() => setIdleRev((n) => n + 1), 10_000);
+    if (!pageActive) return;
+    const t = window.setInterval(() => setSnapshotRev((n) => n + 1), 5_000);
     return () => window.clearInterval(t);
-  }, [active]);
+  }, [pageActive]);
+
+  const snapshotSrc = `${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapshotRev}${authQueryParam(true)}`;
 
   return (
     <div
@@ -484,35 +493,34 @@ const CameraTile = memo(function CameraTile({
       className="relative aspect-video cursor-pointer overflow-hidden rounded-sm bg-black"
       onClick={onSelect}
     >
-      {active ? (
+      {/* Snapshot always shown as base — tile is never fully black on load */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={snapshotSrc}
+        alt={cam.label}
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+
+      {/* CameraPlayer overlays once HLS stagger delay has passed */}
+      {hlsActive && (
         <CameraPlayer
           name={cam.name}
           mode="auto"
           quality="sd"
           fit="cover"
-          // Tiles use the shared backend cache (no fresh= param) — they only need
-          // a snapshot underlay while HLS warms up, not 2fps live preview.
-          // Fresh snapshots are reserved for the fullscreen player.
           onTierChange={(t, s) => { setTier(t); setStatus(s); }}
-        />
-      ) : (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={`${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${idleRev}${authQueryParam(true)}`}
-          alt={cam.label}
-          className="absolute inset-0 h-full w-full object-cover"
         />
       )}
 
-      {active && status === 'failed' && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black">
-          <span className="text-[11px] text-zinc-500">No signal</span>
+      {hlsActive && status === 'failed' && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60">
+          <span className="text-[11px] text-zinc-400">No signal</span>
         </div>
       )}
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-center gap-2 bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-4">
         <span className="text-xs font-medium text-white drop-shadow-sm">{cam.label}</span>
-        {active && tier === 'hls' && status === 'live' && (
+        {hlsActive && tier === 'hls' && status === 'live' && (
           <span className="rounded bg-red-500/85 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
             Live
           </span>
@@ -572,26 +580,32 @@ function InlineCameraPlayer({
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Player — fills the content area vertically but never scrolls the page */}
-      <div className="relative w-full overflow-hidden rounded-md bg-black" style={{ height: 'calc(100vh - 12rem)', minHeight: '300px' }}>
-        <CameraPlayer
-          key={`${cam.name}:${mode}:${quality}`}
-          name={cam.name}
-          mode={mode}
-          quality={quality}
-          highFrequencySnapshots={status === 'connecting'}
-          onTierChange={(t, s) => { setTier(t); setStatus(s); }}
-        />
+      {/* Player — aspect-ratio constrained so the full frame is always visible.
+          max-height keeps it from overflowing on tall/narrow viewports. */}
+      <div
+        className="relative w-full overflow-hidden rounded-md bg-black"
+        style={{ maxHeight: 'calc(100dvh - 9rem)' }}
+      >
+        <div className="aspect-video w-full relative">
+          <CameraPlayer
+            key={`${cam.name}:${mode}:${quality}`}
+            name={cam.name}
+            mode={mode}
+            quality={quality}
+            highFrequencySnapshots={status === 'connecting'}
+            onTierChange={(t, s) => { setTier(t); setStatus(s); }}
+          />
 
-        {status === 'connecting' && (
-          <div className="pointer-events-none absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 backdrop-blur-sm">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
-            </span>
-            <span className="text-[10px] font-medium uppercase tracking-wider text-white/90">Live in…</span>
-          </div>
-        )}
+          {status === 'connecting' && (
+            <div className="pointer-events-none absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 backdrop-blur-sm">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
+              </span>
+              <span className="text-[10px] font-medium uppercase tracking-wider text-white/90">Live in…</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-2 text-xs">
@@ -972,19 +986,22 @@ export default function CamerasPage() {
   return (
     <>
       <div className="p-2 lg:p-3">
-        <div className="mb-2 flex items-center justify-end gap-2">
-          <span className="text-[11px] text-zinc-500">
-            {visibleCameras.length} of {cameras.length} shown · {settings.columns} cols
-          </span>
-          <button
-            type="button"
-            onClick={() => setShowSettings(true)}
-            className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
-          >
-            <Settings2 className="h-3.5 w-3.5" />
-            Settings
-          </button>
-        </div>
+        {/* Toolbar — grid stats + settings button only shown on the grid view */}
+        {!fullscreenCam && (
+          <div className="mb-2 flex items-center justify-end gap-2">
+            <span className="text-[11px] text-zinc-500">
+              {visibleCameras.length} of {cameras.length} shown · {settings.columns} cols
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowSettings(true)}
+              className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+              Settings
+            </button>
+          </div>
+        )}
 
         {showEmptyHint && (
           <div className="mb-3 rounded-md border border-zinc-700/80 bg-zinc-900/50 px-3 py-3 text-sm text-zinc-300">
@@ -1022,12 +1039,24 @@ export default function CamerasPage() {
         )}
 
         {fullscreenCam ? (
-          <InlineCameraPlayer
-            cam={fullscreenCam}
-            onClose={() => setFullscreenCam(null)}
-            mode={playerMode}
-            quality={playerQuality}
-          />
+          <>
+            <InlineCameraPlayer
+              cam={fullscreenCam}
+              onClose={() => setFullscreenCam(null)}
+              mode={playerMode}
+              quality={playerQuality}
+            />
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowSettings(true)}
+                className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+                Settings
+              </button>
+            </div>
+          </>
         ) : (
           <div
             className="grid gap-1"
