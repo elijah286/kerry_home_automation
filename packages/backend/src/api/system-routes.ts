@@ -511,23 +511,33 @@ export function registerSystemRoutes(app: FastifyInstance): void {
     (async () => {
       try {
         const allEntries = getLogEntries();
+        const bufferSize = allEntries.length;
+
+        // Replay the buffer
         for (const entry of allEntries) {
           write(entry);
         }
+
+        // Subscribe to *new* entries only (skip the ones we just replayed).
+        // Track by reference since entries are immutable after logging.
+        const replayedIds = new Set(allEntries.map((e) => `${e.ts}:${e.msg.slice(0, 64)}`));
+        const unsub = subscribeLogs((entry) => {
+          const id = `${entry.ts}:${entry.msg.slice(0, 64)}`;
+          if (!replayedIds.has(id)) {
+            write(entry);
+          }
+        });
+        const ping = setInterval(() => {
+          reply.raw.write(': ping\n\n');
+        }, 25_000);
+
+        req.raw.on('close', () => {
+          clearInterval(ping);
+          unsub();
+        });
       } catch (err) {
         logger.debug({ err }, 'Failed to replay log buffer');
       }
-
-      // Now stream live updates
-      const unsub = subscribeLogs(write);
-      const ping = setInterval(() => {
-        reply.raw.write(': ping\n\n');
-      }, 25_000);
-
-      req.raw.on('close', () => {
-        clearInterval(ping);
-        unsub();
-      });
     })();
   });
 
