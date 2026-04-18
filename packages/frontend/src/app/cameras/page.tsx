@@ -937,10 +937,11 @@ export default function CamerasPage() {
   useEffect(() => {
     if (fullscreenCam) {
       setExtra([{ href: '/cameras', label: fullscreenCam.label, current: true }]);
+      setCurrentSourceId(fullscreenCam.name);
     } else {
       setExtra([]);
+      setCurrentSourceId('cameras');
     }
-    setCurrentSourceId('cameras');
     return () => {
       setExtra([]);
       setCurrentSourceId(null);
