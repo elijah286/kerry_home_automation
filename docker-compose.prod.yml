@@ -21,8 +21,22 @@ services:
       retries: 5
 
   go2rtc:
-    image: alexxit/go2rtc:latest
+    # master-hardware variant bundles ffmpeg with Intel QuickSync / VAAPI /
+    # NVENC support. Without this, every HLS segment / MJPEG frame would be
+    # software-transcoded and peg the CPU (the N100 has a perfectly capable
+    # iGPU — we just have to let go2rtc use it).
+    image: alexxit/go2rtc:master-hardware
     restart: unless-stopped
+    # Pass the Intel iGPU through so ffmpeg inside the container can open the
+    # render node. `group_add` gives the container's unprivileged user
+    # permission to read /dev/dri/renderD128. Default GIDs match Debian /
+    # Ubuntu (render=109, video=44); override via .env if `getent group
+    # render` on the host returns something different.
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "${RENDER_GID:-109}"
+      - "${VIDEO_GID:-44}"
     volumes:
       - ./services/go2rtc:/config
     expose:

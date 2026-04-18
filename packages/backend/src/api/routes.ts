@@ -858,7 +858,7 @@ export function registerRoutes(app: FastifyInstance): void {
 
       await query(
         `INSERT INTO device_settings (device_id, history_retention_days, display_name, area_id, history_enabled, aliases, updated_at)
-         VALUES ($1, $2, $3, $4, COALESCE($7::boolean, TRUE), COALESCE($9::text[], '{}'), NOW())
+         VALUES ($1, $2, $3, $4, COALESCE($7::boolean, TRUE), CASE WHEN $10::boolean THEN COALESCE($9::text[], '{}') ELSE '{}' END, NOW())
          ON CONFLICT (device_id) DO UPDATE SET
            history_retention_days = COALESCE($2::integer, device_settings.history_retention_days),
            display_name = CASE WHEN $5::boolean THEN $3::text ELSE device_settings.display_name END,
