@@ -1,0 +1,8 @@
+[Unit]
+Description=Watch nginx config for changes and reload
+
+[Path]
+PathModified=/opt/home-automation/deploy/standby/nginx-ha.conf
+
+[Install]
+WantedBy=multi-user.target

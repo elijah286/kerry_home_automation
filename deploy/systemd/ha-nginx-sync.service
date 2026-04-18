@@ -1,0 +1,12 @@
+[Unit]
+Description=Sync nginx config from repo and reload
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c '\
+  SRC=/opt/home-automation/deploy/standby/nginx-ha.conf; \
+  SITE=/etc/nginx/sites-available/home-automation.conf; \
+  diff -q "$SRC" "$SITE" >/dev/null 2>&1 && exit 0; \
+  cp -a "$SRC" "$SITE" && nginx -t 2>/dev/null && systemctl reload nginx && \
+  echo "[ha-nginx-sync] nginx reloaded from $SRC" || \
+  echo "[ha-nginx-sync] nginx reload failed — check nginx -t"'
