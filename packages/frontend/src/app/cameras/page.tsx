@@ -48,6 +48,21 @@ function logToStatus(
 // for the 10+ s HLS cold-start.
 // ---------------------------------------------------------------------------
 
+// Keeps the last successfully-loaded snapshot URL so a transient fetch error
+// never blanks the display. Uses an off-DOM Image to pretest each new URL;
+// only swaps the visible src once the frame actually arrives.
+function useStableSnapshotSrc(liveSrc: string): string {
+  const [stable, setStable] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    const img = new window.Image();
+    img.onload = () => { if (!cancelled) setStable(img.src); };
+    img.src = liveSrc;
+    return () => { cancelled = true; };
+  }, [liveSrc]);
+  return stable;
+}
+
 type Tier = 'webrtc' | 'hls' | 'snapshot';
 type PlayerMode = 'auto' | Tier;
 type PlayerStatus = 'connecting' | 'live' | 'failed';
@@ -355,33 +370,32 @@ function CameraPlayer({
   // HLS warms up, vs the cached ~1fps tiles get.
   const freshParam = highFrequencySnapshots ? '&fresh=500' : '';
   const snapshotSrc = `${getApiBase()}/api/cameras/${encodeURIComponent(name)}/snapshot?r=${snapshotRev}${freshParam}${authQueryParam(true)}`;
+  const stableSnapshotSrc = useStableSnapshotSrc(snapshotSrc);
   const showUnderlay = pollSnapshots && activeTier !== 'snapshot';
   const fitClass = fit === 'cover' ? 'object-cover' : 'object-contain';
 
+  // Emit 'live' whenever a fresh snapshot successfully loads while in snapshot tier.
+  useEffect(() => {
+    if (stableSnapshotSrc && activeTier === 'snapshot') emit('snapshot', 'live');
+  }, [stableSnapshotSrc, activeTier, emit]);
+
   if (activeTier === 'snapshot') {
-    return (
+    return stableSnapshotSrc ? (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={snapshotSrc}
+        src={stableSnapshotSrc}
         alt=""
         className={`absolute inset-0 h-full w-full ${fitClass}`}
-        onLoad={() => emit('snapshot', 'live')}
-        onError={() => {
-          // In auto mode, individual snapshot failures are transient — the
-          // polling interval will retry automatically. Never emit 'failed'
-          // from snapshot in auto mode; worst case the user sees a stale frame.
-          if (mode !== 'auto') emit('snapshot', 'failed');
-        }}
       />
-    );
+    ) : null;
   }
 
   return (
     <>
-      {showUnderlay && (
+      {showUnderlay && stableSnapshotSrc && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={snapshotSrc}
+          src={stableSnapshotSrc}
           alt=""
           className={`absolute inset-0 h-full w-full ${fitClass}`}
         />
@@ -508,6 +522,7 @@ const CameraTile = memo(function CameraTile({
   }, [pageActive]);
 
   const snapshotSrc = `${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapshotRev}${authQueryParam(true)}`;
+  const stableSnapshotSrc = useStableSnapshotSrc(snapshotSrc);
 
   return (
     <div
@@ -516,12 +531,14 @@ const CameraTile = memo(function CameraTile({
       onClick={onSelect}
     >
       {/* Snapshot always shown as base — tile is never fully black on load */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={snapshotSrc}
-        alt={cam.label}
-        className="absolute inset-0 h-full w-full object-cover"
-      />
+      {stableSnapshotSrc && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={stableSnapshotSrc}
+          alt={cam.label}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
 
       {/* CameraPlayer overlays once HLS stagger delay has passed */}
       {hlsActive && (
