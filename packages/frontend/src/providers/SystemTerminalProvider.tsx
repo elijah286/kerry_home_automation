@@ -277,7 +277,7 @@ export function SystemTerminalProvider({
           placement="bottom"
           panelHeightPx={statusLcarsFullscreen ? bottomDockHeightPx : TERMINAL_PANEL_HEIGHT}
           onHeightChange={setBottomDockHeightPx}
-          currentSourceId={currentSourceId}
+          currentSourceId={currentSourceId ?? undefined}
         />
       )}
     </SystemTerminalContext.Provider>
