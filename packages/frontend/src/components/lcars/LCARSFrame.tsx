@@ -1336,45 +1336,24 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
                 collapsed={false}
               />
             </div>
-            <div className="shrink-0 border-t px-2 py-3" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
-              <div className="flex flex-col gap-2">
-                <PinElevationControls variant="lcars" lcarsTextColor={colors.text} lcarsAccentBg={colors.accent} />
+            <div className="shrink-0 border-t" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
+              <div style={{ width: BAR_W, display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {canUseTerminal && (
                   <button
                     type="button"
                     onClick={() => setTerminalOpen(!terminalOpen)}
                     data-sound={terminalOpen ? 'statusOff' : 'statusOn'}
-                    className={`lcars-chrome-item touch-manipulation${hasRecentLogError ? ' system-status-log-error-alert' : ''}`}
+                    className={`lcars-nav-block lcars-chrome-item touch-manipulation${hasRecentLogError ? ' system-status-log-error-alert' : ''}`}
                     aria-label={hasRecentLogError ? 'Status — recent error in system log' : 'Status'}
                     style={{
                       ...(hasRecentLogError
                         ? ({
-                            '--status-alert-base': terminalOpen ? colors.navActive : colors.headerBar,
-                            '--status-alert-fg-base': colors.text,
+                            '--status-alert-base': terminalOpen ? colors.navActive : colors.muted,
+                            '--status-alert-fg-base': '#000',
                             '--status-alert-border-base': 'transparent',
                           } as CSSProperties)
                         : {}),
-                      border: 'none',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '100%',
-                      minHeight: 40,
-                      padding: '10px 12px',
-                      flexShrink: 0,
-                      background: hasRecentLogError
-                        ? undefined
-                        : terminalOpen
-                          ? colors.navActive
-                          : colors.headerBar,
-                      color: hasRecentLogError ? undefined : colors.text,
-                      fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
-                      fontWeight: 700,
-                      fontSize: 10,
-                      letterSpacing: '0.12em',
-                      textTransform: 'uppercase',
-                      transition: 'background 0.3s ease, color 0.3s ease',
+                      ...lcarsDrawerBlockStyle(terminalOpen ? colors.navActive : colors.muted),
                     }}
                   >
                     Status
@@ -1382,18 +1361,19 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
                 )}
                 <MapLayersHeaderButton
                   variant="lcars"
-                  style={{ backgroundColor: colors.accent, color: colors.text }}
-                  className="!min-w-0 !h-auto w-full min-h-[44px] shrink-0 justify-start"
+                  className="lcars-nav-block"
+                  style={lcarsDrawerBlockStyle(colors.muted)}
                 />
                 <AssistantHeaderButton
                   variant="lcars"
-                  style={{ backgroundColor: colors.accent, color: colors.text }}
-                  className="!min-w-0 !h-auto w-full min-h-[44px] shrink-0 justify-start"
+                  className="lcars-nav-block"
+                  style={lcarsDrawerBlockStyle(colors.muted)}
                   data-sound="sidebar"
                 />
-                <div className="flex justify-center pt-1">
-                  <AppVersionLabel variant="lcars" lcarsTextColor={colors.text} />
-                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2 px-2 py-2">
+                <PinElevationControls variant="lcars" lcarsTextColor={colors.text} lcarsAccentBg={colors.accent} />
+                <AppVersionLabel variant="lcars" lcarsTextColor={colors.text} />
               </div>
             </div>
           </div>
@@ -1403,6 +1383,35 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
     </LCARSFrameProvider>
     </FooterSlotProvider>
   );
+}
+
+/** Shared sizing for Status/Assistant buttons in the mobile LCARS drawer so they match NavBlock. */
+function lcarsDrawerBlockStyle(bg: string): CSSProperties {
+  return {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    justifyContent: 'flex-end',
+    padding: '7px 6px 6px',
+    width: '100%',
+    minWidth: 0,
+    minHeight: 44,
+    flexShrink: 0,
+    borderRadius: 0,
+    boxSizing: 'border-box',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.18), 0 1px 0 rgba(0,0,0,0.5)',
+    background: bg,
+    color: '#000',
+    border: 'none',
+    cursor: 'pointer',
+    fontFamily: 'var(--font-antonio), "Helvetica Neue", sans-serif',
+    fontWeight: 600,
+    fontSize: 11,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    textAlign: 'right',
+    gap: 4,
+  };
 }
 
 /** Reads footer slot content from context — rendered inside FooterSlotProvider subtree. */
