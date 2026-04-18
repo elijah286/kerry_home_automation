@@ -42,6 +42,7 @@ import { useCookingTimers, formatCookingTimer } from '@/providers/CookingTimersP
 import { clsx } from 'clsx';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useLocationsMap } from '@/providers/LocationsMapContext';
+import { useAuth } from '@/providers/AuthProvider';
 import { getApiBase, apiFetch } from '@/lib/api-base';
 
 interface Message {
@@ -615,6 +616,7 @@ function MapLayersSidebarBody() {
 
 function AssistantRightPanel() {
   const router = useRouter();
+  const { refreshSession } = useAuth();
   const isMdUp = useMediaQuery('(min-width: 768px)');
   const { open, setOpen, lcarsDockInset, rightPanelMode, setRightPanelMode } = useAssistant();
   const [fullscreen, setFullscreen] = useState(false);
@@ -639,6 +641,67 @@ function AssistantRightPanel() {
   const passiveListeningRef = useRef(false);
   const streamingTextRef = useRef('');
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Audio queue for server-synthesized TTS. Chunks arrive with monotonic
+  // `seq` numbers; we play them in order even if a later sentence finishes
+  // synthesis before an earlier one.
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const audioQueueRef = useRef<{ seq: number; url: string }[]>([]);
+  const audioNextSeqRef = useRef(0);
+  const audioPlayingRef = useRef(false);
+
+  const clearAudioQueue = useCallback(() => {
+    for (const item of audioQueueRef.current) URL.revokeObjectURL(item.url);
+    audioQueueRef.current = [];
+    audioNextSeqRef.current = 0;
+    audioPlayingRef.current = false;
+    const el = audioElRef.current;
+    if (el) {
+      el.pause();
+      el.removeAttribute('src');
+      el.load();
+    }
+  }, []);
+
+  const playNextAudio = useCallback(() => {
+    if (audioPlayingRef.current) return;
+    const queue = audioQueueRef.current;
+    const want = audioNextSeqRef.current;
+    const idx = queue.findIndex((q) => q.seq === want);
+    if (idx === -1) return;
+    const [item] = queue.splice(idx, 1);
+    audioNextSeqRef.current = want + 1;
+    audioPlayingRef.current = true;
+    if (!audioElRef.current) audioElRef.current = new Audio();
+    const el = audioElRef.current;
+    el.src = item.url;
+    el.onended = () => {
+      URL.revokeObjectURL(item.url);
+      audioPlayingRef.current = false;
+      playNextAudio();
+    };
+    el.onerror = () => {
+      URL.revokeObjectURL(item.url);
+      audioPlayingRef.current = false;
+      playNextAudio();
+    };
+    el.play().catch(() => {
+      audioPlayingRef.current = false;
+    });
+  }, []);
+
+  const enqueueAudio = useCallback((seq: number, base64: string, mime: string) => {
+    if (!ttsEnabledRef.current) return;
+    // Decode base64 → Blob URL
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: mime || 'audio/mpeg' });
+    const url = URL.createObjectURL(blob);
+    audioQueueRef.current.push({ seq, url });
+    playNextAudio();
+  }, [playNextAudio]);
 
   const dockInFrame = lcarsDockInset !== null && isMdUp && !fullscreen;
 
@@ -702,30 +765,12 @@ function AssistantRightPanel() {
   const loadingRef = useRef(loading);
   loadingRef.current = loading;
 
-  /** Strip markdown symbols so TTS reads cleanly */
-  const stripMarkdown = (text: string) =>
-    text
-      .replace(/#{1,6}\s/g, '')
-      .replace(/[*_`~]/g, '')
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .replace(/\n+/g, ' ')
-      .trim();
-
-  const speakText = useCallback((text: string) => {
-    if (!ttsEnabledRef.current || typeof window === 'undefined' || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance(stripMarkdown(text));
-    utt.rate = 1.05;
-    utt.pitch = 1.0;
-    window.speechSynthesis.speak(utt);
-  }, []);
-
   const toggleTts = useCallback(() => {
     const next = !ttsEnabledRef.current;
     ttsEnabledRef.current = next;
     setTtsEnabled(next);
-    if (!next && typeof window !== 'undefined') window.speechSynthesis?.cancel();
-  }, []);
+    if (!next) clearAudioQueue();
+  }, [clearAudioQueue]);
 
   const stopMessage = useCallback(() => {
     if (abortControllerRef.current) {
@@ -734,7 +779,8 @@ function AssistantRightPanel() {
       setLoading(false);
       setIsStreaming(false);
     }
-  }, []);
+    clearAudioQueue();
+  }, [clearAudioQueue]);
 
   const sendMessage = useCallback(async (overrideText?: string) => {
     const text = (overrideText ?? inputValRef.current).trim();
@@ -745,6 +791,7 @@ function AssistantRightPanel() {
     setToolStatuses([]);
     setIsStreaming(false);
     streamingTextRef.current = '';
+    clearAudioQueue();
 
     const newMessages: Message[] = [...messagesRef.current, { role: 'user', content: text }];
     setMessages(newMessages);
@@ -758,7 +805,7 @@ function AssistantRightPanel() {
       const res = await apiFetch(`${getApiBase()}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ messages: newMessages, tts: ttsEnabledRef.current }),
         signal: controller.signal,
       });
 
@@ -784,6 +831,7 @@ function AssistantRightPanel() {
           try {
             const event = JSON.parse(part.slice(6)) as {
               type: string; text?: string; tool?: string; label?: string; navigate?: string; error?: string;
+              seq?: number; data?: string; mime?: string;
             };
             if (event.type === 'token' && event.text) {
               if (!assistantMsgAdded) {
@@ -809,13 +857,18 @@ function AssistantRightPanel() {
               // can actually see the destination page (but keep the assistant open).
               setFullscreen(false);
               router.push(event.navigate);
+            } else if (event.type === 'audio' && event.data && typeof event.seq === 'number') {
+              enqueueAudio(event.seq, event.data, event.mime ?? 'audio/mpeg');
+            } else if (event.type === 'ui_preferences_update') {
+              void refreshSession();
+            } else if (event.type === 'audio_end') {
+              // No-op — queue drains on its own. Reserved for future UI state.
             } else if (event.type === 'done') {
               setToolStatuses([]);
               if (event.navigate) {
                 setFullscreen(false);
                 router.push(event.navigate);
               }
-              if (streamingTextRef.current) speakText(streamingTextRef.current);
             } else if (event.type === 'error' && event.error) {
               setError(event.error);
             }
@@ -836,7 +889,7 @@ function AssistantRightPanel() {
       setIsStreaming(false);
       setToolStatuses([]);
     }
-  }, [router, speakText]);
+  }, [router, enqueueAudio, clearAudioQueue, refreshSession]);
 
   const startListening = useCallback(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

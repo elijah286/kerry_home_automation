@@ -18,6 +18,7 @@ import { query } from '../db/pool.js';
 import { UniFiIntegration } from '../integrations/unifi/index.js';
 import WebSocket from 'ws';
 import { registerChatRoutes } from './chat.js';
+import { registerTtsRoutes } from './tts.js';
 import { registerHelperRoutes } from './helpers-routes.js';
 import { registerDashboardRoutes } from './dashboard-routes.js';
 import { registerNotificationRoutes } from './notification-routes.js';
@@ -47,6 +48,7 @@ const GO2RTC_MSE_REQUEST = JSON.stringify({
 
 export function registerRoutes(app: FastifyInstance): void {
   registerChatRoutes(app);
+  registerTtsRoutes(app);
   registerHelperRoutes(app);
   registerDashboardRoutes(app);
   registerNotificationRoutes(app);

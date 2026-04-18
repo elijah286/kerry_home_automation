@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import {
   ArrowLeft, Bot, Loader2, Eye, EyeOff, Check, Zap,
-  CircleAlert, ChevronDown, AlertTriangle, Mic,
+  CircleAlert, ChevronDown, AlertTriangle, Mic, Volume2, Play,
 } from 'lucide-react';
 import { getApiBase, apiFetch } from '@/lib/api-base';
 
@@ -28,6 +28,23 @@ const ANTHROPIC_MODELS = [
   { id: 'claude-opus-4-6',   label: 'Claude Opus 4.6' },
   { id: 'claude-haiku-4-5',  label: 'Claude Haiku 4.5' },
 ] as const;
+
+const TTS_VOICE_OPTIONS = [
+  { id: 'sage',    label: 'Sage — warm, conversational' },
+  { id: 'alloy',   label: 'Alloy — neutral' },
+  { id: 'ash',     label: 'Ash — calm, grounded' },
+  { id: 'ballad',  label: 'Ballad — soft, reflective' },
+  { id: 'coral',   label: 'Coral — friendly' },
+  { id: 'echo',    label: 'Echo — crisp, clear' },
+  { id: 'fable',   label: 'Fable — storyteller' },
+  { id: 'nova',    label: 'Nova — bright, energetic' },
+  { id: 'onyx',    label: 'Onyx — deep, authoritative' },
+  { id: 'shimmer', label: 'Shimmer — airy, gentle' },
+  { id: 'verse',   label: 'Verse — expressive' },
+] as const;
+
+const DEFAULT_TTS_INSTRUCTIONS =
+  'Speak warmly and conversationally, like a helpful home assistant. Keep energy natural, not overly cheerful. Pause briefly between sentences.';
 
 function readSetting(data: { value?: unknown }): string | undefined {
   if (typeof data.value !== 'string') return undefined;
@@ -145,15 +162,29 @@ export default function LlmSettingsPage() {
   const [testing,   setTesting]   = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  // Voice (TTS) state
+  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [ttsVoice, setTtsVoice] = useState<string>('sage');
+  const [ttsInstructions, setTtsInstructions] = useState<string>(DEFAULT_TTS_INSTRUCTIONS);
+  const [ttsSaving, setTtsSaving] = useState(false);
+  const [ttsSaved, setTtsSaved] = useState(false);
+  const [ttsPreviewPlaying, setTtsPreviewPlaying] = useState(false);
+  const [ttsPreviewError, setTtsPreviewError] = useState<string | null>(null);
+  const ttsPreviewAudioRef = useRef<HTMLAudioElement | null>(null);
+
   useEffect(() => {
     const keys = [
       'llm_provider',
+      'chat_provider',
       'llm_openai_api_key',
       'llm_api_key',
       'llm_anthropic_api_key',
       'llm_openai_model',
       'llm_anthropic_model',
       'assistant_wake_word',
+      'tts_enabled',
+      'tts_voice',
+      'tts_instructions',
     ] as const;
 
     Promise.all(
@@ -161,12 +192,23 @@ export default function LlmSettingsPage() {
         apiFetch(`${API_BASE}/api/settings/${k}`).then((r) => r.json() as Promise<{ value?: unknown }>),
       ),
     )
-      .then(([p, openaiExplicit, legacy, anth, om, am, ww]) => {
+      .then(([p, cp, openaiExplicit, legacy, anth, om, am, ww, tEnabled, tVoice, tInstr]) => {
         const pv = readSetting(p);
+        const cpv = readSetting(cp);
         const resolvedProvider: LlmProviderId =
-          pv === 'anthropic' ? 'anthropic' : 'openai';
+          cpv === 'anthropic' || cpv === 'openai'
+            ? cpv
+            : (pv === 'anthropic' ? 'anthropic' : 'openai');
         setProvider(resolvedProvider);
         setSavedProvider(resolvedProvider);
+
+        // TTS
+        const rawEnabled = tEnabled?.value;
+        setTtsEnabled(rawEnabled === true || rawEnabled === 'true');
+        const v = readSetting(tVoice);
+        if (v) setTtsVoice(v);
+        const instr = readSetting(tInstr);
+        if (instr) setTtsInstructions(instr);
 
         const explicitOpenAi = readSetting(openaiExplicit);
         const legacyOpenAi   = readSetting(legacy);
@@ -216,6 +258,7 @@ export default function LlmSettingsPage() {
     setTestResult(null);
     try {
       await putSetting('llm_provider', provider);
+      await putSetting('chat_provider', provider);
       await putSetting('llm_openai_model', openAiModel);
       await putSetting('llm_anthropic_model', anthropicModel);
 
@@ -297,6 +340,61 @@ export default function LlmSettingsPage() {
 
   const activeKeyReady = provider === 'openai' ? openAiConfigured : anthropicConfigured;
 
+  const saveVoice = async () => {
+    setTtsSaving(true);
+    setTtsSaved(false);
+    try {
+      await putSetting('tts_enabled', ttsEnabled);
+      await putSetting('tts_voice', ttsVoice);
+      await putSetting('tts_instructions', ttsInstructions.trim() || DEFAULT_TTS_INSTRUCTIONS);
+      setTtsSaved(true);
+      setTimeout(() => setTtsSaved(false), 2000);
+    } catch (err) {
+      setTtsPreviewError(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setTtsSaving(false);
+    }
+  };
+
+  const playVoicePreview = async () => {
+    setTtsPreviewError(null);
+    setTtsPreviewPlaying(true);
+    try {
+      if (ttsPreviewAudioRef.current) {
+        ttsPreviewAudioRef.current.pause();
+      }
+      const res = await apiFetch(`${API_BASE}/api/tts/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          voice: ttsVoice,
+          instructions: ttsInstructions.trim() || DEFAULT_TTS_INSTRUCTIONS,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? 'Preview failed');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      ttsPreviewAudioRef.current = audio;
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        setTtsPreviewPlaying(false);
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        setTtsPreviewPlaying(false);
+        setTtsPreviewError('Playback failed');
+      };
+      await audio.play();
+    } catch (err) {
+      setTtsPreviewPlaying(false);
+      setTtsPreviewError(err instanceof Error ? err.message : 'Preview failed');
+    }
+  };
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
@@ -323,9 +421,9 @@ export default function LlmSettingsPage() {
 
       {/* Provider picker */}
       <Card>
-        <h2 className="text-sm font-medium mb-1">Active provider</h2>
+        <h2 className="text-sm font-medium mb-1">Chat provider</h2>
         <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
-          Only the selected provider&apos;s key is used by the assistant. Configure API keys in the sections below.
+          Which LLM handles the assistant&apos;s reasoning and tool calls. Voice (TTS) is handled separately below and always uses OpenAI.
         </p>
 
         {loading ? (
@@ -654,6 +752,129 @@ export default function LlmSettingsPage() {
           <li>System overview — &quot;Which integrations are connected?&quot;</li>
         </ul>
       </Card>
+
+      {/* Voice (TTS) */}
+      {!loading && (
+        <Card>
+          <div className="flex items-center gap-2 mb-1">
+            <Volume2 className="h-4 w-4 shrink-0" style={{ color: 'var(--color-accent)' }} />
+            <h2 className="text-sm font-medium">Voice</h2>
+          </div>
+          <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
+            Natural, streaming TTS powered by OpenAI&apos;s <span className="font-mono">gpt-4o-mini-tts</span>.
+            Requires an OpenAI key above — works even when Claude is your chat provider.
+          </p>
+
+          {!openAiConfigured && (
+            <div
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs mb-4"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-warning, #f59e0b) 12%, transparent)',
+                color: 'var(--color-warning, #f59e0b)',
+                border: '1px solid color-mix(in srgb, var(--color-warning, #f59e0b) 30%, transparent)',
+              }}
+            >
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              Voice requires an OpenAI key — add one above to enable.
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {/* Enable toggle */}
+            <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={ttsEnabled}
+                onChange={(e) => { setTtsEnabled(e.target.checked); setTtsSaved(false); }}
+                disabled={!openAiConfigured}
+                className="h-4 w-4 accent-current"
+                style={{ accentColor: 'var(--color-accent)' }}
+              />
+              <span className="text-sm">Enable voice responses</span>
+            </label>
+
+            {/* Voice picker */}
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>Voice</p>
+              <ModelPicker
+                value={ttsVoice}
+                options={TTS_VOICE_OPTIONS}
+                onChange={(v) => { setTtsVoice(v); setTtsSaved(false); }}
+              />
+            </div>
+
+            {/* Instructions */}
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+                Tone instructions <span style={{ color: 'var(--color-text-muted)' }}>(shapes delivery — gpt-4o-mini-tts follows prose prompts)</span>
+              </p>
+              <textarea
+                value={ttsInstructions}
+                onChange={(e) => { setTtsInstructions(e.target.value); setTtsSaved(false); }}
+                rows={3}
+                maxLength={2000}
+                className="w-full rounded-lg border px-3 py-2 text-sm transition-colors"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)',
+                }}
+                placeholder={DEFAULT_TTS_INSTRUCTIONS}
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={saveVoice}
+                disabled={ttsSaving || !openAiConfigured}
+                className="rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+                style={{ backgroundColor: 'var(--color-accent)', color: '#fff' }}
+              >
+                {ttsSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : ttsSaved ? (
+                  <span className="flex items-center gap-1"><Check className="h-3.5 w-3.5" /> Saved</span>
+                ) : (
+                  'Save voice settings'
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={playVoicePreview}
+                disabled={ttsPreviewPlaying || !openAiConfigured}
+                className="rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+                style={{
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  color: 'var(--color-text-secondary)',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                {ttsPreviewPlaying ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <span className="flex items-center gap-1"><Play className="h-3.5 w-3.5" /> Preview</span>
+                )}
+              </button>
+            </div>
+
+            {ttsPreviewError && (
+              <div
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--color-danger, #ef4444) 10%, transparent)',
+                  color: 'var(--color-danger, #ef4444)',
+                  border: '1px solid color-mix(in srgb, var(--color-danger, #ef4444) 30%, transparent)',
+                }}
+              >
+                <CircleAlert className="h-3.5 w-3.5 shrink-0" />
+                {ttsPreviewError}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Wake word */}
       {!loading && (
