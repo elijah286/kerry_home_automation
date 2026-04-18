@@ -19,6 +19,7 @@ export async function GET(
         cookie: req.headers.get('cookie') ?? '',
         authorization: req.headers.get('authorization') ?? '',
       },
+      cache: 'no-store',
       signal: AbortSignal.timeout(30_000),
     });
 
