@@ -403,6 +403,26 @@ export function registerSystemRoutes(app: FastifyInstance): void {
     return { entries: getLogEntries() };
   });
 
+  // POST /api/system/log — push a log line from the frontend into the status
+  // window (e.g. camera tier failures). Frontend-originated so severity is
+  // limited to info|warn|error, and the message is bounded to 500 chars.
+  app.post<{ Body: { level?: 'info' | 'warn' | 'error'; source?: string; message?: string; meta?: Record<string, unknown> } }>(
+    '/api/system/log',
+    { preHandler: terminalAccess },
+    async (req, reply) => {
+      const body = req.body ?? {};
+      const level   = body.level === 'error' || body.level === 'warn' ? body.level : 'info';
+      const source  = (body.source ?? 'client').slice(0, 64);
+      const message = (body.message ?? '').slice(0, 500);
+      if (!message) return reply.code(400).send({ error: 'message required' });
+      logger[level]({ source, ...(body.meta ?? {}) }, message);
+      return { ok: true };
+    },
+  );
+
+  // Kick off the system health monitor (CPU / disk alarms → status window).
+  startSystemHealthMonitor();
+
   // GET /api/system/logs/stream — SSE of new log lines after connect
   app.get('/api/system/logs/stream', { preHandler: terminalAccess }, async (req, reply) => {
     reply.hijack();
@@ -787,4 +807,87 @@ export function registerSystemRoutes(app: FastifyInstance): void {
     logger.info('Automations reloaded via system controls');
     return { ok: true, message: 'Automations reloaded' };
   });
+}
+
+// ---------------------------------------------------------------------------
+// System health monitor — samples CPU + disk on an interval; emits
+// logger.error when thresholds are crossed so the status window alarms.
+// Dedupes: only emits on state transitions (OK → critical) and every 10 min
+// while critical, so we don't flood the log.
+// ---------------------------------------------------------------------------
+
+const CPU_CRITICAL_PERCENT = 85;
+const DISK_CRITICAL_PERCENT = 90;
+const MONITOR_INTERVAL_MS = 30_000;
+const RE_ALARM_MS = 10 * 60_000;
+
+interface AlarmState {
+  active: boolean;
+  lastEmittedAt: number;
+}
+
+const alarmState: Record<'cpu' | 'disk', AlarmState> = {
+  cpu:  { active: false, lastEmittedAt: 0 },
+  disk: { active: false, lastEmittedAt: 0 },
+};
+
+let monitorTimer: ReturnType<typeof setInterval> | null = null;
+
+function maybeEmitAlarm(
+  key: 'cpu' | 'disk',
+  isCritical: boolean,
+  message: string,
+  meta: Record<string, unknown>,
+): void {
+  const state = alarmState[key];
+  const now = Date.now();
+
+  if (isCritical) {
+    const justTransitioned = !state.active;
+    const reAlarmDue = now - state.lastEmittedAt >= RE_ALARM_MS;
+    if (justTransitioned || reAlarmDue) {
+      logger.error({ source: 'system-monitor', alarm: key, ...meta }, message);
+      state.lastEmittedAt = now;
+    }
+    state.active = true;
+  } else if (state.active) {
+    logger.info({ source: 'system-monitor', alarm: key, ...meta }, `${key.toUpperCase()} back to normal`);
+    state.active = false;
+    state.lastEmittedAt = 0;
+  }
+}
+
+async function sampleAndAlarm(): Promise<void> {
+  try {
+    const [cpuPercent, disk] = await Promise.all([
+      getCpuPercent(),
+      getDiskBytes('/'),
+    ]);
+
+    maybeEmitAlarm(
+      'cpu',
+      cpuPercent >= CPU_CRITICAL_PERCENT,
+      `CPU critical: ${cpuPercent}% across ${os.cpus().length} cores`,
+      { percent: cpuPercent, cores: os.cpus().length },
+    );
+
+    const diskPercent = disk.total > 0 ? Math.round((disk.used / disk.total) * 100) : 0;
+    const freeGb = disk.total > 0 ? Math.round((disk.total - disk.used) / 1e9) : 0;
+    maybeEmitAlarm(
+      'disk',
+      diskPercent >= DISK_CRITICAL_PERCENT,
+      `Disk critical: ${diskPercent}% used, ${freeGb} GB free on /`,
+      { percent: diskPercent, freeBytes: disk.total - disk.used, totalBytes: disk.total },
+    );
+  } catch (err) {
+    logger.warn({ err, source: 'system-monitor' }, 'System health sample failed');
+  }
+}
+
+export function startSystemHealthMonitor(): void {
+  if (monitorTimer) return;
+  // First sample is delayed a few seconds to let the process finish booting.
+  setTimeout(() => void sampleAndAlarm(), 5_000);
+  monitorTimer = setInterval(() => void sampleAndAlarm(), MONITOR_INTERVAL_MS);
+  logger.info({ source: 'system-monitor' }, 'System health monitor started');
 }

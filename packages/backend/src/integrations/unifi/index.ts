@@ -11,7 +11,7 @@ import { eventBus } from '../../state/event-bus.js';
 import * as entryStore from '../../db/integration-entry-store.js';
 import { ProtectClient, type DiscoveredCamera } from './protect-client.js';
 
-const POLL_INTERVAL_MS = 3_000;
+const POLL_INTERVAL_MS = 1_000;
 
 /** Default go2rtc URL when none is provided — Docker service name. */
 export const UNIFI_DEFAULT_GO2RTC_URL = 'http://go2rtc:1984';
