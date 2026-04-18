@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { GripHorizontal } from 'lucide-react';
 import { clsx } from 'clsx';
 import { X, AlertTriangle, Info, AlertOctagon, ListTree, Braces, Maximize2, Minimize2, Filter } from 'lucide-react';
 import { useTheme } from '@/providers/ThemeProvider';
@@ -88,6 +89,7 @@ export function SystemTerminalDock({
   onStatusInteraction,
   lcarsStatusAuto,
   rightInsetPx = 0,
+  onHeightChange,
 }: {
   sidebarOffsetPx: number;
   onClose: () => void;
@@ -107,6 +109,8 @@ export function SystemTerminalDock({
   lcarsStatusAuto?: { flashPeriodMs: number | null; onAutoClick: () => void };
   /** LCARS: leave room on the right for frame-drawn filter sidebar (px from viewport right) */
   rightInsetPx?: number;
+  /** Called when user drags the resize handle to a new height */
+  onHeightChange?: (h: number) => void;
 }) {
   const { activeTheme } = useTheme();
   const isMdUp = useMediaQuery('(min-width: 768px)');
@@ -130,6 +134,28 @@ export function SystemTerminalDock({
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  /** Local height override from drag-resize; syncs from prop when parent changes it */
+  const [localHeightPx, setLocalHeightPx] = useState(panelHeightPx);
+  useEffect(() => { setLocalHeightPx(panelHeightPx); }, [panelHeightPx]);
+
+  const onResizePointerDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const startY = e.clientY;
+    const startH = localHeightPx;
+    const onMove = (ev: PointerEvent) => {
+      const delta = placement === 'bottom' ? startY - ev.clientY : ev.clientY - startY;
+      const newH = Math.max(120, Math.min(window.innerHeight - 60, startH + delta));
+      setLocalHeightPx(newH);
+      onHeightChange?.(newH);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }, [localHeightPx, placement, onHeightChange]);
 
   // Initial snapshot
   useEffect(() => {
@@ -215,14 +241,14 @@ export function SystemTerminalDock({
           position: 'fixed',
           left: sidebarOffsetPx,
           top: topOffsetPx,
-          height: panelHeightPx,
+          height: localHeightPx,
           zIndex: 48,
         }
       : {
           position: 'fixed',
           left: sidebarOffsetPx,
           bottom: bottomPx ?? 0,
-          height: panelHeightPx,
+          height: localHeightPx,
           zIndex: 48,
         };
 
@@ -254,11 +280,11 @@ export function SystemTerminalDock({
       style={{
         left: sidebarOffsetPx + dockLeftShift,
         right: rightInsetPx,
-        height: panelHeightPx,
+        height: localHeightPx,
         ...(placement === 'top'
           ? { top: topOffsetPx, bottom: 'auto' }
           : { bottom: bottomPx ?? 0, top: 'auto' }),
-        backgroundColor: isLCARS ? '#000' : 'var(--color-bg-card)',
+        backgroundColor: isLCARS ? '#000' : 'var(--color-bg)',
         borderColor: 'var(--color-border)',
       }}
       onPointerDown={(e) => {
@@ -266,6 +292,17 @@ export function SystemTerminalDock({
         onStatusInteraction?.();
       }}
     >
+      {/* Resize handle — top edge for bottom-docked, bottom edge for LCARS top-docked */}
+      {placement === 'bottom' && (
+        <div
+          onPointerDown={onResizePointerDown}
+          className="absolute inset-x-0 top-0 z-10 flex h-[6px] cursor-ns-resize items-center justify-center select-none"
+          style={{ touchAction: 'none' }}
+          title="Drag to resize"
+        >
+          <GripHorizontal className="h-3 w-3 opacity-30" style={{ color: 'var(--color-text-secondary)' }} />
+        </div>
+      )}
       {/* Header — filters (hidden when LCARS frame handles controls) */}
       {!lcarsFrameHandlesControls && (
       <div
@@ -290,7 +327,7 @@ export function SystemTerminalDock({
             )}
             style={{ color: 'var(--color-text-secondary)' }}
           >
-            System terminal
+            Status window
           </span>
           {!lcarsTop && (
             <div
@@ -413,8 +450,8 @@ export function SystemTerminalDock({
               aria-pressed={statusLcarsFullscreen}
               aria-label={
                 statusLcarsFullscreen
-                  ? 'Restore default terminal height'
-                  : 'Expand system terminal toward full screen'
+                  ? 'Restore default status window height'
+                  : 'Expand status window toward full screen'
               }
               className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors"
               style={{
@@ -471,7 +508,7 @@ export function SystemTerminalDock({
                 : 'rounded-md p-1.5',
             )}
             style={{ color: 'var(--color-text-secondary)' }}
-            aria-label="Close system terminal"
+            aria-label="Close status window"
           >
             {isLCARS ? '×' : <X className="h-4 w-4" />}
           </button>
@@ -505,6 +542,18 @@ export function SystemTerminalDock({
       </div>
       )}
 
+      {placement === 'top' && (
+        <div
+          onPointerDown={onResizePointerDown}
+          className="absolute inset-x-0 bottom-0 z-10 flex h-[6px] cursor-ns-resize items-center justify-center select-none"
+          style={{ touchAction: 'none' }}
+          title="Drag to resize"
+        >
+          {!lcarsTopStackedChrome && (
+            <GripHorizontal className="h-3 w-3 opacity-30" style={{ color: 'var(--color-text-secondary)' }} />
+          )}
+        </div>
+      )}
       {/* Log body */}
       <div
         ref={scrollerRef}

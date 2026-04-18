@@ -773,6 +773,9 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
             lcarsFrameHandlesControls={useStackedStatusChrome}
             onStatusInteraction={bumpStatusInteraction}
             rightInsetPx={LCARS_STATUS_FILTER_RAIL_W}
+            onHeightChange={(h) =>
+              setStatusViewerBandH(useStackedStatusChrome ? h + STATUS_SEPARATOR_H + STATUS_STACK_GAP : h)
+            }
             lcarsStatusAuto={
               useStackedStatusChrome
                 ? undefined

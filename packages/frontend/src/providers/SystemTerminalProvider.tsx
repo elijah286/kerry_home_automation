@@ -251,6 +251,7 @@ export function SystemTerminalProvider({
           onClose={() => setOpen(false)}
           placement="bottom"
           panelHeightPx={statusLcarsFullscreen ? bottomDockHeightPx : TERMINAL_PANEL_HEIGHT}
+          onHeightChange={setBottomDockHeightPx}
         />
       )}
     </SystemTerminalContext.Provider>
@@ -268,5 +269,5 @@ export function useSystemTerminalBottomInset(): number {
   const ctx = useContext(SystemTerminalContext);
   if (!ctx?.canUse || !ctx.open) return 0;
   if (ctx.terminalDockPlacement === 'top') return 0;
-  return ctx.statusLcarsFullscreen ? ctx.bottomDockHeightPx : TERMINAL_PANEL_HEIGHT;
+  return ctx.bottomDockHeightPx;
 }
