@@ -2373,6 +2373,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
       let ttsKey: string | undefined;
       let ttsVoice = 'sage';
       let ttsInstructions = '';
+      let ttsSpeed = 1.15;
       let ttsEnabled = false;
 
       const enqueueTts = (text: string) => {
@@ -2384,6 +2385,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
           apiKey: ttsKey,
           voice: ttsVoice as TtsVoice,
           instructions: ttsInstructions,
+          speed: ttsSpeed,
         }).catch((err) => {
           logger.warn({ err, seq: n }, 'tts synth failed');
           return null;
@@ -2446,6 +2448,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
             ttsKey = ttsActive.key;
             ttsVoice = llmSettings.ttsVoice;
             ttsInstructions = llmSettings.ttsInstructions;
+            ttsSpeed = llmSettings.ttsSpeed;
             ttsEnabled = true;
           }
         }

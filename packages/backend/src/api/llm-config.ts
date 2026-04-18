@@ -15,6 +15,10 @@ export type TtsVoice = typeof TTS_VOICES[number];
 export const DEFAULT_TTS_INSTRUCTIONS =
   'Speak warmly and conversationally, like a helpful home assistant. Keep energy natural, not overly cheerful. Pause briefly between sentences.';
 
+export const DEFAULT_TTS_SPEED = 1.15;
+export const TTS_SPEED_MIN = 0.5;
+export const TTS_SPEED_MAX = 2.0;
+
 export interface LlmRuntimeSettings {
   /** Legacy single "active provider" — kept for back-compat; prefer chatProvider. */
   provider: LlmProviderId;
@@ -28,6 +32,8 @@ export interface LlmRuntimeSettings {
   ttsEnabled: boolean;
   ttsVoice: TtsVoice;
   ttsInstructions: string;
+  /** Playback speed multiplier for OpenAI TTS (0.5–2.0). */
+  ttsSpeed: number;
 }
 
 const LLM_SETTING_KEYS = [
@@ -41,6 +47,7 @@ const LLM_SETTING_KEYS = [
   'tts_enabled',
   'tts_voice',
   'tts_instructions',
+  'tts_speed',
 ] as const;
 
 /**
@@ -98,6 +105,14 @@ export async function loadLlmRuntimeSettings(): Promise<LlmRuntimeSettings> {
     : 'sage';
   const ttsInstructions = asTrimmedString(map.get('tts_instructions')) ?? DEFAULT_TTS_INSTRUCTIONS;
 
+  const rawSpeed = map.get('tts_speed');
+  const parsedSpeed = typeof rawSpeed === 'number'
+    ? rawSpeed
+    : Number(asTrimmedString(rawSpeed));
+  const ttsSpeed = Number.isFinite(parsedSpeed) && parsedSpeed > 0
+    ? Math.min(Math.max(parsedSpeed, TTS_SPEED_MIN), TTS_SPEED_MAX)
+    : DEFAULT_TTS_SPEED;
+
   return {
     provider,
     chatProvider,
@@ -108,6 +123,7 @@ export async function loadLlmRuntimeSettings(): Promise<LlmRuntimeSettings> {
     ttsEnabled,
     ttsVoice,
     ttsInstructions,
+    ttsSpeed,
   };
 }
 

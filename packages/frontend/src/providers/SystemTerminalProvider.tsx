@@ -77,6 +77,9 @@ interface SystemTerminalContextValue {
   /** Time window (ms) for the performance view graphs. */
   perfRangeMs: number;
   setPerfRangeMs: (v: number) => void;
+  /** Current on-screen source ID (e.g. camera entity) for the "Current" filter. */
+  currentSourceId: string | null;
+  setCurrentSourceId: (v: string | null) => void;
 }
 
 const SystemTerminalContext = createContext<SystemTerminalContextValue | null>(null);
@@ -106,6 +109,7 @@ export function SystemTerminalProvider({
   const [logIntegrationFilterPanelOpen, setLogIntegrationFilterPanelOpen] = useState(false);
   const [dockView, setDockView] = useState<StatusDockView>('logs');
   const [perfRangeMs, setPerfRangeMs] = useState<number>(86_400_000);
+  const [currentSourceId, setCurrentSourceId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -234,6 +238,8 @@ export function SystemTerminalProvider({
       setDockView,
       perfRangeMs,
       setPerfRangeMs,
+      currentSourceId,
+      setCurrentSourceId,
     }),
     [
       canUse,
@@ -256,6 +262,8 @@ export function SystemTerminalProvider({
       openWithSourceFilter,
       dockView,
       perfRangeMs,
+      currentSourceId,
+      setCurrentSourceId,
     ],
   );
 
@@ -269,6 +277,7 @@ export function SystemTerminalProvider({
           placement="bottom"
           panelHeightPx={statusLcarsFullscreen ? bottomDockHeightPx : TERMINAL_PANEL_HEIGHT}
           onHeightChange={setBottomDockHeightPx}
+          currentSourceId={currentSourceId}
         />
       )}
     </SystemTerminalContext.Provider>

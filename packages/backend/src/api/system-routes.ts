@@ -503,34 +503,41 @@ export function registerSystemRoutes(app: FastifyInstance): void {
       reply.raw.write(`data: ${JSON.stringify({ type: 'entry', entry })}\n\n`);
     };
 
-    // On client connect, replay recent software-update entries from the in-memory
-    // log buffer. These are written in real-time by the update orchestrator; the
-    // in-memory buffer survives SSE disconnects and is more current than the
-    // persisted .update-progress.jsonl (which has the orchestrator's own events,
-    // not live pino logs).
+    // On client connect, replay all recent entries from the in-memory log buffer
+    // so the status window shows continuity across SSE reconnects, device reboots,
+    // or backend restarts. The buffer is populated in real-time by all logging
+    // sources (orchestrator, integrations, system events, etc.) and survives
+    // transient disconnects.
     (async () => {
       try {
         const allEntries = getLogEntries();
-        const softwareUpdateEntries = allEntries.filter(
-          (e) => e.context?.integration === 'software-update'
-        );
-        for (const entry of softwareUpdateEntries) {
+        const bufferSize = allEntries.length;
+
+        // Replay the buffer
+        for (const entry of allEntries) {
           write(entry);
         }
+
+        // Subscribe to *new* entries only (skip the ones we just replayed).
+        // Track by reference since entries are immutable after logging.
+        const replayedIds = new Set(allEntries.map((e) => `${e.ts}:${e.msg.slice(0, 64)}`));
+        const unsub = subscribeLogs((entry) => {
+          const id = `${entry.ts}:${entry.msg.slice(0, 64)}`;
+          if (!replayedIds.has(id)) {
+            write(entry);
+          }
+        });
+        const ping = setInterval(() => {
+          reply.raw.write(': ping\n\n');
+        }, 25_000);
+
+        req.raw.on('close', () => {
+          clearInterval(ping);
+          unsub();
+        });
       } catch (err) {
-        logger.debug({ err }, 'Failed to replay software-update logs');
+        logger.debug({ err }, 'Failed to replay log buffer');
       }
-
-      // Now stream live updates
-      const unsub = subscribeLogs(write);
-      const ping = setInterval(() => {
-        reply.raw.write(': ping\n\n');
-      }, 25_000);
-
-      req.raw.on('close', () => {
-        clearInterval(ping);
-        unsub();
-      });
     })();
   });
 

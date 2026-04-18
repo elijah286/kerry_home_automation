@@ -166,6 +166,7 @@ export default function LlmSettingsPage() {
   const [ttsEnabled, setTtsEnabled] = useState(false);
   const [ttsVoice, setTtsVoice] = useState<string>('sage');
   const [ttsInstructions, setTtsInstructions] = useState<string>(DEFAULT_TTS_INSTRUCTIONS);
+  const [ttsSpeed, setTtsSpeed] = useState<number>(1.15);
   const [ttsSaving, setTtsSaving] = useState(false);
   const [ttsSaved, setTtsSaved] = useState(false);
   const [ttsPreviewPlaying, setTtsPreviewPlaying] = useState(false);
@@ -185,6 +186,7 @@ export default function LlmSettingsPage() {
       'tts_enabled',
       'tts_voice',
       'tts_instructions',
+      'tts_speed',
     ] as const;
 
     Promise.all(
@@ -192,7 +194,7 @@ export default function LlmSettingsPage() {
         apiFetch(`${API_BASE}/api/settings/${k}`).then((r) => r.json() as Promise<{ value?: unknown }>),
       ),
     )
-      .then(([p, cp, openaiExplicit, legacy, anth, om, am, ww, tEnabled, tVoice, tInstr]) => {
+      .then(([p, cp, openaiExplicit, legacy, anth, om, am, ww, tEnabled, tVoice, tInstr, tSpeed]) => {
         const pv = readSetting(p);
         const cpv = readSetting(cp);
         const resolvedProvider: LlmProviderId =
@@ -209,6 +211,11 @@ export default function LlmSettingsPage() {
         if (v) setTtsVoice(v);
         const instr = readSetting(tInstr);
         if (instr) setTtsInstructions(instr);
+        const rawSpeed = tSpeed?.value;
+        const numSpeed = typeof rawSpeed === 'number' ? rawSpeed : Number(rawSpeed);
+        if (Number.isFinite(numSpeed) && numSpeed >= 0.5 && numSpeed <= 2.0) {
+          setTtsSpeed(numSpeed);
+        }
 
         const explicitOpenAi = readSetting(openaiExplicit);
         const legacyOpenAi   = readSetting(legacy);
@@ -347,6 +354,7 @@ export default function LlmSettingsPage() {
       await putSetting('tts_enabled', ttsEnabled);
       await putSetting('tts_voice', ttsVoice);
       await putSetting('tts_instructions', ttsInstructions.trim() || DEFAULT_TTS_INSTRUCTIONS);
+      await putSetting('tts_speed', Math.min(Math.max(ttsSpeed, 0.5), 2.0));
       setTtsSaved(true);
       setTimeout(() => setTtsSaved(false), 2000);
     } catch (err) {
@@ -369,6 +377,7 @@ export default function LlmSettingsPage() {
         body: JSON.stringify({
           voice: ttsVoice,
           instructions: ttsInstructions.trim() || DEFAULT_TTS_INSTRUCTIONS,
+          speed: Math.min(Math.max(ttsSpeed, 0.5), 2.0),
         }),
       });
       if (!res.ok) {
@@ -801,6 +810,34 @@ export default function LlmSettingsPage() {
                 options={TTS_VOICE_OPTIONS}
                 onChange={(v) => { setTtsVoice(v); setTtsSaved(false); }}
               />
+            </div>
+
+            {/* Speed */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                  Speech rate
+                </p>
+                <span className="text-xs tabular-nums" style={{ color: 'var(--color-text-muted)' }}>
+                  {ttsSpeed.toFixed(2)}×
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0.5}
+                max={2.0}
+                step={0.05}
+                value={ttsSpeed}
+                onChange={(e) => { setTtsSpeed(Number(e.target.value)); setTtsSaved(false); }}
+                className="w-full"
+                style={{ accentColor: 'var(--color-accent)' }}
+                aria-label="Speech rate"
+              />
+              <div className="flex justify-between text-[10px] mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                <span>0.5× slower</span>
+                <span>1.0× natural</span>
+                <span>2.0× faster</span>
+              </div>
             </div>
 
             {/* Instructions */}
