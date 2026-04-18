@@ -361,7 +361,13 @@ export class UniFiIntegration implements Integration {
   }
 
   private async go2rtcPutStream(baseUrl: string, name: string, rtspUrl: string): Promise<void> {
-    const url = `${baseUrl}/api/streams?name=${encodeURIComponent(name)}&src=${encodeURIComponent(rtspUrl)}`;
+    // Register through the ffmpeg source wrapper so any HLS fragmenting or
+    // MJPEG transcoding go2rtc has to do goes through Intel QuickSync (or
+    // whatever the master-hardware image's ffmpeg detects). `video=copy` and
+    // `audio=copy` keep the native codec passthrough for WebRTC/MSE on the
+    // happy path — ffmpeg only does real work when a client asks for HLS.
+    const src = `ffmpeg:${rtspUrl}#video=copy#audio=copy#hardware=qsv`;
+    const url = `${baseUrl}/api/streams?name=${encodeURIComponent(name)}&src=${encodeURIComponent(src)}`;
     const res = await fetch(url, { method: 'PUT', signal: AbortSignal.timeout(8_000) });
     if (!res.ok) {
       throw new Error(`go2rtc PUT stream failed: ${res.status}`);

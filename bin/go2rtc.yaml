@@ -12,6 +12,13 @@ webrtc:
   ice_servers:
     - urls: [stun:stun.l.google.com:19302, stun:stun1.l.google.com:19302]
 
+# Enable ffmpeg hwaccel templates. The master-hardware image ships with
+# h264_qsv / hevc_qsv codecs; the `#hardware=qsv` hint on each stream
+# (added by the backend when registering via /api/streams) activates them.
+# Passthrough streams for WebRTC/MSE bypass ffmpeg entirely.
+ffmpeg:
+  bin: ffmpeg
+
 # Streams are configured automatically by the backend when UniFi Protect
 # credentials are provided. Manual entries can still be added here if needed.
 streams: {}
