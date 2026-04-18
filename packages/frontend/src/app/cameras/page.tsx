@@ -279,6 +279,16 @@ function CameraPlayer({
           backBufferLength: 10,
           maxBufferLength: 10,
           liveSyncDurationCount: 2,
+          // go2rtc cold-starts ffmpeg on demand — the first M3U8 may be empty
+          // while ffmpeg is initialising. Give hls.js enough retries so it
+          // stays patient through the warm-up window (each retry is ~2s apart,
+          // so 20 retries × 2s = 40s, matching our 45s watchdog).
+          manifestLoadingMaxRetry: 20,
+          manifestLoadingRetryDelay: 2000,
+          levelLoadingMaxRetry: 20,
+          levelLoadingRetryDelay: 2000,
+          fragLoadingMaxRetry: 20,
+          fragLoadingRetryDelay: 2000,
           // Propagate auth (Bearer token for remote access, cookies for local)
           // to every segment/playlist request — hls.js does its own XHRs.
           xhrSetup: (xhr) => {
@@ -290,7 +300,17 @@ function CameraPlayer({
         hls.loadSource(src);
         hls.attachMedia(video);
         hls.on(Hls.Events.ERROR, (_e, data) => {
-          if (data.fatal && !cancelled) degrade();
+          if (!data.fatal || cancelled) return;
+          // For network errors, hls.js can recover by retrying — don't give up
+          // immediately. Only degrade on media errors or if the library itself
+          // has exhausted its own retry budget and marked the error fatal.
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+            hls?.recoverMediaError();
+          } else if (data.type !== Hls.ErrorTypes.NETWORK_ERROR) {
+            degrade();
+          }
+          // NETWORK_ERROR: let hls.js retry via manifestLoadingMaxRetry above.
+          // The 45s watchdog is the hard deadline.
         });
         video.play().catch(() => { /* autoplay restriction — user can tap */ });
       }).catch(() => { if (!cancelled) degrade(); });
