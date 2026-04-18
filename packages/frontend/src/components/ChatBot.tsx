@@ -12,6 +12,8 @@ import {
   useMemo,
   type ReactNode,
   type CSSProperties,
+  type Dispatch,
+  type SetStateAction,
 } from 'react';
 import type { LCARSFrameGeometry } from '@/components/lcars/LCARSFrameContext';
 import { useRouter, usePathname } from 'next/navigation';
@@ -129,7 +131,7 @@ interface AssistantContextValue {
   toggle: () => void;
   /** Set while LCARS frame is mounted; used because the assistant panel renders outside `.lcars-frame`. */
   lcarsDockInset: LcarsAssistantDockInset | null;
-  setLcarsDockInset: (v: LcarsAssistantDockInset | null) => void;
+  setLcarsDockInset: Dispatch<SetStateAction<LcarsAssistantDockInset | null>>;
   rightPanelMode: RightPanelMode;
   setRightPanelMode: (m: RightPanelMode) => void;
   /** Opens the right panel on the kitchen timers view (used from recipe detail). */
@@ -156,8 +158,17 @@ export function LCARSAssistantInsetSync({
 }) {
   const { setLcarsDockInset } = useAssistant();
   useLayoutEffect(() => {
-    setLcarsDockInset({ ...geometry, framePin });
-    return () => setLcarsDockInset(null);
+    const inset: LcarsAssistantDockInset = { ...geometry, framePin };
+    setLcarsDockInset(inset);
+    // Defer the clear so that if a sibling LCARSAssistantInsetSync mounts on
+    // the next route, it has a chance to overwrite this inset before we null
+    // it out — otherwise the assistant panel briefly flashes to its
+    // non-docked position during LCARS→LCARS route transitions.
+    return () => {
+      setTimeout(() => {
+        setLcarsDockInset((cur) => (cur === inset ? null : cur));
+      }, 0);
+    };
   }, [geometry, framePin, setLcarsDockInset]);
   return null;
 }
@@ -917,9 +928,10 @@ function AssistantRightPanel() {
                   new CustomEvent('ha:data-changed', { detail: { resources } }),
                 );
               }
-              // Also nudge Next.js to re-run any server components on the
-              // current route (harmless if there are none to refresh).
-              try { router.refresh(); } catch { /* noop */ }
+              // Intentionally no router.refresh() — pages listen for the
+              // ha:data-changed event and refetch in place. A full RSC refresh
+              // causes the whole page to flash through a loading state and
+              // visually interrupts the assistant panel.
             } else if (event.type === 'client_action' && event.action?.kind === 'timer') {
               // Assistant is driving a kitchen timer. Run it against the local
               // CookingTimers context so the Timers sidebar updates instantly.

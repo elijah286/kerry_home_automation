@@ -8,7 +8,16 @@
 
 import type { FastifyInstance } from 'fastify';
 import OpenAI, { toFile } from 'openai';
-import { apiKeyFor, loadLlmRuntimeSettings, DEFAULT_TTS_INSTRUCTIONS, TTS_VOICES, type TtsVoice } from './llm-config.js';
+import {
+  apiKeyFor,
+  loadLlmRuntimeSettings,
+  DEFAULT_TTS_INSTRUCTIONS,
+  DEFAULT_TTS_SPEED,
+  TTS_SPEED_MIN,
+  TTS_SPEED_MAX,
+  TTS_VOICES,
+  type TtsVoice,
+} from './llm-config.js';
 import { authenticate } from './auth.js';
 
 const TTS_MODEL = 'gpt-4o-mini-tts';
@@ -17,6 +26,12 @@ export interface SynthesizeOpts {
   apiKey: string;
   voice: TtsVoice;
   instructions: string;
+  speed?: number;
+}
+
+function clampSpeed(s: number | undefined): number {
+  if (s == null || !Number.isFinite(s) || s <= 0) return DEFAULT_TTS_SPEED;
+  return Math.min(Math.max(s, TTS_SPEED_MIN), TTS_SPEED_MAX);
 }
 
 export async function synthesizeSentence(text: string, opts: SynthesizeOpts): Promise<Buffer> {
@@ -27,6 +42,7 @@ export async function synthesizeSentence(text: string, opts: SynthesizeOpts): Pr
     input: text,
     instructions: opts.instructions,
     response_format: 'mp3',
+    speed: clampSpeed(opts.speed),
   });
   const arrayBuffer = await response.arrayBuffer();
   return Buffer.from(arrayBuffer);
@@ -81,7 +97,7 @@ export function stripMarkdownForTts(text: string): string {
 }
 
 export function registerTtsRoutes(app: FastifyInstance) {
-  app.post<{ Body: { text?: string; voice?: string; instructions?: string } }>(
+  app.post<{ Body: { text?: string; voice?: string; instructions?: string; speed?: number } }>(
     '/api/tts/preview',
     { preHandler: [authenticate] },
     async (req, reply) => {
@@ -99,12 +115,14 @@ export function registerTtsRoutes(app: FastifyInstance) {
         ? (rawVoice as TtsVoice)
         : settings.ttsVoice;
       const instructions = (req.body.instructions ?? settings.ttsInstructions ?? DEFAULT_TTS_INSTRUCTIONS).slice(0, 2000);
+      const speed = clampSpeed(req.body.speed ?? settings.ttsSpeed);
 
       try {
         const mp3 = await synthesizeSentence(stripMarkdownForTts(text), {
           apiKey: active.key,
           voice,
           instructions,
+          speed,
         });
         reply.header('Content-Type', 'audio/mpeg');
         reply.header('Cache-Control', 'no-store');
