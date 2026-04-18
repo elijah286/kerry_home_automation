@@ -16,7 +16,7 @@ import { useSystemTerminal } from '@/providers/SystemTerminalProvider';
  * UniFi filter in the panel — that way the user can downselect to just
  * camera/UniFi events when diagnosing a stream.
  */
-const CAMERAS_LOG_INTEGRATION = 'unifi';
+const CAMERAS_LOG_INTEGRATION = 'cameras';
 
 function logToStatus(
   level: 'info' | 'warn' | 'error',
