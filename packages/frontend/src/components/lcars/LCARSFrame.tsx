@@ -23,6 +23,7 @@ import { SYSTEM_STATS_RANGE_PRESETS } from '@/components/viz/SystemStatsGraph';
 import { lcarsVerticalRailGradient } from './lcarsRailGradient';
 import { LCARSBreadcrumbBlocks } from './LCARSBreadcrumbBlocks';
 import { getBreadcrumbItems } from '@/lib/appBreadcrumbs';
+import { useBreadcrumbOverride, mergeBreadcrumbItems } from '@/providers/BreadcrumbOverrideProvider';
 import { AppVersionLabel } from '../layout/AppVersionLabel';
 import { PinElevationControls } from '../layout/PinElevationControls';
 import { AssistantHeaderButton, MapLayersHeaderButton, LCARSAssistantInsetSync } from '../ChatBot';
@@ -176,6 +177,7 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
   }, [logDetailStyle, setLogDetailStyle]);
   const { devices, integrations } = useWebSocket();
   const { play: playSound } = useLCARSSounds();
+  const { extra: breadcrumbExtra } = useBreadcrumbOverride();
   const [showStartup, setShowStartup] = useState(true);
   /** Status viewer band when terminal open: ~20% viewport, clamped for usability */
   const [statusViewerBandH, setStatusViewerBandH] = useState(TERMINAL_PANEL_HEIGHT);
@@ -210,7 +212,7 @@ export function LCARSFrame({ children, collapsed, onToggle, mobileNavOpen, setMo
 
   if (activeTheme !== 'lcars') return <>{children}</>;
 
-  const breadcrumbItems = getBreadcrumbItems(pathname ?? '/');
+  const breadcrumbItems = mergeBreadcrumbItems(getBreadcrumbItems(pathname ?? '/'), breadcrumbExtra);
   const barW = collapsed ? BAR_W_COLLAPSED : BAR_W;
   const or = Math.min(OUTER_R, barW);
   const elbowW = barW + INNER_R;

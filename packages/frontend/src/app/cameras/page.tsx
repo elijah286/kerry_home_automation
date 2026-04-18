@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Settings2, Eye, EyeOff, Terminal } from 'lucide-react';
+import { Settings2, Eye, EyeOff } from 'lucide-react';
 import { getApiBase, apiFetch, authQueryParam, authHeaders } from '@/lib/api-base';
 import { SlidePanel } from '@/components/ui/SlidePanel';
-import { useSystemTerminal } from '@/providers/SystemTerminalProvider';
+import { useBreadcrumbOverride } from '@/providers/BreadcrumbOverrideProvider';
 
 /**
  * Push a log line into the system terminal / status window. Fire-and-forget —
@@ -420,19 +420,34 @@ function saveSettings(s: CameraSettings) {
 // ffmpeg pipelines when the user isn't looking.
 // ---------------------------------------------------------------------------
 
+// Stagger delay between tiles so they don't all start HLS at the same time.
+// 9 tiles × 600ms = last tile starts at ~5.4s, spreading ffmpeg session spin-up
+// across the whole warmup window instead of pegging all CPU cores at once.
+const TILE_STAGGER_MS = 600;
+
 const CameraTile = memo(function CameraTile({
   cam,
+  index,
   onSelect,
 }: {
   cam: CameraInfo;
+  index: number;
   onSelect: () => void;
 }) {
   const [visible, setVisible] = useState(true);
   const [inView,  setInView]  = useState(true);
+  const [ready,   setReady]   = useState(index === 0); // first tile starts immediately
   const [tier,    setTier]    = useState<Tier>(() => initialTier('auto'));
   const [status,  setStatus]  = useState<PlayerStatus>('connecting');
   const [idleRev, setIdleRev] = useState(0);
   const tileRef = useRef<HTMLDivElement | null>(null);
+
+  // Stagger HLS start so tiles don't all open ffmpeg sessions simultaneously.
+  useEffect(() => {
+    if (index === 0) return;
+    const t = window.setTimeout(() => setReady(true), index * TILE_STAGGER_MS);
+    return () => window.clearTimeout(t);
+  }, [index]);
 
   // Track page visibility (tab switched away / browser minimized)
   useEffect(() => {
@@ -453,7 +468,7 @@ const CameraTile = memo(function CameraTile({
     return () => obs.disconnect();
   }, []);
 
-  const active = visible && inView;
+  const active = ready && visible && inView;
 
   // When the tile is NOT active, refresh the static snapshot every 10s so
   // the grid doesn't show a completely frozen image after a long idle.
@@ -475,13 +490,9 @@ const CameraTile = memo(function CameraTile({
           mode="auto"
           quality="sd"
           fit="cover"
-          // Always-on fresh snapshot requests. CameraPlayer only polls snapshots
-          // while HLS is warming up or has failed — so this is a no-op most of
-          // the time. While it IS polling, `?fresh=500` tells the backend to
-          // bypass its 1s cache and pull a new frame from go2rtc, pinning
-          // tile-underlay update rate at ~2fps instead of being gated by the
-          // shared poll cycle (which can slip past 1s under iGPU load).
-          highFrequencySnapshots
+          // Tiles use the shared backend cache (no fresh= param) — they only need
+          // a snapshot underlay while HLS warms up, not 2fps live preview.
+          // Fresh snapshots are reserved for the fullscreen player.
           onTierChange={(t, s) => { setTier(t); setStatus(s); }}
         />
       ) : (
@@ -525,14 +536,23 @@ const TIER_LABEL: Record<Tier, string> = {
  * Large in-page camera player. Renders inside the normal page chrome (no
  * fixed/overlay positioning) so the app shell, header, and status window
  * stay visible around it.
+ *
+ * Mode and quality are controlled externally (lifted to CamerasPage and
+ * surfaced in the settings sidebar) so this component only handles playback.
  */
-function InlineCameraPlayer({ cam, onClose }: { cam: CameraInfo; onClose: () => void }) {
-  const [mode,    setMode]    = useState<PlayerMode>('auto');
-  const [quality, setQuality] = useState<Quality>(cam.hasHd ? 'hd' : 'sd');
-  const [tier,    setTier]    = useState<Tier>(() => initialTier('auto'));
-  const [status,  setStatus]  = useState<PlayerStatus>('connecting');
-  const { openWithSourceFilter } = useSystemTerminal();
-  const viewLogs = () => openWithSourceFilter(CAMERAS_LOG_INTEGRATION);
+function InlineCameraPlayer({
+  cam,
+  onClose,
+  mode,
+  quality,
+}: {
+  cam: CameraInfo;
+  onClose: () => void;
+  mode: PlayerMode;
+  quality: Quality;
+}) {
+  const [tier,   setTier]   = useState<Tier>(() => initialTier(mode));
+  const [status, setStatus] = useState<PlayerStatus>('connecting');
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -552,79 +572,17 @@ function InlineCameraPlayer({ cam, onClose }: { cam: CameraInfo; onClose: () => 
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Toolbar: stays in normal page flow */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Back to grid
-          </button>
-          <button
-            type="button"
-            onClick={viewLogs}
-            className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
-            title="Open the status window filtered to camera/UniFi logs"
-          >
-            <Terminal className="h-3.5 w-3.5" />
-            View logs
-          </button>
-        </div>
-        <span className="text-sm font-medium text-zinc-100">{cam.label}</span>
-        <div className="flex items-center gap-2">
-          {cam.hasHd && (
-            <div className="flex overflow-hidden rounded-md border border-zinc-700 bg-zinc-900/60 text-[11px] text-zinc-300">
-              {(['sd', 'hd'] as Quality[]).map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  onClick={() => setQuality(q)}
-                  className={`px-2.5 py-1 font-medium uppercase transition-colors ${
-                    quality === q ? 'bg-zinc-100 text-zinc-900' : 'hover:bg-zinc-800'
-                  }`}
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="flex overflow-hidden rounded-md border border-zinc-700 bg-zinc-900/60 text-[11px] text-zinc-300">
-            {(['auto', 'webrtc', 'hls', 'snapshot'] as PlayerMode[]).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMode(m)}
-                className={`px-2.5 py-1 transition-colors ${
-                  mode === m ? 'bg-zinc-100 text-zinc-900' : 'hover:bg-zinc-800'
-                }`}
-              >
-                {m === 'auto' ? 'Auto' : TIER_LABEL[m as Tier]}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {/* Player — fills the content area vertically but never scrolls the page */}
-      <div className="relative w-full overflow-hidden rounded-md bg-black" style={{ height: 'calc(100vh - 14rem)', minHeight: '300px' }}>
+      <div className="relative w-full overflow-hidden rounded-md bg-black" style={{ height: 'calc(100vh - 12rem)', minHeight: '300px' }}>
         <CameraPlayer
           key={`${cam.name}:${mode}:${quality}`}
           name={cam.name}
           mode={mode}
           quality={quality}
-          // 2fps fresh snapshots while HLS is still warming up, so the user
-          // gets a responsive preview instead of a frame every ~1s. Drops
-          // back to 0 once HLS is live (the video element takes over).
           highFrequencySnapshots={status === 'connecting'}
           onTierChange={(t, s) => { setTier(t); setStatus(s); }}
         />
 
-        {/* Small unobtrusive badge while HLS warms up — the snapshot underlay
-            is already showing the scene, so we don't cover it with a big
-            center spinner. Status bar below still spells out 'Connecting · HLS…'. */}
         {status === 'connecting' && (
           <div className="pointer-events-none absolute top-3 right-3 z-10 flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 backdrop-blur-sm">
             <span className="relative flex h-2 w-2">
@@ -640,15 +598,6 @@ function InlineCameraPlayer({ cam, onClose }: { cam: CameraInfo; onClose: () => 
         <span className={status === 'failed' ? 'text-red-400' : 'text-zinc-400'}>
           {statusText}
         </span>
-        {status === 'failed' && (
-          <button
-            type="button"
-            onClick={viewLogs}
-            className="underline decoration-dotted underline-offset-2 text-zinc-300 hover:text-zinc-100"
-          >
-            Open logs for this camera →
-          </button>
-        )}
       </div>
     </div>
   );
@@ -678,12 +627,22 @@ function SettingsPanel({
   cameras,
   settings,
   onChange,
+  selectedCam,
+  mode,
+  quality,
+  onModeChange,
+  onQualityChange,
 }: {
   open: boolean;
   onClose: () => void;
   cameras: CameraInfo[];
   settings: CameraSettings;
   onChange: (s: CameraSettings) => void;
+  selectedCam: CameraInfo | null;
+  mode: PlayerMode;
+  quality: Quality;
+  onModeChange: (m: PlayerMode) => void;
+  onQualityChange: (q: Quality) => void;
 }) {
   const hiddenSet = useMemo(() => new Set(settings.hidden), [settings.hidden]);
   const [diag, setDiag] = useState<DiagnosticEntry[] | null>(null);
@@ -714,76 +673,131 @@ function SettingsPanel({
 
   useEffect(() => { if (open) loadDiag(); }, [open, loadDiag]);
 
+  const panelTitle = selectedCam ? selectedCam.label : 'Camera Settings';
+
   return (
-    <SlidePanel open={open} onClose={onClose} title="Camera Settings" size="md">
+    <SlidePanel open={open} onClose={onClose} title={panelTitle} size="md">
       <div className="flex h-full min-h-0 flex-col">
         <div className="flex-1 space-y-6 overflow-y-auto px-4 py-4 text-sm">
-          {/* Columns ----------------------------------------------------- */}
-          <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
-              Grid Columns
-            </h3>
-            <div className="flex gap-1">
-              {COLUMN_OPTIONS.map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setColumns(n)}
-                  className={`flex-1 rounded border px-2 py-1.5 text-xs font-medium transition-colors ${
-                    settings.columns === n
-                      ? 'border-zinc-300 bg-zinc-100 text-zinc-900'
-                      : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          </section>
 
-          {/* Camera visibility ------------------------------------------ */}
-          <section>
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                Cameras ({cameras.length - hiddenSet.size}/{cameras.length})
+          {selectedCam ? (
+            /* ── Per-camera view: stream options only ─────────────────── */
+            <section>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                Stream Mode
               </h3>
-              <div className="flex gap-1 text-[11px]">
-                <button type="button" onClick={showAll} className="rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-zinc-300 hover:bg-zinc-800">
-                  Show all
-                </button>
-                <button type="button" onClick={hideAll} className="rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-zinc-300 hover:bg-zinc-800">
-                  Hide all
-                </button>
+              <div className="flex flex-wrap gap-1">
+                {(['auto', 'hls', 'snapshot'] as PlayerMode[]).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => onModeChange(m)}
+                    className={`rounded border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      mode === m
+                        ? 'border-zinc-300 bg-zinc-100 text-zinc-900'
+                        : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
+                    }`}
+                  >
+                    {m === 'auto' ? 'Auto' : TIER_LABEL[m as Tier]}
+                  </button>
+                ))}
               </div>
-            </div>
-            {cameras.length === 0 ? (
-              <p className="text-xs text-zinc-500">No cameras discovered yet.</p>
-            ) : (
-              <ul className="space-y-1">
-                {cameras.map((cam) => {
-                  const hidden = hiddenSet.has(cam.name);
-                  return (
-                    <li key={cam.name}>
+
+              {selectedCam.hasHd && (
+                <div className="mt-4">
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                    Quality
+                  </h3>
+                  <div className="flex gap-1">
+                    {(['sd', 'hd'] as Quality[]).map((q) => (
                       <button
+                        key={q}
                         type="button"
-                        onClick={() => toggleHidden(cam.name)}
-                        className={`flex w-full items-center justify-between gap-2 rounded border px-2.5 py-1.5 text-left text-xs transition-colors ${
-                          hidden
-                            ? 'border-zinc-800 bg-zinc-950 text-zinc-500 hover:bg-zinc-900'
-                            : 'border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800'
+                        onClick={() => onQualityChange(q)}
+                        className={`rounded border px-4 py-1.5 text-xs font-medium uppercase transition-colors ${
+                          quality === q
+                            ? 'border-zinc-300 bg-zinc-100 text-zinc-900'
+                            : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
                         }`}
                       >
-                        <span className="truncate">{cam.label}</span>
-                        {hidden ? <EyeOff className="h-3.5 w-3.5 shrink-0" /> : <Eye className="h-3.5 w-3.5 shrink-0" />}
+                        {q}
                       </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+          ) : (
+            /* ── Grid view: columns + camera visibility ────────────────── */
+            <>
+              {/* Columns */}
+              <section>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                  Grid Columns
+                </h3>
+                <div className="flex gap-1">
+                  {COLUMN_OPTIONS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setColumns(n)}
+                      className={`flex-1 rounded border px-2 py-1.5 text-xs font-medium transition-colors ${
+                        settings.columns === n
+                          ? 'border-zinc-300 bg-zinc-100 text-zinc-900'
+                          : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </section>
 
-          {/* Diagnostics ------------------------------------------------- */}
+              {/* Camera visibility */}
+              <section>
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                    Cameras ({cameras.length - hiddenSet.size}/{cameras.length})
+                  </h3>
+                  <div className="flex gap-1 text-[11px]">
+                    <button type="button" onClick={showAll} className="rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-zinc-300 hover:bg-zinc-800">
+                      Show all
+                    </button>
+                    <button type="button" onClick={hideAll} className="rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-zinc-300 hover:bg-zinc-800">
+                      Hide all
+                    </button>
+                  </div>
+                </div>
+                {cameras.length === 0 ? (
+                  <p className="text-xs text-zinc-500">No cameras discovered yet.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {cameras.map((cam) => {
+                      const hidden = hiddenSet.has(cam.name);
+                      return (
+                        <li key={cam.name}>
+                          <button
+                            type="button"
+                            onClick={() => toggleHidden(cam.name)}
+                            className={`flex w-full items-center justify-between gap-2 rounded border px-2.5 py-1.5 text-left text-xs transition-colors ${
+                              hidden
+                                ? 'border-zinc-800 bg-zinc-950 text-zinc-500 hover:bg-zinc-900'
+                                : 'border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800'
+                            }`}
+                          >
+                            <span className="truncate">{cam.label}</span>
+                            {hidden ? <EyeOff className="h-3.5 w-3.5 shrink-0" /> : <Eye className="h-3.5 w-3.5 shrink-0" />}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+            </>
+          )}
+
+          {/* Diagnostics — always visible */}
           <section>
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
@@ -858,6 +872,26 @@ export default function CamerasPage() {
   const [recovering,     setRecovering]     = useState(false);
   const [showSettings,   setShowSettings]   = useState(false);
   const [settings,       setSettings]       = useState<CameraSettings>(DEFAULT_SETTINGS);
+  const [playerMode,     setPlayerMode]     = useState<PlayerMode>('auto');
+  const [playerQuality,  setPlayerQuality]  = useState<Quality>('sd');
+
+  const { setExtra } = useBreadcrumbOverride();
+
+  // Inject camera name as extra breadcrumb while a camera is open.
+  useEffect(() => {
+    if (fullscreenCam) {
+      setExtra([{ href: '/cameras', label: fullscreenCam.label, current: true }]);
+    } else {
+      setExtra([]);
+    }
+    return () => setExtra([]);
+  }, [fullscreenCam, setExtra]);
+
+  // Reset mode/quality to defaults when switching cameras.
+  useEffect(() => {
+    setPlayerMode('auto');
+    setPlayerQuality(fullscreenCam?.hasHd ? 'hd' : 'sd');
+  }, [fullscreenCam]);
 
   // silence unused warning on helper re-exported for other callers
   void authHeaders;
@@ -991,16 +1025,19 @@ export default function CamerasPage() {
           <InlineCameraPlayer
             cam={fullscreenCam}
             onClose={() => setFullscreenCam(null)}
+            mode={playerMode}
+            quality={playerQuality}
           />
         ) : (
           <div
             className="grid gap-1"
             style={{ gridTemplateColumns: `repeat(${settings.columns}, minmax(0, 1fr))` }}
           >
-            {visibleCameras.map((cam) => (
+            {visibleCameras.map((cam, i) => (
               <CameraTile
                 key={cam.name}
                 cam={cam}
+                index={i}
                 onSelect={() => setFullscreenCam(cam)}
               />
             ))}
@@ -1014,6 +1051,11 @@ export default function CamerasPage() {
         cameras={cameras}
         settings={settings}
         onChange={updateSettings}
+        selectedCam={fullscreenCam}
+        mode={playerMode}
+        quality={playerQuality}
+        onModeChange={setPlayerMode}
+        onQualityChange={setPlayerQuality}
       />
     </>
   );
