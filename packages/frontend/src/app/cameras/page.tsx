@@ -6,6 +6,7 @@ import { Settings2, Eye, EyeOff } from 'lucide-react';
 import { getApiBase, apiFetch, authQueryParam, authHeaders } from '@/lib/api-base';
 import { SlidePanel } from '@/components/ui/SlidePanel';
 import { useBreadcrumbOverride } from '@/providers/BreadcrumbOverrideProvider';
+import { useSystemTerminal } from '@/providers/SystemTerminalProvider';
 
 /**
  * Push a log line into the system terminal / status window. Fire-and-forget —
@@ -54,7 +55,9 @@ type PlayerStatus = 'connecting' | 'live' | 'failed';
 
 const AUTO_TIER_ORDER: Tier[] = ['hls', 'snapshot'];
 const WEBRTC_WATCHDOG_MS = 10_000;
-const HLS_WATCHDOG_MS = 15_000;
+// go2rtc cold-starts ffmpeg on demand; waiting for the first keyframe on a
+// 4K H.265 stream can take 20-30s. Give it 45s before giving up.
+const HLS_WATCHDOG_MS = 45_000;
 
 function nextAutoTier(t: Tier): Tier | null {
   const i = AUTO_TIER_ORDER.indexOf(t);
@@ -277,6 +280,16 @@ function CameraPlayer({
           backBufferLength: 10,
           maxBufferLength: 10,
           liveSyncDurationCount: 2,
+          // go2rtc cold-starts ffmpeg on demand — the first M3U8 may be empty
+          // while ffmpeg is initialising. Give hls.js enough retries so it
+          // stays patient through the warm-up window (each retry is ~2s apart,
+          // so 20 retries × 2s = 40s, matching our 45s watchdog).
+          manifestLoadingMaxRetry: 20,
+          manifestLoadingRetryDelay: 2000,
+          levelLoadingMaxRetry: 20,
+          levelLoadingRetryDelay: 2000,
+          fragLoadingMaxRetry: 20,
+          fragLoadingRetryDelay: 2000,
           // Propagate auth (Bearer token for remote access, cookies for local)
           // to every segment/playlist request — hls.js does its own XHRs.
           xhrSetup: (xhr) => {
@@ -288,7 +301,17 @@ function CameraPlayer({
         hls.loadSource(src);
         hls.attachMedia(video);
         hls.on(Hls.Events.ERROR, (_e, data) => {
-          if (data.fatal && !cancelled) degrade();
+          if (!data.fatal || cancelled) return;
+          // For network errors, hls.js can recover by retrying — don't give up
+          // immediately. Only degrade on media errors or if the library itself
+          // has exhausted its own retry budget and marked the error fatal.
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+            hls?.recoverMediaError();
+          } else if (data.type !== Hls.ErrorTypes.NETWORK_ERROR) {
+            degrade();
+          }
+          // NETWORK_ERROR: let hls.js retry via manifestLoadingMaxRetry above.
+          // The 45s watchdog is the hard deadline.
         });
         video.play().catch(() => { /* autoplay restriction — user can tap */ });
       }).catch(() => { if (!cancelled) degrade(); });
@@ -312,13 +335,13 @@ function CameraPlayer({
 
   useEffect(() => {
     if (!pollSnapshots) return;
-    // 500ms while actively using snapshots as the primary tier; 2000ms (slow)
-    // while connecting a video tier — that's just an underlay to cover the
-    // black frame during HLS/WebRTC handshake, not a live feed.
-    const intervalMs = activeTier === 'snapshot' ? 1000 : 2000;
+    // highFrequencySnapshots (fullscreen): 500ms for both underlay and snapshot tier
+    // so the user gets ~2fps live preview while HLS is warming up.
+    // Grid tiles (highFrequencySnapshots=false): 1s for snapshot tier, 2s underlay.
+    const intervalMs = highFrequencySnapshots ? 500 : (activeTier === 'snapshot' ? 1000 : 2000);
     const id = window.setInterval(() => setSnapshotRev((n) => n + 1), intervalMs);
     return () => window.clearInterval(id);
-  }, [pollSnapshots, activeTier]);
+  }, [pollSnapshots, activeTier, highFrequencySnapshots]);
 
   useEffect(() => {
     if (activeTier === 'snapshot') emit('snapshot', 'connecting');
@@ -890,16 +913,23 @@ export default function CamerasPage() {
   const [playerQuality,  setPlayerQuality]  = useState<Quality>('sd');
 
   const { setExtra } = useBreadcrumbOverride();
+  const { setCurrentSourceId } = useSystemTerminal();
 
   // Inject camera name as extra breadcrumb while a camera is open.
+  // Also set the current source ID for the status window "Current" filter.
   useEffect(() => {
     if (fullscreenCam) {
       setExtra([{ href: '/cameras', label: fullscreenCam.label, current: true }]);
+      setCurrentSourceId('cameras');
     } else {
       setExtra([]);
+      setCurrentSourceId(null);
     }
-    return () => setExtra([]);
-  }, [fullscreenCam, setExtra]);
+    return () => {
+      setExtra([]);
+      setCurrentSourceId(null);
+    };
+  }, [fullscreenCam, setExtra, setCurrentSourceId]);
 
   // Reset mode/quality to defaults when switching cameras.
   useEffect(() => {

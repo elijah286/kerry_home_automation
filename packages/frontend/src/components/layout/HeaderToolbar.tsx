@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from 'react';
 import { clsx } from 'clsx';
+import { Terminal } from 'lucide-react';
 import { PinElevationControls } from './PinElevationControls';
 import { AssistantHeaderButton, MapLayersHeaderButton } from '../ChatBot';
 import { AppVersionLabel } from './AppVersionLabel';
@@ -37,8 +38,10 @@ export function HeaderToolbar({ layout = 'header' }: { layout?: 'header' | 'draw
           type="button"
           onClick={() => setTerminalOpen(!terminalOpen)}
           className={clsx(
-            'rounded-md text-xs font-semibold uppercase tracking-wide transition-colors',
-            isDrawer ? 'w-full py-2.5 px-3' : 'px-2.5 py-1.5',
+            'transition-colors',
+            isDrawer
+              ? 'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-left'
+              : 'rounded-md text-xs font-semibold uppercase tracking-wide px-2.5 py-1.5',
             hasRecentLogError && 'system-status-log-error-alert',
           )}
           aria-label={hasRecentLogError ? 'Status — recent error in system log' : 'Open system log'}
@@ -54,25 +57,37 @@ export function HeaderToolbar({ layout = 'header' }: { layout?: 'header' | 'draw
               ? undefined
               : terminalOpen
                 ? 'var(--color-accent)'
-                : 'var(--color-bg-hover)',
-            color: hasRecentLogError ? undefined : '#fff',
-            border: '1px solid',
-            borderColor: hasRecentLogError ? undefined : 'var(--color-border)',
+                : isDrawer
+                  ? 'transparent'
+                  : 'var(--color-bg-hover)',
+            color: hasRecentLogError
+              ? undefined
+              : terminalOpen
+                ? '#fff'
+                : isDrawer
+                  ? 'var(--color-sidebar-text)'
+                  : '#fff',
+            ...(isDrawer
+              ? {}
+              : { border: '1px solid', borderColor: 'var(--color-border)' }),
           }}
         >
-          Status
+          {isDrawer && <Terminal className="h-5 w-5 shrink-0" />}
+          <span>Status</span>
         </button>
       )}
-      <div
-        className={clsx(
-          'flex items-center gap-2',
-          isDrawer && 'w-full flex-wrap justify-center gap-3 py-1',
-        )}
-      >
-        <MapLayersHeaderButton variant="default" />
-        <AssistantHeaderButton variant="default" />
-      </div>
-      <div className={clsx(isDrawer && 'pt-1 w-full flex justify-center')}>
+      {isDrawer ? (
+        <>
+          <MapLayersHeaderButton variant="default" layout="drawer" />
+          <AssistantHeaderButton variant="default" layout="drawer" />
+        </>
+      ) : (
+        <div className="flex items-center gap-2">
+          <MapLayersHeaderButton variant="default" />
+          <AssistantHeaderButton variant="default" />
+        </div>
+      )}
+      <div className={clsx(isDrawer && 'pt-1 w-full flex justify-start px-3')}>
         <AppVersionLabel />
       </div>
     </div>
