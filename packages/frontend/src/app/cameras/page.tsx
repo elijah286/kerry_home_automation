@@ -54,7 +54,9 @@ type PlayerStatus = 'connecting' | 'live' | 'failed';
 
 const AUTO_TIER_ORDER: Tier[] = ['hls', 'snapshot'];
 const WEBRTC_WATCHDOG_MS = 10_000;
-const HLS_WATCHDOG_MS = 15_000;
+// go2rtc cold-starts ffmpeg on demand; waiting for the first keyframe on a
+// 4K H.265 stream can take 20-30s. Give it 45s before giving up.
+const HLS_WATCHDOG_MS = 45_000;
 
 function nextAutoTier(t: Tier): Tier | null {
   const i = AUTO_TIER_ORDER.indexOf(t);
@@ -312,13 +314,13 @@ function CameraPlayer({
 
   useEffect(() => {
     if (!pollSnapshots) return;
-    // 500ms while actively using snapshots as the primary tier; 2000ms (slow)
-    // while connecting a video tier — that's just an underlay to cover the
-    // black frame during HLS/WebRTC handshake, not a live feed.
-    const intervalMs = activeTier === 'snapshot' ? 1000 : 2000;
+    // highFrequencySnapshots (fullscreen): 500ms for both underlay and snapshot tier
+    // so the user gets ~2fps live preview while HLS is warming up.
+    // Grid tiles (highFrequencySnapshots=false): 1s for snapshot tier, 2s underlay.
+    const intervalMs = highFrequencySnapshots ? 500 : (activeTier === 'snapshot' ? 1000 : 2000);
     const id = window.setInterval(() => setSnapshotRev((n) => n + 1), intervalMs);
     return () => window.clearInterval(id);
-  }, [pollSnapshots, activeTier]);
+  }, [pollSnapshots, activeTier, highFrequencySnapshots]);
 
   useEffect(() => {
     if (activeTier === 'snapshot') emit('snapshot', 'connecting');
