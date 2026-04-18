@@ -18,6 +18,21 @@ const nextConfig: NextConfig = {
         async rewrites() {
           return [{ source: '/api/:path*', destination: `${internalApiOrigin}/api/:path*` }];
         },
+        async headers() {
+          // iOS Safari aggressively caches top-level HTML and can keep serving
+          // a pre-deploy bundle indefinitely, making new releases look like
+          // they never shipped. Next.js's own handler for /_next/static sets
+          // immutable caching and takes precedence, so hashed JS/CSS stays
+          // long-cached; this only forces HTML documents to revalidate.
+          return [
+            {
+              source: '/:path*',
+              headers: [
+                { key: 'Cache-Control', value: 'no-store, must-revalidate' },
+              ],
+            },
+          ];
+        },
       }),
   transpilePackages: ['@ha/shared'],
   experimental: {
