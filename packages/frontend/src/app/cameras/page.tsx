@@ -1,32 +1,41 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, memo, type CSSProperties } from 'react';
-import { X } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo, type CSSProperties } from 'react';
+import { X, Settings2, Eye, EyeOff } from 'lucide-react';
 import { getApiBase, apiFetch, authQueryParam, authHeaders } from '@/lib/api-base';
 import { useLCARSFrame } from '@/components/lcars/LCARSFrameContext';
+import { SlidePanel } from '@/components/ui/SlidePanel';
 
 // ---------------------------------------------------------------------------
 // Camera live player with tiered fallback:
-//   1. WebRTC       — sub-second latency, native codec, no transcoding
-//   2. HLS          — 3–6s latency, works through any HTTP proxy / poor network
-//   3. Snapshot     — 2 fps JPEG polling, last-resort so user always sees *something*
+//   1. HLS          — 3–6s latency, works through any HTTP proxy / poor network
+//   2. Snapshot     — 2 fps JPEG polling, always works if go2rtc can produce frames
 //
-// The player starts at whatever tier the user picked (default auto = 1), and
-// on stall / error automatically degrades. Watchdogs are generous because
-// go2rtc HLS cold-start can take 10+ s to produce the first segment.
+// WebRTC stays available as a manual override (useful on LAN with direct go2rtc
+// reachability) but is NOT part of the auto fallback — in this deployment ICE
+// negotiation through the proxy hasn't been working, and falling through it
+// just added ~10s of wait before HLS could start. Auto mode skips it.
+//
+// While a video tier (HLS/WebRTC) is connecting we keep a snapshot underlay so
+// the user sees *something* immediately rather than staring at a black frame
+// for the 10+ s HLS cold-start.
 // ---------------------------------------------------------------------------
 
 type Tier = 'webrtc' | 'hls' | 'snapshot';
 type PlayerMode = 'auto' | Tier;
 type PlayerStatus = 'connecting' | 'live' | 'failed';
 
-const TIER_ORDER: Tier[] = ['webrtc', 'hls', 'snapshot'];
+const AUTO_TIER_ORDER: Tier[] = ['hls', 'snapshot'];
 const WEBRTC_WATCHDOG_MS = 10_000;
 const HLS_WATCHDOG_MS = 15_000;
 
-function nextTier(t: Tier): Tier | null {
-  const i = TIER_ORDER.indexOf(t);
-  return i >= 0 && i + 1 < TIER_ORDER.length ? TIER_ORDER[i + 1] : null;
+function nextAutoTier(t: Tier): Tier | null {
+  const i = AUTO_TIER_ORDER.indexOf(t);
+  return i >= 0 && i + 1 < AUTO_TIER_ORDER.length ? AUTO_TIER_ORDER[i + 1] : null;
+}
+
+function initialTier(mode: PlayerMode): Tier {
+  return mode === 'auto' ? AUTO_TIER_ORDER[0] : (mode as Tier);
 }
 
 function CameraPlayer({
@@ -41,23 +50,21 @@ function CameraPlayer({
   onError?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [activeTier, setActiveTier] = useState<Tier>(
-    mode === 'auto' ? 'webrtc' : (mode as Tier),
-  );
+  const [activeTier, setActiveTier] = useState<Tier>(() => initialTier(mode));
+  const [status, setStatus] = useState<PlayerStatus>('connecting');
   const [snapshotRev, setSnapshotRev] = useState(0);
   const tierRef = useRef(activeTier);
   tierRef.current = activeTier;
 
-  // Stabilize callbacks so tier effects don't re-run on every parent re-render
-  // (parent re-renders every 500 ms during snapshot polling).
+  // Stabilize callbacks so tier effects don't re-run on every parent re-render.
   const onTierChangeRef = useRef(onTierChange);
   onTierChangeRef.current = onTierChange;
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
   const emit = useCallback((t: Tier, s: PlayerStatus) => {
+    setStatus(s);
     onTierChangeRef.current?.(t, s);
     if (process.env.NODE_ENV !== 'production') {
-      // Helps diagnose which tier is actually failing in the field.
       // eslint-disable-next-line no-console
       console.info(`[camera:${name}] ${t} → ${s}`);
     }
@@ -65,18 +72,18 @@ function CameraPlayer({
 
   // Reset to the user-selected starting tier whenever name or mode changes.
   useEffect(() => {
-    setActiveTier(mode === 'auto' ? 'webrtc' : (mode as Tier));
+    setActiveTier(initialTier(mode));
   }, [name, mode]);
 
-  // Degrade one tier. In 'auto' mode drops to the next fallback; in a forced
-  // mode the user asked for a specific tier so we don't override their choice.
+  // Degrade one tier. In 'auto' mode drops to the next auto fallback; in a
+  // forced mode the user asked for a specific tier so we don't override it.
   const degrade = useCallback(() => {
     if (mode !== 'auto') {
       emit(tierRef.current, 'failed');
       onErrorRef.current?.();
       return;
     }
-    const next = nextTier(tierRef.current);
+    const next = nextAutoTier(tierRef.current);
     if (next) {
       setActiveTier(next);
     } else {
@@ -86,11 +93,10 @@ function CameraPlayer({
   }, [mode, emit]);
 
   // -------------------------------------------------------------------------
-  // Tier 1: WebRTC
+  // Tier 1 (manual only): WebRTC
   // -------------------------------------------------------------------------
   useEffect(() => {
     if (activeTier !== 'webrtc') return;
-
     emit('webrtc', 'connecting');
 
     let pc: RTCPeerConnection | null = null;
@@ -102,7 +108,6 @@ function CameraPlayer({
       if (watchdog) clearTimeout(watchdog);
       watchdog = setTimeout(() => { if (!cancelled) degrade(); }, WEBRTC_WATCHDOG_MS);
     };
-
     const clearWatchdog = () => {
       if (watchdog) { clearTimeout(watchdog); watchdog = null; }
     };
@@ -120,8 +125,7 @@ function CameraPlayer({
           const video = videoRef.current;
           if (!video) return;
           if (!video.srcObject) video.srcObject = new MediaStream();
-          const stream = video.srcObject as MediaStream;
-          stream.addTrack(ev.track);
+          (video.srcObject as MediaStream).addTrack(ev.track);
         };
 
         pc.oniceconnectionstatechange = () => {
@@ -133,7 +137,6 @@ function CameraPlayer({
 
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-
         armWatchdog();
 
         const res = await apiFetch(`${getApiBase()}/api/cameras/${encodeURIComponent(name)}/webrtc`, {
@@ -144,10 +147,8 @@ function CameraPlayer({
         if (!res.ok) throw new Error(`WebRTC SDP ${res.status}`);
         const answerSdp = await res.text();
         if (cancelled) return;
-
         await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
 
-        // Consider the tier "live" once the video element actually paints a frame.
         const video = videoRef.current;
         if (video) {
           const onPlaying = () => {
@@ -156,7 +157,6 @@ function CameraPlayer({
           };
           video.addEventListener('playing', onPlaying, { once: true });
 
-          // Detect stall: time should advance. If currentTime freezes for 6s, degrade.
           let lastTime = 0;
           let stalledSince = 0;
           stalledCheck = setInterval(() => {
@@ -189,11 +189,10 @@ function CameraPlayer({
   }, [activeTier, name, degrade, emit]);
 
   // -------------------------------------------------------------------------
-  // Tier 2: HLS
+  // Tier 1 (auto default): HLS
   // -------------------------------------------------------------------------
   useEffect(() => {
     if (activeTier !== 'hls') return;
-
     emit('hls', 'connecting');
 
     const video = videoRef.current;
@@ -204,12 +203,10 @@ function CameraPlayer({
     let watchdog: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
 
-    const armWatchdog = () => {
-      watchdog = setTimeout(() => { if (!cancelled) degrade(); }, HLS_WATCHDOG_MS);
-    };
     const clearWatchdog = () => {
       if (watchdog) { clearTimeout(watchdog); watchdog = null; }
     };
+    watchdog = setTimeout(() => { if (!cancelled) degrade(); }, HLS_WATCHDOG_MS);
 
     const onPlaying = () => {
       clearWatchdog();
@@ -217,14 +214,10 @@ function CameraPlayer({
     };
     video.addEventListener('playing', onPlaying);
 
-    armWatchdog();
-
-    // Native HLS (Safari / iOS)
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = src;
       video.play().catch(() => { if (!cancelled) degrade(); });
     } else {
-      // hls.js
       void import('hls.js').then(({ default: Hls }) => {
         if (cancelled) return;
         if (!Hls.isSupported()) { degrade(); return; }
@@ -239,7 +232,7 @@ function CameraPlayer({
         hls.on(Hls.Events.ERROR, (_e, data) => {
           if (data.fatal && !cancelled) degrade();
         });
-        video.play().catch(() => { /* ignore autoplay rejections; user can tap */ });
+        video.play().catch(() => { /* autoplay restriction — user can tap */ });
       }).catch(() => { if (!cancelled) degrade(); });
     }
 
@@ -254,24 +247,32 @@ function CameraPlayer({
   }, [activeTier, name, degrade, emit]);
 
   // -------------------------------------------------------------------------
-  // Tier 3: Snapshot polling (last resort)
+  // Snapshot polling — used as tier 2 AND as an underlay while HLS/WebRTC
+  // warm up, so the user never stares at a black frame.
   // -------------------------------------------------------------------------
+  const pollSnapshots = activeTier === 'snapshot' || status === 'connecting';
+
   useEffect(() => {
-    if (activeTier !== 'snapshot') return;
-    emit('snapshot', 'connecting');
+    if (!pollSnapshots) return;
     const id = window.setInterval(() => setSnapshotRev((n) => n + 1), 500);
     return () => window.clearInterval(id);
+  }, [pollSnapshots]);
+
+  useEffect(() => {
+    if (activeTier === 'snapshot') emit('snapshot', 'connecting');
   }, [activeTier, emit]);
 
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
+  const snapshotSrc = `${getApiBase()}/api/cameras/${encodeURIComponent(name)}/snapshot?r=${snapshotRev}${authQueryParam(true)}`;
+  const showUnderlay = pollSnapshots && activeTier !== 'snapshot';
+
   if (activeTier === 'snapshot') {
-    const src = `${getApiBase()}/api/cameras/${encodeURIComponent(name)}/snapshot?r=${snapshotRev}${authQueryParam(true)}`;
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={src}
+        src={snapshotSrc}
         alt=""
         className="absolute inset-0 h-full w-full object-contain"
         onLoad={() => emit('snapshot', 'live')}
@@ -281,18 +282,30 @@ function CameraPlayer({
   }
 
   return (
-    <video
-      ref={videoRef}
-      autoPlay
-      muted
-      playsInline
-      className="absolute inset-0 h-full w-full object-contain bg-black"
-    />
+    <>
+      {showUnderlay && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={snapshotSrc}
+          alt=""
+          className="absolute inset-0 h-full w-full object-contain"
+        />
+      )}
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        className={`absolute inset-0 h-full w-full object-contain bg-black transition-opacity ${
+          status === 'live' ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
+    </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Camera data
+// Camera data + settings persistence
 // ---------------------------------------------------------------------------
 
 interface CameraInfo {
@@ -300,8 +313,37 @@ interface CameraInfo {
   label: string;
 }
 
+interface CameraSettings {
+  columns: number;
+  hidden: string[]; // camera names to hide from the grid
+}
+
+const SETTINGS_KEY = 'cameras-grid-settings';
+const DEFAULT_SETTINGS: CameraSettings = { columns: 4, hidden: [] };
+const COLUMN_OPTIONS = [1, 2, 3, 4, 5, 6] as const;
+
+function loadSettings(): CameraSettings {
+  if (typeof window === 'undefined') return DEFAULT_SETTINGS;
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return DEFAULT_SETTINGS;
+    const parsed = JSON.parse(raw) as Partial<CameraSettings>;
+    const columns = COLUMN_OPTIONS.includes(parsed.columns as 1 | 2 | 3 | 4 | 5 | 6)
+      ? (parsed.columns as number)
+      : DEFAULT_SETTINGS.columns;
+    const hidden = Array.isArray(parsed.hidden) ? parsed.hidden.filter((x): x is string => typeof x === 'string') : [];
+    return { columns, hidden };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+function saveSettings(s: CameraSettings) {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch { /* quota / private mode */ }
+}
+
 // ---------------------------------------------------------------------------
-// Camera tile — snapshot polling at 500 ms (~2 fps), works for any grid size
+// Camera tile — snapshot polling at 500 ms (~2 fps)
 // ---------------------------------------------------------------------------
 
 const CameraTile = memo(function CameraTile({
@@ -362,7 +404,7 @@ const CameraTile = memo(function CameraTile({
 });
 
 // ---------------------------------------------------------------------------
-// Fullscreen player with tier selector
+// Fullscreen player
 // ---------------------------------------------------------------------------
 
 const TIER_LABEL: Record<Tier, string> = {
@@ -372,9 +414,9 @@ const TIER_LABEL: Record<Tier, string> = {
 };
 
 function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => void }) {
-  const [mode,       setMode]       = useState<PlayerMode>('auto');
-  const [tier,       setTier]       = useState<Tier>('webrtc');
-  const [status,     setStatus]     = useState<'connecting' | 'live' | 'failed'>('connecting');
+  const [mode,   setMode]   = useState<PlayerMode>('auto');
+  const [tier,   setTier]   = useState<Tier>(() => initialTier('auto'));
+  const [status, setStatus] = useState<PlayerStatus>('connecting');
   const frame = useLCARSFrame();
 
   useEffect(() => {
@@ -384,7 +426,7 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
   }, [onClose]);
 
   useEffect(() => {
-    setTier(mode === 'auto' ? 'webrtc' : (mode as Tier));
+    setTier(initialTier(mode));
     setStatus('connecting');
   }, [cam.name, mode]);
 
@@ -403,23 +445,23 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
   const statusText =
     status === 'live'       ? `Live · ${TIER_LABEL[tier]}` :
     status === 'connecting' ? `Connecting · ${TIER_LABEL[tier]}…` :
-    `No stream — all tiers failed. Check Diagnostics.`;
+    `No stream — all tiers failed. Open Settings → Diagnostics.`;
 
   return (
     <div className="flex flex-col bg-black" style={overlayStyle}>
       <div className="relative flex-1">
-        {status === 'connecting' && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center">
-            <div className="h-6 w-6 rounded-full border-2 border-zinc-600 border-t-zinc-300 animate-spin" />
-          </div>
-        )}
-
         <CameraPlayer
           key={`${cam.name}:${mode}`}
           name={cam.name}
           mode={mode}
           onTierChange={(t, s) => { setTier(t); setStatus(s); }}
         />
+
+        {status === 'connecting' && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+            <div className="h-6 w-6 rounded-full border-2 border-white/30 border-t-white/80 animate-spin drop-shadow-md" />
+          </div>
+        )}
 
         <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-4 py-3">
           <span className="text-sm font-medium text-white drop-shadow-sm">{cam.label}</span>
@@ -459,7 +501,7 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
 }
 
 // ---------------------------------------------------------------------------
-// Diagnostics drawer
+// Settings panel (right sidebar via SlidePanel)
 // ---------------------------------------------------------------------------
 
 interface DiagnosticEntry {
@@ -476,110 +518,165 @@ interface DiagnosticEntry {
   protectCameraCount?: number;
 }
 
-function DiagnosticsPanel({ onClose }: { onClose: () => void }) {
-  const [entries, setEntries] = useState<DiagnosticEntry[] | null>(null);
-  const [error,   setError]   = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+function SettingsPanel({
+  open,
+  onClose,
+  cameras,
+  settings,
+  onChange,
+}: {
+  open: boolean;
+  onClose: () => void;
+  cameras: CameraInfo[];
+  settings: CameraSettings;
+  onChange: (s: CameraSettings) => void;
+}) {
+  const hiddenSet = useMemo(() => new Set(settings.hidden), [settings.hidden]);
+  const [diag, setDiag] = useState<DiagnosticEntry[] | null>(null);
+  const [diagError, setDiagError] = useState<string | null>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
 
-  const load = useCallback(() => {
-    setLoading(true);
+  const setColumns = (n: number) => onChange({ ...settings, columns: n });
+  const toggleHidden = (name: string) => {
+    const next = new Set(hiddenSet);
+    if (next.has(name)) next.delete(name); else next.add(name);
+    onChange({ ...settings, hidden: [...next] });
+  };
+  const showAll  = () => onChange({ ...settings, hidden: [] });
+  const hideAll  = () => onChange({ ...settings, hidden: cameras.map((c) => c.name) });
+
+  const loadDiag = useCallback(() => {
+    setDiagLoading(true);
     apiFetch(`${getApiBase()}/api/cameras/diagnostics`)
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = (await r.json()) as { entries: DiagnosticEntry[] };
-        setEntries(data.entries);
-        setError(null);
+        setDiag(data.entries);
+        setDiagError(null);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-      .finally(() => setLoading(false));
+      .catch((e) => setDiagError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setDiagLoading(false));
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (open) loadDiag(); }, [open, loadDiag]);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/60 p-4" onClick={onClose}>
-      <div
-        className="mt-12 w-full max-w-2xl overflow-hidden rounded-md border border-zinc-700 bg-zinc-900 text-zinc-100 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-zinc-700 px-4 py-2.5">
-          <h2 className="text-sm font-semibold">Camera Diagnostics</h2>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={load}
-              disabled={loading}
-              className="rounded border border-zinc-600 bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700 disabled:opacity-50"
-            >
-              {loading ? 'Refreshing…' : 'Refresh'}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        <div className="max-h-[70vh] overflow-y-auto p-4 text-sm">
-          {error && (
-            <div className="rounded border border-red-900/60 bg-red-950/40 px-3 py-2 text-xs text-red-200">
-              Could not load diagnostics: {error}
-            </div>
-          )}
-
-          {!error && entries && entries.length === 0 && (
-            <p className="text-xs text-zinc-400">
-              No UniFi integration entries configured. Add one in Integrations.
-            </p>
-          )}
-
-          {!error && entries?.map((e) => (
-            <div key={e.entryId} className="mb-3 rounded border border-zinc-700/80 bg-zinc-800/40 p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="font-medium">{e.label}</span>
-                <span
-                  className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                    e.reachable ? 'bg-emerald-900/60 text-emerald-200' : 'bg-red-900/60 text-red-200'
+    <SlidePanel open={open} onClose={onClose} title="Camera Settings" size="md">
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex-1 space-y-6 overflow-y-auto px-4 py-4 text-sm">
+          {/* Columns ----------------------------------------------------- */}
+          <section>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Grid Columns
+            </h3>
+            <div className="flex gap-1">
+              {COLUMN_OPTIONS.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setColumns(n)}
+                  className={`flex-1 rounded border px-2 py-1.5 text-xs font-medium transition-colors ${
+                    settings.columns === n
+                      ? 'border-zinc-300 bg-zinc-100 text-zinc-900'
+                      : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
                   }`}
                 >
-                  {e.reachable ? 'Reachable' : 'Unreachable'}
-                </span>
-              </div>
-              <dl className="space-y-1 text-xs text-zinc-300">
-                <div className="flex gap-2"><dt className="w-28 text-zinc-500">go2rtc URL</dt><dd className="font-mono">{e.go2rtcUrl}</dd></div>
-                {e.httpStatus !== undefined && (
-                  <div className="flex gap-2"><dt className="w-28 text-zinc-500">HTTP status</dt><dd>{e.httpStatus}</dd></div>
-                )}
-                <div className="flex gap-2"><dt className="w-28 text-zinc-500">Streams</dt><dd>{e.streamCount}</dd></div>
-                <div className="flex gap-2">
-                  <dt className="w-28 text-zinc-500">Auto-discovery</dt>
-                  <dd>{e.autoDiscovery ? `on (${e.protectCameraCount ?? 0} Protect cameras)` : 'off'}</dd>
-                </div>
-                {e.streamNames.length > 0 && (
-                  <div className="flex gap-2">
-                    <dt className="w-28 text-zinc-500">Stream names</dt>
-                    <dd className="font-mono break-all">{e.streamNames.join(', ')}</dd>
-                  </div>
-                )}
-                {e.error && (
-                  <div className="mt-2 rounded bg-red-950/40 px-2 py-1.5 text-[11px] text-red-200">
-                    {e.error}
-                  </div>
-                )}
-                {e.hint && (
-                  <div className="mt-2 rounded bg-amber-950/40 px-2 py-1.5 text-[11px] text-amber-200">
-                    {e.hint}
-                  </div>
-                )}
-              </dl>
+                  {n}
+                </button>
+              ))}
             </div>
-          ))}
+          </section>
+
+          {/* Camera visibility ------------------------------------------ */}
+          <section>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                Cameras ({cameras.length - hiddenSet.size}/{cameras.length})
+              </h3>
+              <div className="flex gap-1 text-[11px]">
+                <button type="button" onClick={showAll} className="rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-zinc-300 hover:bg-zinc-800">
+                  Show all
+                </button>
+                <button type="button" onClick={hideAll} className="rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-zinc-300 hover:bg-zinc-800">
+                  Hide all
+                </button>
+              </div>
+            </div>
+            {cameras.length === 0 ? (
+              <p className="text-xs text-zinc-500">No cameras discovered yet.</p>
+            ) : (
+              <ul className="space-y-1">
+                {cameras.map((cam) => {
+                  const hidden = hiddenSet.has(cam.name);
+                  return (
+                    <li key={cam.name}>
+                      <button
+                        type="button"
+                        onClick={() => toggleHidden(cam.name)}
+                        className={`flex w-full items-center justify-between gap-2 rounded border px-2.5 py-1.5 text-left text-xs transition-colors ${
+                          hidden
+                            ? 'border-zinc-800 bg-zinc-950 text-zinc-500 hover:bg-zinc-900'
+                            : 'border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800'
+                        }`}
+                      >
+                        <span className="truncate">{cam.label}</span>
+                        {hidden ? <EyeOff className="h-3.5 w-3.5 shrink-0" /> : <Eye className="h-3.5 w-3.5 shrink-0" />}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+
+          {/* Diagnostics ------------------------------------------------- */}
+          <section>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                Diagnostics
+              </h3>
+              <button
+                type="button"
+                onClick={loadDiag}
+                disabled={diagLoading}
+                className="rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
+              >
+                {diagLoading ? 'Checking…' : 'Refresh'}
+              </button>
+            </div>
+            {diagError && (
+              <div className="rounded border border-red-900/60 bg-red-950/40 px-2 py-1.5 text-[11px] text-red-200">
+                {diagError}
+              </div>
+            )}
+            {!diagError && diag && diag.length === 0 && (
+              <p className="text-xs text-zinc-500">No UniFi entries configured.</p>
+            )}
+            {!diagError && diag?.map((e) => (
+              <div key={e.entryId} className="mb-2 rounded border border-zinc-700/80 bg-zinc-800/40 p-2.5">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-xs font-medium text-zinc-100">{e.label}</span>
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                    e.reachable ? 'bg-emerald-900/60 text-emerald-200' : 'bg-red-900/60 text-red-200'
+                  }`}>
+                    {e.reachable ? 'OK' : 'Down'}
+                  </span>
+                </div>
+                <div className="space-y-0.5 text-[11px] text-zinc-400">
+                  <div><span className="text-zinc-500">URL:</span> <span className="font-mono">{e.go2rtcUrl}</span></div>
+                  <div><span className="text-zinc-500">Streams:</span> {e.streamCount}</div>
+                  {e.autoDiscovery && (
+                    <div><span className="text-zinc-500">Protect cams:</span> {e.protectCameraCount ?? 0}</div>
+                  )}
+                </div>
+                {e.error && <div className="mt-1.5 rounded bg-red-950/40 px-2 py-1 text-[10px] text-red-200">{e.error}</div>}
+                {e.hint && <div className="mt-1.5 rounded bg-amber-950/40 px-2 py-1 text-[10px] text-amber-200">{e.hint}</div>}
+              </div>
+            ))}
+          </section>
         </div>
       </div>
-    </div>
+    </SlidePanel>
   );
 }
 
@@ -605,10 +702,19 @@ export default function CamerasPage() {
   const [pendingEntries, setPendingEntries] = useState(0);
   const [listError,      setListError]      = useState(false);
   const [recovering,     setRecovering]     = useState(false);
-  const [showDiag,       setShowDiag]       = useState(false);
+  const [showSettings,   setShowSettings]   = useState(false);
+  const [settings,       setSettings]       = useState<CameraSettings>(DEFAULT_SETTINGS);
 
-  // silence unused warnings on helpers imported but only used transitively
+  // silence unused warning on helper re-exported for other callers
   void authHeaders;
+
+  // Hydrate settings from localStorage after mount (avoids SSR mismatch).
+  useEffect(() => { setSettings(loadSettings()); }, []);
+
+  const updateSettings = useCallback((next: CameraSettings) => {
+    setSettings(next);
+    saveSettings(next);
+  }, []);
 
   const loadCameras = () => {
     apiFetch(`${getApiBase()}/api/cameras`)
@@ -643,18 +749,28 @@ export default function CamerasPage() {
       });
   };
 
+  const visibleCameras = useMemo(() => {
+    const hidden = new Set(settings.hidden);
+    return cameras.filter((c) => !hidden.has(c.name));
+  }, [cameras, settings.hidden]);
+
   const showEmptyHint = cameras.length === 0 && !listError;
+  const allHidden = cameras.length > 0 && visibleCameras.length === 0;
 
   return (
     <>
       <div className="p-2 lg:p-3">
-        <div className="mb-2 flex items-center justify-end">
+        <div className="mb-2 flex items-center justify-end gap-2">
+          <span className="text-[11px] text-zinc-500">
+            {visibleCameras.length} of {cameras.length} shown · {settings.columns} cols
+          </span>
           <button
             type="button"
-            onClick={() => setShowDiag(true)}
-            className="rounded border border-zinc-700 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+            onClick={() => setShowSettings(true)}
+            className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
           >
-            Diagnostics
+            <Settings2 className="h-3.5 w-3.5" />
+            Settings
           </button>
         </div>
 
@@ -687,8 +803,16 @@ export default function CamerasPage() {
             Could not reach the camera API — showing a static list. Check that the backend on port 3000 is running.
           </div>
         )}
-        <div className="grid grid-cols-2 gap-1 lg:grid-cols-3 xl:grid-cols-4">
-          {cameras.map((cam) => (
+        {allHidden && (
+          <div className="mb-3 rounded-md border border-zinc-700/80 bg-zinc-900/50 px-3 py-2 text-xs text-zinc-400">
+            All cameras are hidden. Open Settings to show some.
+          </div>
+        )}
+        <div
+          className="grid gap-1"
+          style={{ gridTemplateColumns: `repeat(${settings.columns}, minmax(0, 1fr))` }}
+        >
+          {visibleCameras.map((cam) => (
             <CameraTile
               key={cam.name}
               cam={cam}
@@ -705,7 +829,13 @@ export default function CamerasPage() {
         />
       )}
 
-      {showDiag && <DiagnosticsPanel onClose={() => setShowDiag(false)} />}
+      <SettingsPanel
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        cameras={cameras}
+        settings={settings}
+        onChange={updateSettings}
+      />
     </>
   );
 }
