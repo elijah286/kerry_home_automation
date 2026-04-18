@@ -184,17 +184,17 @@ export const teslaCardSchema = z.object({
   /** Hide the vehicle image. Useful when embedding in tight stacks. */
   hideImage: z.boolean().default(false),
   /** Vehicle image source. `compositor` uses Tesla's live renderer; `silhouette`
-   *  uses the generic SVG; `auto` picks compositor when optionCodes+model are
-   *  present. */
-  imageSource: z.enum(['auto', 'compositor', 'silhouette']).default('auto'),
+   *  uses the generic SVG; `live-map` shows an embedded OpenStreetMap with the
+   *  vehicle pinned at its current GPS position; `auto` picks compositor when
+   *  optionCodes+model are present, otherwise silhouette. */
+  imageSource: z.enum(['auto', 'compositor', 'silhouette', 'live-map']).default('auto'),
   /** Size of the rendered car. Compositor accepts 250–1920; typical dashboards
    *  look best around 720. */
   imageSize: z.number().int().min(250).max(1920).default(720),
   /** View angle. Tesla compositor accepts STUD_3QTR (default), STUD_SIDE,
    *  STUD_REAR, STUD_SEAT (interior). */
   imageView: z.enum(['STUD_3QTR', 'STUD_SIDE', 'STUD_REAR', 'STUD_SEAT']).default('STUD_3QTR'),
-  /** Render a compact Google/Leaflet map under the car with the current
-   *  GPS pin. Off by default. */
+  /** Show a Google Maps link next to the GPS coordinates row. */
   showMap: z.boolean().default(false),
 }).describe('Tesla summary with live compositor image and controls laid over the car.');
 
