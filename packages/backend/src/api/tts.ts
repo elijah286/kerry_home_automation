@@ -7,7 +7,7 @@
 // so the settings page can sample voice+tone before enabling it.
 
 import type { FastifyInstance } from 'fastify';
-import OpenAI from 'openai';
+import OpenAI, { toFile } from 'openai';
 import { apiKeyFor, loadLlmRuntimeSettings, DEFAULT_TTS_INSTRUCTIONS, TTS_VOICES, type TtsVoice } from './llm-config.js';
 import { authenticate } from './auth.js';
 
@@ -112,6 +112,47 @@ export function registerTtsRoutes(app: FastifyInstance) {
       } catch (err) {
         req.log.error({ err }, 'TTS preview failed');
         return reply.code(502).send({ error: 'TTS synthesis failed' });
+      }
+    },
+  );
+
+  // Speech-to-text fallback for browsers without Web Speech API (Safari).
+  // Accepts audio/* upload; returns JSON { text }.
+  app.post(
+    '/api/stt',
+    { preHandler: [authenticate] },
+    async (req, reply) => {
+      const body = req.body;
+      if (!Buffer.isBuffer(body) || body.length === 0) {
+        return reply.code(400).send({ error: 'Audio body required' });
+      }
+      if (body.length > 25 * 1024 * 1024) {
+        return reply.code(413).send({ error: 'Audio too large (max 25MB)' });
+      }
+
+      const settings = await loadLlmRuntimeSettings();
+      const active = apiKeyFor('tts', settings);
+      if (!active) {
+        return reply.code(400).send({
+          error: 'Voice input requires an OpenAI API key. Add one in Settings → LLM Integration.',
+        });
+      }
+
+      const contentType = String(req.headers['content-type'] ?? 'audio/webm').split(';')[0].trim();
+      const ext = contentType.split('/')[1] || 'webm';
+      const filename = `speech.${ext === 'mpeg' ? 'mp3' : ext}`;
+
+      try {
+        const openai = new OpenAI({ apiKey: active.key });
+        const file = await toFile(body, filename, { type: contentType });
+        const transcription = await openai.audio.transcriptions.create({
+          file,
+          model: 'whisper-1',
+        });
+        return reply.send({ text: transcription.text ?? '' });
+      } catch (err) {
+        req.log.error({ err }, 'STT transcription failed');
+        return reply.code(502).send({ error: 'Speech transcription failed' });
       }
     },
   );

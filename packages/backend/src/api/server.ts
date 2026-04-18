@@ -58,6 +58,11 @@ export async function createServer() {
     done(null, body);
   });
 
+  // Parse audio/* as raw Buffer (for STT upload from browsers without Web Speech API, e.g. Safari)
+  app.addContentTypeParser(/^audio\//, { parseAs: 'buffer' }, (_req, body, done) => {
+    done(null, body);
+  });
+
   // Log and surface actual error messages — Fastify({ logger: false }) swallows them otherwise
   app.setErrorHandler((error: unknown, req, reply) => {
     logger.error({ err: error, method: req.method, url: req.url }, 'Request error');

@@ -637,6 +637,9 @@ function AssistantRightPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaChunksRef = useRef<Blob[]>([]);
   const ttsEnabledRef = useRef(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const passiveRecRef = useRef<any>(null);
@@ -950,11 +953,67 @@ function AssistantRightPanel() {
     }
   }, [router, enqueueAudio, clearAudioQueue, timers, addTimer, stopTimer, toggleTimer, resetTimer, removeTimer, refreshSession]);
 
+  const startMediaRecorderSTT = useCallback(async () => {
+    if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setError('Voice input not supported in this browser.');
+      return;
+    }
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      setError('Microphone permission denied. Check browser settings.');
+      return;
+    }
+    // Pick a MIME type MediaRecorder supports (Safari needs mp4/aac; Chrome/Firefox support webm/opus).
+    const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/ogg'];
+    const mimeType = candidates.find((t) => MediaRecorder.isTypeSupported?.(t)) ?? '';
+    const rec = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    mediaChunksRef.current = [];
+    mediaStreamRef.current = stream;
+    mediaRecorderRef.current = rec;
+    rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) mediaChunksRef.current.push(e.data); };
+    rec.onstop = async () => {
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+      mediaRecorderRef.current = null;
+      const chunks = mediaChunksRef.current;
+      mediaChunksRef.current = [];
+      setIsListening(false);
+      if (!chunks.length) return;
+      const blobType = rec.mimeType || 'audio/webm';
+      const blob = new Blob(chunks, { type: blobType });
+      try {
+        const res = await apiFetch(`${getApiBase()}/api/stt`, {
+          method: 'POST',
+          headers: { 'Content-Type': blobType },
+          body: blob,
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({})) as { error?: string };
+          setError(data.error ?? 'Speech transcription failed');
+          return;
+        }
+        const data = (await res.json()) as { text?: string };
+        const transcript = (data.text ?? '').trim();
+        if (transcript) {
+          setInput(transcript);
+          void sendMessage(transcript);
+        }
+      } catch {
+        setError('Speech transcription failed');
+      }
+    };
+    rec.start();
+    setIsListening(true);
+  }, [sendMessage]);
+
   const startListening = useCallback(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SR = (typeof window !== 'undefined') && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
     if (!SR) {
-      setError('Voice input not supported in this browser. Try Chrome or Edge.');
+      // Safari and other browsers without Web Speech API — fall back to server-side Whisper.
+      void startMediaRecorderSTT();
       return;
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -986,9 +1045,13 @@ function AssistantRightPanel() {
     recognitionRef.current = rec;
     rec.start();
     setIsListening(true);
-  }, [sendMessage]);
+  }, [sendMessage, startMediaRecorderSTT]);
 
   const stopListening = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      return;
+    }
     recognitionRef.current?.stop();
     setIsListening(false);
   }, []);
