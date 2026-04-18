@@ -109,8 +109,19 @@ export interface DiscoveredCamera {
   model: string;
   /** Whether Protect reports the camera as connected */
   connected: boolean;
-  /** Full RTSP URL for the best-quality stream */
+  /**
+   * Primary RTSP URL — the LOW-RES sub-stream.
+   * Used for grid tile snapshots and default live view. Lower CPU, lower
+   * bandwidth; fine for thumbnail/grid use.
+   */
   rtspUrl: string;
+  /**
+   * Optional HD RTSP URL — the HIGH-RES main stream.
+   * Registered in go2rtc as `{streamName}_hd` and used only when the user
+   * opens the fullscreen HD view. If the camera doesn't expose a second
+   * channel, this is undefined.
+   */
+  rtspUrlHd?: string;
 }
 
 // -- Client class -----------------------------------------------------------
@@ -233,22 +244,31 @@ export class ProtectClient {
     const protectHost = new URL(this.baseUrl).hostname;
 
     return cameras
-      .map((cam) => {
-        // Pick the highest-resolution enabled RTSP channel
-        const channel = cam.channels
+      .map((cam): DiscoveredCamera | null => {
+        // Pick the LOWEST-resolution enabled RTSP channel as the primary
+        // (sub-stream pattern — 10–20× less CPU to transmux than the main
+        // stream, plenty of quality for grid tiles). If there's a second
+        // channel available, register it as HD for fullscreen use.
+        const enabled = cam.channels
           .filter((ch) => ch.enabled && ch.isRtspEnabled && ch.rtspAlias)
-          .sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
+          .sort((a, b) => (a.width * a.height) - (b.width * b.height));
 
-        if (!channel) return null;
+        const low  = enabled[0];
+        const high = enabled[enabled.length - 1];
+        if (!low) return null;
 
-        return {
+        const result: DiscoveredCamera = {
           protectId: cam.id,
           name: cam.name,
           streamName: normalizeStreamName(cam.name),
           model: cam.type,
           connected: cam.state === 'CONNECTED',
-          rtspUrl: `rtsp://${protectHost}:7447/${channel.rtspAlias}`,
+          rtspUrl: `rtsp://${protectHost}:7447/${low.rtspAlias}`,
         };
+        if (high && high !== low) {
+          result.rtspUrlHd = `rtsp://${protectHost}:7447/${high.rtspAlias}`;
+        }
+        return result;
       })
       .filter((c): c is DiscoveredCamera => c !== null);
   }

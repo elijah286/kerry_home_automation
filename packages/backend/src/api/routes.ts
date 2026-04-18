@@ -268,7 +268,11 @@ export function registerRoutes(app: FastifyInstance): void {
     const names = unifi?.getCameraNames() ?? [];
     const pendingEntries = unifi ? await unifi.getPendingEntryCount() : 0;
     return {
-      cameras: names.map((name) => ({ name, label: name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) })),
+      cameras: names.map((name) => ({
+        name,
+        label: name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        hasHd: unifi?.hasHdVariant(name) ?? false,
+      })),
       recover: { pendingEntries },
     };
   });

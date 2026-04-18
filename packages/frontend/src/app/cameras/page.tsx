@@ -39,17 +39,27 @@ function initialTier(mode: PlayerMode): Tier {
   return mode === 'auto' ? AUTO_TIER_ORDER[0] : (mode as Tier);
 }
 
+type Quality = 'sd' | 'hd';
+
 function CameraPlayer({
   name,
   mode,
+  quality = 'sd',
   onTierChange,
   onError,
 }: {
   name: string;
   mode: PlayerMode;
+  /** 'sd' = low-res sub-stream (default, low CPU); 'hd' = high-res main stream */
+  quality?: Quality;
   onTierChange?: (tier: Tier, status: PlayerStatus) => void;
   onError?: () => void;
 }) {
+  // The go2rtc stream name is the camera name with an `_hd` suffix for HD.
+  // Snapshot endpoint intentionally uses the base name — snapshots are
+  // served from the backend cache populated by low-res polling.
+  const streamName = quality === 'hd' ? `${name}_hd` : name;
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [activeTier, setActiveTier] = useState<Tier>(() => initialTier(mode));
   const [status, setStatus] = useState<PlayerStatus>('connecting');
@@ -67,14 +77,14 @@ function CameraPlayer({
     onTierChangeRef.current?.(t, s);
     if (process.env.NODE_ENV !== 'production') {
       // eslint-disable-next-line no-console
-      console.info(`[camera:${name}] ${t} → ${s}`);
+      console.info(`[camera:${streamName}] ${t} → ${s}`);
     }
-  }, [name]);
+  }, [streamName]);
 
-  // Reset to the user-selected starting tier whenever name or mode changes.
+  // Reset to the user-selected starting tier whenever stream or mode changes.
   useEffect(() => {
     setActiveTier(initialTier(mode));
-  }, [name, mode]);
+  }, [streamName, mode]);
 
   // Degrade one tier. In 'auto' mode drops to the next auto fallback; in a
   // forced mode the user asked for a specific tier so we don't override it.
@@ -140,7 +150,7 @@ function CameraPlayer({
         await pc.setLocalDescription(offer);
         armWatchdog();
 
-        const res = await apiFetch(`${getApiBase()}/api/cameras/${encodeURIComponent(name)}/webrtc`, {
+        const res = await apiFetch(`${getApiBase()}/api/cameras/${encodeURIComponent(streamName)}/webrtc`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/sdp' },
           body: offer.sdp ?? '',
@@ -187,7 +197,7 @@ function CameraPlayer({
         video.srcObject = null;
       }
     };
-  }, [activeTier, name, degrade, emit]);
+  }, [activeTier, streamName, degrade, emit]);
 
   // -------------------------------------------------------------------------
   // Tier 1 (auto default): HLS
@@ -199,7 +209,7 @@ function CameraPlayer({
     const video = videoRef.current;
     if (!video) return;
 
-    const src = `${getApiBase()}/api/cameras/${encodeURIComponent(name)}/hls/stream.m3u8${authQueryParam(false)}`;
+    const src = `${getApiBase()}/api/cameras/${encodeURIComponent(streamName)}/hls/stream.m3u8${authQueryParam(false)}`;
     let hls: import('hls.js').default | null = null;
     let watchdog: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
@@ -245,7 +255,7 @@ function CameraPlayer({
       video.removeAttribute('src');
       try { video.load(); } catch { /* noop */ }
     };
-  }, [activeTier, name, degrade, emit]);
+  }, [activeTier, streamName, degrade, emit]);
 
   // -------------------------------------------------------------------------
   // Snapshot polling — used as tier 2 AND as an underlay while HLS/WebRTC
@@ -316,6 +326,8 @@ function CameraPlayer({
 interface CameraInfo {
   name: string;
   label: string;
+  /** True when the backend has a registered `{name}_hd` stream available */
+  hasHd?: boolean;
 }
 
 interface CameraSettings {
@@ -447,9 +459,11 @@ const TIER_LABEL: Record<Tier, string> = {
 };
 
 function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => void }) {
-  const [mode,   setMode]   = useState<PlayerMode>('auto');
-  const [tier,   setTier]   = useState<Tier>(() => initialTier('auto'));
-  const [status, setStatus] = useState<PlayerStatus>('connecting');
+  const [mode,    setMode]    = useState<PlayerMode>('auto');
+  // Default to HD when the camera has a high-res stream available; otherwise SD.
+  const [quality, setQuality] = useState<Quality>(cam.hasHd ? 'hd' : 'sd');
+  const [tier,    setTier]    = useState<Tier>(() => initialTier('auto'));
+  const [status,  setStatus]  = useState<PlayerStatus>('connecting');
   const frame = useLCARSFrame();
 
   useEffect(() => {
@@ -461,7 +475,7 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
   useEffect(() => {
     setTier(initialTier(mode));
     setStatus('connecting');
-  }, [cam.name, mode]);
+  }, [cam.name, mode, quality]);
 
   const overlayStyle: CSSProperties = frame
     ? {
@@ -484,9 +498,10 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
     <div className="flex flex-col bg-black" style={overlayStyle}>
       <div className="relative flex-1">
         <CameraPlayer
-          key={`${cam.name}:${mode}`}
+          key={`${cam.name}:${mode}:${quality}`}
           name={cam.name}
           mode={mode}
+          quality={quality}
           onTierChange={(t, s) => { setTier(t); setStatus(s); }}
         />
 
@@ -499,6 +514,22 @@ function FullscreenCamera({ cam, onClose }: { cam: CameraInfo; onClose: () => vo
         <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-4 py-3">
           <span className="text-sm font-medium text-white drop-shadow-sm">{cam.label}</span>
           <div className="pointer-events-auto flex items-center gap-2">
+            {cam.hasHd && (
+              <div className="flex overflow-hidden rounded-md border border-white/10 bg-black/40 text-[11px] text-white/80 backdrop-blur-sm">
+                {(['sd', 'hd'] as Quality[]).map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => setQuality(q)}
+                    className={`px-2.5 py-1 font-medium uppercase transition-colors ${
+                      quality === q ? 'bg-white/15 text-white' : 'hover:bg-white/10'
+                    }`}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex overflow-hidden rounded-md border border-white/10 bg-black/40 text-[11px] text-white/80 backdrop-blur-sm">
               {(['auto', 'webrtc', 'hls', 'snapshot'] as PlayerMode[]).map((m) => (
                 <button
