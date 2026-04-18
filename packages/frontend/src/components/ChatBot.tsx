@@ -617,6 +617,7 @@ function AssistantRightPanel() {
   const router = useRouter();
   const isMdUp = useMediaQuery('(min-width: 768px)');
   const { open, setOpen, lcarsDockInset, rightPanelMode, setRightPanelMode } = useAssistant();
+  const { timers, addTimer, toggleTimer, resetTimer, removeTimer, stopTimer } = useCookingTimers();
   const [fullscreen, setFullscreen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -754,11 +755,24 @@ function AssistantRightPanel() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    // Snapshot current client-side state to give the LLM awareness of things
+    // that only live in the browser (kitchen timers, etc.). Sent as `context`
+    // on each request so the assistant can answer "stop the pasta timer" etc.
+    const clientContext = {
+      timers: timers.map((t) => ({
+        id: t.id,
+        label: t.label,
+        totalSeconds: t.totalSeconds,
+        remainingSeconds: t.remainingSeconds,
+        running: t.running,
+      })),
+    };
+
     try {
       const res = await apiFetch(`${getApiBase()}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ messages: newMessages, context: clientContext }),
         signal: controller.signal,
       });
 
@@ -784,6 +798,13 @@ function AssistantRightPanel() {
           try {
             const event = JSON.parse(part.slice(6)) as {
               type: string; text?: string; tool?: string; label?: string; navigate?: string; error?: string;
+              action?: {
+                kind?: string;
+                action?: string;
+                label?: string;
+                seconds?: number;
+                timerId?: string;
+              };
             };
             if (event.type === 'token' && event.text) {
               if (!assistantMsgAdded) {
@@ -809,6 +830,21 @@ function AssistantRightPanel() {
               // can actually see the destination page (but keep the assistant open).
               setFullscreen(false);
               router.push(event.navigate);
+            } else if (event.type === 'client_action' && event.action?.kind === 'timer') {
+              // Assistant is driving a kitchen timer. Run it against the local
+              // CookingTimers context so the Timers sidebar updates instantly.
+              const a = event.action;
+              if (a.action === 'start' && a.label && typeof a.seconds === 'number') {
+                addTimer(a.label, a.seconds);
+              } else if (a.action === 'pause' && a.timerId) {
+                stopTimer(a.timerId);
+              } else if (a.action === 'resume' && a.timerId) {
+                toggleTimer(a.timerId);
+              } else if (a.action === 'reset' && a.timerId) {
+                resetTimer(a.timerId);
+              } else if (a.action === 'delete' && a.timerId) {
+                removeTimer(a.timerId);
+              }
             } else if (event.type === 'done') {
               setToolStatuses([]);
               if (event.navigate) {
@@ -836,7 +872,7 @@ function AssistantRightPanel() {
       setIsStreaming(false);
       setToolStatuses([]);
     }
-  }, [router, speakText]);
+  }, [router, speakText, timers, addTimer, stopTimer, toggleTimer, resetTimer, removeTimer]);
 
   const startListening = useCallback(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

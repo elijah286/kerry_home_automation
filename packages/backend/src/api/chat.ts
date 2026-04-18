@@ -208,6 +208,46 @@ const readTools: ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'manage_timer',
+      description:
+        'Create, start, pause, resume, reset, or delete a kitchen/cooking timer. The timer runs in the browser (the user sees it in the Timers sidebar) — this tool instructs the UI to perform the action. For "start a 9 minute timer for the pasta", action="start", label="Pasta", seconds=540. For natural speech, parse the duration: "9 minutes" → seconds=540, "1 hour 30 min" → seconds=5400, "45 sec" → seconds=45. Come up with a concise label from the user\'s phrasing ("for the pasta" → "Pasta", "boil eggs" → "Eggs"). For stop/pause/resume/reset/delete, use list_timers first to get the timer id unless the user gave exactly one timer name.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['start', 'pause', 'resume', 'reset', 'delete'],
+            description: 'What to do. "start" creates a new timer and starts it. Others need a timer_id.',
+          },
+          label: {
+            type: 'string',
+            description: 'For action=start: short label (e.g. "Pasta", "Eggs"). Title case, under 24 chars. Required for start.',
+          },
+          seconds: {
+            type: 'number',
+            description: 'For action=start: total duration in seconds. Required for start.',
+          },
+          timer_id: {
+            type: 'string',
+            description: 'For pause/resume/reset/delete: the id of the target timer (from list_timers).',
+          },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_timers',
+      description:
+        'List all active cooking/kitchen timers the user currently has. Returns id, label, remaining seconds, and running state. Use before pause/resume/reset/delete when the user references a timer by name ("stop the pasta timer").',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'get_meal_plan',
       description:
         'Look up meals the user planned/made on specific dates from the Paprika meal plan. Use for questions like "what did I make last Sunday", "what\'s on the meal plan for next week", "did I cook chicken this week". Returns meals within a date range with their recipe UID (use with /recipes?open=<uid> to open the recipe). Dates are YYYY-MM-DD. Today\'s date is available in your system context.',
@@ -457,9 +497,22 @@ function hasPermission(role: UserRole, p: Permission): boolean {
 // Tool execution
 // ---------------------------------------------------------------------------
 
+interface TimerSnapshot {
+  id: string;
+  label: string;
+  totalSeconds: number;
+  remainingSeconds: number;
+  running: boolean;
+}
+
+interface ClientContext {
+  timers?: TimerSnapshot[];
+}
+
 interface ToolContext {
   userRole: UserRole;
   userId: string;
+  clientContext?: ClientContext;
 }
 
 interface AutomationRow {
@@ -1116,6 +1169,62 @@ async function executeTool(name: string, args: Record<string, unknown>, ctx: Too
       };
     }
 
+    case 'list_timers': {
+      // Timers live in the browser; the frontend passes its current list
+      // as conversation context on each request. We stash it on the request
+      // in ToolContext.clientContext. If missing, tell the LLM there are none.
+      const timers = ctx.clientContext?.timers ?? [];
+      return {
+        count: timers.length,
+        timers: timers.map((t) => ({
+          id: t.id,
+          label: t.label,
+          totalSeconds: t.totalSeconds,
+          remainingSeconds: t.remainingSeconds,
+          running: t.running,
+        })),
+      };
+    }
+
+    case 'manage_timer': {
+      const action = String(args.action ?? '');
+      const allowed = ['start', 'pause', 'resume', 'reset', 'delete'];
+      if (!allowed.includes(action)) {
+        return { error: `Invalid action. Must be one of: ${allowed.join(', ')}.` };
+      }
+      if (action === 'start') {
+        const seconds = Math.round(Number(args.seconds));
+        const label = String(args.label ?? '').trim();
+        if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 24 * 3600) {
+          return { error: 'For action=start, seconds must be between 1 and 86400.' };
+        }
+        if (!label) return { error: 'For action=start, label is required.' };
+        return {
+          clientAction: {
+            kind: 'timer',
+            action: 'start',
+            label,
+            seconds,
+          },
+          success: true,
+          message: `Timer "${label}" (${Math.floor(seconds / 60)}m ${seconds % 60}s) queued to start.`,
+        };
+      }
+      const timerId = String(args.timer_id ?? '').trim();
+      if (!timerId) {
+        return { error: `For action=${action}, timer_id is required. Call list_timers first.` };
+      }
+      return {
+        clientAction: {
+          kind: 'timer',
+          action,
+          timerId,
+        },
+        success: true,
+        message: `Timer ${action} queued for id ${timerId}.`,
+      };
+    }
+
     case 'get_meal_plan': {
       const startRaw = String(args.start_date ?? '').trim();
       const endRaw = String(args.end_date ?? '').trim();
@@ -1554,6 +1663,8 @@ The HomeOS UI is your primary output surface. The chat window is for brief confi
 |---|---|
 | Find/show/list recipes by any criteria | search_recipes → navigate_ui with the returned navigatePath (/recipes?uids=...) |
 | "What did I make/cook on <date>" or meal plan questions | get_meal_plan with a date range → if the user wants a specific meal opened, use navigate_ui with that meal's navigatePath |
+| Start a cooking timer ("9 minute timer for the pasta") | manage_timer action=start, parse duration → seconds, infer short label from context ("Pasta", "Eggs", "Rice") |
+| Stop/pause/resume/reset/delete a timer | list_timers → find by label → manage_timer with the matching timer_id |
 | Open a specific recipe | navigate_ui /recipes?open=<uid> |
 | Show/find/list devices by type, area, or any criteria | get_devices → navigate_ui with the returned navigatePath (/devices?ids=...) |
 | Browse all devices | navigate_ui /devices |
@@ -1733,6 +1844,8 @@ const TOOL_LABELS: Record<string, string> = {
   update_device_settings: 'Updating device…',
   search_recipes: 'Searching recipes…',
   get_meal_plan: 'Checking meal plan…',
+  list_timers: 'Checking timers…',
+  manage_timer: 'Updating timer…',
   navigate_ui: 'Navigating…',
   get_calendar_events: 'Loading calendar…',
   list_automations: 'Loading automations…',
@@ -1877,7 +1990,7 @@ export function registerChatRoutes(app: FastifyInstance): void {
   // ---------------------------------------------------------------------------
   // POST /api/chat/stream — SSE streaming version with tool status events
   // ---------------------------------------------------------------------------
-  app.post<{ Body: { messages: Array<{ role: string; content: string }> } }>(
+  app.post<{ Body: { messages: Array<{ role: string; content: string }>; context?: ClientContext } }>(
     '/api/chat/stream',
     { preHandler: [authenticate] },
     async (req, reply) => {
@@ -1954,7 +2067,11 @@ export function registerChatRoutes(app: FastifyInstance): void {
         }
 
         const tools = getToolsForRole(user.role);
-        const toolCtx: ToolContext = { userRole: user.role, userId: user.id };
+        const toolCtx: ToolContext = {
+          userRole: user.role,
+          userId: user.id,
+          clientContext: req.body.context,
+        };
         const systemPrompt = await buildSystemPrompt(user);
         tMark(`system_prompt_built (${systemPrompt.length} chars, ${tools.length} tools)`);
         const conversation = req.body.messages.map((m) => ({
@@ -2051,6 +2168,11 @@ export function registerChatRoutes(app: FastifyInstance): void {
                 // generating its response text.
                 emit({ type: 'navigate', navigate: navigateTo });
               }
+              // Relay client-side actions (timers, etc.) to the frontend.
+              if (typeof result === 'object' && result !== null && 'clientAction' in result) {
+                const ca = (result as { clientAction: Record<string, unknown> }).clientAction;
+                emit({ type: 'client_action', action: ca });
+              }
               toolResultBlocks.push({
                 type: 'tool_result',
                 tool_use_id: tu.id,
@@ -2133,6 +2255,10 @@ export function registerChatRoutes(app: FastifyInstance): void {
                 navigateTo = (result as { navigate: string }).navigate;
                 // Emit navigate immediately (don't wait for LLM to finish narrating)
                 emit({ type: 'navigate', navigate: navigateTo });
+              }
+              if (typeof result === 'object' && result !== null && 'clientAction' in result) {
+                const ca = (result as { clientAction: Record<string, unknown> }).clientAction;
+                emit({ type: 'client_action', action: ca });
               }
               msgs.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
             }
