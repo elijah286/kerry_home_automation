@@ -2438,7 +2438,9 @@ export function registerChatRoutes(app: FastifyInstance): void {
         }
 
         // Resolve TTS (independent of chat provider — TTS is always OpenAI).
-        if (ttsRequested && llmSettings.ttsEnabled) {
+        // Per-request `tts` flag from the speaker button is sufficient; the
+        // global `ttsEnabled` setting only sets the default and doesn't veto.
+        if (ttsRequested) {
           const ttsActive = apiKeyFor('tts', llmSettings);
           if (ttsActive) {
             ttsKey = ttsActive.key;

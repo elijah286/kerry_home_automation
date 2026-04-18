@@ -445,7 +445,7 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
   const panelSize = inspector?.kind === 'json' ? 'xl' : 'lg';
 
   return (
-    <div className="max-w-3xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-3xl mx-auto p-3 sm:p-4 lg:p-6 space-y-6">
       <Link href="/devices" className="inline-flex items-center gap-1 text-sm" style={{ color: 'var(--color-accent)' }}>
         <ArrowLeft className="h-4 w-4" /> Back to Devices
       </Link>
