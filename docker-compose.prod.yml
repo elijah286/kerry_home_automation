@@ -70,9 +70,20 @@ services:
     # (port 3000 internally) that the backend `zwave` integration connects to.
     # The web UI on 8091 is for pairing devices, viewing logs, and OTA updates.
     #
-    # Override ZWAVE_DEVICE on the host (.env) to match the dongle's serial path.
-    # AEotec Z-Stick Gen5/7 typically enumerates at /dev/ttyACM0; for stability
-    # use /dev/serial/by-id/usb-0658_0200-* via `ls /dev/serial/by-id/`.
+    # OPT-IN SERVICE. Behind the `zwave` compose profile because it needs a
+    # USB dongle passed through as a device. On a hub without the dongle,
+    # `docker compose up` would otherwise abort mid-deploy with
+    # `error gathering device information while adding custom device "/dev/ttyACM0"`
+    # — leaving frontend/backend "Recreated" but never Started. To enable:
+    #
+    #   echo 'COMPOSE_PROFILES=zwave' >> /opt/home-automation/.env
+    #   echo 'ZWAVE_DEVICE=/dev/serial/by-id/usb-0658_0200-if00' >> .env
+    #   docker compose -f docker-compose.prod.yml up -d zwave-js-ui
+    #
+    # Override ZWAVE_DEVICE to match the dongle's serial path. AEotec Z-Stick
+    # Gen5/7 typically enumerates at /dev/ttyACM0; for stability use
+    # /dev/serial/by-id/usb-0658_0200-* via `ls /dev/serial/by-id/`.
+    profiles: ["zwave"]
     image: zwavejs/zwave-js-ui:latest
     restart: unless-stopped
     tty: true
