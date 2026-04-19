@@ -1,22 +1,6 @@
 'use client';
 
-// ---------------------------------------------------------------------------
-// EditableCard — one card in the editor preview.
-//
-// Owns:
-//   - the click-to-select / drag-to-reorder overlay
-//   - the selected/hovered visual affordances (ring, drag handle)
-//   - a Radix Dialog hosting the CardForm (center-stage, ~900px) — big enough
-//     to surface the per-type option sets (size, controls, presets…) that
-//     Home Assistant exposes for each card. The earlier ~380px Popover was
-//     too cramped to edit anything beyond name/entity.
-//
-// The dialog is `modal={false}` so the live preview underneath still updates
-// visibly as the user edits; Escape and outside-clicks route through
-// `onOpenChange(false)` which clears the selection in the parent.
-// ---------------------------------------------------------------------------
-
-import { type DragEvent } from 'react';
+import { useEffect, useState, type DragEvent } from 'react';
 import { GripVertical, Trash2, X } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { CardDescriptor } from '@ha/shared';
@@ -35,15 +19,6 @@ interface EditableCardProps {
   onDelete: () => void;
   onDragStart: (e: DragEvent<HTMLDivElement>) => void;
   onDragEnd: () => void;
-  /**
-   * Called while another card is hovering over this one. The `half` tells
-   * the caller whether the pointer is in the top or bottom half, so it can
-   * compute a drop-index (insert before = top, insert after = bottom).
-   *
-   * Without this, only the tiny 2–8px DropZones between cards could accept
-   * drops. That's easy to miss on tall cards (e.g. the thermostat tile),
-   * which is why some card types felt undraggable.
-   */
   onDragOverCard?: (half: 'top' | 'bottom') => void;
   onDropOverCard?: (half: 'top' | 'bottom') => void;
 }
@@ -61,13 +36,26 @@ export function EditableCard({
   onDragOverCard,
   onDropOverCard,
 }: EditableCardProps) {
-  // Decide whether the pointer is in the top or bottom half of the card,
-  // from a drag event. Used to pick between "insert before" / "insert after"
-  // when hovering a tall target card.
+  const [draft, setDraft] = useState<CardDescriptor>(card);
+
+  // Reset draft to the committed card each time the dialog opens.
+  // Intentionally excludes `card` from deps — we only want to reset on open,
+  // not on every external card update while the dialog is already showing.
+  useEffect(() => {
+    if (selected) setDraft(card);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
+
+  const handleSave = () => {
+    onChange(draft);
+    onDeselect();
+  };
+
   const halfFromDragEvent = (e: DragEvent<HTMLDivElement>): 'top' | 'bottom' => {
     const rect = e.currentTarget.getBoundingClientRect();
     return e.clientY - rect.top < rect.height / 2 ? 'top' : 'bottom';
   };
+
   const typeLabel = CARD_TYPE_LABELS[card.type]?.label ?? card.type;
 
   return (
@@ -92,35 +80,21 @@ export function EditableCard({
           onDropOverCard(halfFromDragEvent(e));
         }}
       >
-        {/* Click overlay — captures selection before interactive controls
-            inside the card fire. In editor mode the live card controls are
-            purely presentational (pointer-events disabled below), so this
-            is the sole click target. */}
         <div
           role="button"
           tabIndex={0}
           aria-label={`Edit ${card.type} card`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect();
-          }}
+          onClick={(e) => { e.stopPropagation(); onSelect(); }}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onSelect();
-            }
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); }
           }}
           className="absolute inset-0 z-10 rounded-[var(--radius)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-accent)_6%,transparent)] focus:outline-none focus-visible:bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)]"
           draggable
-          onDragStart={(e) => {
-            e.dataTransfer.effectAllowed = 'move';
-            onDragStart(e);
-          }}
+          onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(e); }}
           onDragEnd={onDragEnd}
           style={{ cursor: 'grab' }}
         />
 
-        {/* Hover chrome: drag handle. Grows on hover, stays on when selected. */}
         <div
           className="pointer-events-none absolute right-2 top-2 z-20 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
           style={{ opacity: selected ? 1 : undefined }}
@@ -133,34 +107,21 @@ export function EditableCard({
             }}
             title="Drag to reorder"
           >
-            <GripVertical
-              className="h-3.5 w-3.5"
-              style={{ color: 'var(--color-text-muted)' }}
-              aria-hidden
-            />
+            <GripVertical className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} aria-hidden />
           </div>
         </div>
 
-        {/* The actual rendered card. Pointer-events off so the editor's
-            click overlay (above) is what handles mouse events. */}
         <div className="pointer-events-none">
           <CardRenderer card={card} />
         </div>
       </div>
 
-      {/* Edit Dialog — large, center-stage, non-modal so the live preview
-          underneath keeps updating as the user edits. */}
       <Dialog.Root
         open={selected}
-        onOpenChange={(open) => {
-          if (!open) onDeselect();
-        }}
+        onOpenChange={(open) => { if (!open) onDeselect(); }}
         modal={false}
       >
         <Dialog.Portal>
-          {/* Dimmed backdrop. pointer-events disabled so clicks on other
-              cards in the preview still re-anchor selection without closing
-              first — that was the original Popover behaviour we want to keep. */}
           <Dialog.Overlay
             className="fixed inset-0 z-40 pointer-events-none"
             style={{ background: 'rgba(0,0,0,0.35)' }}
@@ -169,8 +130,6 @@ export function EditableCard({
             aria-describedby={undefined}
             onOpenAutoFocus={(e) => e.preventDefault()}
             onInteractOutside={(e) => {
-              // Clicking another card should re-anchor, not close-then-reopen.
-              // The parent will flip selection; we just don't fight it here.
               const target = e.target as HTMLElement | null;
               if (target?.closest('[data-card-id]')) e.preventDefault();
             }}
@@ -180,15 +139,13 @@ export function EditableCard({
               border: '1px solid var(--color-border)',
             }}
           >
+            {/* Header */}
             <div
               className="flex items-center justify-between gap-2 px-5 py-3"
               style={{ borderBottom: '1px solid var(--color-border)' }}
             >
               <div className="flex min-w-0 items-center gap-2">
-                <Dialog.Title
-                  className="text-base font-semibold"
-                  style={{ color: 'var(--color-text)' }}
-                >
+                <Dialog.Title className="text-base font-semibold" style={{ color: 'var(--color-text)' }}>
                   Edit {typeLabel.toLowerCase()} card
                 </Dialog.Title>
                 <span
@@ -203,23 +160,15 @@ export function EditableCard({
                 </span>
               </div>
               <div className="flex items-center gap-1">
-                <GhostIconButton
-                  icon={Trash2}
-                  tone="danger"
-                  aria-label="Delete card"
-                  onClick={onDelete}
-                />
-                <Dialog.Close asChild>
-                  <GhostIconButton icon={X} aria-label="Close editor" />
-                </Dialog.Close>
+                <GhostIconButton icon={Trash2} tone="danger" aria-label="Delete card" onClick={onDelete} />
+                <GhostIconButton icon={X} aria-label="Cancel" onClick={onDeselect} />
               </div>
             </div>
 
-            {/* Two-pane body: form on the left, live preview on the right.
-                On narrow widths we stack the preview below. */}
+            {/* Body: form left, live preview right */}
             <div className="grid flex-1 min-h-0 grid-cols-1 gap-0 md:grid-cols-[minmax(0,1fr)_minmax(0,340px)]">
               <div className="min-h-0 overflow-y-auto p-5">
-                <CardForm card={card} onChange={onChange} />
+                <CardForm card={draft} onChange={setDraft} />
               </div>
               <div
                 className="hidden min-h-0 overflow-y-auto p-5 md:block"
@@ -235,9 +184,32 @@ export function EditableCard({
                   Preview
                 </div>
                 <div className="pointer-events-none">
-                  <CardRenderer card={card} />
+                  <CardRenderer card={draft} />
                 </div>
               </div>
+            </div>
+
+            {/* Footer */}
+            <div
+              className="flex items-center justify-end gap-2 px-5 py-3"
+              style={{ borderTop: '1px solid var(--color-border)' }}
+            >
+              <button
+                type="button"
+                onClick={onDeselect}
+                className="rounded-md border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--color-bg-hover)]"
+                style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                className="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+                style={{ background: 'var(--color-accent)', color: '#fff' }}
+              >
+                Save
+              </button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>

@@ -16,13 +16,16 @@
 // ---------------------------------------------------------------------------
 
 import { useState } from 'react';
-import { Settings } from 'lucide-react';
+import { Settings, LayoutTemplate } from 'lucide-react';
 import type { CardDescriptor, DashboardDoc } from '@ha/shared';
 import { CardPalette } from './CardPalette';
-import { EditablePreview, type SelectedCard, type SelectedSection } from './editor/EditablePreview';
+import { EditablePreview, type SelectedCard } from './editor/EditablePreview';
 import { DashboardMetaDialog } from './editor/DashboardMetaDialog';
 import { updateDashboard } from '@/lib/api-dashboards';
 import { PrimaryButton, GhostIconButton } from '@/components/ui/Button';
+import { useDevices, type DeviceSelector } from '@/hooks/useDevices';
+
+const allDevices: DeviceSelector = (d) => d;
 
 interface DashboardEditorProps {
   initialDoc: DashboardDoc;
@@ -33,8 +36,8 @@ export function DashboardEditor({ initialDoc, onSaved }: DashboardEditorProps) {
   const [doc, setDoc] = useState<DashboardDoc>(initialDoc);
   const [paletteTarget, setPaletteTarget] = useState<{ sectionIndex: number | null } | null>(null);
   const [selectedCard, setSelectedCard] = useState<SelectedCard | null>(null);
-  const [selectedSection, setSelectedSection] = useState<SelectedSection | null>(null);
   const [saving, setSaving] = useState(false);
+  const devices = useDevices(allDevices);
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
 
@@ -67,16 +70,18 @@ export function DashboardEditor({ initialDoc, onSaved }: DashboardEditorProps) {
       ...prev,
       sections: prev.sections.filter((_, i) => i !== index),
     }));
-    setSelectedSection((s) => (s?.sectionIndex === index ? null : s));
     setSelectedCard((c) => (c?.sectionIndex === index ? null : c));
   };
 
   // -- Card handlers -------------------------------------------------------
   const addCard = (card: CardDescriptor, sectionIndex: number | null) => {
+    let newCardIndex = 0;
     patchDoc((prev) => {
       if (sectionIndex === null) {
+        newCardIndex = prev.cards.length;
         return { ...prev, cards: [...prev.cards, card] };
       }
+      newCardIndex = prev.sections[sectionIndex]?.cards.length ?? 0;
       return {
         ...prev,
         sections: prev.sections.map((s, i) =>
@@ -85,6 +90,8 @@ export function DashboardEditor({ initialDoc, onSaved }: DashboardEditorProps) {
       };
     });
     setPaletteTarget(null);
+    // Immediately open the card editor so the user can configure the new card.
+    setSelectedCard({ sectionIndex, cardIndex: newCardIndex });
   };
 
   const updateCard = (sel: SelectedCard, card: CardDescriptor) => {
@@ -201,6 +208,14 @@ export function DashboardEditor({ initialDoc, onSaved }: DashboardEditorProps) {
           }
         />
         <div className="ml-auto flex items-center gap-2">
+          {doc.layout.type === 'sections' && (
+            <GhostIconButton
+              icon={LayoutTemplate}
+              aria-label="Add section"
+              title="Add section"
+              onClick={addSection}
+            />
+          )}
           {dirty && (
             <span className="text-xs" style={{ color: 'var(--color-warning)' }}>
               Unsaved changes
@@ -228,9 +243,7 @@ export function DashboardEditor({ initialDoc, onSaved }: DashboardEditorProps) {
       <EditablePreview
         doc={doc}
         selectedCard={selectedCard}
-        selectedSection={selectedSection}
         onSelectCard={setSelectedCard}
-        onSelectSection={setSelectedSection}
         onUpdateCard={updateCard}
         onDeleteCard={removeCard}
         onReorderCard={reorderCard}
@@ -246,6 +259,7 @@ export function DashboardEditor({ initialDoc, onSaved }: DashboardEditorProps) {
         onPick={(card) => {
           if (paletteTarget) addCard(card, paletteTarget.sectionIndex);
         }}
+        devices={devices}
       />
     </div>
   );
