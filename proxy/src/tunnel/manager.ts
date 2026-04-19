@@ -249,6 +249,7 @@ class TunnelManager {
     if (msg.type === 'http_stream_start') {
       const pending = this.pendingRequests.get(msg.id);
       if (!pending) return;
+      logger.info({ id: msg.id, status: msg.status, contentType: msg.headers['content-type'] }, 'proxy stream start');
       clearTimeout(pending.timer);
       const stream = new PassThrough();
       // Upgrade the pending record in place to streaming mode. Reuse the
@@ -274,10 +275,18 @@ class TunnelManager {
 
     if (msg.type === 'http_stream_chunk') {
       const pending = this.pendingRequests.get(msg.id);
-      if (!pending || pending.kind !== 'streaming' || !pending.stream) return;
-      if (pending.stream.destroyed) return;
+      if (!pending || pending.kind !== 'streaming' || !pending.stream) {
+        logger.warn({ id: msg.id, pendingKind: pending?.kind, hasStream: !!(pending as PendingStreaming | undefined)?.stream }, 'proxy stream chunk arrived with no matching stream');
+        return;
+      }
+      if (pending.stream.destroyed) {
+        logger.warn({ id: msg.id }, 'proxy stream chunk arrived after stream destroyed');
+        return;
+      }
       try {
         const buf = Buffer.from(msg.data, 'base64');
+        const preview = buf.length <= 2048 ? buf.toString('utf8').replace(/\n/g, '\\n').slice(0, 400) : `<${buf.length} bytes binary>`;
+        logger.info({ id: msg.id, bytes: buf.length, preview }, 'proxy stream chunk');
         pending.stream.write(buf);
       } catch (err) {
         logger.error({ err, id: msg.id }, 'Failed to write streaming chunk');
@@ -288,6 +297,7 @@ class TunnelManager {
     if (msg.type === 'http_stream_end') {
       const pending = this.pendingRequests.get(msg.id);
       if (!pending) return;
+      logger.info({ id: msg.id, error: msg.error, pendingKind: pending.kind }, 'proxy stream end');
       this.pendingRequests.delete(msg.id);
       if (pending.kind === 'streaming' && pending.stream && !pending.stream.destroyed) {
         if (msg.error && msg.error !== 'cancelled') {
