@@ -300,25 +300,67 @@ if [ "$BUILD_FALLBACK" = false ] && [ -f "$MANIFEST" ]; then
   if [ -n "$BACKEND_IMG" ] && [ -n "$FRONTEND_IMG" ]; then
     PULL_OK=0
     PULL_TOTAL=0
+    PULL_FAILED_IMAGES=""
 
+    # Pull each image with EXPLICIT exit code capture. The previous
+    # `docker pull ... | tail -3 | while read` pipeline made it easy for
+    # the final `while` command to mask the pull's real exit code, which
+    # is how we ended up reporting "All images pulled from registry"
+    # while the stack silently stayed on the old version.
     for img_name in "$BACKEND_IMG" "$FRONTEND_IMG" "$ROBOROCK_IMG"; do
       [ -z "$img_name" ] && continue
       PULL_TOTAL=$((PULL_TOTAL + 1))
       emit_log "pull_images" "Pulling $img_name"
-      if docker pull "$img_name" 2>&1 | tail -3 | while IFS= read -r line; do emit_log "pull_images" "$line"; done; then
+      pull_log=$(mktemp)
+      if docker pull "$img_name" > "$pull_log" 2>&1; then
         PULL_OK=$((PULL_OK + 1))
+        tail -2 "$pull_log" | while IFS= read -r line; do emit_log "pull_images" "$line"; done
       else
-        emit_log "pull_images" "Failed to pull $img_name — will use local build for this service"
+        pull_exit=$?
+        PULL_FAILED_IMAGES="$PULL_FAILED_IMAGES $img_name"
+        emit_log "pull_images" "docker pull $img_name exited $pull_exit"
+        tail -5 "$pull_log" | while IFS= read -r line; do emit_log "pull_images" "$line"; done
       fi
+      rm -f "$pull_log"
     done
 
-    # Set .env tags for whichever images were successfully pulled.
-    # Compose will use pulled images where available and build the rest.
+    # Pin .env ONLY for images we actually have locally. Verify read-back
+    # so a silent sed failure surfaces instead of masquerading as success.
+    pin_and_verify() {
+      _key="$1"; _expected="$2"
+      if ! docker image inspect "$_expected" >/dev/null 2>&1; then
+        emit_log "pull_images" "$_key: image $_expected not locally available — leaving .env untouched"
+        return 1
+      fi
+      set_env_var "$_key" "$_expected"
+      _actual=$(grep "^${_key}=" "$APP/.env" 2>/dev/null | tail -1 | cut -d= -f2-)
+      if [ "$_actual" != "$_expected" ]; then
+        emit_log "pull_images" "$_key: .env read-back mismatch (wrote $_expected, file has $_actual)"
+        return 1
+      fi
+      emit_log "pull_images" "$_key pinned to $_expected in .env"
+      return 0
+    }
+
+    PIN_FAILED=0
     if [ "$PULL_OK" -gt 0 ]; then
       IMAGES_PULLED=true
-      docker image inspect "$BACKEND_IMG" >/dev/null 2>&1 && set_env_var "HA_BACKEND_IMAGE" "$BACKEND_IMG"
-      docker image inspect "$FRONTEND_IMG" >/dev/null 2>&1 && set_env_var "HA_FRONTEND_IMAGE" "$FRONTEND_IMG"
-      [ -n "$ROBOROCK_IMG" ] && docker image inspect "$ROBOROCK_IMG" >/dev/null 2>&1 && set_env_var "HA_ROBOROCK_IMAGE" "$ROBOROCK_IMG"
+      pin_and_verify "HA_BACKEND_IMAGE"  "$BACKEND_IMG"  || PIN_FAILED=1
+      pin_and_verify "HA_FRONTEND_IMAGE" "$FRONTEND_IMG" || PIN_FAILED=1
+      [ -n "$ROBOROCK_IMG" ] && { pin_and_verify "HA_ROBOROCK_IMAGE" "$ROBOROCK_IMG" || PIN_FAILED=1; }
+    fi
+
+    if [ -n "$PULL_FAILED_IMAGES" ] || [ "$PIN_FAILED" -eq 1 ]; then
+      # A pull or a pin failed — compose will restart on the previous tag
+      # and the final verify stage will flag it. Mark this stage FAILED
+      # now so the user has a direct breadcrumb. Continue the deploy
+      # anyway: a restart on the old tag is less disruptive than aborting
+      # mid-deploy, and verify's diagnostic is what the user wants to see.
+      _reason=""
+      [ -n "$PULL_FAILED_IMAGES" ] && _reason="pull failed:$PULL_FAILED_IMAGES"
+      [ "$PIN_FAILED" -eq 1 ] && _reason="${_reason}${_reason:+; }failed to pin image tags in .env"
+      emit "pull_images" "failed" "$_reason"
+    elif [ "$PULL_OK" -gt 0 ]; then
       if [ "$PULL_OK" -eq "$PULL_TOTAL" ]; then
         emit "pull_images" "completed" "All images pulled from registry"
       else
@@ -416,6 +458,17 @@ emit() {
 
 # Give the calling container a moment to write its last progress
 sleep 3
+
+# --- Report the effective image tags compose will use ---
+# Read .env the same way compose does so the log shows exactly what we're
+# about to ask compose to run. If this shows the OLD tag but the deploy
+# claimed "All images pulled from registry", the pin-step broke and the
+# verify stage will catch it downstream.
+emit "restart" "log" ".env image pins (what compose will use):"
+for _k in HA_BACKEND_IMAGE HA_FRONTEND_IMAGE HA_ROBOROCK_IMAGE; do
+  _v=$(grep "^${_k}=" /app/.env 2>/dev/null | tail -1 | cut -d= -f2-)
+  emit "restart" "log" "  $_k=${_v:-<unset>}"
+done
 
 # --- Restart all services ---
 # Compose up may partially succeed (some containers start, others fail).
