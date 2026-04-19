@@ -92,8 +92,19 @@ const DEVICE_CARD_MAP: Partial<Record<MapKey, CardFactory>> = {
   // Tesla vehicles (identified by compositor data from vehicle_config) get the
   // rich Tesla card with live compositor image and GPS map support.
   // All other vehicles fall back to the generic tile.
+  // Tesla defaults mirror teslaCardSchema's Zod `.default()` values — the
+  // inferred output type requires them even though the schema parses fine
+  // without them at runtime.
   vehicle: (d) => (d as import('@ha/shared').VehicleState).compositorModel
-    ? { type: 'tesla', entity: d.id }
+    ? {
+        type: 'tesla',
+        entity: d.id,
+        hideImage: false,
+        imageSource: 'auto',
+        imageSize: 720,
+        imageView: 'STUD_3QTR',
+        showMap: false,
+      }
     : { type: 'vehicle', entity: d.id, sections: ['battery', 'location', 'climate', 'doors', 'charging'] },
 
   // -- Cameras & doorbells -------------------------------------------------
