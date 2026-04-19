@@ -52,6 +52,44 @@ interface TunnelHttpResponse {
   bodyEncoding?: 'base64';
 }
 
+/**
+ * Streaming response protocol — used for large binary bodies that can't be
+ * practically buffered in a single `http_response` message (HLS TS segments,
+ * MJPEG multipart streams, large downloads). The home sends a start frame
+ * with headers, then 0+ chunk frames with base64-encoded body slices, then
+ * an end frame. The proxy pipes chunks into a Readable so it can stream
+ * the response to the client without buffering the whole body server-side.
+ */
+interface TunnelHttpStreamStart {
+  type: 'http_stream_start';
+  id: string;
+  status: number;
+  headers: Record<string, string>;
+}
+
+interface TunnelHttpStreamChunk {
+  type: 'http_stream_chunk';
+  id: string;
+  /** Base64-encoded binary chunk (non-empty). */
+  data: string;
+}
+
+interface TunnelHttpStreamEnd {
+  type: 'http_stream_end';
+  id: string;
+  /** Set when the stream ended abnormally — home hit an error mid-stream. */
+  error?: string;
+}
+
+/**
+ * Sent by the proxy when the remote client disconnects mid-stream, so the
+ * home can abort the in-flight fetch and stop pushing chunks into the void.
+ */
+interface TunnelHttpStreamCancel {
+  type: 'http_stream_cancel';
+  id: string;
+}
+
 interface TunnelPing {
   type: 'ping';
 }
@@ -91,6 +129,10 @@ export type TunnelMessage =
   | TunnelHomeRegistered
   | TunnelHttpRequest
   | TunnelHttpResponse
+  | TunnelHttpStreamStart
+  | TunnelHttpStreamChunk
+  | TunnelHttpStreamEnd
+  | TunnelHttpStreamCancel
   | TunnelPing
   | TunnelPong
   | TunnelWsOpen

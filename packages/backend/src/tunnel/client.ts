@@ -24,6 +24,7 @@ import { stateStore } from '../state/store.js';
 import { eventBus } from '../state/event-bus.js';
 import { registry } from '../integrations/registry.js';
 import { buildInfo } from '../build-version.js';
+import { appConfig } from '../config.js';
 
 const logger = rootLogger.child({ module: 'tunnel' });
 
@@ -32,6 +33,25 @@ const logger = rootLogger.child({ module: 'tunnel' });
 const INITIAL_RETRY_MS = 2_000;
 const MAX_RETRY_MS = 60_000;
 const AUTH_TIMEOUT_MS = 10_000;
+
+/**
+ * Paths that should stream chunked through the tunnel instead of being
+ * buffered by `app.inject()`. HLS TS segments and MJPEG frames can be
+ * many megabytes — buffering the full body before sending blocks the
+ * tunnel and blows up memory. Streaming cuts time-to-first-byte to ~0
+ * and lets the remote player pipeline segments just like on LAN.
+ */
+const STREAMING_PATH_PATTERNS: RegExp[] = [
+  /^\/api\/cameras\/[^/]+\/hls\//,
+  /^\/api\/cameras\/[^/]+\/mjpeg$/,
+];
+
+/**
+ * Soft cap on WebSocket outbound buffer. When the queued bytes exceed this,
+ * the streaming reader pauses until the socket drains — prevents a slow
+ * remote client from piling up segments in memory on the home hub.
+ */
+const WS_BACKPRESSURE_BYTES = 2 * 1024 * 1024;
 
 // -- Virtual WS session (represents a remote client's real-time subscription) -
 
@@ -56,6 +76,10 @@ class TunnelClient {
 
   /** Active virtual WS sessions keyed by sessionId */
   private sessions = new Map<string, VirtualSession>();
+
+  /** In-flight streaming requests — cancelled when the proxy sends http_stream_cancel
+   *  (remote client disconnected) or when the tunnel drops. */
+  private activeStreams = new Map<string, AbortController>();
 
   /** Event bus listener cleanup */
   private eventBusCleanup: (() => void) | null = null;
@@ -103,11 +127,19 @@ class TunnelClient {
       this.retryTimer = null;
     }
     this.cleanupEventBus();
+    this.abortAllStreams();
     if (this.ws) {
       this.ws.close(1000, 'shutdown');
       this.ws = null;
     }
     this.sessions.clear();
+  }
+
+  private abortAllStreams(): void {
+    for (const ctrl of this.activeStreams.values()) {
+      try { ctrl.abort(); } catch { /* noop */ }
+    }
+    this.activeStreams.clear();
   }
 
   isConnected(): boolean {
@@ -166,6 +198,7 @@ class TunnelClient {
       this.authenticated = false;
       this.ws = null;
       this.cleanupEventBus();
+      this.abortAllStreams();
       this.sessions.clear();
       logger.info({ code, reason: String(reason) }, 'Tunnel disconnected');
       this.scheduleReconnect();
@@ -215,6 +248,14 @@ class TunnelClient {
       case 'http_request':
         void this.handleHttpRequest(msg);
         break;
+      case 'http_stream_cancel': {
+        const ctrl = this.activeStreams.get(msg.id);
+        if (ctrl) {
+          try { ctrl.abort(); } catch { /* noop */ }
+          this.activeStreams.delete(msg.id);
+        }
+        break;
+      }
       case 'ws_open':
         this.handleWsOpen(msg);
         break;
@@ -237,6 +278,11 @@ class TunnelClient {
     }
   }
 
+  private static isStreamingPath(path: string): boolean {
+    const p = path.split('?')[0] ?? path;
+    return STREAMING_PATH_PATTERNS.some((re) => re.test(p));
+  }
+
   // -- HTTP request relay (proxy → Fastify inject / frontend fetch) -----------
 
   /** Host + port of the local Next.js frontend server.
@@ -251,8 +297,133 @@ class TunnelClient {
 
     if (isFrontend) {
       await this.handleFrontendRequest(msg);
-    } else {
-      await this.handleApiRequest(msg);
+      return;
+    }
+
+    if (TunnelClient.isStreamingPath(msg.path)) {
+      await this.handleStreamingApiRequest(msg);
+      return;
+    }
+
+    await this.handleApiRequest(msg);
+  }
+
+  /**
+   * Stream a response body through the tunnel chunk-by-chunk instead of
+   * collecting the full body via app.inject(). Used for HLS segments and
+   * MJPEG — large/long-lived binary responses where buffering kills latency.
+   *
+   * We go through the real TCP socket on 127.0.0.1:PORT so we get a true
+   * ReadableStream on `res.body` (Fastify's inject() buffers rawPayload).
+   * The overhead of a localhost TCP handshake is negligible vs. the benefit
+   * of streaming segments to the remote player as they arrive.
+   */
+  private async handleStreamingApiRequest(
+    msg: TunnelMessage & { type: 'http_request' },
+  ): Promise<void> {
+    const url = `http://127.0.0.1:${appConfig.port}${msg.path}`;
+
+    const fetchHeaders: Record<string, string> = { ...msg.headers };
+    delete fetchHeaders['host'];
+    delete fetchHeaders['content-length'];
+    delete fetchHeaders['connection'];
+    // Auth bypass for trusted tunnel-forwarded requests — same nonce the
+    // buffered path uses. External callers can't know this value.
+    fetchHeaders['x-tunnel-internal'] = TUNNEL_INTERNAL_NONCE;
+
+    const ctrl = new AbortController();
+    this.activeStreams.set(msg.id, ctrl);
+
+    try {
+      const fetchInit: RequestInit = {
+        method: msg.method,
+        headers: fetchHeaders,
+        signal: ctrl.signal,
+      };
+      if (msg.body && msg.method !== 'GET' && msg.method !== 'HEAD') {
+        fetchInit.body = msg.body;
+      }
+
+      const res = await fetch(url, fetchInit);
+
+      const responseHeaders: Record<string, string> = {};
+      res.headers.forEach((value, key) => {
+        const lower = key.toLowerCase();
+        if (
+          lower === 'transfer-encoding' ||
+          lower === 'connection' ||
+          lower === 'content-encoding' ||
+          lower === 'content-length'
+        ) return;
+        responseHeaders[key] = value;
+      });
+
+      this.send({
+        type: 'http_stream_start',
+        id: msg.id,
+        status: res.status,
+        headers: responseHeaders,
+      });
+
+      if (!res.body) {
+        this.send({ type: 'http_stream_end', id: msg.id });
+        return;
+      }
+
+      const reader = res.body.getReader();
+
+      try {
+        for (;;) {
+          // Backpressure: if the WebSocket outbound buffer is backing up,
+          // wait before reading the next chunk so we don't accumulate in RAM.
+          await this.waitForSocketDrain();
+
+          // Tunnel can drop mid-stream; abort early instead of piping into the void.
+          if (!this.activeStreams.has(msg.id)) {
+            await reader.cancel().catch(() => { /* noop */ });
+            return;
+          }
+
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!value || value.byteLength === 0) continue;
+
+          this.send({
+            type: 'http_stream_chunk',
+            id: msg.id,
+            data: Buffer.from(value).toString('base64'),
+          });
+        }
+
+        this.send({ type: 'http_stream_end', id: msg.id });
+      } finally {
+        try { reader.releaseLock(); } catch { /* noop */ }
+      }
+    } catch (err) {
+      const aborted = (err as { name?: string } | null)?.name === 'AbortError';
+      if (!aborted) {
+        logger.error({ err, path: msg.path }, 'Streaming tunnel request failed');
+      }
+      this.send({
+        type: 'http_stream_end',
+        id: msg.id,
+        error: aborted ? 'cancelled' : String((err as Error)?.message ?? err),
+      });
+    } finally {
+      this.activeStreams.delete(msg.id);
+    }
+  }
+
+  /** Pause sending while the WebSocket outbound queue is oversize. */
+  private async waitForSocketDrain(): Promise<void> {
+    const ws = this.ws;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (ws.bufferedAmount < WS_BACKPRESSURE_BYTES) return;
+    // Wait up to 5s in 50ms increments for the buffer to fall below the cap.
+    for (let i = 0; i < 100; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      if (this.ws.bufferedAmount < WS_BACKPRESSURE_BYTES) return;
     }
   }
 

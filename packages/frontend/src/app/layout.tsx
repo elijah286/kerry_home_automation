@@ -16,6 +16,7 @@ import { LCARSSoundsProvider } from '@/components/lcars/LCARSSounds';
 import { LCARSVariantProvider } from '@/components/lcars/LCARSVariantProvider';
 import { UpdateInProgressOverlay } from '@/components/layout/UpdateInProgressOverlay';
 import { VersionGuard } from '@/components/layout/VersionGuard';
+import { TunnelStatusBanner } from '@/components/layout/TunnelStatusBanner';
 import { ToastProvider } from '@/components/notifications/ToastProvider';
 
 export const metadata: Metadata = {
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <LCARSVariantProvider>
                   <LCARSSoundsProvider>
                     <UpdateInProgressOverlay />
+                    <TunnelStatusBanner />
                     <VersionGuard />
                     <ToastProvider />
                     <AuthGate>{children}</AuthGate>

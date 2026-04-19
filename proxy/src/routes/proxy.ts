@@ -50,12 +50,26 @@ export async function registerProxyRoutes(app: FastifyInstance): Promise<void> {
 
       reply.status(response.status);
       for (const [key, value] of Object.entries(response.headers)) {
-        if (key.toLowerCase() !== 'transfer-encoding') {
-          reply.header(key, value);
-        }
+        const lower = key.toLowerCase();
+        // transfer-encoding / content-length are managed by Fastify's reply —
+        // forwarding them corrupts chunked responses.
+        if (lower === 'transfer-encoding' || lower === 'content-length') continue;
+        reply.header(key, value);
       }
 
-      // Decode base64-encoded binary responses (images, etc.)
+      if (response.kind === 'streaming') {
+        // If the remote client disconnects, tell the home to abort the fetch so
+        // we stop pushing chunks into the void. cancelStream is idempotent —
+        // after normal http_stream_end the pending entry is gone and cancel
+        // becomes a no-op, so firing this on every close is safe.
+        req.raw.on('close', () => { tunnelManager.cancelStream(id); });
+        response.stream.on('error', (err) => {
+          logger.warn({ err, path }, 'Streaming tunnel response errored');
+        });
+        return reply.send(response.stream);
+      }
+
+      // Buffered — decode base64 for binary bodies, otherwise send text.
       if (response.bodyEncoding === 'base64' && response.body) {
         return reply.send(Buffer.from(response.body, 'base64'));
       }

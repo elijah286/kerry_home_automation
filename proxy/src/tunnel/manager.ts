@@ -1,15 +1,46 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { Server as HttpServer } from 'node:http';
+import { PassThrough, type Readable } from 'node:stream';
 import type { TunnelMessage } from '@home-automation/shared';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 
-type PendingRequest = {
-  resolve: (msg: TunnelMessage & { type: 'http_response' }) => void;
+export type TunnelHttpResult =
+  | {
+      kind: 'buffered';
+      status: number;
+      headers: Record<string, string>;
+      body?: string;
+      bodyEncoding?: 'base64';
+    }
+  | {
+      kind: 'streaming';
+      status: number;
+      headers: Record<string, string>;
+      stream: Readable;
+    };
+
+type PendingBuffered = {
+  kind: 'buffered';
+  resolve: (result: TunnelHttpResult) => void;
   reject: (err: Error) => void;
   timer: ReturnType<typeof setTimeout>;
 };
+
+type PendingStreaming = {
+  kind: 'streaming';
+  /** Has the caller already received the start frame (and the Readable)? */
+  started: boolean;
+  resolve: (result: TunnelHttpResult) => void;
+  reject: (err: Error) => void;
+  /** Time-to-first-byte timer — cleared when start frame arrives. */
+  timer: ReturnType<typeof setTimeout>;
+  /** PassThrough the proxy pipes to the client reply. Created on first chunk (or start). */
+  stream: PassThrough | null;
+};
+
+type PendingRequest = PendingBuffered | PendingStreaming;
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const HEARTBEAT_INTERVAL_MS = 30_000;
@@ -134,7 +165,11 @@ class TunnelManager {
   }
 
   /**
-   * Send an HTTP request through the tunnel and wait for the response.
+   * Send an HTTP request through the tunnel and wait for the first response
+   * frame. For typical REST responses the home sends a single `http_response`
+   * (buffered). For HLS/MJPEG the home sends `http_stream_start` + chunks +
+   * `http_stream_end` — this method resolves on `http_stream_start` with a
+   * Readable that the caller pipes to the client reply.
    */
   sendHttpRequest(
     id: string,
@@ -142,7 +177,7 @@ class TunnelManager {
     path: string,
     headers: Record<string, string>,
     body?: string,
-  ): Promise<TunnelMessage & { type: 'http_response' }> {
+  ): Promise<TunnelHttpResult> {
     return new Promise((resolve, reject) => {
       if (!this.isConnected()) {
         reject(new Error('tunnel not connected'));
@@ -150,13 +185,37 @@ class TunnelManager {
       }
 
       const timer = setTimeout(() => {
+        const p = this.pendingRequests.get(id);
+        if (!p) return;
         this.pendingRequests.delete(id);
+        // If a stream was created before TTFB expired we'd have cleared the timer
+        // already — so reaching here always means nothing arrived from the home.
         reject(new Error('tunnel request timeout'));
       }, REQUEST_TIMEOUT_MS);
 
-      this.pendingRequests.set(id, { resolve, reject, timer });
+      // We don't know ahead of time whether the response will be buffered or
+      // streamed — home decides based on route. Stash a dual-purpose pending
+      // record and upgrade it in place when the first frame reveals the type.
+      this.pendingRequests.set(id, {
+        kind: 'buffered',
+        resolve,
+        reject,
+        timer,
+      });
       this.sendToTunnel({ type: 'http_request', id, method, path, headers, body });
     });
+  }
+
+  /** Called by the proxy route when the remote client disconnects mid-stream. */
+  cancelStream(id: string): void {
+    const p = this.pendingRequests.get(id);
+    if (!p) return;
+    if (p.kind === 'streaming' && p.stream && !p.stream.destroyed) {
+      p.stream.destroy();
+    }
+    clearTimeout(p.timer);
+    this.pendingRequests.delete(id);
+    this.sendToTunnel({ type: 'http_stream_cancel', id });
   }
 
   /**
@@ -170,10 +229,72 @@ class TunnelManager {
   private handleTunnelMessage(msg: TunnelMessage): void {
     if (msg.type === 'http_response') {
       const pending = this.pendingRequests.get(msg.id);
-      if (pending) {
-        clearTimeout(pending.timer);
-        this.pendingRequests.delete(msg.id);
-        pending.resolve(msg);
+      if (!pending) return;
+      clearTimeout(pending.timer);
+      this.pendingRequests.delete(msg.id);
+      if (pending.kind !== 'buffered') {
+        // Shouldn't happen — home decided late it's buffered. Resolve gracefully.
+        if (pending.stream && !pending.stream.destroyed) pending.stream.destroy();
+      }
+      pending.resolve({
+        kind: 'buffered',
+        status: msg.status,
+        headers: msg.headers,
+        body: msg.body,
+        bodyEncoding: msg.bodyEncoding,
+      });
+      return;
+    }
+
+    if (msg.type === 'http_stream_start') {
+      const pending = this.pendingRequests.get(msg.id);
+      if (!pending) return;
+      clearTimeout(pending.timer);
+      const stream = new PassThrough();
+      // Upgrade the pending record in place to streaming mode. Reuse the
+      // now-cleared timer handle — PendingStreaming's timer slot is never
+      // rearmed (no TTFB timeout on chunks after start).
+      const upgraded: PendingStreaming = {
+        kind: 'streaming',
+        started: true,
+        resolve: pending.resolve,
+        reject: pending.reject,
+        timer: pending.timer,
+        stream,
+      };
+      this.pendingRequests.set(msg.id, upgraded);
+      upgraded.resolve({
+        kind: 'streaming',
+        status: msg.status,
+        headers: msg.headers,
+        stream,
+      });
+      return;
+    }
+
+    if (msg.type === 'http_stream_chunk') {
+      const pending = this.pendingRequests.get(msg.id);
+      if (!pending || pending.kind !== 'streaming' || !pending.stream) return;
+      if (pending.stream.destroyed) return;
+      try {
+        const buf = Buffer.from(msg.data, 'base64');
+        pending.stream.write(buf);
+      } catch (err) {
+        logger.error({ err, id: msg.id }, 'Failed to write streaming chunk');
+      }
+      return;
+    }
+
+    if (msg.type === 'http_stream_end') {
+      const pending = this.pendingRequests.get(msg.id);
+      if (!pending) return;
+      this.pendingRequests.delete(msg.id);
+      if (pending.kind === 'streaming' && pending.stream && !pending.stream.destroyed) {
+        if (msg.error && msg.error !== 'cancelled') {
+          pending.stream.destroy(new Error(msg.error));
+        } else {
+          pending.stream.end();
+        }
       }
       return;
     }
@@ -235,9 +356,18 @@ class TunnelManager {
   }
 
   private rejectAllPending(err: Error): void {
-    for (const [id, pending] of this.pendingRequests) {
+    for (const [, pending] of this.pendingRequests) {
       clearTimeout(pending.timer);
-      pending.reject(err);
+      if (pending.kind === 'streaming') {
+        if (pending.started) {
+          // Caller already has the stream — tear it down so the client sees EOF.
+          if (pending.stream && !pending.stream.destroyed) pending.stream.destroy(err);
+        } else {
+          pending.reject(err);
+        }
+      } else {
+        pending.reject(err);
+      }
     }
     this.pendingRequests.clear();
   }

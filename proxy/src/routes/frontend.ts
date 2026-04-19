@@ -65,9 +65,17 @@ export async function registerFrontendRoutes(app: FastifyInstance): Promise<void
       reply.status(response.status);
       for (const [key, value] of Object.entries(response.headers)) {
         const lower = key.toLowerCase();
-        // Skip hop-by-hop headers
-        if (lower === 'transfer-encoding' || lower === 'connection') continue;
+        // Skip hop-by-hop / length headers — Fastify manages those.
+        if (lower === 'transfer-encoding' || lower === 'connection' || lower === 'content-length') continue;
         reply.header(key, value);
+      }
+      // Frontend (Next.js) responses are never streamed through the tunnel —
+      // the home backend's frontend handler always returns a buffered body.
+      // Keep this branch defensive anyway so a future protocol change can't
+      // silently wedge the proxy.
+      if (response.kind === 'streaming') {
+        req.raw.on('close', () => { tunnelManager.cancelStream(id); });
+        return reply.send(response.stream);
       }
       return reply.send(response.body ?? '');
     } catch (err) {
