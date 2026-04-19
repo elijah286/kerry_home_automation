@@ -11,6 +11,8 @@ import {
   cardDescriptorSchema,
   type CardDescriptor,
   type CardType,
+  type DeviceState,
+  type DeviceType,
 } from '@ha/shared';
 
 /** Human-friendly descriptions used by the card palette UI. */
@@ -87,7 +89,56 @@ const seeds: Record<CardType, unknown> = {
   'horizontal-stack': { type: 'horizontal-stack', children: [] },
 };
 
-export function createCardOfType(cardType: CardType): CardDescriptor {
-  const seed = seeds[cardType];
+/**
+ * Device types that are compatible with each card type, used to pre-seed
+ * a random entity when creating a card from the palette.
+ * Cards without an entry don't have an entity field (e.g. heading, group).
+ */
+const CARD_DEVICE_TYPES: Partial<Record<CardType, DeviceType[]>> = {
+  'light-tile': ['light'],
+  'fan-tile': ['fan'],
+  'cover-tile': ['cover', 'garage_door'],
+  'lock-tile': ['helper_toggle'],
+  'switch-tile': ['switch', 'sprinkler', 'screensaver', 'pool_body', 'pool_pump', 'pool_circuit', 'helper_toggle'],
+  'media-tile': ['media_player', 'music_player'],
+  thermostat: ['thermostat'],
+  vehicle: ['vehicle'],
+  tesla: ['vehicle'],
+  'door-window': ['sensor'],
+  battery: ['sensor'],
+  weather: ['weather'],
+  gauge: ['sensor', 'energy_monitor', 'speedtest', 'water_softener'],
+  'sensor-value': ['sensor', 'energy_monitor', 'speedtest', 'water_softener', 'network_device', 'sun', 'pool_chemistry', 'helper_counter', 'helper_timer', 'helper_number', 'helper_text', 'helper_datetime', 'helper_select', 'helper_sensor', 'hub', 'recipe_library'],
+  'history-graph': ['sensor', 'energy_monitor'],
+  'entity-list': ['sensor', 'switch', 'light'],
+  statistic: ['sensor', 'energy_site', 'energy_monitor'],
+  camera: ['camera', 'doorbell'],
+  map: ['vehicle'],
+  'alarm-panel': ['helper_toggle'],
+  button: ['helper_button', 'vacuum'],
+};
+
+function pickRandom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+export function createCardOfType(cardType: CardType, devices?: DeviceState[]): CardDescriptor {
+  const seed = { ...(seeds[cardType] as Record<string, unknown>) };
+
+  if (devices?.length) {
+    const compatibleTypes = CARD_DEVICE_TYPES[cardType];
+    if (compatibleTypes) {
+      const compatible = devices.filter((d) => compatibleTypes.includes(d.type));
+      if (compatible.length > 0) {
+        const pick = pickRandom(compatible);
+        if ('entity' in seed) {
+          seed.entity = pick.id;
+        } else if ('entities' in seed && Array.isArray(seed.entities)) {
+          seed.entities = [pick.id];
+        }
+      }
+    }
+  }
+
   return cardDescriptorSchema.parse(seed);
 }
