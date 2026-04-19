@@ -249,7 +249,7 @@ export const KNOWN_INTEGRATIONS: IntegrationInfo[] = [
     providesDevices: true,
     supportsMultipleEntries: false,
     configFields: [
-      { key: 'ws_url', label: 'WebSocket URL', type: 'text', placeholder: 'ws://localhost:3000', required: true },
+      { key: 'ws_url', label: 'WebSocket URL', type: 'text', placeholder: 'ws://zwave-js-ui:3000', required: true },
     ],
   },
   {

@@ -13,7 +13,7 @@ import {
   Search, Cpu, Lightbulb, ToggleLeft, Fan, Blinds, Speaker, Camera, CookingPot,
   Battery, Car, Waves, CircuitBoard, Beaker, ChevronDown, ChevronRight, X, Zap,
   Pencil, Check, CloudSun, Settings, DoorOpen, Activity, Droplets, Bot, Gauge,
-  ClipboardCopy,
+  ClipboardCopy, Lock,
 } from 'lucide-react';
 import type { DeviceState, DeviceType, NetworkDeviceState } from '@ha/shared';
 import Link from 'next/link';
@@ -40,6 +40,7 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
   pool_chemistry: Beaker,
   weather: CloudSun,
   garage_door: DoorOpen,
+  lock: Lock,
   sensor: Activity,
   sprinkler: Droplets,
   vacuum: Bot,
@@ -128,6 +129,9 @@ function getDeviceStateSummary(device: DeviceState): string {
       if (device.opening) return 'Opening';
       if (device.closing) return 'Closing';
       return device.open ? 'Open' : 'Closed';
+    case 'lock':
+      if (device.jammed) return 'Jammed';
+      return device.locked ? 'Locked' : 'Unlocked';
     case 'sensor':
       if (device.value == null) return '—';
       if (typeof device.value === 'boolean') return device.value ? 'Detected' : 'Clear';

@@ -14,6 +14,7 @@ import { EnergySiteControl } from './EnergySiteControl';
 import { PoolBodyControl, PoolPumpControl, PoolCircuitControl, PoolChemistryControl } from './PoolControl';
 import { WeatherDisplay } from './WeatherDisplay';
 import { GarageDoorControl } from './GarageDoorControl';
+import { LockControl } from './LockControl';
 import { SensorDisplay } from './SensorDisplay';
 import { SprinklerControl } from './SprinklerControl';
 import { VacuumControl } from './VacuumControl';
@@ -450,6 +451,8 @@ export function DeviceCard({
       return <WeatherDisplay device={device} />;
     case 'garage_door':
       return <GarageDoorControl device={device} />;
+    case 'lock':
+      return <LockControl device={device} />;
     case 'sensor':
       return <SensorDisplay device={device} />;
     case 'sprinkler':

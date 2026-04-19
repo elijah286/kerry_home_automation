@@ -145,6 +145,12 @@ const DEVICE_CARD_MAP: Partial<Record<MapKey, CardFactory>> = {
   // listing 15+ toggle flags inline here.
   weather: (d) => weatherCardSchema.parse({ type: 'weather', entity: d.id }),
 
+  // -- Locks ---------------------------------------------------------------
+  // No bespoke lock-tile yet; switch-tile renders a clear on/off pill that
+  // maps cleanly to locked/unlocked, with the device-detail page providing
+  // the full LockControl when tapped.
+  lock: (d) => ({ type: 'switch-tile', entity: d.id }),
+
   // -- Garage doors / generic door & window sensors ------------------------
   garage_door: (d) => ({ type: 'cover-tile', entity: d.id, showPositionControl: false, visual: 'garage', showPercentage: false }),
   // Binary door/window sensors render as sensor-value until a dedicated
@@ -231,6 +237,7 @@ const DEVICE_KIND: Record<DeviceType, DeviceKind> = {
   cover: 'control',
   fan: 'control',
   garage_door: 'control',
+  lock: 'control',
   sprinkler: 'control',
   vacuum: 'control',
   screensaver: 'control',
@@ -293,6 +300,7 @@ export function getCompatibleCards(device: DeviceState): string[] {
     cover: 'cover-tile',
     fan: 'fan-tile',
     garage_door: 'cover-tile',
+    lock: 'switch-tile',
     sprinkler: 'switch-tile',
     screensaver: 'switch-tile',
     pool_body: 'switch-tile',

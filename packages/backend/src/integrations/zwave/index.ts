@@ -107,6 +107,18 @@ export class ZwaveIntegration implements Integration {
         }
         break;
       }
+      case 'lock': {
+        // CC 98 Door Lock: 0 = Unsecured, 255 = Secured
+        const mode = cmd.action === 'lock' ? 255 : 0;
+        await this.client.setValue(nodeId, 98, 'targetMode', mode);
+        break;
+      }
+      case 'garage_door': {
+        // CC 102 Barrier Operator: 0 = Closed, 255 = Open
+        const target = cmd.action === 'open' ? 255 : 0;
+        await this.client.setValue(nodeId, 102, 'targetState', target);
+        break;
+      }
       default:
         logger.warn({ type: cmd.type }, 'Z-Wave: unsupported command type');
     }
