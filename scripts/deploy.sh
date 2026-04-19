@@ -477,9 +477,10 @@ COUT=$(mktemp)
 $COMPOSE_CMD DEPLOY_UP_ARGS >"$COUT" 2>&1
 COMPOSE_EXIT=$?
 if [ "$COMPOSE_EXIT" -ne 0 ]; then
-  _err=$(tail -10 "$COUT" | tr '\n' ' ')
-  emit "restart" "log" "compose warning (exit $COMPOSE_EXIT): $_err"
-  emit "restart" "log" "Continuing — healthy services should still be running"
+  # Forward every line so the user can see the full compose error (yaml
+  # parse errors, image pull failures, config problems) in the status
+  # window instead of just a single truncated summary.
+  while IFS= read -r line; do emit "restart" "log" "$line"; done < "$COUT"
 fi
 rm -f "$COUT"
 
@@ -491,7 +492,16 @@ for svc in postgres redis go2rtc roborock-bridge backend frontend; do
   emit "restart" "log" "  $svc: $_state"
 done
 
-emit "restart" "completed" "Services restarted"
+# If compose returned non-zero, fail the stage loudly — the previous
+# behaviour was to emit "Services restarted" green while (for example) a
+# yaml parse error had prevented any container from being recreated.
+# That's exactly how the old-image-kept-running bug went undetected
+# through the restart stage and only surfaced at verify.
+if [ "$COMPOSE_EXIT" -ne 0 ]; then
+  emit "restart" "failed" "docker compose up exited $COMPOSE_EXIT — see log lines above"
+else
+  emit "restart" "completed" "Services restarted"
+fi
 
 # --- Health check (24 attempts x 5s = 120s) ---
 emit "health_check" "running" "Validating system health..."
