@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import { CARD_TYPES, type CardDescriptor, type CardType } from '@ha/shared';
+import { CARD_TYPES, type CardDescriptor, type CardType, type DeviceState } from '@ha/shared';
 import { CARD_TYPE_LABELS, createCardOfType } from '@/lib/dashboard-editor/card-factory';
 import { Input } from '@/components/ui/Input';
 import { GhostIconButton } from '@/components/ui/Button';
@@ -21,9 +21,10 @@ interface CardPaletteProps {
   open: boolean;
   onClose: () => void;
   onPick: (card: CardDescriptor) => void;
+  devices?: DeviceState[];
 }
 
-export function CardPalette({ open, onClose, onPick }: CardPaletteProps) {
+export function CardPalette({ open, onClose, onPick, devices }: CardPaletteProps) {
   const [query, setQuery] = useState('');
 
   // Reset the search box each time the palette opens so previous queries
@@ -47,7 +48,7 @@ export function CardPalette({ open, onClose, onPick }: CardPaletteProps) {
 
   const handlePick = (type: CardType) => {
     try {
-      const card = createCardOfType(type);
+      const card = createCardOfType(type, devices);
       onPick(card);
     } catch (err) {
       console.error('Failed to construct card', type, err);

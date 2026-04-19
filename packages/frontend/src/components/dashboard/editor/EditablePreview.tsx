@@ -23,18 +23,12 @@ export interface SelectedCard {
   cardIndex: number;
 }
 
-export interface SelectedSection {
-  sectionIndex: number;
-}
-
 type Drag = { kind: 'card'; sectionIndex: number | null; from: number };
 
 interface EditablePreviewProps {
   doc: DashboardDoc;
   selectedCard: SelectedCard | null;
-  selectedSection: SelectedSection | null;
   onSelectCard: (sel: SelectedCard | null) => void;
-  onSelectSection: (sel: SelectedSection | null) => void;
   onUpdateCard: (sel: SelectedCard, card: CardDescriptor) => void;
   onDeleteCard: (sel: SelectedCard) => void;
   onReorderCard: (sectionIndex: number | null, from: number, to: number) => void;
@@ -47,9 +41,7 @@ interface EditablePreviewProps {
 export function EditablePreview({
   doc,
   selectedCard,
-  selectedSection,
   onSelectCard,
-  onSelectSection,
   onUpdateCard,
   onDeleteCard,
   onReorderCard,
@@ -145,13 +137,6 @@ export function EditablePreview({
               key={section.id ?? si}
               section={section}
               sectionIndex={si}
-              selected={selectedSection?.sectionIndex === si}
-              onSelect={() =>
-                onSelectSection(
-                  selectedSection?.sectionIndex === si ? null : { sectionIndex: si },
-                )
-              }
-              onDeselect={() => onSelectSection(null)}
               onRename={(t) => onRenameSection(si, t)}
               onDelete={() => onDeleteSection(si)}
               onAddCard={() => onAddCard(si)}
@@ -227,9 +212,6 @@ export function EditablePreview({
 function SectionColumn({
   section,
   sectionIndex,
-  selected,
-  onSelect,
-  onDeselect,
   onRename,
   onDelete,
   onAddCard,
@@ -241,9 +223,6 @@ function SectionColumn({
 }: {
   section: DashboardSection;
   sectionIndex: number;
-  selected: boolean;
-  onSelect: () => void;
-  onDeselect: () => void;
   onRename: (title: string) => void;
   onDelete: () => void;
   onAddCard: () => void;
@@ -257,9 +236,6 @@ function SectionColumn({
   return (
     <EditableSection
       section={section}
-      selected={selected}
-      onSelect={onSelect}
-      onDeselect={onDeselect}
       onRename={onRename}
       onDelete={onDelete}
     >
