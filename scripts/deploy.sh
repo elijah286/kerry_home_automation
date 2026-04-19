@@ -464,9 +464,96 @@ else
   exit 1
 fi
 
-# --- Post-deploy verification ---
+# --- Post-deploy verification — actually check that we're running the
+# expected code, not just that the backend answers /api/health. Without
+# this the UI cheerfully reports "Update complete" even when compose
+# wedged on an old image or a pull silently failed.
 emit "verify" "running" "Verifying deployment..."
-emit "verify" "completed" "Deployment verified"
+
+VERIFY_OK=1
+VERIFY_REASON=""
+fail_verify() {
+  # Append a human-readable reason; first failure becomes the done msg.
+  if [ -z "$VERIFY_REASON" ]; then
+    VERIFY_REASON="$1"
+  else
+    VERIFY_REASON="$VERIFY_REASON; $1"
+  fi
+  VERIFY_OK=0
+}
+
+MANIFEST="/app/deploy/release-manifest.json"
+EXPECTED_VERSION=""
+EXPECTED_BACKEND_IMG=""
+EXPECTED_FRONTEND_IMG=""
+if [ -f "$MANIFEST" ]; then
+  EXPECTED_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$MANIFEST" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+  EXPECTED_BACKEND_IMG=$(grep -o '"backend"[[:space:]]*:[[:space:]]*"[^"]*"' "$MANIFEST" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+  EXPECTED_FRONTEND_IMG=$(grep -o '"frontend"[[:space:]]*:[[:space:]]*"[^"]*"' "$MANIFEST" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+  emit "verify" "log" "Manifest expects version=$EXPECTED_VERSION backend=$EXPECTED_BACKEND_IMG frontend=$EXPECTED_FRONTEND_IMG"
+else
+  emit "verify" "log" "No release manifest at $MANIFEST — skipping image checks"
+fi
+
+# 1) Every critical service container must be in 'running' state.
+for svc in postgres redis backend frontend; do
+  _state=$(docker ps -a --filter "label=com.docker.compose.service=$svc" --format "{{.State}}" | head -1)
+  if [ -z "$_state" ]; then
+    emit "verify" "log" "$svc: NOT FOUND (container was never created)"
+    fail_verify "$svc container missing"
+  elif [ "$_state" != "running" ]; then
+    _status=$(docker ps -a --filter "label=com.docker.compose.service=$svc" --format "{{.Status}}" | head -1)
+    emit "verify" "log" "$svc: state=$_state status='$_status'"
+    fail_verify "$svc is $_state (expected running)"
+  else
+    emit "verify" "log" "$svc: running"
+  fi
+done
+
+# 2) Running container images must match the manifest. This catches the
+# failure mode where the .env tag was bumped but compose kept an old
+# container, or the image pull silently produced a stale tag.
+verify_image() {
+  _svc="$1"; _expected="$2"
+  [ -z "$_expected" ] && return 0
+  _cid=$(docker ps --filter "label=com.docker.compose.service=$_svc" --filter "status=running" --format "{{.ID}}" | head -1)
+  if [ -z "$_cid" ]; then
+    return 0  # already reported by the state check above
+  fi
+  _actual=$(docker inspect --format '{{.Config.Image}}' "$_cid" 2>/dev/null)
+  if [ "$_actual" != "$_expected" ]; then
+    emit "verify" "log" "$_svc image mismatch: running=$_actual expected=$_expected"
+    fail_verify "$_svc is on $_actual, expected $_expected (image pull may have failed or container was not recreated)"
+  else
+    emit "verify" "log" "$_svc image matches: $_actual"
+  fi
+}
+verify_image backend  "$EXPECTED_BACKEND_IMG"
+verify_image frontend "$EXPECTED_FRONTEND_IMG"
+
+# 3) Backend must report the expected version via its app-version endpoint.
+# This is the ultimate source of truth: what's literally running in the
+# process. If this mismatches the manifest, we know the container is
+# executing older code regardless of what `docker inspect` says.
+if [ -n "$EXPECTED_VERSION" ]; then
+  _vjson=$(wget -q -O- --timeout=5 http://localhost:3000/api/system/app-version 2>/dev/null)
+  _running=$(printf '%s' "$_vjson" | grep -o '"versionLabel"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+  if [ -z "$_running" ]; then
+    emit "verify" "log" "Could not read running backend version from /api/system/app-version"
+    fail_verify "backend did not report a version"
+  elif [ "$_running" != "$EXPECTED_VERSION" ]; then
+    emit "verify" "log" "Backend reports running=$_running but expected=$EXPECTED_VERSION"
+    fail_verify "backend is running $_running, expected $EXPECTED_VERSION"
+  else
+    emit "verify" "log" "Backend version matches manifest: $_running"
+  fi
+fi
+
+if [ "$VERIFY_OK" -eq 1 ]; then
+  emit "verify" "completed" "Deployment verified"
+else
+  emit "verify" "failed" "$VERIFY_REASON"
+fi
 
 # --- Restore standby page (if mounted and backup exists) ---
 if [ -f "/standby/standby.html.bak" ]; then
@@ -481,13 +568,21 @@ ls -1t /app/backups/pre-deploy-*.dump 2>/dev/null | tail -n +2 | xargs rm -f 2>/
 
 # Aggressive docker prune — remove all unused images (including dangling
 # layers from previous versions), build cache, and stopped containers.
-# Only touches images not referenced by a running container.
-docker image prune -a -f >/dev/null 2>&1 || true
-docker builder prune -a -f >/dev/null 2>&1 || true
-docker volume prune -f >/dev/null 2>&1 || true
+# Only touches images not referenced by a running container. Skip on verify
+# failure — we may still need the old-but-correct image available locally
+# for the user to manually roll back while they debug.
+if [ "$VERIFY_OK" -eq 1 ]; then
+  docker image prune -a -f >/dev/null 2>&1 || true
+  docker builder prune -a -f >/dev/null 2>&1 || true
+  docker volume prune -f >/dev/null 2>&1 || true
+fi
 
 # --- Done ---
-emit "done" "completed" "DEPLOY_DONE_MSG_PLACEHOLDER"
+if [ "$VERIFY_OK" -eq 1 ]; then
+  emit "done" "completed" "DEPLOY_DONE_MSG_PLACEHOLDER"
+else
+  emit "done" "failed" "Update finished but verification failed: $VERIFY_REASON"
+fi
 SIDECAR_SCRIPT_EOF
 
 # Patch placeholders with actual runtime values

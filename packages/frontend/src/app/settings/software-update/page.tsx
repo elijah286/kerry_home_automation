@@ -168,9 +168,11 @@ function DeployRefBlock({
 function DeployProgress({
   events,
   isConnected,
+  onOpenStatusWindow,
 }: {
   events: ProgressEvent[];
   isConnected: boolean;
+  onOpenStatusWindow: () => void;
 }) {
   // Determine the status of each stage (skip 'log' lines — those go to the system terminal)
   const stageStatuses = new Map<string, 'pending' | 'running' | 'completed' | 'failed'>();
@@ -258,14 +260,23 @@ function DeployProgress({
 
       {isFailed && (
         <div
-          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
+          className="flex items-start gap-2 rounded-lg px-3 py-2 text-sm"
           style={{
             background: 'color-mix(in srgb, var(--color-danger) 12%, transparent)',
             color: 'var(--color-danger)',
           }}
         >
-          <XCircle className="h-4 w-4 shrink-0" />
-          {lastEvent?.msg ?? 'Deployment failed'}
+          <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0 space-y-1.5">
+            <div>{lastEvent?.msg ?? 'Deployment failed'}</div>
+            <button
+              type="button"
+              onClick={onOpenStatusWindow}
+              className="text-xs underline underline-offset-2 opacity-80 hover:opacity-100"
+            >
+              View details in status window →
+            </button>
+          </div>
         </div>
       )}
 
@@ -367,6 +378,11 @@ export default function SoftwareUpdatePage() {
           // success banner land before the page swaps.
           if (ev.status === 'completed') {
             setTimeout(() => { window.location.reload(); }, 1500);
+          } else if (ev.status === 'failed') {
+            // On failure, pop the status window so the user sees why immediately
+            // without having to hunt for it. Logs are already filtered to
+            // software-update source via setCurrentSourceId on mount.
+            openWithSourceFilter('software-update');
           }
         }
 
@@ -583,7 +599,11 @@ export default function SoftwareUpdatePage() {
                   : 'Deployment complete'}
             </h2>
           </div>
-          <DeployProgress events={deployEvents} isConnected={sseConnected} />
+          <DeployProgress
+            events={deployEvents}
+            isConnected={sseConnected}
+            onOpenStatusWindow={() => openWithSourceFilter('software-update')}
+          />
 
           {/* Post-deploy actions */}
           {deployTerminal && (
