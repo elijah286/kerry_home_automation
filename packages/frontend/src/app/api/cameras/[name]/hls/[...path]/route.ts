@@ -19,6 +19,7 @@ export async function GET(
         cookie: req.headers.get('cookie') ?? '',
         authorization: req.headers.get('authorization') ?? '',
       },
+      cache: 'no-store',
       signal: AbortSignal.timeout(30_000),
     });
 
@@ -28,6 +29,10 @@ export async function GET(
     const ct = res.headers.get('content-type');
     if (ct) headers.set('content-type', ct);
     headers.set('cache-control', 'no-cache');
+    // Tell nginx (and any other reverse proxy) not to buffer this response.
+    // Without this, nginx proxy_buffering=on (the default) accumulates the full
+    // TS segment before forwarding, which breaks HLS streaming through the proxy.
+    headers.set('x-accel-buffering', 'no');
     const cl = res.headers.get('content-length');
     if (cl) headers.set('content-length', cl);
 
