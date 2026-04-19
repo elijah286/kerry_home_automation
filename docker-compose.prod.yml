@@ -127,6 +127,12 @@ services:
       REDIS_URL: redis://redis:6379
       HOST: 0.0.0.0
       PORT: 3000
+      # Tunnel forwards non-/api/* (frontend) requests to Next.js. Inside the
+      # backend container, 127.0.0.1 is itself — the frontend lives in a sibling
+      # container reachable via the Docker network service name. Without this,
+      # every remote page load through Railway 502s with ECONNREFUSED.
+      FRONTEND_HOST: frontend
+      FRONTEND_PORT: 3001
       ROBOROCK_BRIDGE_URL: http://roborock-bridge:8765
       ROBOROCK_BRIDGE_SECRET: ${ROBOROCK_BRIDGE_SECRET:-change-me-roborock-bridge}
       ZWAVE_JS_URL: ws://zwave-js-ui:3000
