@@ -358,6 +358,10 @@ class TunnelClient {
         responseHeaders[key] = value;
       });
 
+      logger.info(
+        { path: msg.path, status: res.status, contentType: responseHeaders['content-type'] },
+        'tunnel stream start',
+      );
       this.send({
         type: 'http_stream_start',
         id: msg.id,
@@ -371,6 +375,8 @@ class TunnelClient {
       }
 
       const reader = res.body.getReader();
+      let totalBytes = 0;
+      let chunkCount = 0;
 
       try {
         for (;;) {
@@ -388,6 +394,18 @@ class TunnelClient {
           if (done) break;
           if (!value || value.byteLength === 0) continue;
 
+          totalBytes += value.byteLength;
+          chunkCount++;
+          if (chunkCount <= 3 && value.byteLength <= 2048) {
+            // Dump the first few small chunks as text for diagnosing HLS
+            // manifests coming through garbled. Safe to log — playlists are
+            // not secret, and segments are too large to hit this branch.
+            try {
+              const preview = Buffer.from(value).toString('utf8').replace(/\n/g, '\\n').slice(0, 400);
+              logger.info({ path: msg.path, chunk: chunkCount, bytes: value.byteLength, preview }, 'tunnel stream chunk');
+            } catch { /* noop */ }
+          }
+
           this.send({
             type: 'http_stream_chunk',
             id: msg.id,
@@ -395,6 +413,7 @@ class TunnelClient {
           });
         }
 
+        logger.info({ path: msg.path, totalBytes, chunks: chunkCount }, 'tunnel stream end');
         this.send({ type: 'http_stream_end', id: msg.id });
       } finally {
         try { reader.releaseLock(); } catch { /* noop */ }
