@@ -63,9 +63,37 @@ export async function registerProxyRoutes(app: FastifyInstance): Promise<void> {
         // after normal http_stream_end the pending entry is gone and cancel
         // becomes a no-op, so firing this on every close is safe.
         req.raw.on('close', () => { tunnelManager.cancelStream(id); });
+
+        const streamState = response.stream as unknown as {
+          readableEnded?: boolean;
+          readableLength?: number;
+          destroyed?: boolean;
+        };
+        logger.info(
+          {
+            id,
+            path,
+            status: response.status,
+            contentType: response.headers['content-type'],
+            streamEnded: streamState.readableEnded,
+            bufferedBytes: streamState.readableLength,
+            destroyed: streamState.destroyed,
+          },
+          'proxy streaming reply.send',
+        );
+
+        let bytesWritten = 0;
+        response.stream.on('data', (chunk: Buffer) => { bytesWritten += chunk.length; });
+        response.stream.on('end', () => {
+          logger.info({ id, path, bytesWritten }, 'proxy streaming source ended');
+        });
         response.stream.on('error', (err) => {
           logger.warn({ err, path }, 'Streaming tunnel response errored');
         });
+        req.raw.on('finish', () => {
+          logger.info({ id, path, bytesWritten }, 'proxy streaming reply finished');
+        });
+
         return reply.send(response.stream);
       }
 
