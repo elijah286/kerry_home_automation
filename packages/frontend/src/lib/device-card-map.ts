@@ -89,11 +89,12 @@ const DEVICE_CARD_MAP: Partial<Record<MapKey, CardFactory>> = {
   }),
 
   // -- Vehicles (composite) ------------------------------------------------
-  vehicle: (d) => ({
-    type: 'vehicle',
-    entity: d.id,
-    sections: ['battery', 'location', 'climate', 'doors', 'charging'],
-  }),
+  // Tesla vehicles (identified by compositor data from vehicle_config) get the
+  // rich Tesla card with live compositor image and GPS map support.
+  // All other vehicles fall back to the generic tile.
+  vehicle: (d) => (d as import('@ha/shared').VehicleState).compositorModel
+    ? { type: 'tesla', entity: d.id }
+    : { type: 'vehicle', entity: d.id, sections: ['battery', 'location', 'climate', 'doors', 'charging'] },
 
   // -- Cameras & doorbells -------------------------------------------------
   camera: (d) => ({ type: 'camera', entity: d.id, mode: 'auto', fit: 'cover', showStatus: true }),
@@ -318,6 +319,9 @@ export function getCompatibleCards(device: DeviceState): string[] {
     vehicle: 'vehicle',
   };
 
+  // Tesla vehicles get the rich tesla card in addition to the generic vehicle tile
+  const isTesla = device.type === 'vehicle' && (device as import('@ha/shared').VehicleState).compositorModel;
+
   // Numeric sensors — add data-viz options
   const numericSensor =
     kind === 'sensor' &&
@@ -348,9 +352,10 @@ export function getCompatibleCards(device: DeviceState): string[] {
     result.add('camera');
   }
 
-  // Vehicles can also be shown on a map
+  // Vehicles can also be shown on a map; Tesla vehicles also get the rich tesla card
   if (device.type === 'vehicle') {
     result.add('map');
+    if (isTesla) result.add('tesla');
   }
 
   return Array.from(result);
