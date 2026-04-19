@@ -16,6 +16,7 @@ import {
   LutronIcon, YamahaIcon, PaprikaIcon, PentairIcon, TeslaIcon,
   UnifiIcon, SonyIcon, WeatherIcon, XboxIcon, MerossIcon,
   RoborockIcon, RachioIcon, CalendarIcon, RainsoftIcon, SenseIcon,
+  ZwaveIcon,
 } from '@/components/icons/IntegrationIcons';
 import type { DeviceState, IntegrationHealth, IntegrationInfo, IntegrationEntry } from '@ha/shared';
 
@@ -37,6 +38,7 @@ const INTEGRATION_ICONS: Record<string, React.ElementType> = {
   calendar: CalendarIcon,
   rainsoft: RainsoftIcon,
   sense: SenseIcon,
+  zwave: ZwaveIcon,
 };
 
 function integrationStatus(

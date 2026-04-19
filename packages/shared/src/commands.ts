@@ -111,6 +111,12 @@ export type GarageDoorCommand = {
   action: 'open' | 'close';
 };
 
+export type LockCommand = {
+  type: 'lock';
+  deviceId: string;
+  action: 'lock' | 'unlock';
+};
+
 export type SprinklerCommand = {
   type: 'sprinkler';
   deviceId: string;
@@ -321,6 +327,7 @@ export type DeviceCommand =
   | PoolPumpCommand
   | PoolCircuitCommand
   | GarageDoorCommand
+  | LockCommand
   | SprinklerCommand
   | VacuumCommand
   | ThermostatCommand

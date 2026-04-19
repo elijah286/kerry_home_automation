@@ -193,6 +193,20 @@ export function RainsoftIcon(props: IconProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Z-Wave — concentric wave arcs over a base
+// ---------------------------------------------------------------------------
+export function ZwaveIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="18" r="1.5" fill="currentColor" stroke="none" />
+      <path d="M8.5 14.5a5 5 0 0 1 7 0" />
+      <path d="M5.5 11.5a9 9 0 0 1 13 0" />
+      <path d="M3 8.5a13 13 0 0 1 18 0" opacity=".6" />
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Sense — energy pulse
 // ---------------------------------------------------------------------------
 export function SenseIcon(props: IconProps) {

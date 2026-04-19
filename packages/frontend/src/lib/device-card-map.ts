@@ -89,11 +89,12 @@ const DEVICE_CARD_MAP: Partial<Record<MapKey, CardFactory>> = {
   }),
 
   // -- Vehicles (composite) ------------------------------------------------
-  vehicle: (d) => ({
-    type: 'vehicle',
-    entity: d.id,
-    sections: ['battery', 'location', 'climate', 'doors', 'charging'],
-  }),
+  // Tesla vehicles (identified by compositor data from vehicle_config) get the
+  // rich Tesla card with live compositor image and GPS map support.
+  // All other vehicles fall back to the generic tile.
+  vehicle: (d) => (d as import('@ha/shared').VehicleState).compositorModel
+    ? { type: 'tesla', entity: d.id }
+    : { type: 'vehicle', entity: d.id, sections: ['battery', 'location', 'climate', 'doors', 'charging'] },
 
   // -- Cameras & doorbells -------------------------------------------------
   camera: (d) => ({ type: 'camera', entity: d.id, mode: 'auto', fit: 'cover', showStatus: true }),
@@ -144,6 +145,12 @@ const DEVICE_CARD_MAP: Partial<Record<MapKey, CardFactory>> = {
   // Parse through the schema so every defaulted field is populated without
   // listing 15+ toggle flags inline here.
   weather: (d) => weatherCardSchema.parse({ type: 'weather', entity: d.id }),
+
+  // -- Locks ---------------------------------------------------------------
+  // No bespoke lock-tile yet; switch-tile renders a clear on/off pill that
+  // maps cleanly to locked/unlocked, with the device-detail page providing
+  // the full LockControl when tapped.
+  lock: (d) => ({ type: 'switch-tile', entity: d.id }),
 
   // -- Garage doors / generic door & window sensors ------------------------
   garage_door: (d) => ({ type: 'cover-tile', entity: d.id, showPositionControl: false, visual: 'garage', showPercentage: false }),
@@ -231,6 +238,7 @@ const DEVICE_KIND: Record<DeviceType, DeviceKind> = {
   cover: 'control',
   fan: 'control',
   garage_door: 'control',
+  lock: 'control',
   sprinkler: 'control',
   vacuum: 'control',
   screensaver: 'control',
@@ -293,6 +301,7 @@ export function getCompatibleCards(device: DeviceState): string[] {
     cover: 'cover-tile',
     fan: 'fan-tile',
     garage_door: 'cover-tile',
+    lock: 'switch-tile',
     sprinkler: 'switch-tile',
     screensaver: 'switch-tile',
     pool_body: 'switch-tile',
@@ -309,6 +318,9 @@ export function getCompatibleCards(device: DeviceState): string[] {
     thermostat: 'thermostat',
     vehicle: 'vehicle',
   };
+
+  // Tesla vehicles get the rich tesla card in addition to the generic vehicle tile
+  const isTesla = device.type === 'vehicle' && (device as import('@ha/shared').VehicleState).compositorModel;
 
   // Numeric sensors — add data-viz options
   const numericSensor =
@@ -340,9 +352,10 @@ export function getCompatibleCards(device: DeviceState): string[] {
     result.add('camera');
   }
 
-  // Vehicles can also be shown on a map
+  // Vehicles can also be shown on a map; Tesla vehicles also get the rich tesla card
   if (device.type === 'vehicle') {
     result.add('map');
+    if (isTesla) result.add('tesla');
   }
 
   return Array.from(result);

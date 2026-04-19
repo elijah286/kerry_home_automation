@@ -409,9 +409,17 @@ export interface GarageDoorState extends DeviceBase {
   closing: boolean;
 }
 
+// -- Lock (Z-Wave door lock) -------------------------------------------------
+
+export interface LockState extends DeviceBase {
+  type: 'lock';
+  locked: boolean;
+  jammed: boolean;
+}
+
 // -- Sensor (generic) --------------------------------------------------------
 
-export type SensorKind = 'motion' | 'temperature' | 'humidity' | 'contact' | 'battery' | 'consumable' | 'generic';
+export type SensorKind = 'motion' | 'temperature' | 'humidity' | 'contact' | 'battery' | 'consumable' | 'leak' | 'smoke' | 'tamper' | 'power' | 'energy' | 'generic';
 
 export interface SensorState extends DeviceBase {
   type: 'sensor';
@@ -850,6 +858,7 @@ export type DeviceState =
   | RecipeLibraryState
   | WeatherState
   | GarageDoorState
+  | LockState
   | SensorState
   | SprinklerState
   | VacuumState

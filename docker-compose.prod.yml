@@ -65,6 +65,28 @@ services:
     # This service is non-critical: the backend starts regardless of its health
     # (depends_on: service_started) and handles bridge failures gracefully.
 
+  zwave-js-ui:
+    # Z-Wave JS UI runs the Z-Wave network and exposes a WebSocket server
+    # (port 3000 internally) that the backend `zwave` integration connects to.
+    # The web UI on 8091 is for pairing devices, viewing logs, and OTA updates.
+    #
+    # Override ZWAVE_DEVICE on the host (.env) to match the dongle's serial path.
+    # AEotec Z-Stick Gen5/7 typically enumerates at /dev/ttyACM0; for stability
+    # use /dev/serial/by-id/usb-0658_0200-* via `ls /dev/serial/by-id/`.
+    image: zwavejs/zwave-js-ui:latest
+    restart: unless-stopped
+    tty: true
+    stop_signal: SIGINT
+    ports:
+      - "8091:8091"
+    devices:
+      - "${ZWAVE_DEVICE:-/dev/ttyACM0}:/dev/zwave"
+    environment:
+      SESSION_SECRET: ${ZWAVE_SESSION_SECRET:-change-me-zwave-session}
+      TZ: ${TZ:-America/New_York}
+    volumes:
+      - zwave_data:/usr/src/app/store
+
   redis:
     image: redis:7-alpine
     ports:
@@ -107,6 +129,7 @@ services:
       PORT: 3000
       ROBOROCK_BRIDGE_URL: http://roborock-bridge:8765
       ROBOROCK_BRIDGE_SECRET: ${ROBOROCK_BRIDGE_SECRET:-change-me-roborock-bridge}
+      ZWAVE_JS_URL: ws://zwave-js-ui:3000
       FRONTEND_HOST: frontend
       HA_APP_ROOT: ${HA_APP_ROOT:-/opt/home-automation}
       HA_UPDATE_SCRIPT: ${HA_UPDATE_SCRIPT:-/opt/home-automation/scripts/update.sh}
@@ -152,3 +175,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  zwave_data:
