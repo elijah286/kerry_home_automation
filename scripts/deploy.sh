@@ -381,10 +381,15 @@ fi
 SIDECAR_NAME="ha-deploy-agent"
 SIDECAR_SCRIPT="$APP/.deploy-agent.sh"
 
-# Build vs pull decision
-SIDECAR_UP_ARGS="up -d"
+# Build vs pull decision. --force-recreate guarantees compose makes new
+# containers bound to the .env image tag we just pinned; without it
+# compose can "optimize" and keep an existing container on the old image
+# when digests don't appear to have changed, leaving us silently running
+# the old code (this is how the backend stuck on v4.20.17 through three
+# "successful" updates to v4.22.0).
+SIDECAR_UP_ARGS="up -d --force-recreate"
 if [ "$IMAGES_PULLED" = false ]; then
-  SIDECAR_UP_ARGS="up -d --build"
+  SIDECAR_UP_ARGS="up -d --force-recreate --build"
 fi
 
 emit "restart" "running" "Launching deploy agent for safe restart..."
