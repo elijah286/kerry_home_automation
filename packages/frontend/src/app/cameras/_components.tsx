@@ -90,18 +90,41 @@ export function initialTier(mode: PlayerMode): Tier {
   return mode === 'auto' ? AUTO_TIER_ORDER[0] : (mode as Tier);
 }
 
-// Keeps the last successfully-loaded snapshot URL so a transient fetch error
-// never blanks the display. Uses an off-DOM Image to pretest each new URL;
-// only swaps the visible src once the frame actually arrives.
-export function useStableSnapshotSrc(liveSrc: string): string {
-  const [stable, setStable] = useState('');
+/**
+ * Module-level cache of the last successfully-loaded snapshot URL per camera.
+ * Persists across component unmount/mount so navigating from a grid tile
+ * (which has been polling snapshots for that camera) into the fullscreen
+ * page mounts with a valid `<img src>` on the very first render — no
+ * black-screen delay while we wait for the first tunnel round-trip.
+ *
+ * Key = camera name. Value = the full URL of the last frame that loaded.
+ */
+const lastGoodSnapshotUrl = new Map<string, string>();
+
+/**
+ * Keeps the last successfully-loaded snapshot URL so a transient fetch error
+ * never blanks the display. Uses an off-DOM Image to pretest each new URL;
+ * only swaps the visible src once the frame actually arrives.
+ *
+ * `cameraName` shares a cache across the grid tile and fullscreen player so
+ * clicking into a camera shows the most recent good frame instantly while
+ * the first live snapshot is still in flight.
+ */
+export function useStableSnapshotSrc(liveSrc: string, cameraName?: string): string {
+  const [stable, setStable] = useState<string>(() =>
+    cameraName ? (lastGoodSnapshotUrl.get(cameraName) ?? '') : '',
+  );
   useEffect(() => {
     let cancelled = false;
     const img = new window.Image();
-    img.onload = () => { if (!cancelled) setStable(img.src); };
+    img.onload = () => {
+      if (cancelled) return;
+      setStable(img.src);
+      if (cameraName) lastGoodSnapshotUrl.set(cameraName, img.src);
+    };
     img.src = liveSrc;
     return () => { cancelled = true; };
-  }, [liveSrc]);
+  }, [liveSrc, cameraName]);
   return stable;
 }
 
@@ -398,7 +421,7 @@ export function CameraPlayer({
   // HLS warms up, vs the cached ~1fps tiles get.
   const freshParam = highFrequencySnapshots ? '&fresh=500' : '';
   const snapshotSrc = `${getApiBase()}/api/cameras/${encodeURIComponent(name)}/snapshot?r=${snapshotRev}${freshParam}${authQueryParam(true)}`;
-  const stableSnapshotSrc = useStableSnapshotSrc(snapshotSrc);
+  const stableSnapshotSrc = useStableSnapshotSrc(snapshotSrc, name);
   const showUnderlay = pollSnapshots && activeTier !== 'snapshot';
   const fitClass = fit === 'cover' ? 'object-cover' : 'object-contain';
 

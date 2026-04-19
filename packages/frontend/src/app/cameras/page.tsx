@@ -114,7 +114,7 @@ const CameraTile = memo(function CameraTile({
   }, [pageActive]);
 
   const snapshotSrc = `${getApiBase()}/api/cameras/${encodeURIComponent(cam.name)}/snapshot?r=${snapshotRev}${authQueryParam(true)}`;
-  const stableSnapshotSrc = useStableSnapshotSrc(snapshotSrc);
+  const stableSnapshotSrc = useStableSnapshotSrc(snapshotSrc, cam.name);
 
   return (
     <div

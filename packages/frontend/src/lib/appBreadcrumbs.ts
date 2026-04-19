@@ -91,6 +91,15 @@ export function getBreadcrumbItems(pathname: string): BreadcrumbItem[] {
       continue;
     }
 
+    // Camera detail pages (/cameras/<name>) always supply a page-override
+    // crumb with the real camera label via BreadcrumbOverrideProvider. Skip
+    // the route-derived segment so the two don't duplicate (otherwise the
+    // trail renders "Cameras > Backyard > Backyard" — one from the route
+    // segment title-cased, one from the page override).
+    if (isLast && parentPath === '/cameras') {
+      continue;
+    }
+
     items.push({
       href: acc,
       label,
