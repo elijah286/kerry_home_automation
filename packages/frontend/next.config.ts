@@ -16,7 +16,22 @@ const nextConfig: NextConfig = {
     : {
         output: 'standalone' as const,
         async rewrites() {
-          return [{ source: '/api/:path*', destination: `${internalApiOrigin}/api/:path*` }];
+          return {
+            // HLS segments are handled by the streaming Route Handler at
+            // app/api/cameras/[name]/hls/[...path]/route.ts. Listing them as
+            // beforeFiles rewrites (no-op) ensures the catch-all afterFiles rule
+            // below never intercepts them before the Route Handler can run.
+            beforeFiles: [
+              {
+                source: '/api/cameras/:name/hls/:path*',
+                destination: '/api/cameras/:name/hls/:path*',
+              },
+            ],
+            afterFiles: [
+              { source: '/api/:path*', destination: `${internalApiOrigin}/api/:path*` },
+            ],
+            fallback: [],
+          };
         },
         async headers() {
           // iOS Safari aggressively caches top-level HTML and can keep serving
